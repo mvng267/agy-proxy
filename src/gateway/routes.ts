@@ -232,6 +232,18 @@ function poolSnapshot(): PoolSnapshot {
 export async function registerGatewayRoutes(app: FastifyInstance): Promise<void> {
   syncFromStore(true);
 
+  /** Dựng thứ tự thử cho combo/auto (dùng chung cho cả /proxy/v1 lẫn /v1/messages). */
+  function resolveComboPlan(parsed: ParsedModel): { name: string; plan: ComboTarget[] } | { error: string; status: number } {
+    const snap = poolSnapshot();
+    if (parsed.kind === 'auto') {
+      return { name: parsed.prefixed, plan: planAuto(parsed.combo || 'default', snap) };
+    }
+    const c = listCombos().find((x) => x.id === parsed.combo);
+    if (!c) return { error: `Combo "${parsed.combo}" không tồn tại`, status: 404 };
+    if (!c.enabled) return { error: `Combo "${c.id}" đang tắt`, status: 503 };
+    return { name: `combo/${c.id}`, plan: planCombo(c, snap) };
+  }
+
   /** Chạy combo/auto: thử từng bước, trượt sang bước kế khi shouldFallback. */
   async function runComboRequest(
     parsed: ParsedModel,
@@ -841,17 +853,43 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       const echoModel = b.model || parsed.prefixed;
       const msgId = 'msg_' + randomUUID().replace(/-/g, '');
 
+      /** Gọi 1 model; nếu là combo/auto thì thử lần lượt theo kế hoạch (fallback). */
       const call = async (target: ParsedModel, streamWriter?: (t: string) => void) => {
-        if (target.kind !== 'provider') {
-          // combo/auto: chạy qua engine combo, chỉ hỗ trợ non-stream cho gọn ở v1
-          throw Object.assign(new Error('Anthropic endpoint chưa hỗ trợ combo — dùng agy/… hoặc kr/…'), { status: 400 });
+        const one = (p: ParsedModel, label?: string) =>
+          runProviderCall({
+            provider: p.provider!, bare: p.model!, labelModel: p.prefixed,
+            messages, stream: !!streamWriter, reply, endpoint: label ?? '/v1/messages',
+            sseWriter: streamWriter,
+            generationConfig,
+          } as any);
+
+        if (target.kind === 'provider') return one(target);
+
+        // combo / auto — dùng chung engine với /proxy/v1
+        const res = resolveComboPlan(target);
+        if ('error' in res) throw Object.assign(new Error(res.error), { status: res.status });
+        if (!res.plan.length) throw Object.assign(new Error(`${res.name}: không có model khả dụng`), { status: 503 });
+        let lastErr: any;
+        for (let step = 0; step < Math.min(res.plan.length, 3); step++) {
+          const t0 = Date.now();
+          let p: ParsedModel;
+          try {
+            p = parseModelId(res.plan[step]!.model);
+          } catch (e) { lastErr = e; continue; }
+          if (p.kind !== 'provider') continue;
+          try {
+            const out = await one(p, res.name);
+            recordComboRun({ combo: res.name, step, model: p.prefixed, ok: true, ms: Date.now() - t0 });
+            return out;
+          } catch (e: any) {
+            lastErr = e;
+            recordComboRun({ combo: res.name, step, model: p.prefixed, ok: false, status: e?.status, ms: Date.now() - t0, reason: String(e?.message ?? e) });
+            emitGw({ kind: 'err', account: '-', model: res.name, status: e?.status, msg: `${res.name} bước ${step + 1} (${p.prefixed}) lỗi → ${shouldFallback(e) ? 'trượt tiếp' : 'dừng'}` });
+            if (streamWriter && reply.raw.headersSent) throw e; // đã gửi byte → không cứu được
+            if (!shouldFallback(e)) throw e;
+          }
         }
-        return runProviderCall({
-          provider: target.provider!, bare: target.model!, labelModel: target.prefixed,
-          messages, stream: !!streamWriter, reply, endpoint: '/v1/messages',
-          sseWriter: streamWriter,
-          generationConfig,
-        } as any);
+        throw lastErr ?? new NoAccountError(`${res.name}: mọi bước đều lỗi`);
       };
 
       try {

@@ -223,6 +223,7 @@ export interface ToolStatus {
   hasBackup: boolean;
   model?: string;
   notes?: string;
+  unsupported?: string;
 }
 
 export function toolStatus(id: ToolId, home = homedir()): ToolStatus {
@@ -236,8 +237,14 @@ export function toolStatus(id: ToolId, home = homedir()): ToolStatus {
     if (def.format === 'json') {
       try {
         const j = JSON.parse(cur);
-        configured = !!j?.env?.ANTHROPIC_BASE_URL;
-        model = j?.env?.ANTHROPIC_MODEL;
+        if (id === 'opencode') {
+          // opencode: nhận diện bằng khối provider riêng của ta
+          configured = !!j?.provider?.agyproxy;
+          model = typeof j?.model === 'string' ? j.model.replace(/^agyproxy\//, '') : undefined;
+        } else {
+          configured = !!j?.env?.ANTHROPIC_BASE_URL;
+          model = j?.env?.ANTHROPIC_MODEL;
+        }
       } catch {
         configured = false;
       }
@@ -252,5 +259,5 @@ export function toolStatus(id: ToolId, home = homedir()): ToolStatus {
   } catch {
     /* thư mục chưa có */
   }
-  return { id, label: def.label, api: def.api, path, installed: def.detect(home).installed, exists, configured, hasBackup, model, notes: def.notes };
+  return { id, label: def.label, api: def.api, path, installed: def.detect(home).installed, exists, configured, hasBackup, model, notes: def.notes, unsupported: def.unsupported };
 }

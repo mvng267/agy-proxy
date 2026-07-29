@@ -896,23 +896,58 @@ async function loadTools() {
   $('tc-tools').textContent = (r.tools || []).filter((t) => t.configured).length + '/' + (r.tools || []).length;
   $('tools-warn').innerHTML = r.warning
     ? `<div class="panel" style="border-color:var(--red)"><b style="color:var(--red)">⚠ ${esc(r.warning)}</b></div>` : '';
+  // nhóm model cho dropdown: theo provider + combo + auto
+  const grp = (label, ids) => (ids.length ? `<optgroup label="${esc(label)}">${ids.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}</optgroup>` : '');
+  const optionsHtml =
+    grp('Antigravity', models.filter((m) => m.startsWith('agy/'))) +
+    grp('Kiro', models.filter((m) => m.startsWith('kr/'))) +
+    grp('Combo (có dự phòng)', (combos.combos || []).map((c) => 'combo/' + c.id)) +
+    grp('Auto (tự chọn theo điểm)', combos.autoVariants || []);
+
   $('tools-grid').innerHTML = (r.tools || []).map((t) => `
-    <div class="panel">
+    <div class="panel${t.configured ? ' agy-connect' : ''}">
       <div class="row" style="justify-content:space-between;align-items:center">
         <h3 style="margin:0">${esc(t.label)}</h3>
-        ${t.configured ? '<span class="badge ok"><span class="bd"></span>Đã cấu hình</span>' : `<span class="chip">${t.installed ? 'Chưa cấu hình' : 'Chưa cài'}</span>`}
+        <label class="switch" title="${t.configured ? 'Đang dùng gateway này — tắt để trả về như cũ' : 'Bật rồi bấm Lưu để dùng gateway này'}">
+          <input type="checkbox" class="tool-sw" data-tool="${esc(t.id)}" ${t.configured ? 'checked' : ''} /><span class="track"></span>
+          <span class="faint">${t.configured ? 'Đang bật' : 'Tắt'}</span>
+        </label>
       </div>
       <p class="set-desc mono" style="font-size:11.5px">${esc(t.path)}</p>
-      <p class="set-desc">Chuẩn: <b>${t.api === 'anthropic' ? 'Anthropic /v1/messages' : 'OpenAI /proxy/v1'}</b>${t.model ? ` · đang dùng <b>${esc(t.model)}</b>` : ''}</p>
-      <label class="fl">Model</label>
-      <select data-model-for="${esc(t.id)}">${allIds.map((m) => `<option ${m === (t.model || r.defaultModel) ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
+      <p class="set-desc">Chuẩn <b>${t.api === 'anthropic' ? 'Anthropic' : 'OpenAI'}</b>
+        · ${t.installed ? '<span style="color:var(--green)">đã cài trên máy</span>' : '<span class="faint">chưa thấy cài</span>'}
+        ${t.model ? ` · đang dùng <b>${esc(t.model)}</b>` : ''}</p>
+      ${t.unsupported ? `<p class="set-desc" style="color:var(--amber)">⚠ ${esc(t.unsupported)}</p>` : ''}
+      <label class="fl">Model (chọn combo nếu muốn tự dự phòng khi hết hạn mức)</label>
+      <select data-model-for="${esc(t.id)}">${optionsHtml}</select>
       ${t.notes ? `<p class="set-desc" style="margin-top:8px">${esc(t.notes)}</p>` : ''}
       <div class="row end" style="margin-top:12px">
         <button class="sm" data-preview="${esc(t.id)}">Xem trước</button>
-        <button class="sm primary" data-apply="${esc(t.id)}">${t.configured ? 'Cấu hình lại' : 'Cấu hình'}</button>
-        ${t.configured || t.hasBackup ? `<button class="sm danger" data-undo="${esc(t.id)}">Gỡ</button>` : ''}
+        <button class="sm primary" data-apply="${esc(t.id)}">Lưu</button>
+        ${t.configured || t.hasBackup ? `<button class="sm danger" data-undo="${esc(t.id)}">Huỷ (về như cũ)</button>` : ''}
       </div>
     </div>`).join('');
+
+  // chọn đúng model đang dùng (hoặc mặc định)
+  for (const t of r.tools || []) {
+    const sel = document.querySelector(`[data-model-for="${t.id}"]`);
+    if (!sel) continue;
+    const want = t.model || r.defaultModel;
+    if ([...sel.options].some((o) => o.value === want)) sel.value = want;
+  }
+  // công tắc: bật = ghi luôn, tắt = trả về như cũ
+  document.querySelectorAll('.tool-sw').forEach((sw) => sw.addEventListener('change', async () => {
+    const id = sw.dataset.tool;
+    if (sw.checked) {
+      const model = document.querySelector(`[data-model-for="${id}"]`)?.value;
+      const r2 = await api(`/api/tools/${id}/apply`, { method: 'POST', body: { model } });
+      toast(r2.ok ? `Đã bật ${id} · ${r2.model}` : 'Lỗi: ' + r2.error);
+    } else {
+      const r2 = await api(`/api/tools/${id}/undo`, { method: 'POST', body: {} });
+      toast(r2.detail || (r2.ok ? 'Đã tắt, trả về như cũ' : 'Không tắt được'));
+    }
+    loadTools();
+  }));
 
   const modelOf = (id) => document.querySelector(`[data-model-for="${id}"]`)?.value;
   document.querySelectorAll('[data-preview]').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
@@ -926,13 +961,13 @@ async function loadTools() {
   })));
   document.querySelectorAll('[data-apply]').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
     const r2 = await api(`/api/tools/${b.dataset.apply}/apply`, { method: 'POST', body: { model: modelOf(b.dataset.apply) } });
-    toast(r2.ok ? `Đã cấu hình · model ${r2.model}${r2.backup ? ' (đã backup)' : ''}` : 'Lỗi: ' + r2.error);
+    toast(r2.ok ? `Đã bật · model ${r2.model}${r2.backup ? ' (đã backup bản cũ)' : ''}` : 'Lỗi: ' + r2.error);
     loadTools();
   })));
   document.querySelectorAll('[data-undo]').forEach((b) => b.addEventListener('click', async () => {
-    if (!confirmAct('Gỡ cấu hình và khôi phục file cũ?')) return;
+    if (!confirmAct('Tắt và trả file cấu hình về như cũ?')) return;
     const r2 = await api(`/api/tools/${b.dataset.undo}/undo`, { method: 'POST', body: {} });
-    toast(r2.detail || (r2.ok ? 'Đã gỡ' : 'Không gỡ được'));
+    toast(r2.detail || (r2.ok ? 'Đã tắt, trả về như cũ' : 'Không tắt được'));
     loadTools();
   }));
 }
