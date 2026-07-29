@@ -47,8 +47,11 @@ export async function openProfile(
   const nav = fp?.fingerprint.navigator;
   const scr = fp?.fingerprint.screen;
 
+  // Channel qua env: 'chrome' (mặc định, host macOS — Chrome thật) hoặc 'bundled'
+  // (Docker/Linux ARM64 — Chromium Playwright, vì Google Chrome không có bản arm64).
+  const browserChannel = process.env.BROWSER_CHANNEL ?? 'chrome';
   const context = await chromium.launchPersistentContext(userDataDir, {
-    channel: 'chrome', // Chrome thật, không phải Chromium bundled
+    ...(browserChannel && browserChannel !== 'bundled' ? { channel: browserChannel } : {}),
     headless,
     ignoreDefaultArgs: ['--enable-automation'],
     args: [

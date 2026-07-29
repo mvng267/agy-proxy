@@ -8,8 +8,9 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev
 
-# 2) Google Chrome (channel) + system deps cho headless
-RUN npx playwright install --with-deps chrome
+# 2) Chromium (Playwright bundled) + system deps — hoạt động cả amd64 & arm64.
+#    (Google Chrome channel không có bản Linux ARM64.)
+RUN npx playwright install --with-deps chromium
 
 # 3) source
 COPY . .
@@ -18,7 +19,8 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=7788 \
     HEADLESS=true \
-    CHROME_NO_SANDBOX=1
+    CHROME_NO_SANDBOX=1 \
+    BROWSER_CHANNEL=bundled
 
 EXPOSE 7788
 CMD ["npx", "tsx", "src/index.ts"]
