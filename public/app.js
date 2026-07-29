@@ -440,8 +440,16 @@ function renderAgy() {
     // Kiro KHÔNG có API hạn mức → 2 cột quota đổi thành kết quả dò gần nhất + thời điểm hết cooldown
     const quotaCells = a.provider === 'kr'
       ? `<td class="qcell">${a.liveStatus === 'ok' ? '<span class="q-hi">gọi được</span>' : a.liveStatus === 'quota' ? '<span class="q-lo">hết credit</span>' : '<span class="faint">chưa dò</span>'}</td>
-         <td class="qcell" title="Credit đã tiêu QUA GATEWAY NÀY trong tháng. Không tính request từ Kiro IDE/OmniRoute.">
-           ${a.creditsUsed != null ? `<span class="${a.creditsUsed >= a.creditsLimit ? 'q-lo' : a.creditsUsed > a.creditsLimit * 0.7 ? 'q-mid' : 'q-hi'}">${a.creditsUsed}/${a.creditsLimit}</span>` : '<span class="faint">—</span>'}</td>`
+         ${(() => {
+           if (a.creditsUsed == null) return '<td class="qcell"><span class="faint">—</span></td>';
+           // Hết credit nhưng ta chỉ đếm được ít → phần còn lại đã tiêu Ở NƠI KHÁC (Kiro IDE/OmniRoute)
+           const outside = a.liveStatus === 'quota' && a.creditsUsed < a.creditsLimit;
+           const cls = a.creditsUsed >= a.creditsLimit || outside ? 'q-lo' : a.creditsUsed > a.creditsLimit * 0.7 ? 'q-mid' : 'q-hi';
+           const tip = outside
+             ? `Đã hết ${a.creditsLimit} credit tháng này, nhưng chỉ ${a.creditsUsed} lượt đi qua gateway này — phần còn lại tiêu ở nơi khác (Kiro IDE / OmniRoute).`
+             : `Credit đã tiêu QUA GATEWAY NÀY trong tháng. Không tính request từ Kiro IDE/OmniRoute.`;
+           return `<td class="qcell" title="${esc(tip)}"><span class="${cls}">${outside ? `hết · ${a.creditsUsed} qua đây` : `${a.creditsUsed}/${a.creditsLimit}`}</span></td>`;
+         })()}`
       : `<td class="qcell">${gpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(gpct)}">${gpct}%</span>`}</td>
          <td class="qcell">${cpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(cpct)}">${cpct}%</span>`}</td>`;
     tr.innerHTML = `
