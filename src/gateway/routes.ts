@@ -616,8 +616,12 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
 
   app.post('/api/gateway/quota/refresh', async (req) => {
     const { emails } = (req.body as { emails?: string[] }) ?? {};
+    const q = (req.query ?? {}) as any;
+    const only = q.provider && PROVIDERS[q.provider as ProviderId] ? (q.provider as ProviderId) : undefined;
     syncFromStore();
-    const targets = (emails && emails.length ? emails.map((e) => (e.includes(':') ? pool.getByKey(e) : pool.get(e, 'agy'))).filter(Boolean) : pool.list().filter((a) => a.enabled)) as PoolAccount[];
+    const targets = (emails && emails.length
+      ? emails.map((e) => (e.includes(':') ? pool.getByKey(e) : pool.get(e, only ?? 'agy'))).filter(Boolean)
+      : pool.list(only).filter((a) => a.enabled)) as PoolAccount[];
     // chạy nền tuần tự, giãn nhịp nhẹ
     (async () => {
       let done = 0;

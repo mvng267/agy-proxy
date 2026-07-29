@@ -499,7 +499,7 @@ $('agy-strategy').addEventListener('click', async (e) => { const b = e.target.cl
 $('agy-all-on').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { await api('/api/gateway/accounts/bulk', { method: 'POST', body: { enabled: true } }); toast('Đã bật tất cả'); loadAgy(); }));
 $('agy-all-off').addEventListener('click', async (e) => { if (!confirmAct('Tắt tất cả account?')) return; await api('/api/gateway/accounts/bulk', { method: 'POST', body: { enabled: false } }); toast('Đã tắt tất cả'); loadAgy(); });
 $('agy-check-models').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { toast('Đang test model live…'); const r = await api('/api/gateway/models/check', { method: 'POST' }); if (r.models) { renderModelChips(r.models); $('agy-models').dataset.checked = '1'; toast(`Check live qua ${r.account.split('@')[0]}: ${r.models.filter((m) => m.status === 'ok').length}/${r.models.length} ok`); } else toast('Lỗi: ' + (r.error || '')); }));
-$('agy-refresh-quota').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const r = await api('/api/gateway/quota/refresh', { method: 'POST', body: {} }); toast(`Đang nạp hạn mức ${r.queued} account (nền)…`); }));
+$('agy-refresh-quota').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const r = await api('/api/gateway/quota/refresh?provider=' + agyProv, { method: 'POST', body: {} }); toast(`Đang nạp hạn mức ${r.queued} account ${agyProv} (nền)…`); }));
 
 // tab provider ở trang Pool
 $('agy-prov').addEventListener('click', (e) => {
