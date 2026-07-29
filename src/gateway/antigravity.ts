@@ -1,0 +1,535 @@
+import { randomUUID } from 'node:crypto';
+import { ProxyAgent, type Dispatcher } from 'undici';
+
+/**
+ * Antigravity API client — gọi thẳng cloudcode-pa generateContent như Antigravity IDE.
+ * Port công thức từ AIClient2API/antigravity-core.js (đã kiểm chứng qua research):
+ * body { model, userAgent, requestType, project, requestId, request:{ contents, systemInstruction?, sessionId, generationConfig } }.
+ * Không phụ thuộc store — thao tác thuần trên access_token + project để dễ unit-test.
+ */
+
+import { AGY_TOKEN_URL as TOKEN_URL, AGY_CLIENT_ID as CLIENT_ID, AGY_CLIENT_SECRET as CLIENT_SECRET } from '../config.js';
+const UA = 'antigravity/1.104.0 darwin/arm64'; // generateContent (data-plane)
+// Control-plane (loadCodeAssist/onboardUser): node UA làm account đủ điều kiện free-tier
+// → Google tự cấp project managed thật (đã kiểm chứng: onboard free-tier trả project chạy được).
+const CONTROL_UA = 'antigravity/1.104.0 google-api-nodejs-client/10.3.0';
+const GOOG_API_CLIENT = 'gl-node/22.21.1';
+const API_VERSION = 'v1internal';
+
+/** Base host thử lần lượt khi lỗi mạng/429. */
+export const BASE_HOSTS = [
+  'https://cloudcode-pa.googleapis.com',
+  'https://daily-cloudcode-pa.googleapis.com',
+  'https://daily-cloudcode-pa.sandbox.googleapis.com',
+];
+
+// ---------- types ----------
+export interface TokenInfo {
+  accessToken: string;
+  expiresAt: number; // epoch ms
+}
+export interface ModelInfo {
+  id: string;
+  label: string;
+  image: boolean;
+}
+export interface Usage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+export interface GenResult {
+  text: string;
+  images: string[]; // data URL (base64) cho model ảnh
+  usage: Usage;
+  finishReason: string;
+  model: string;
+}
+export type OAContent =
+  | string
+  | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant' | string;
+  content: OAContent;
+}
+export interface CallOpts {
+  accessToken: string;
+  projectId: string;
+  model: string;
+  messages: ChatMessage[];
+  generationConfig?: Record<string, unknown>;
+  dispatcher?: Dispatcher;
+  signal?: AbortSignal;
+}
+
+/**
+ * Model client-facing. `upstream` = tên gửi lên cloudcode-pa (khác khi cần map).
+ * Đã kiểm chứng live trên account free-tier EDU: các model dưới đều trả kết quả.
+ * gemini-3-pro-high/low native trả 500 trên free-tier → map sang gemini-pro-agent
+ * (model "pro" tier chạy được, giống cách Antigravity Manager/AIClient2API xử lý).
+ */
+export const MODELS: ModelInfo[] = [
+  { id: 'gemini-3-pro-high', label: 'Gemini 3 Pro (High)', image: false },
+  { id: 'gemini-3-pro-low', label: 'Gemini 3 Pro (Low)', image: false },
+  { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)', image: false },
+  { id: 'gemini-3-flash', label: 'Gemini 3 Flash', image: false },
+  { id: 'gemini-3.5-flash-low', label: 'Gemini 3.5 Flash', image: false },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', image: false },
+  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', image: false },
+  { id: 'gemini-3.1-flash-image', label: 'Gemini 3.1 Flash Image 🖼', image: true },
+  { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', image: false },
+  { id: 'claude-opus-4-6-thinking', label: 'Claude Opus 4.6 (Thinking)', image: false },
+];
+
+/** Map model client → tên upstream cloudcode-pa (chỉ khi khác). */
+const CLIENT_TO_UPSTREAM: Record<string, string> = {
+  'gemini-3-pro-high': 'gemini-pro-agent',
+  'gemini-3-pro-low': 'gemini-pro-agent',
+  'gemini-3.1-pro-high': 'gemini-pro-agent',
+  'gemini-3.1-pro-preview': 'gemini-pro-agent',
+  'gemini-3.5-flash-high': 'gemini-3.5-flash-low',
+};
+
+export function resolveUpstreamModel(model: string): string {
+  return CLIENT_TO_UPSTREAM[model] || model;
+}
+
+export function isImageModel(model: string): boolean {
+  return !!model && model.toLowerCase().includes('image');
+}
+
+/** Tạo ProxyAgent từ URL proxy (http://user:pass@host:port). '' | undefined → undefined (direct). */
+export function proxyDispatcher(url?: string): Dispatcher | undefined {
+  if (!url) return undefined;
+  try {
+    return new ProxyAgent(url);
+  } catch {
+    return undefined;
+  }
+}
+
+// ---------- auth ----------
+/** refresh_token → access_token (đọc JSON access_token + expires_in). MẢNH CÒN THIẾU trước đây. */
+export async function refreshAccessToken(
+  refreshToken: string,
+  dispatcher?: Dispatcher,
+): Promise<TokenInfo> {
+  const res = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', 'accept-encoding': 'identity' },
+    body: new URLSearchParams({
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+    signal: AbortSignal.timeout(20000),
+    ...(dispatcher ? { dispatcher } : {}),
+  } as RequestInit);
+  const raw = await res.text();
+  if (!res.ok) {
+    throw new Error(`refresh token failed (${res.status}): ${raw.slice(0, 200)}`);
+  }
+  const j = JSON.parse(raw) as { access_token: string; expires_in?: number };
+  if (!j.access_token) throw new Error('refresh: no access_token in response');
+  return { accessToken: j.access_token, expiresAt: Date.now() + (j.expires_in ?? 3600) * 1000 };
+}
+
+interface ApiOpts {
+  dispatcher?: Dispatcher;
+  signal?: AbortSignal;
+  control?: boolean; // dùng node UA + x-goog-api-client cho loadCodeAssist/onboardUser
+}
+
+async function apiCall(accessToken: string, method: string, body: unknown, o: ApiOpts = {}): Promise<any> {
+  const { dispatcher, signal, control } = o;
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    'accept-encoding': 'identity',
+    authorization: `Bearer ${accessToken}`,
+    'user-agent': control ? CONTROL_UA : UA,
+  };
+  if (control) headers['x-goog-api-client'] = GOOG_API_CLIENT;
+  let lastErr: unknown;
+  for (const host of BASE_HOSTS) {
+    try {
+      const res = await fetch(`${host}/${API_VERSION}:${method}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: signal ?? AbortSignal.timeout(60000),
+        ...(dispatcher ? { dispatcher } : {}),
+      } as RequestInit);
+      const text = await res.text();
+      if (!res.ok) {
+        const err = new Error(`${method} ${res.status}: ${text.slice(0, 300)}`) as Error & {
+          status?: number;
+        };
+        err.status = res.status;
+        // 429/5xx → thử host kế; 4xx khác → ném ngay
+        if (res.status === 429 || res.status >= 500) {
+          lastErr = err;
+          continue;
+        }
+        throw err;
+      }
+      return text ? JSON.parse(text) : {};
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
+async function onboardTier(
+  accessToken: string,
+  tier: string,
+  dispatcher?: Dispatcher,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const onboardReq = {
+    tier_id: tier,
+    metadata: { ide_type: 'ANTIGRAVITY', ide_name: 'antigravity', ide_version: '1.104.0' },
+  };
+  let lro = await apiCall(accessToken, 'onboardUser', onboardReq, { dispatcher, signal, control: true });
+  for (let i = 0; i < 15 && !lro?.done; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    lro = await apiCall(accessToken, 'onboardUser', onboardReq, { dispatcher, signal, control: true });
+  }
+  const pid = lro?.response?.cloudaicompanionProject?.id ?? lro?.response?.cloudaicompanionProject;
+  return typeof pid === 'string' && pid ? pid : null;
+}
+
+/**
+ * Lấy project managed thật cho account. RECIPE ĐÃ KIỂM CHỨNG:
+ * loadCodeAssist (node UA) → nếu chưa có project thì onboardUser tier "free-tier"
+ * (node UA làm account EDU đủ điều kiện free-tier) → Google tự cấp project chạy được.
+ * Fallback standard-tier. Không dùng project random (bị CONSUMER_INVALID).
+ */
+export async function discoverProject(
+  accessToken: string,
+  dispatcher?: Dispatcher,
+  signal?: AbortSignal,
+): Promise<string> {
+  const load = await apiCall(
+    accessToken,
+    'loadCodeAssist',
+    { metadata: { ideType: 'ANTIGRAVITY' } },
+    { dispatcher, signal, control: true },
+  );
+  if (load?.cloudaicompanionProject) return String(load.cloudaicompanionProject);
+
+  for (const tier of ['free-tier', 'standard-tier']) {
+    const pid = await onboardTier(accessToken, tier, dispatcher, signal);
+    if (pid) return pid;
+  }
+  throw new Error('Không cấp được project cho account (onboard free-tier/standard-tier đều không trả project)');
+}
+
+// ---------- convert OpenAI → Antigravity ----------
+type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+
+function dataUrlToInline(url: string): GeminiPart | null {
+  const m = /^data:([^;]+);base64,(.*)$/.exec(url);
+  if (!m) return null;
+  return { inlineData: { mimeType: m[1] ?? 'image/png', data: m[2] ?? '' } };
+}
+
+function contentToParts(content: OAContent): GeminiPart[] {
+  if (typeof content === 'string') return [{ text: content }];
+  const parts: GeminiPart[] = [];
+  for (const p of content) {
+    if (p.type === 'text' && p.text != null) parts.push({ text: p.text });
+    else if (p.type === 'image_url' && p.image_url?.url) {
+      const inline = dataUrlToInline(p.image_url.url);
+      if (inline) parts.push(inline);
+    }
+  }
+  return parts.length ? parts : [{ text: '' }];
+}
+
+/** OpenAI messages → body Antigravity generateContent. */
+export function openaiToAntigravity(
+  model: string,
+  messages: ChatMessage[],
+  opts: { projectId: string; generationConfig?: Record<string, unknown> },
+): Record<string, unknown> {
+  const isImg = isImageModel(model);
+  const contents: Array<{ role: string; parts: GeminiPart[] }> = [];
+  let systemInstruction: { parts: GeminiPart[] } | undefined;
+
+  for (const m of messages) {
+    if (m.role === 'system') {
+      const parts = contentToParts(m.content);
+      systemInstruction = systemInstruction
+        ? { parts: [...systemInstruction.parts, ...parts] }
+        : { parts };
+      continue;
+    }
+    contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: contentToParts(m.content) });
+  }
+  if (!contents.length) contents.push({ role: 'user', parts: [{ text: '' }] });
+
+  const request: Record<string, unknown> = {
+    contents,
+    sessionId: randomUUID(),
+  };
+  if (systemInstruction) request.systemInstruction = systemInstruction;
+  if (opts.generationConfig && Object.keys(opts.generationConfig).length) {
+    request.generationConfig = opts.generationConfig;
+  }
+
+  return {
+    model: resolveUpstreamModel(model),
+    userAgent: 'antigravity',
+    requestType: isImg ? 'image_gen' : 'agent',
+    project: opts.projectId,
+    requestId: isImg ? `image_gen/1/${randomUUID()}/12` : `agent-${randomUUID()}`,
+    request,
+  };
+}
+
+// ---------- convert Antigravity → kết quả ----------
+function extractNode(data: any): any {
+  return data?.response ?? data;
+}
+
+function partsOf(node: any): any[] {
+  return node?.candidates?.[0]?.content?.parts ?? [];
+}
+
+function collect(node: any, into: { text: string; images: string[] }): void {
+  for (const p of partsOf(node)) {
+    if (typeof p?.text === 'string') into.text += p.text;
+    else if (p?.inlineData?.data) {
+      const mime = p.inlineData.mimeType || 'image/png';
+      into.images.push(`data:${mime};base64,${p.inlineData.data}`);
+    }
+  }
+}
+
+function usageOf(node: any): Usage {
+  const u = node?.usageMetadata ?? {};
+  const prompt = u.promptTokenCount ?? 0;
+  const completion = u.candidatesTokenCount ?? 0;
+  return { promptTokens: prompt, completionTokens: completion, totalTokens: u.totalTokenCount ?? prompt + completion };
+}
+
+/** Response non-stream (đã JSON) → GenResult. */
+export function antigravityToResult(data: any, model: string): GenResult {
+  const node = extractNode(data);
+  const acc = { text: '', images: [] as string[] };
+  collect(node, acc);
+  return {
+    text: acc.text,
+    images: acc.images,
+    usage: usageOf(node),
+    finishReason: node?.candidates?.[0]?.finishReason ?? 'stop',
+    model,
+  };
+}
+
+// ---------- gọi model ----------
+/** Non-stream: gọi generateContent, trả GenResult. */
+export async function generate(opts: CallOpts): Promise<GenResult> {
+  const body = openaiToAntigravity(opts.model, opts.messages, {
+    projectId: opts.projectId,
+    generationConfig: opts.generationConfig,
+  });
+  const data = await apiCall(opts.accessToken, 'generateContent', body, {
+    dispatcher: opts.dispatcher,
+    signal: opts.signal,
+  });
+  return antigravityToResult(data, opts.model);
+}
+
+/** Stream: async generator phát text delta (+ usage cuối). */
+export async function* generateStream(
+  opts: CallOpts,
+): AsyncGenerator<{ delta?: string; image?: string; usage?: Usage; done?: boolean }> {
+  const body = openaiToAntigravity(opts.model, opts.messages, {
+    projectId: opts.projectId,
+    generationConfig: opts.generationConfig,
+  });
+  let res: Response | null = null;
+  let lastErr: unknown;
+  for (const host of BASE_HOSTS) {
+    try {
+      res = await fetch(`${host}/${API_VERSION}:streamGenerateContent?alt=sse`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'text/event-stream',
+          'accept-encoding': 'identity',
+          'user-agent': UA,
+          authorization: `Bearer ${opts.accessToken}`,
+        },
+        body: JSON.stringify(body),
+        signal: opts.signal,
+        ...(opts.dispatcher ? { dispatcher: opts.dispatcher } : {}),
+      } as RequestInit);
+      if (res.ok && res.body) break;
+      if (res.status === 429 || res.status >= 500) {
+        lastErr = new Error(`stream ${res.status}`);
+        res = null;
+        continue;
+      }
+      const t = await res.text().catch(() => '');
+      const e = new Error(`stream ${res.status}: ${t.slice(0, 200)}`) as Error & { status?: number };
+      e.status = res.status;
+      throw e;
+    } catch (e) {
+      lastErr = e;
+      res = null;
+    }
+  }
+  if (!res || !res.body) throw lastErr instanceof Error ? lastErr : new Error('stream failed');
+
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  let usage: Usage | undefined;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line.startsWith('data:')) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === '[DONE]') continue;
+      let data: any;
+      try {
+        data = JSON.parse(payload);
+      } catch {
+        continue;
+      }
+      const node = extractNode(data);
+      for (const p of partsOf(node)) {
+        if (typeof p?.text === 'string' && p.text) yield { delta: p.text };
+        else if (p?.inlineData?.data) {
+          const mime = p.inlineData.mimeType || 'image/png';
+          yield { image: `data:${mime};base64,${p.inlineData.data}` };
+        }
+      }
+      if (node?.usageMetadata) usage = usageOf(node);
+    }
+  }
+  yield { usage, done: true };
+}
+
+// ---------- models & credits (best-effort) ----------
+export async function fetchModels(
+  accessToken: string,
+  projectId: string,
+  dispatcher?: Dispatcher,
+): Promise<ModelInfo[]> {
+  try {
+    const data = await apiCall(accessToken, 'listModels', { project: projectId }, { dispatcher, control: true });
+    const raw: any[] = data?.models ?? [];
+    const list = raw
+      .map((m) => {
+        const id = m.name || m.id || m.model;
+        if (!id) return null;
+        return { id: String(id), label: m.displayName || String(id), image: isImageModel(String(id)) };
+      })
+      .filter(Boolean) as ModelInfo[];
+    return list.length ? list : MODELS;
+  } catch {
+    return MODELS;
+  }
+}
+
+// ---------- hạn mức (retrieveUserQuotaSummary + fetchAvailableModels) ----------
+export interface QuotaBucketInfo {
+  name: string; // 'Gemini Models' | 'Claude and GPT models'
+  pct: number; // 0-100 remaining (window weekly)
+  resetTime: string;
+  desc?: string;
+}
+export interface QuotaModelInfo {
+  id: string; // tên upstream (map ngược sang client khi hiển thị)
+  pct: number;
+  resetTime: string;
+}
+export interface QuotaInfo {
+  tier: string | null; // FREE/PRO/ULTRA hoặc tier id
+  groups: QuotaBucketInfo[]; // 2 nhóm
+  models: QuotaModelInfo[]; // per-model
+  fetchedAt: number;
+}
+
+function pctOf(fraction: unknown): number {
+  const f = typeof fraction === 'number' ? fraction : 0;
+  return Math.max(0, Math.min(100, Math.round(f * 100)));
+}
+
+/** Parse thuần (test được): retrieveUserQuotaSummary + fetchAvailableModels + loadCodeAssist → QuotaInfo. */
+export function buildQuotaInfo(summary: any, models: any, load: any, now = Date.now()): QuotaInfo {
+  const out: QuotaInfo = { tier: null, groups: [], models: [], fetchedAt: now };
+  for (const g of summary?.groups ?? []) {
+    const buckets: any[] = g.buckets ?? [];
+    const b = buckets.find((x) => x.window === 'weekly') ?? buckets[0];
+    if (!b) continue;
+    out.groups.push({ name: g.displayName || 'Nhóm', pct: pctOf(b.remainingFraction), resetTime: b.resetTime || '', desc: b.description || g.description });
+  }
+  for (const [id, info] of Object.entries<any>(models?.models ?? {})) {
+    const qi = info?.quotaInfo;
+    if (!qi) continue;
+    out.models.push({ id, pct: pctOf(qi.remainingFraction), resetTime: qi.resetTime || '' });
+  }
+  const def = (load?.allowedTiers ?? []).find((t: any) => t.isDefault) ?? load?.currentTier;
+  out.tier = load?.paidTier?.name || def?.id || null;
+  return out;
+}
+
+/** Lấy hạn mức đầy đủ như Antigravity gửi về: nhóm (weekly) + per-model. */
+export async function fetchQuota(
+  accessToken: string,
+  projectId: string,
+  dispatcher?: Dispatcher,
+): Promise<QuotaInfo> {
+  const safe = async (method: string, body: unknown) => {
+    try {
+      return await apiCall(accessToken, method, body, { dispatcher, control: true });
+    } catch {
+      return null;
+    }
+  };
+  const [summary, models, load] = await Promise.all([
+    safe('retrieveUserQuotaSummary', { project: projectId }),
+    safe('fetchAvailableModels', { project: projectId }),
+    safe('loadCodeAssist', { metadata: { ideType: 'ANTIGRAVITY' } }),
+  ]);
+  return buildQuotaInfo(summary, models, load);
+}
+
+/** Check live từng model: gọi prompt cực ngắn, map trạng thái ok/quota/error. */
+export async function checkModelsLive(
+  accessToken: string,
+  projectId: string,
+  dispatcher?: Dispatcher,
+): Promise<{ id: string; status: 'ok' | 'quota' | 'error'; ms: number; detail?: string }[]> {
+  const out: { id: string; status: 'ok' | 'quota' | 'error'; ms: number; detail?: string }[] = [];
+  for (const m of MODELS) {
+    const t0 = Date.now();
+    try {
+      const r = await generate({
+        accessToken,
+        projectId,
+        model: m.id,
+        messages: [{ role: 'user', content: 'hi' }],
+        dispatcher,
+        generationConfig: { maxOutputTokens: m.image ? undefined : 8 },
+      });
+      out.push({ id: m.id, status: m.image ? (r.images.length ? 'ok' : 'ok') : 'ok', ms: Date.now() - t0 });
+    } catch (e: any) {
+      const msg = String(e?.message ?? e);
+      const quota = e?.status === 429 || /quota|exhaust|resource_exhausted/i.test(msg);
+      out.push({ id: m.id, status: quota ? 'quota' : 'error', ms: Date.now() - t0, detail: msg.slice(0, 120) });
+    }
+  }
+  return out;
+}

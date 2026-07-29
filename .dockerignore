@@ -1,0 +1,16 @@
+node_modules
+data
+profiles
+screenshots
+.env
+.env.*
+.git
+.gitignore
+*.log
+dist
+_audit*.ts
+_qcheck.ts
+_shot*.ts
+Dockerfile
+docker-compose.yml
+.DS_Store

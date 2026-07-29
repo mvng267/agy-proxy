@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Antigravity Account Manager</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>%E2%9A%A1</text></svg>" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></symbol>
+    <symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></symbol>
+    <symbol id="i-collapse" viewBox="0 0 24 24"><path d="m9 7-5 5 5 5"/><path d="m15 7 5 5-5 5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="8"/><rect x="12" y="6" width="3" height="12"/><rect x="17" y="13" width="3" height="5"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  </defs></svg>
+
+  <div class="app" id="app">
+    <!-- ===== Topbar (chỉ global) ===== -->
+    <div class="topbar">
+      <button class="icon ghost hide-desktop" id="btn-nav" title="Menu"><svg class="ic"><use href="#i-menu"/></svg></button>
+      <div class="brand"><span class="logo"><svg class="ic"><use href="#i-zap"/></svg></span> <span class="brand-text">Antigravity Manager</span></div>
+      <span id="pill-omni" class="status-pill" title="Trạng thái kết nối OmniRoute"><span class="dot"></span> OmniRoute</span>
+      <div class="spacer"></div>
+      <button class="icon ghost" id="btn-theme" title="Đổi sáng/tối"><svg class="ic"><use href="#i-moon"/></svg></button>
+      <button class="icon ghost hide-desktop" id="btn-log" title="Mở/đóng log"><svg class="ic"><use href="#i-panel"/></svg></button>
+    </div>
+
+    <!-- ===== Left nav (2 nhóm) ===== -->
+    <nav class="nav" id="nav">
+      <div class="nav-group">Quản lý</div>
+      <div class="nav-item active" data-tab="overview" data-tip="Tổng quan" title="Bảng điều khiển tổng + biểu đồ"><svg class="ic"><use href="#i-chart"/></svg><span class="lbl">Tổng quan</span></div>
+      <div class="nav-item" data-tab="accounts" data-tip="Tài khoản" title="Danh sách tài khoản + điều khiển harvest"><svg class="ic"><use href="#i-users"/></svg><span class="lbl">Tài khoản</span><span class="cnt" id="tc-acc">0</span></div>
+      <div class="nav-item" data-tab="proxies" data-tip="Proxy" title="Quản lý & test proxy"><svg class="ic"><use href="#i-globe"/></svg><span class="lbl">Proxy</span><span class="cnt" id="tc-proxy">0</span></div>
+      <div class="nav-item" data-tab="tokens" data-tip="Token" title="Token thu được + health + export"><svg class="ic"><use href="#i-key"/></svg><span class="lbl">Token</span><span class="cnt" id="tc-tok">0</span></div>
+      <div class="nav-item" data-tab="connections" data-tip="Connections" title="Pool connection trong OmniRoute"><svg class="ic"><use href="#i-link"/></svg><span class="lbl">Connections</span><span class="cnt" id="tc-conn">0</span></div>
+      <div class="nav-item" data-tab="add" data-tip="Thêm tài khoản" title="Thêm / import / sinh dải account"><svg class="ic"><use href="#i-plus"/></svg><span class="lbl">Thêm TK</span></div>
+      <div class="nav-group">Antigravity</div>
+      <div class="nav-item" data-tab="agy" data-tip="Pool" title="Gateway OpenAI + bật/tắt account + model"><svg class="ic"><use href="#i-zap"/></svg><span class="lbl">Pool</span><span class="cnt" id="tc-agy">0</span></div>
+      <div class="nav-item" data-tab="quota" data-tip="Hạn mức" title="Credit từng tài khoản (bảng / thẻ)"><svg class="ic"><use href="#i-gauge"/></svg><span class="lbl">Hạn mức</span></div>
+      <div class="nav-item" data-tab="usage" data-tip="Báo cáo sử dụng" title="Usage theo ngày/tuần/model/account"><svg class="ic"><use href="#i-chart"/></svg><span class="lbl">Báo cáo</span></div>
+      <div class="nav-item" data-tab="chat" data-tip="Chat thử" title="Chat thử model (kể cả ảnh)"><svg class="ic"><use href="#i-msg"/></svg><span class="lbl">Chat thử</span></div>
+      <div class="nav-item" data-tab="gwlog" data-tip="Live call log" title="Log request→response gateway realtime"><svg class="ic"><use href="#i-terminal"/></svg><span class="lbl">Live call log</span></div>
+      <div class="nav-sep"></div>
+      <div class="nav-item" data-tab="settings" data-tip="Cấu hình" title="Cấu hình chạy, hạn mức, OmniRoute, giao diện"><svg class="ic"><use href="#i-settings"/></svg><span class="lbl">Cấu hình</span></div>
+      <div class="nav-foot"><button class="icon ghost" id="btn-nav-collapse" title="Thu gọn/mở rộng menu"><svg class="ic"><use href="#i-collapse"/></svg></button></div>
+    </nav>
+
+    <!-- ===== Main ===== -->
+    <main class="main">
+      <!-- ============ Tổng quan ============ -->
+      <section class="view active" id="view-overview">
+        <div class="page-head"><div class="ph-title"><h2>Tổng quan</h2><span class="ph-sub">Bảng điều khiển toàn hệ thống</span></div>
+          <div class="ph-actions"><button class="sm" id="ov-refresh" title="Làm mới"><svg class="ic"><use href="#i-refresh"/></svg> Làm mới</button></div>
+        </div>
+        <div class="cards" id="ov-kpi"></div>
+        <div class="ov-grid">
+          <div class="panel"><h3>Hạn mức tổng</h3><div id="ov-quota" class="ov-donuts"></div></div>
+          <div class="panel ov-wide"><h3>Requests 7 ngày</h3><div id="ov-usage"></div></div>
+          <div class="panel"><h3>Sức khỏe pool</h3><div id="ov-health"></div></div>
+        </div>
+        <div class="grid2">
+          <div class="panel"><h3>Top model (7 ngày)</h3><div id="ov-models"></div></div>
+          <div class="panel"><h3>Top tài khoản (7 ngày)</h3><div id="ov-accounts"></div></div>
+        </div>
+      </section>
+
+      <!-- ============ Tài khoản ============ -->
+      <section class="view" id="view-accounts">
+        <div class="page-head">
+          <div class="ph-title"><h2>Tài khoản</h2><span class="ph-sub">Harvest Antigravity + Kiro</span></div>
+          <div class="ph-actions">
+            <span class="flowpick" title="Chọn luồng khi Full / Auto Run">
+              <label title="Luồng Antigravity"><input type="checkbox" class="fp" value="agy" checked /> Antigravity</label>
+              <label title="Luồng Kiro"><input type="checkbox" class="fp" value="kiro" checked /> Kiro</label>
+            </span>
+            <label class="switch" title="Chạy KHÔNG proxy (IP hiện tại)"><input type="checkbox" id="no-proxy" /><span class="track"></span> Không proxy</label>
+            <button class="primary" id="btn-auto" title="Chạy account chưa xong"><svg class="ic"><use href="#i-play"/></svg> Auto Run</button>
+            <button class="danger" id="btn-stop" title="Dừng scheduler"><svg class="ic"><use href="#i-stop"/></svg> Dừng</button>
+          </div>
+        </div>
+        <div class="runbar" id="runbar">
+          <span class="dot busy"></span>
+          <span class="meta" id="runbar-cur">Rảnh</span>
+          <div class="track"><i id="runbar-fill"></i></div>
+          <span class="meta" id="runbar-meta"></span>
+        </div>
+        <div class="cards" id="stats-acc"></div>
+        <div class="panel">
+          <div class="toolbar">
+            <div class="search"><svg class="ic search-ic"><use href="#i-search"/></svg><input id="acc-search" placeholder="Tìm email…  (phím /)" title="Tìm theo email" /></div>
+            <select id="acc-filter" class="w-auto" title="Lọc theo trạng thái">
+              <option value="">Tất cả trạng thái</option>
+              <option value="both-ok">✓ Đủ cả 2 (agy + kiro)</option>
+              <option value="miss-agy">Thiếu Antigravity</option>
+              <option value="miss-kiro">Thiếu Kiro</option>
+              <option value="new">Còn "new"</option>
+              <option value="failed">Có failed</option>
+              <option value="needs_human">Cần xử lý tay</option>
+            </select>
+            <div class="spacer"></div>
+            <button class="sm" id="btn-retry" title="Chạy lại account failed/cần tay"><svg class="ic"><use href="#i-refresh"/></svg> Chạy lại failed</button>
+          </div>
+          <div class="tablewrap">
+            <table>
+              <thead><tr>
+                <th style="width:34px"><input type="checkbox" id="check-all" title="Chọn tất cả (trang này)" /></th>
+                <th>Email</th><th>Proxy</th><th>Antigravity</th><th>Kiro</th><th class="act-h">Điều khiển</th><th></th>
+              </tr></thead>
+              <tbody id="acc-body"></tbody>
+            </table>
+          </div>
+          <div class="pager" id="acc-pager"></div>
+        </div>
+        <div class="bulkbar" id="acc-bulk">
+          <span id="acc-selcount">0 đã chọn</span>
+          <button class="sm" id="bulk-run" title="Chạy luồng đã chọn (force)"><svg class="ic"><use href="#i-play"/></svg> Chạy</button>
+          <button class="sm" id="bulk-proxy" title="Gán proxy cho các account đã chọn">Gán proxy</button>
+          <button class="sm danger" id="bulk-del" title="Xoá account đã chọn"><svg class="ic"><use href="#i-trash"/></svg> Xoá</button>
+        </div>
+      </section>
+
+      <!-- ============ Proxy ============ -->
+      <section class="view" id="view-proxies">
+        <div class="page-head"><div class="ph-title"><h2>Proxy</h2><span class="ph-sub">Webshare & gán account</span></div></div>
+        <div class="cards" id="stats-proxy"></div>
+        <div class="grid2">
+          <div class="panel">
+            <h3>Import proxy Webshare</h3>
+            <p class="hint">Dán link download list hoặc list <code>ip:port:user:pass</code>.</p>
+            <label class="fl">Link download Webshare</label>
+            <input id="p-url" placeholder="https://proxy.webshare.io/api/v2/proxy/list/download/…" title="Link download list proxy" />
+            <label class="fl">hoặc dán list (mỗi dòng 1 proxy)</label>
+            <textarea id="p-text" rows="4" placeholder="31.59.20.176:6754:user:pass" title="ip:port:user:pass"></textarea>
+            <div class="row" style="margin-top:12px">
+              <label class="switch" title="Xoá proxy cũ trước khi import"><input type="checkbox" id="p-replace" /><span class="track"></span> Thay thế toàn bộ</label>
+              <div class="spacer"></div>
+              <button class="primary" id="p-import" title="Import proxy">Import</button>
+              <button id="p-autoassign" title="Gán round-robin cho account chưa có proxy">Gán tự động</button>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>Danh sách proxy</h3>
+            <p class="hint">Bấm Test để xem IP egress + quốc gia.</p>
+            <div class="tablewrap">
+              <table><thead><tr><th>Proxy</th><th>Quốc gia</th><th>Test</th><th></th></tr></thead>
+              <tbody id="proxy-body"></tbody></table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ Token ============ -->
+      <section class="view" id="view-tokens">
+        <div class="page-head">
+          <div class="ph-title"><h2>Token</h2><span class="ph-sub">Credentials thu được</span></div>
+          <div class="ph-actions">
+            <button id="tok-health" title="Refresh kiểm token sống/chết"><svg class="ic"><use href="#i-activity"/></svg> Health</button>
+            <button id="tok-export" title="Tải token đang lọc ra CSV"><svg class="ic"><use href="#i-download"/></svg> CSV</button>
+            <a class="btn" href="/api/export/kiro" download title="[{email, refresh_token}] Kiro"><svg class="ic"><use href="#i-download"/></svg> Kiro JSON</a>
+            <a class="btn primary" href="/api/export/antigravity" download title="[{email, refresh_token}] Antigravity"><svg class="ic"><use href="#i-download"/></svg> Antigravity JSON</a>
+          </div>
+        </div>
+        <div class="cards" id="stats-tok"></div>
+        <div class="panel">
+          <div class="toolbar">
+            <div class="search"><svg class="ic search-ic"><use href="#i-search"/></svg><input id="tok-search" placeholder="Tìm email…" title="Tìm token theo email" /></div>
+            <select id="tok-filter" class="w-auto" title="Lọc theo loại token">
+              <option value="">Tất cả loại</option>
+              <option value="kiro">Kiro (refreshToken)</option>
+              <option value="gweb">Gemini Web (cookie)</option>
+              <option value="agy">Antigravity</option>
+            </select>
+            <select id="tok-health-filter" class="w-auto" title="Lọc theo health">
+              <option value="">Mọi health</option>
+              <option value="alive">🟢 alive</option>
+              <option value="dead">🔴 dead</option>
+              <option value="unknown">⚪ chưa check</option>
+            </select>
+          </div>
+          <div class="tablewrap">
+            <table><thead><tr><th>Email</th><th>Loại</th><th>Health</th><th>Token / Value</th><th>Thông tin</th><th>Cập nhật</th></tr></thead>
+            <tbody id="tok-body"></tbody></table>
+          </div>
+          <div class="pager" id="tok-pager"></div>
+        </div>
+      </section>
+
+      <!-- ============ Connections ============ -->
+      <section class="view" id="view-connections">
+        <div class="page-head"><div class="ph-title"><h2>Connections</h2><span class="ph-sub">Pool trong OmniRoute</span></div></div>
+        <div class="panel">
+          <p class="hint">Các connection tool đã đẩy vào OmniRoute. <span id="conn-note"></span></p>
+          <div class="tablewrap">
+            <table><thead><tr><th>Provider</th><th>Tên</th><th>Auth</th><th>Test</th><th>Proxy</th><th>Tạo lúc</th></tr></thead>
+            <tbody id="conn-body"></tbody></table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ Thêm TK ============ -->
+      <section class="view" id="view-add">
+        <div class="page-head"><div class="ph-title"><h2>Thêm tài khoản</h2></div></div>
+        <div class="panel" style="max-width:660px">
+          <div class="seg" id="add-seg" style="margin:2px 0 12px">
+            <button data-m="single" class="active" title="Thêm 1 account">Đơn lẻ</button>
+            <button data-m="bulk" title="Dán nhiều dòng">Import list</button>
+            <button data-m="gen" title="Sinh dải prefix + số">Sinh dải</button>
+            <button data-m="file" title="Import từ file">Từ file</button>
+          </div>
+          <div id="add-single">
+            <label class="fl">Email</label><input id="a-email" placeholder="thehien200@edmicro.vn" />
+            <label class="fl">Mật khẩu</label><input id="a-pass" type="text" />
+            <label class="fl">TOTP secret (nếu có 2FA)</label><input id="a-totp" placeholder="để trống nếu không" />
+            <label class="fl">Proxy</label><select id="a-proxy" title="Gán proxy cho account"></select>
+            <div class="row end" style="margin-top:12px"><button class="primary" onclick="addSingle()" title="Thêm account">Thêm</button></div>
+          </div>
+          <div id="add-bulk" style="display:none">
+            <label class="fl">Mỗi dòng: <code>email:password:totp:proxy</code> (totp/proxy tuỳ chọn)</label>
+            <textarea id="a-bulk" rows="7" placeholder="thehien200@edmicro.vn:Hien@19E85jjhf"></textarea>
+            <div class="row end" style="margin-top:12px"><button class="primary" onclick="importBulk()" title="Import list">Import</button></div>
+          </div>
+          <div id="add-gen" style="display:none">
+            <div class="row">
+              <div style="flex:1"><label class="fl">Prefix</label><input id="g-prefix" value="thehien" /></div>
+              <div style="width:90px"><label class="fl">Từ</label><input id="g-start" type="number" value="200" /></div>
+              <div style="width:90px"><label class="fl">Đến</label><input id="g-end" type="number" value="299" /></div>
+            </div>
+            <label class="fl">Domain</label><input id="g-domain" value="edmicro.vn" />
+            <label class="fl">Mật khẩu chung</label><input id="g-pass" value="Hien@19E85jjhf" />
+            <label class="fl">Email lẻ thêm (dấu phẩy)</label><input id="g-extra" placeholder="thehien295" />
+            <div class="row end" style="margin-top:12px"><button class="primary" onclick="genRange()" title="Sinh dải account">Sinh</button></div>
+          </div>
+          <div id="add-file" style="display:none">
+            <p class="hint">Chọn file CSV/txt, mỗi dòng <code>email:password:totp:proxy</code>.</p>
+            <input type="file" id="a-file" accept=".csv,.txt" title="Chọn file account" />
+            <div class="row end" style="margin-top:12px">
+              <a class="btn" href="/api/export/accounts" download title="Tải backup accounts.csv"><svg class="ic"><use href="#i-download"/></svg> Export accounts.csv</a>
+              <button class="primary" id="a-file-import" title="Import từ file"><svg class="ic"><use href="#i-upload"/></svg> Import file</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ Pool (Antigravity gateway) ============ -->
+      <section class="view" id="view-agy">
+        <div class="page-head">
+          <div class="ph-title"><h2>Pool</h2><span class="ph-sub">Gateway OpenAI cho Antigravity</span></div>
+          <div class="ph-actions">
+            <div class="seg sm" id="agy-strategy" title="Chiến lược xoay account">
+              <button data-s="round-robin" class="active" title="Luân phiên đều">Round-robin</button>
+              <button data-s="full-first" title="Dùng kiệt 1 account">Full-first</button>
+              <button data-s="failover" title="Account đầu, nhảy khi lỗi">Failover</button>
+              <button data-s="highest-first" title="Quota cao nhất trước">Cao nhất</button>
+            </div>
+            <button class="sm" id="agy-refresh-quota" title="Nạp hạn mức các account đang bật"><svg class="ic"><use href="#i-gauge"/></svg> Refresh hạn mức</button>
+          </div>
+        </div>
+        <div class="panel agy-connect">
+          <p class="hint" style="margin-top:0">Dán <b>Base URL</b> vào tool coding (opencode/cline…) để dùng pool này như OpenAI API.</p>
+          <div class="agy-grid">
+            <div>
+              <label class="fl">Base URL (OpenAI-compatible)</label>
+              <div class="copybox"><input id="agy-baseurl" readonly value="http://localhost:7788/proxy/v1" title="Endpoint" /><button class="sm icon" id="agy-copy-url" title="Copy URL"><svg class="ic"><use href="#i-copy"/></svg></button></div>
+            </div>
+            <div>
+              <label class="fl">API key (trống = không yêu cầu)</label>
+              <div class="copybox"><input id="agy-apikey" placeholder="(không bắt buộc)" title="Bearer key" /><button class="sm icon" id="agy-regen-key" title="Sinh key mới"><svg class="ic"><use href="#i-refresh"/></svg></button><button class="sm icon" id="agy-copy-key" title="Copy key"><svg class="ic"><use href="#i-copy"/></svg></button></div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <div style="flex:1"><label class="fl">Proxy mặc định cho gateway (tuỳ chọn)</label><input id="agy-proxy" placeholder="http://user:pass@host:port" /></div>
+            <button class="sm primary" id="agy-save-cfg" title="Lưu cấu hình" style="align-self:flex-end">Lưu</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="row" style="justify-content:space-between;margin-bottom:2px">
+            <h3 style="margin:0">Model gọi được qua Base URL</h3>
+            <button class="sm" id="agy-check-models" title="Test thực tế từng model còn gọi được không"><svg class="ic"><use href="#i-zap"/></svg> Check live</button>
+          </div>
+          <div id="agy-models" class="chips"></div>
+        </div>
+        <div class="cards" id="stats-agy"></div>
+        <div class="panel">
+          <div class="toolbar">
+            <div class="search"><svg class="ic search-ic"><use href="#i-search"/></svg><input id="agy-search" placeholder="Tìm email…" title="Tìm theo email" /></div>
+            <select id="agy-filter" class="w-auto" title="Lọc account">
+              <option value="">Tất cả</option>
+              <option value="on">Đang bật</option>
+              <option value="off">Đang tắt</option>
+              <option value="cooldown">Đang cooldown</option>
+              <option value="dead">Token chết</option>
+            </select>
+            <select id="agy-sort" class="w-auto" title="Sắp xếp">
+              <option value="email">Sắp: Email</option>
+              <option value="requests">Sắp: Nhiều request</option>
+              <option value="quota">Sắp: Quota cao</option>
+            </select>
+            <div class="spacer"></div>
+            <button class="sm" id="agy-check-token-all" title="Kiểm token sống/chết TẤT CẢ (realtime)"><svg class="ic"><use href="#i-activity"/></svg> Check token</button>
+            <button class="sm" id="agy-check-live-all" title="Kiểm gọi model được không TẤT CẢ (realtime)"><svg class="ic"><use href="#i-zap"/></svg> Check live</button>
+            <button class="sm" id="agy-all-on" title="Bật tất cả"><svg class="ic"><use href="#i-check"/></svg> Bật tất cả</button>
+            <button class="sm" id="agy-all-off" title="Tắt tất cả"><svg class="ic"><use href="#i-x"/></svg> Tắt tất cả</button>
+          </div>
+          <div class="checkbar" id="agy-checkbar"><span id="agy-check-label">Đang kiểm…</span><div class="track"><i id="agy-check-fill"></i></div><span id="agy-check-meta"></span></div>
+          <div class="tablewrap">
+            <table>
+              <thead><tr>
+                <th style="width:34px"><input type="checkbox" id="agy-check-all" title="Chọn trang này" /></th>
+                <th style="width:52px">Bật</th><th>Email</th><th>Gemini%</th><th>Claude%</th><th>Req</th><th>Tokens</th><th>Token</th><th>Live</th><th class="act-h">Chức năng</th>
+              </tr></thead>
+              <tbody id="agy-body"></tbody>
+            </table>
+          </div>
+          <div class="pager" id="agy-pager"></div>
+        </div>
+        <div class="bulkbar" id="agy-bulk">
+          <span id="agy-selcount">0 đã chọn</span>
+          <button class="sm" id="agy-bulk-on" title="Bật">Bật</button>
+          <button class="sm" id="agy-bulk-off" title="Tắt">Tắt</button>
+          <button class="sm" id="agy-bulk-test" title="Check token đã chọn"><svg class="ic"><use href="#i-activity"/></svg> Token</button>
+          <button class="sm" id="agy-bulk-live" title="Check live đã chọn"><svg class="ic"><use href="#i-zap"/></svg> Live</button>
+          <button class="sm" id="agy-bulk-quota" title="Refresh hạn mức"><svg class="ic"><use href="#i-gauge"/></svg> Quota</button>
+        </div>
+      </section>
+
+      <!-- ============ Hạn mức ============ -->
+      <section class="view" id="view-quota">
+        <div class="page-head">
+          <div class="ph-title"><h2>Hạn mức</h2><span class="ph-sub">Credit từng tài khoản</span></div>
+          <div class="ph-actions">
+            <div class="seg sm" id="quota-mode" title="Chế độ hiển thị">
+              <button data-m="table" class="active" title="Bảng — phân chia theo model"><svg class="ic"><use href="#i-list"/></svg> Bảng</button>
+              <button data-m="card" title="Thẻ — đầy đủ quota mỗi model"><svg class="ic"><use href="#i-grid"/></svg> Thẻ</button>
+            </div>
+            <button class="sm" id="quota-refresh" title="Nạp hạn mức account đang bật"><svg class="ic"><use href="#i-refresh"/></svg> Refresh</button>
+          </div>
+        </div>
+        <div class="cards" id="stats-quota"></div>
+        <div class="panel">
+          <div class="toolbar">
+            <div class="search"><svg class="ic search-ic"><use href="#i-search"/></svg><input id="quota-search" placeholder="Tìm email…" title="Tìm theo email" /></div>
+            <select id="quota-sort" class="w-auto" title="Sắp xếp"><option value="quota">Quota cao</option><option value="quota-low">Quota thấp</option><option value="email">Email</option></select>
+          </div>
+          <div id="quota-body"></div>
+          <div class="pager" id="quota-pager"></div>
+        </div>
+      </section>
+
+      <!-- ============ Báo cáo sử dụng ============ -->
+      <section class="view" id="view-usage">
+        <div class="page-head">
+          <div class="ph-title"><h2>Báo cáo sử dụng</h2><span class="ph-sub">Theo ngày / tuần / model / account</span></div>
+          <div class="ph-actions">
+            <select id="usage-range" class="w-auto" title="Khoảng thời gian"><option value="7d">7 ngày</option><option value="30d">30 ngày</option><option value="90d">90 ngày</option></select>
+            <div class="seg sm" id="usage-group" title="Gộp theo"><button data-g="day" class="active">Ngày</button><button data-g="week">Tuần</button></div>
+            <a class="btn sm" id="usage-export" href="/api/gateway/usage/export.csv?range=7d" download title="Tải CSV chi tiết"><svg class="ic"><use href="#i-download"/></svg> CSV</a>
+          </div>
+        </div>
+        <div class="cards" id="usage-totals"></div>
+        <div class="panel">
+          <h3>Theo thời gian</h3>
+          <div id="usage-series"></div>
+        </div>
+        <div class="grid2">
+          <div class="panel"><h3>Top model</h3><div class="tablewrap"><table><thead><tr><th>Model</th><th>Requests</th><th>Tokens</th></tr></thead><tbody id="usage-models"></tbody></table></div></div>
+          <div class="panel"><h3>Top tài khoản</h3><div class="tablewrap"><table><thead><tr><th>Email</th><th>Requests</th><th>Tokens</th></tr></thead><tbody id="usage-accounts"></tbody></table></div><div class="pager" id="usage-acc-pager"></div></div>
+        </div>
+      </section>
+
+      <!-- ============ Chat thử ============ -->
+      <section class="view" id="view-chat">
+        <div class="page-head"><div class="ph-title"><h2>Chat thử</h2><span class="ph-sub">Gọi thẳng qua pool (kể cả model ảnh 🖼)</span></div>
+          <div class="ph-actions"><button id="agy-chat-reload" class="sm" title="Tải lại model + account"><svg class="ic"><use href="#i-refresh"/></svg> Tải lại</button></div>
+        </div>
+        <div class="panel">
+          <div class="row">
+            <div style="flex:1;min-width:180px"><label class="fl">Model</label><select id="agy-chat-model" title="Chọn model"></select></div>
+            <div class="w-auto"><label class="fl">Account</label><select id="agy-chat-account" title="Chọn account"><option value="auto">auto</option></select></div>
+          </div>
+          <label class="fl">Proxy riêng (tuỳ chọn)</label>
+          <input id="agy-chat-proxy" placeholder="http://user:pass@host:port" title="Proxy override" />
+          <label class="fl">Nội dung</label>
+          <textarea id="agy-chat-content" rows="2" title="Nội dung gửi">Reply with exactly: PONG</textarea>
+          <div class="row end" style="margin-top:10px"><button class="primary" id="agy-chat-send" title="Gửi"><svg class="ic"><use href="#i-send"/></svg> Gửi</button></div>
+          <div id="agy-chat-out" style="margin-top:12px"></div>
+        </div>
+      </section>
+
+      <!-- ============ Live call log ============ -->
+      <section class="view" id="view-gwlog">
+        <div class="page-head">
+          <div class="ph-title"><h2>Live call log</h2><span class="ph-sub">Gateway request → response realtime</span></div>
+          <div class="ph-actions">
+            <button class="sm" id="gwlog-pause" title="Tạm dừng auto-scroll"><svg class="ic"><use href="#i-pause"/></svg> Pause</button>
+            <button class="sm" id="gwlog-clear" title="Xoá"><svg class="ic"><use href="#i-trash"/></svg> Xoá</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="toolbar"><div class="search"><svg class="ic search-ic"><use href="#i-search"/></svg><input id="gwlog-search" placeholder="Lọc model/account…" title="Lọc" /></div></div>
+          <div class="gwlog" id="gwlog"></div>
+        </div>
+      </section>
+
+      <!-- ============ Cấu hình ============ -->
+      <section class="view" id="view-settings">
+        <div class="page-head"><div class="ph-title"><h2>Cấu hình</h2></div></div>
+        <div class="settings-grid">
+          <div class="panel">
+            <h3><svg class="ic"><use href="#i-settings"/></svg> Chạy harvest</h3>
+            <p class="set-desc">Giãn nhịp & giới hạn login chống checkpoint.</p>
+            <div class="row">
+              <div style="flex:1"><label class="fl">Giãn nhịp min (giây)</label><input id="cfg-pmin" type="number" title="Nghỉ tối thiểu" /></div>
+              <div style="flex:1"><label class="fl">Giãn nhịp max (giây)</label><input id="cfg-pmax" type="number" title="Nghỉ tối đa" /></div>
+            </div>
+            <label class="fl">Cap login / IP / 24h</label><input id="cfg-cap" type="number" title="Login tối đa mỗi IP/24h" />
+            <label class="switch" style="margin-top:12px" title="Ẩn cửa sổ trình duyệt"><input type="checkbox" id="cfg-headless" /><span class="track"></span> Headless</label>
+            <div class="row end" style="margin-top:12px"><button class="primary" id="cfg-save" title="Lưu">Lưu</button></div>
+          </div>
+          <div class="panel">
+            <h3><svg class="ic"><use href="#i-gauge"/></svg> Hạn mức Antigravity</h3>
+            <p class="set-desc">Cách cập nhật hạn mức (163 account tốn API — cân nhắc).</p>
+            <label class="switch"><input type="checkbox" id="cfg-q-auto" /><span class="track"></span> Auto refresh nền</label>
+            <label class="fl" style="margin-top:8px">Chu kỳ auto (phút)</label><input id="cfg-q-interval" type="number" title="Chu kỳ auto refresh" />
+            <label class="switch" style="margin-top:10px"><input type="checkbox" id="cfg-q-oncall" /><span class="track"></span> Cập nhật kèm mỗi lần gọi model</label>
+            <label class="fl" style="margin-top:8px">Cache TTL (phút)</label><input id="cfg-q-ttl" type="number" title="Cache hạn mức" />
+            <div class="row end" style="margin-top:12px"><button id="cfg-q-refresh" title="Refresh tất cả đang bật">Refresh tất cả</button><button class="primary" id="cfg-q-save" title="Lưu">Lưu</button></div>
+          </div>
+          <div class="panel">
+            <h3><svg class="ic"><use href="#i-key"/></svg> Fingerprint</h3>
+            <p class="set-desc">Fingerprint riêng/account (macOS Chrome, slim).</p>
+            <label class="switch"><input type="checkbox" id="cfg-fp" /><span class="track"></span> Bật fingerprint</label>
+            <label class="fl" style="margin-top:10px">Chrome major (host)</label><input id="cfg-chrome" type="number" disabled title="Chrome thật của máy" />
+            <div class="row end" style="margin-top:12px"><button class="primary" id="cfg-save-fp" title="Lưu">Lưu</button></div>
+          </div>
+          <div class="panel">
+            <h3><svg class="ic"><use href="#i-activity"/></svg> Token health</h3>
+            <p class="set-desc">Chu kỳ tự kiểm token còn sống.</p>
+            <label class="fl">Chu kỳ (giờ)</label><input id="cfg-health" type="number" disabled title="Đặt qua .env" />
+            <div class="row end" style="margin-top:12px"><button id="cfg-health-now" title="Kiểm health tất cả ngay">Kiểm tra ngay</button></div>
+          </div>
+          <div class="panel">
+            <h3><svg class="ic"><use href="#i-link"/></svg> OmniRoute</h3>
+            <p class="set-desc">Gateway đích cho Kiro.</p>
+            <label class="fl">URL</label><input id="cfg-omni" readonly title="Đặt qua .env" />
+            <div class="row end" style="margin-top:12px"><button id="cfg-omni-test" title="Test kết nối">Test kết nối</button></div>
+          </div>
+          <div class="panel">
+            <h3><svg class="ic"><use href="#i-sun"/></svg> Giao diện</h3>
+            <p class="set-desc">Theme sáng/tối.</p>
+            <div class="row" style="margin-top:6px"><button id="cfg-theme" title="Đổi theme"><svg class="ic"><use href="#i-moon"/></svg> Đổi theme</button></div>
+          </div>
+          <div class="panel">
+            <h3><svg class="ic"><use href="#i-download"/></svg> Sao lưu & phục hồi</h3>
+            <p class="set-desc">1 file JSON toàn bộ (accounts + proxies + token + gateway + cấu hình). <b style="color:var(--amber)">Chứa token — giữ an toàn.</b></p>
+            <div class="row" style="margin-top:6px">
+              <a class="btn primary" id="bk-export" href="/api/backup/export" download title="Tải backup JSON toàn bộ"><svg class="ic"><use href="#i-download"/></svg> Export backup</a>
+              <label class="btn" title="Chọn file backup JSON"><svg class="ic"><use href="#i-upload"/></svg> Chọn file… <input type="file" id="bk-file" accept=".json" style="display:none" /></label>
+            </div>
+            <div id="bk-preview" class="faint" style="margin-top:10px;font-size:12px"></div>
+            <div class="row" id="bk-import-row" style="margin-top:10px;display:none">
+              <select id="bk-mode" class="w-auto" title="Cách phục hồi"><option value="merge">Gộp (thêm/ghi đè)</option><option value="replace">Thay thế toàn bộ</option></select>
+              <button class="primary" id="bk-import" title="Phục hồi từ file đã chọn"><svg class="ic"><use href="#i-upload"/></svg> Phục hồi</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ===== Right log pane ===== -->
+    <aside class="logpane" id="logpane">
+      <div class="lp-head">
+        <span class="t"><svg class="ic"><use href="#i-terminal"/></svg> Log realtime</span>
+        <button class="icon ghost sm" id="log-pause" title="Tạm dừng auto-scroll"><svg class="ic"><use href="#i-pause"/></svg></button>
+        <button class="icon ghost sm" id="log-download" title="Tải log"><svg class="ic"><use href="#i-download"/></svg></button>
+        <button class="icon ghost sm" id="log-clear" title="Xoá log"><svg class="ic"><use href="#i-trash"/></svg></button>
+      </div>
+      <div class="seg sm log-cat" id="log-cat">
+        <button data-c="" class="active" title="Tất cả log">Tất cả</button>
+        <button data-c="login" title="Log đăng nhập/harvest">Harvest</button>
+        <button data-c="gateway" title="Log gọi model gateway">Gateway</button>
+      </div>
+      <div class="lp-filters">
+        <input id="log-search" placeholder="Tìm…" style="flex:1" title="Lọc theo chuỗi" />
+        <select id="log-level" class="w-auto" title="Lọc theo mức">
+          <option value="">Mọi mức</option>
+          <option value="info">info</option>
+          <option value="warn">warn</option>
+          <option value="error">error</option>
+          <option value="challenge">challenge</option>
+        </select>
+      </div>
+      <div class="human-wrap" id="human-banner"></div>
+      <div class="log" id="log"></div>
+    </aside>
+  </div>
+
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="modal-bg" id="modal-detail">
+    <div class="modal">
+      <div class="head"><h3 id="detail-title">Chi tiết</h3><button class="icon ghost" onclick="closeModal('modal-detail')" title="Đóng"><svg class="ic"><use href="#i-x"/></svg></button></div>
+      <div class="body" id="detail-body"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

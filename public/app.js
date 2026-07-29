@@ -1,0 +1,732 @@
+// ===== Antigravity Account Manager — frontend =====
+const FLOWS = [
+  { key: 'agy', label: 'Antigravity', col: 'status_agy' },
+  { key: 'kiro', label: 'Kiro', col: 'status_kiro' },
+];
+const PIPELINE = FLOWS.map((f) => f.key);
+
+const $ = (id) => document.getElementById(id);
+const el = (t, c) => { const e = document.createElement(t); if (c) e.className = c; return e; };
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const api = async (path, opts) => {
+  const hasBody = opts && opts.body != null;
+  const r = await fetch(path, { ...opts, headers: hasBody ? { 'content-type': 'application/json', ...(opts.headers || {}) } : (opts && opts.headers) || {}, body: hasBody ? JSON.stringify(opts.body) : undefined });
+  return r.json();
+};
+let toastTimer;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600); }
+function noProxy() { return $('no-proxy').checked; }
+function selectedFlows() { return [...document.querySelectorAll('.fp:checked')].map((c) => c.value); }
+const cssId = (s) => s.replace(/[^a-zA-Z0-9]/g, '_');
+const icon = (n) => `<svg class="ic"><use href="#i-${n}"/></svg>`;
+const fmtDur = (s) => (s <= 0 ? '' : s < 60 ? s + 's' : s < 3600 ? Math.round(s / 60) + 'm' : (s / 3600).toFixed(1) + 'h');
+
+// ---------- helper UI dùng chung ----------
+function fmtNum(n) { n = +n || 0; if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M'; if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k'; return String(n); }
+function fmtAgo(ms) { if (!ms) return '—'; const d = Date.now() - ms; if (d < 60000) return Math.max(1, Math.round(d / 1000)) + 's trước'; if (d < 3600000) return Math.round(d / 60000) + 'p trước'; if (d < 86400000) return Math.round(d / 3600000) + 'h trước'; return Math.round(d / 86400000) + 'd trước'; }
+function fmtReset(iso) { if (!iso) return '—'; const d = new Date(iso).getTime() - Date.now(); if (d <= 0) return 'đã reset'; const days = Math.floor(d / 86400000), hrs = Math.floor((d % 86400000) / 3600000); return days > 0 ? `${days}d ${hrs}h` : `${hrs}h`; }
+function qColor(pct) { return pct >= 50 ? 'q-hi' : pct >= 20 ? 'q-mid' : 'q-lo'; }
+function qbar(pct, label) { const p = pct == null ? 0 : pct; return `<div class="qbar ${pct == null ? '' : qColor(p)}"><i style="width:${p}%"></i><span>${pct == null ? '—' : p + '%'}${label ? ' ' + label : ''}</span></div>`; }
+const remember = (k, def) => { try { const v = localStorage.getItem('vs_' + k); return v !== null ? JSON.parse(v) : def; } catch { return def; } };
+const store_ = (k, v) => { try { localStorage.setItem('vs_' + k, JSON.stringify(v)); } catch {} };
+async function withSpin(btn, fn) { if (!btn) return fn(); const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spin"></span>'; try { return await fn(); } finally { btn.disabled = false; btn.innerHTML = old; } }
+function confirmAct(msg) { return confirm(msg); }
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+function paginate(list, st) { const total = list.length; const pages = Math.max(1, Math.ceil(total / st.size)); if (st.page > pages) st.page = pages; if (st.page < 1) st.page = 1; const start = (st.page - 1) * st.size; return { rows: list.slice(start, start + st.size), total, pages }; }
+// ---- biểu đồ SVG thuần (responsive viewBox, theme-aware) ----
+function svgLine(values, { color = 'var(--primary)', h = 90 } = {}) {
+  if (!values.length) return '<div class="empty">—</div>';
+  const w = 300, pad = 6, max = Math.max(1, ...values), n = values.length;
+  const x = (i) => (n === 1 ? w / 2 : pad + (i * (w - 2 * pad)) / (n - 1));
+  const y = (v) => h - pad - (v / max) * (h - 2 * pad);
+  const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const area = `${pad},${h - pad} ${pts} ${w - pad},${h - pad}`;
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polygon points="${area}" fill="${color}" opacity="0.12"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/>${values.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2" fill="${color}"/>`).join('')}</svg>`;
+}
+function svgDonut(pct, label, color) {
+  const p = pct == null ? 0 : pct, r = 34, c = 2 * Math.PI * r, off = c * (1 - p / 100);
+  const col = color || (p >= 50 ? 'var(--green)' : p >= 20 ? 'var(--amber)' : 'var(--red)');
+  return `<div class="donut"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="${r}" fill="none" stroke="var(--card-2)" stroke-width="9"/><circle cx="45" cy="45" r="${r}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 45 45)"/><text x="45" y="49" text-anchor="middle" class="donut-val">${pct == null ? '—' : p + '%'}</text></svg><div class="donut-lbl">${esc(label)}</div></div>`;
+}
+function barRows(items, nameKey, valFn, valLabel) {
+  if (!items.length) return '<div class="empty">Chưa có dữ liệu</div>';
+  const max = Math.max(1, ...items.map(valFn));
+  return items.map((it) => `<div class="ubar-row"><span class="ubar-lbl" title="${esc(it[nameKey])}">${esc(it[nameKey])}</span><div class="ubar"><i style="width:${Math.round((valFn(it) / max) * 100)}%"></i></div><span class="ubar-val">${valLabel(it)}</span></div>`).join('');
+}
+function countUp(elId, target) {
+  const e = $(elId); if (!e) return; const t = +target || 0; if (t <= 0) { e.textContent = String(t); return; }
+  const dur = 500, t0 = performance.now();
+  const step = (now) => { const k = Math.min(1, (now - t0) / dur); e.textContent = fmtNum(Math.round(t * (0.2 + 0.8 * k) * (k < 1 ? 1 : 1) )); if (k < 1) requestAnimationFrame(step); else e.textContent = fmtNum(t); };
+  requestAnimationFrame(step);
+}
+function skeleton(elId, rows = 4) { const e = $(elId); if (e) e.innerHTML = Array.from({ length: rows }, () => '<div class="skel"></div>').join(''); }
+function renderPager(elId, st, total, pages, onChange) {
+  const e = $(elId); if (!e) return;
+  if (total <= st.size && st.page === 1) { e.innerHTML = total ? `<span class="pg-info">${total} kết quả</span>` : ''; return; }
+  let nums = '';
+  for (let p = 1; p <= pages; p++) {
+    if (pages > 7 && p !== 1 && p !== pages && Math.abs(p - st.page) > 1) { if (p === st.page - 2 || p === st.page + 2) nums += '<span class="pg-dots">…</span>'; continue; }
+    nums += `<button class="pg-num ${p === st.page ? 'active' : ''}" data-p="${p}">${p}</button>`;
+  }
+  e.innerHTML = `<span class="pg-info">Trang ${st.page}/${pages} · ${total} kết quả</span><div class="pg-nav"><button class="pg-btn" data-p="${st.page - 1}" ${st.page <= 1 ? 'disabled' : ''}>${icon('left')}</button>${nums}<button class="pg-btn" data-p="${st.page + 1}" ${st.page >= pages ? 'disabled' : ''}>${icon('right')}</button></div><label class="pg-size">/trang <select class="w-auto">${[25, 50, 100].map((s) => `<option ${s === st.size ? 'selected' : ''}>${s}</option>`).join('')}</select></label>`;
+  e.querySelectorAll('[data-p]').forEach((b) => b.addEventListener('click', () => { const p = +b.dataset.p; if (p >= 1 && p <= pages) { st.page = p; onChange(); } }));
+  e.querySelector('select').addEventListener('change', (ev) => { st.size = +ev.target.value; st.page = 1; onChange(); });
+}
+
+let accounts = [], proxyLabels = [], selected = new Set(), credsCache = [];
+
+// ---------- nav / views ----------
+$('nav').addEventListener('click', (e) => {
+  const b = e.target.closest('.nav-item[data-tab]'); if (!b) return;
+  document.querySelectorAll('.nav-item').forEach((x) => x.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
+  $('view-' + b.dataset.tab).classList.add('active');
+  store_('tab', b.dataset.tab);
+  if (innerWidth <= 720) closeDrawers();
+  const t = b.dataset.tab;
+  if (t === 'overview') loadOverview();
+  if (t === 'connections') loadConnections();
+  if (t === 'tokens') loadTokens();
+  if (t === 'chat') loadAgy();
+  if (t === 'agy') loadAgy();
+  if (t === 'quota') loadQuota();
+  if (t === 'usage') loadUsage();
+  if (t === 'gwlog') renderGwlog();
+  if (t === 'settings') loadSettings();
+});
+
+// ---------- drawers / collapse / theme ----------
+function closeDrawers() { $('nav').classList.remove('open'); $('logpane').classList.remove('open'); $('backdrop').classList.remove('on'); }
+$('btn-nav').addEventListener('click', () => { $('nav').classList.toggle('open'); $('backdrop').classList.toggle('on', $('nav').classList.contains('open')); });
+$('btn-log').addEventListener('click', () => { $('logpane').classList.toggle('open'); $('backdrop').classList.toggle('on', $('logpane').classList.contains('open')); });
+$('backdrop').addEventListener('click', closeDrawers);
+$('btn-nav-collapse').addEventListener('click', () => { const c = $('app').classList.toggle('nav-collapsed'); store_('navCollapsed', c); });
+function applyTheme(t) { document.documentElement.setAttribute('data-theme', t); localStorage.setItem('theme', t); $('btn-theme').innerHTML = icon(t === 'light' ? 'sun' : 'moon'); }
+function toggleTheme() { applyTheme((localStorage.getItem('theme') || 'dark') === 'dark' ? 'light' : 'dark'); }
+$('btn-theme').addEventListener('click', toggleTheme);
+
+// ---------- summary (stats per-page + runbar + omni pill) ----------
+function mkCard(label, value, sub, cls) { return `<div class="card ${cls || ''}"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub || ''}</div></div>`; }
+async function loadSummary() {
+  const s = await api('/api/summary');
+  // nav badges
+  $('tc-acc').textContent = s.totalAccounts; $('tc-proxy').textContent = s.totalProxies; $('tc-conn').textContent = s.omniOk ? s.connectionCount : '—';
+  // stats Tài khoản
+  const accEl = $('stats-acc'); let html = mkCard('Tổng tài khoản', s.totalAccounts, `${s.totalProxies} proxy`);
+  for (const f of PIPELINE) {
+    const c = s.counts[f] || {}; const done = c.ok || 0; const pct = Math.round((done / (s.totalAccounts || 1)) * 100);
+    const label = FLOWS.find((x) => x.key === f).label;
+    html += `<div class="card provider"><div class="label">${label}</div><div class="value">${done}<span class="faint" style="font-size:14px">/${s.totalAccounts}</span></div><div class="sub">${c.failed ? `❌ ${c.failed}` : ''} ${c.needs_human ? `⏸ ${c.needs_human}` : ''} ${c.running ? `● ${c.running}` : ''}</div><div class="prog"><i style="width:${pct}%"></i></div></div>`;
+  }
+  const nh = PIPELINE.reduce((n, f) => n + ((s.counts[f] || {}).needs_human || 0), 0);
+  html += mkCard('Cần xử lý tay', nh, nh ? 'chờ challenge' : 'không có');
+  accEl.innerHTML = html;
+  // stats Proxy
+  const crowded = s.maxPerProxy > 10;
+  $('stats-proxy').innerHTML = mkCard('Tổng proxy', s.totalProxies, '') + mkCard('Tải / IP tối đa', s.maxPerProxy, crowded ? '<span style="color:var(--red)">⚠ dồn nhiều acc/1 IP</span>' : 'acc trên 1 IP') + mkCard('Direct (no proxy)', (s.proxyLoad && (s.proxyLoad['(direct)'] || s.proxyLoad['direct'])) || 0, 'account chạy IP máy');
+  // runbar
+  const rb = $('runbar');
+  if (s.sched.running && s.sched.batchTotal > 0) {
+    rb.classList.add('on');
+    const pct = Math.round((s.sched.done / s.sched.batchTotal) * 100);
+    $('runbar-fill').style.width = pct + '%';
+    const cur = s.sched.current;
+    $('runbar-cur').innerHTML = cur ? `Đang chạy <b>${esc(cur.email.split('@')[0])}</b>/${cur.flow}` : 'Đang chạy';
+    $('runbar-meta').innerHTML = `<b>${s.sched.done}/${s.sched.batchTotal}</b> (${pct}%)${s.sched.etaSec ? ' · còn ~' + fmtDur(s.sched.etaSec) : ''} · queue ${s.sched.queued} · login24h ${s.sched.loginsLast24h}/${s.sched.dailyCap}`;
+  } else { rb.classList.remove('on'); $('runbar-cur').textContent = `Rảnh · login24h ${s.sched.loginsLast24h}/${s.sched.dailyCap}`; $('runbar-meta').textContent = ''; }
+  const op = $('pill-omni'); op.className = 'status-pill ' + (s.omniOk ? 'ok' : 'bad'); op.innerHTML = `<span class="dot"></span> OmniRoute ${s.omniOk ? 'OK' : 'lỗi'}`;
+}
+
+// ---------- Tổng quan ----------
+async function loadOverview() {
+  skeleton('ov-kpi', 6);
+  const o = await api('/api/overview');
+  const agyOk = (o.accounts.counts.agy || {}).ok || 0, kiroOk = (o.accounts.counts.kiro || {}).ok || 0;
+  const kpis = [
+    ['Tài khoản', o.accounts.total, `${o.proxies} proxy`],
+    ['Antigravity ok', agyOk, `kiro ${kiroOk}`],
+    ['Pool bật', `${o.gateway.enabled}/${o.gateway.total}`, 'đang phục vụ'],
+    ['Requests 7d', fmtNum(o.usage.totals.requests), 'gọi model'],
+    ['Tokens 7d', fmtNum(o.usage.totals.tokIn + o.usage.totals.tokOut), 'in + out'],
+    ['Cooldown / chết', `${o.gateway.cooldown} / ${o.gateway.dead}`, 'cần chú ý'],
+  ];
+  $('ov-kpi').innerHTML = kpis.map(([l, v, s], i) => `<div class="card"><div class="label">${l}</div><div class="value" id="kpi-${i}">${v}</div><div class="sub">${s}</div></div>`).join('');
+  // donut hạn mức
+  $('ov-quota').innerHTML = svgDonut(o.quota.geminiAvg, 'Gemini') + svgDonut(o.quota.thirdPartyAvg, 'Claude/GPT') + `<div class="donut-note faint">${o.quota.fetched}/${o.gateway.total} account đã nạp</div>`;
+  // usage line
+  const vals = o.usage.series.map((s) => s.requests);
+  $('ov-usage').innerHTML = svgLine(vals, { color: 'var(--primary)' }) + `<div class="faint" style="font-size:11px;margin-top:4px">${o.usage.series.length ? o.usage.series[0].bucket + ' → ' + o.usage.series[o.usage.series.length - 1].bucket : 'chưa có dữ liệu'}</div>`;
+  // sức khỏe pool (stacked)
+  const g = o.gateway, tot = Math.max(1, g.total);
+  const seg = (n, cls, lbl) => n ? `<div class="hbar-seg ${cls}" style="width:${(n / tot) * 100}%" title="${lbl}: ${n}"></div>` : '';
+  $('ov-health').innerHTML = `<div class="hbar">${seg(g.enabled - g.cooldown - g.dead, 'ok', 'sẵn sàng')}${seg(g.cooldown, 'cd', 'cooldown')}${seg(g.dead, 'dead', 'chết')}${seg(g.total - g.enabled, 'off', 'tắt')}</div>
+    <div class="hbar-legend"><span><i class="lg ok"></i>Sẵn sàng ${g.enabled - g.cooldown - g.dead}</span><span><i class="lg cd"></i>Cooldown ${g.cooldown}</span><span><i class="lg dead"></i>Chết ${g.dead}</span><span><i class="lg off"></i>Tắt ${g.total - g.enabled}</span></div>
+    <div style="margin-top:12px"><div class="fl">Harvest Antigravity</div><div class="prog"><i style="width:${Math.round((agyOk / (o.accounts.total || 1)) * 100)}%"></i></div>
+    <div class="fl" style="margin-top:8px">Harvest Kiro</div><div class="prog"><i style="width:${Math.round((kiroOk / (o.accounts.total || 1)) * 100)}%"></i></div></div>`;
+  $('ov-models').innerHTML = barRows(o.usage.byModel, 'model', (m) => m.requests, (m) => `${m.requests} req · ${fmtNum(m.tokIn + m.tokOut)}`);
+  $('ov-accounts').innerHTML = barRows(o.usage.byAccount, 'email', (a) => a.requests, (a) => `${a.requests} req · ${fmtNum(a.tokIn + a.tokOut)}`);
+}
+$('ov-refresh').addEventListener('click', (e) => withSpin(e.currentTarget, loadOverview));
+
+// ---------- accounts ----------
+const accSt = { page: 1, size: remember('accSize', 50) };
+async function loadAccounts() { const r = await api('/api/accounts'); accounts = r.accounts; renderAccounts(); }
+function accountMatches(a) {
+  const q = $('acc-search').value.trim().toLowerCase(); if (q && !a.email.toLowerCase().includes(q)) return false;
+  const f = $('acc-filter').value; if (!f) return true;
+  const sts = PIPELINE.map((k) => a['status_' + k]);
+  if (f === 'both-ok') return sts.every((s) => s === 'ok');
+  if (f === 'miss-agy') return a.status_agy !== 'ok';
+  if (f === 'miss-kiro') return a.status_kiro !== 'ok';
+  if (f === 'new') return sts.some((s) => s === 'new');
+  return sts.includes(f);
+}
+function badge(status, email, flow) { return `<span class="badge ${status}" onclick="runFlow('${email}','${flow}')" title="Chạy ${flow} cho account này"><span class="bd"></span>${status}</span>`; }
+function renderAccounts() {
+  const body = $('acc-body'); body.innerHTML = '';
+  const full = accounts.filter(accountMatches);
+  const { rows, total, pages } = paginate(full, accSt);
+  if (!total) { body.innerHTML = `<tr><td colspan="7"><div class="empty">Không có tài khoản khớp</div></td></tr>`; $('acc-pager').innerHTML = ''; updateSel(); return; }
+  for (const a of rows) {
+    const tr = el('tr'); if (selected.has(a.email)) tr.classList.add('sel');
+    const proxyOpts = ['<option value="">(none)</option>'].concat(proxyLabels.map((l) => `<option ${l === a.proxy ? 'selected' : ''}>${esc(l)}</option>`)).join('');
+    tr.innerHTML = `
+      <td><input type="checkbox" class="rowchk" data-email="${esc(a.email)}" ${selected.has(a.email) ? 'checked' : ''}></td>
+      <td class="email">${esc(a.email)}</td>
+      <td><select class="sm rowproxy" data-email="${esc(a.email)}" title="Gán proxy">${proxyOpts}</select></td>
+      ${FLOWS.map((f) => `<td>${badge(a[f.col], a.email, f.key)}</td>`).join('')}
+      <td class="act">
+        <button class="sm primary" onclick="runPipeline('${a.email}')" title="Chạy luồng đã chọn">${icon('play')} Full</button>
+        <button class="sm" onclick="showDetail('${a.email}')" title="Chi tiết + credential">${icon('info')} Chi tiết</button>
+      </td>
+      <td class="act"><button class="sm icon danger" onclick="delAccount('${a.email}')" title="Xoá account">${icon('trash')}</button></td>`;
+    body.appendChild(tr);
+  }
+  body.querySelectorAll('.rowchk').forEach((c) => c.addEventListener('change', (e) => { const em = e.target.dataset.email; if (e.target.checked) selected.add(em); else selected.delete(em); updateSel(); }));
+  body.querySelectorAll('.rowproxy').forEach((s) => s.addEventListener('change', (e) => setProxy(e.target.dataset.email, e.target.value)));
+  renderPager('acc-pager', accSt, total, pages, () => { store_('accSize', accSt.size); renderAccounts(); });
+  updateSel();
+}
+function updateSel() {
+  const n = selected.size; $('acc-selcount').textContent = n ? `${n} đã chọn` : '0 đã chọn';
+  $('acc-bulk').classList.toggle('on', n > 0);
+  document.querySelectorAll('#acc-body tr').forEach((tr) => { const chk = tr.querySelector('.rowchk'); if (chk) tr.classList.toggle('sel', selected.has(chk.dataset.email)); });
+}
+$('check-all').addEventListener('change', (e) => { const list = accounts.filter(accountMatches); const { rows } = paginate(list, accSt); if (e.target.checked) rows.forEach((a) => selected.add(a.email)); else rows.forEach((a) => selected.delete(a.email)); renderAccounts(); });
+$('acc-search').addEventListener('input', debounce(() => { accSt.page = 1; renderAccounts(); }, 200));
+$('acc-filter').addEventListener('change', () => { accSt.page = 1; renderAccounts(); });
+
+async function runFlow(email, flow) { await api('/api/run', { method: 'POST', body: { email, flow, noProxy: noProxy() } }); toast(`Đã xếp ${flow} · ${email.split('@')[0]}`); }
+async function runPipeline(email) { const flows = selectedFlows(); if (!flows.length) return toast('Chọn ít nhất 1 luồng'); for (const f of flows) await api('/api/run', { method: 'POST', body: { email, flow: f, noProxy: noProxy() } }); toast(`Đã xếp ${flows.join('+')} · ${email.split('@')[0]}`); }
+async function setProxy(email, proxy) { await api('/api/accounts/' + encodeURIComponent(email) + '/proxy', { method: 'POST', body: { proxy } }); }
+async function delAccount(email) { if (!confirmAct('Xoá ' + email + '?')) return; await api('/api/accounts/' + encodeURIComponent(email), { method: 'DELETE' }); selected.delete(email); loadAccounts(); loadSummary(); }
+$('bulk-run').addEventListener('click', async () => { const flows = selectedFlows(); if (!flows.length) return toast('Chọn ít nhất 1 luồng'); for (const em of selected) for (const f of flows) await api('/api/run', { method: 'POST', body: { email: em, flow: f, noProxy: noProxy() } }); toast(`Đã xếp ${flows.join('+')} cho ${selected.size} account`); });
+$('bulk-del').addEventListener('click', async () => { if (!confirmAct(`Xoá ${selected.size} account?`)) return; for (const em of selected) await api('/api/accounts/' + encodeURIComponent(em), { method: 'DELETE' }); selected.clear(); loadAccounts(); loadSummary(); });
+$('bulk-proxy').addEventListener('click', async () => { const p = prompt('Label proxy gán cho account đã chọn (trống = bỏ gán):', proxyLabels[0] || ''); if (p === null) return; for (const em of selected) await setProxy(em, p); loadAccounts(); toast('Đã gán proxy'); });
+$('btn-retry').addEventListener('click', async () => { const flows = selectedFlows(); const r = await api('/api/retry-failed', { method: 'POST', body: { flows, noProxy: noProxy() } }); toast(`Chạy lại: xếp ${r.queued} job failed/cần-tay`); });
+$('btn-auto').addEventListener('click', async () => { reqNotify(); const flows = selectedFlows(); if (!flows.length) return toast('Chọn ít nhất 1 luồng'); const r = await api('/api/auto-run', { method: 'POST', body: { flows, noProxy: noProxy() } }); toast(`Auto Run (${flows.join('+')}): xếp ${r.queued} job`); });
+$('btn-stop').addEventListener('click', async () => { await api('/api/stop', { method: 'POST' }); toast('Đã dừng scheduler'); });
+
+// ---------- proxies ----------
+async function loadProxies() {
+  const { proxies } = await api('/api/proxies'); proxyLabels = proxies.map((p) => p.label);
+  const body = $('proxy-body'); body.innerHTML = '';
+  if (!proxies.length) body.innerHTML = `<tr><td colspan="4"><div class="empty">Chưa có proxy</div></td></tr>`;
+  for (const p of proxies) {
+    const tr = el('tr');
+    tr.innerHTML = `<td class="mono">${esc(p.label)}</td><td id="pc-${cssId(p.label)}">${esc(p.country) || '—'}</td>
+      <td><button class="sm" onclick="testProxy('${esc(p.label)}')" title="Test egress IP">${icon('zap')} Test</button> <span class="faint" id="pt-${cssId(p.label)}"></span></td>
+      <td><button class="sm icon danger" onclick="delProxy('${esc(p.label)}')" title="Xoá proxy">${icon('trash')}</button></td>`;
+    body.appendChild(tr);
+  }
+  $('a-proxy').innerHTML = ['<option value="">(chưa gán)</option>'].concat(proxyLabels.map((l) => `<option>${esc(l)}</option>`)).join('');
+}
+$('p-import').addEventListener('click', async () => { const r = await api('/api/proxies/import', { method: 'POST', body: { url: $('p-url').value, text: $('p-text').value, replace: $('p-replace').checked } }); if (r.error) return toast('Lỗi: ' + r.error); toast('Đã import ' + r.added + ' proxy'); $('p-text').value = ''; loadProxies(); loadSummary(); });
+$('p-autoassign').addEventListener('click', async () => { const r = await api('/api/accounts/auto-proxy', { method: 'POST', body: {} }); if (r.error) return toast(r.error); toast('Đã gán proxy cho ' + r.assigned + ' account'); loadAccounts(); loadSummary(); });
+async function testProxy(label) { const e = $('pt-' + cssId(label)); e.innerHTML = '<span class="spin"></span>'; const r = await api('/api/proxies/test/' + encodeURIComponent(label), { method: 'POST' }); if (r.ok) { e.textContent = `${r.ip} · ${r.ms}ms`; $('pc-' + cssId(label)).textContent = r.country || '—'; } else e.innerHTML = `<span style="color:var(--red)">✕ ${esc(r.error || 'fail')}</span>`; }
+async function delProxy(label) { await api('/api/proxies/' + encodeURIComponent(label), { method: 'DELETE' }); loadProxies(); loadSummary(); }
+
+// ---------- connections ----------
+async function loadConnections() {
+  const r = await api('/api/omniroute/connections'); const body = $('conn-body'); body.innerHTML = '';
+  if (!r.ok) { $('conn-note').textContent = 'Lỗi: ' + r.error; return; }
+  $('conn-note').textContent = `Tổng ${r.connections.length} connection.`;
+  if (!r.connections.length) { body.innerHTML = `<tr><td colspan="6"><div class="empty">Chưa có connection</div></td></tr>`; return; }
+  for (const c of r.connections.sort((a, b) => a.provider.localeCompare(b.provider))) {
+    const tr = el('tr');
+    const test = c.testStatus === 'active' ? '<span class="badge ok"><span class="bd"></span>active</span>' : c.testStatus === 'unknown' ? '<span class="chip">unknown</span>' : `<span class="badge failed"><span class="bd"></span>${esc(c.testStatus)}</span>`;
+    tr.innerHTML = `<td><span class="chip">${esc(c.provider)}</span></td><td>${esc(c.name)}</td><td class="faint">${esc(c.authType)}</td><td>${test}</td><td>${c.proxyEnabled ? '✓' : '—'}</td><td class="faint">${c.createdAt ? new Date(c.createdAt).toLocaleString() : ''}</td>`;
+    body.appendChild(tr);
+  }
+}
+
+// ---------- tokens ----------
+const tokSt = { page: 1, size: remember('tokSize', 50) };
+function tokenParts(c) {
+  if (c.target === 'kiro') { try { const j = JSON.parse(c.value); return { token: j.refreshToken || c.value, info: (j.profileArn ? j.profileArn.split('/').pop() : '') + (j.region ? ' · ' + j.region : '') }; } catch { return { token: c.value, info: '' }; } }
+  if (c.target === 'gweb') return { token: c.value, info: c.expires_at ? 'hết hạn ' + new Date(c.expires_at).toLocaleDateString() : 'cookie' };
+  return { token: c.value === 'stored_in_omniroute' ? '(lưu trong OmniRoute)' : c.value, info: c.omniroute_connection_id ? 'conn ' + c.omniroute_connection_id.slice(0, 8) : '' };
+}
+async function loadTokens() { const r = await api('/api/credentials'); credsCache = r.credentials || []; $('tc-tok').textContent = credsCache.length; renderTokens(); }
+function renderTokenStats() {
+  const stat = (t) => { const l = credsCache.filter((c) => c.target === t); return { alive: l.filter((c) => c.health === 'alive').length, dead: l.filter((c) => c.health === 'dead').length, tot: l.length }; };
+  const a = stat('agy'), k = stat('kiro');
+  $('stats-tok').innerHTML = mkCard('Antigravity token', a.tot, `🟢 ${a.alive} · 🔴 ${a.dead}`) + mkCard('Kiro token', k.tot, `🟢 ${k.alive} · 🔴 ${k.dead}`) + mkCard('Tổng credential', credsCache.length, '');
+}
+function renderTokens() {
+  renderTokenStats();
+  const f = $('tok-filter').value, hf = $('tok-health-filter').value, q = $('tok-search').value.trim().toLowerCase();
+  const full = credsCache.filter((c) => (!f || c.target === f) && (!hf || (c.health || 'unknown') === hf) && (!q || c.email.toLowerCase().includes(q)))
+    .sort((a, b) => (b.value !== 'stored_in_omniroute') - (a.value !== 'stored_in_omniroute'));
+  const { rows, total, pages } = paginate(full, tokSt);
+  const body = $('tok-body'); body.innerHTML = '';
+  if (!total) { body.innerHTML = `<tr><td colspan="6"><div class="empty">Chưa có token</div></td></tr>`; $('tok-pager').innerHTML = ''; return; }
+  rows.forEach((c, i) => {
+    const { token, info } = tokenParts(c);
+    const real = !(c.target === 'agy' && token.startsWith('('));
+    const masked = token.length > 16 ? token.slice(0, 6) + '••••••' + token.slice(-4) : token;
+    const hb = c.health === 'alive' ? '<span class="badge alive"><span class="bd"></span>alive</span>' : c.health === 'dead' ? '<span class="badge dead"><span class="bd"></span>dead</span>' : '<span class="chip">—</span>';
+    const tr = el('tr');
+    tr.innerHTML = `<td class="email">${esc(c.email)}</td><td><span class="chip">${esc(c.target)}</span></td><td>${hb}</td>
+      <td class="mono" style="max-width:400px"><span id="tok-${i}" data-full="${esc(token)}" data-shown="0">${esc(masked)}</span>
+        ${real ? `<button class="sm icon" title="Hiện/ẩn" onclick="toggleTok(${i})">${icon('eye')}</button><button class="sm icon" title="Copy" onclick="copyTok(${i})">${icon('copy')}</button>` : ''}</td>
+      <td class="faint">${esc(info)}</td><td class="faint">${c.updated_at ? new Date(c.updated_at).toLocaleString() : ''}</td>`;
+    body.appendChild(tr);
+  });
+  renderPager('tok-pager', tokSt, total, pages, () => { store_('tokSize', tokSt.size); renderTokens(); });
+}
+function toggleTok(i) { const s = $('tok-' + i); const full = s.dataset.full; if (s.dataset.shown === '1') { s.dataset.shown = '0'; s.textContent = full.length > 16 ? full.slice(0, 6) + '••••••' + full.slice(-4) : full; } else { s.dataset.shown = '1'; s.textContent = full; } }
+async function copyTok(i) { try { await navigator.clipboard.writeText($('tok-' + i).dataset.full); toast('Đã copy token'); } catch { toast('Copy lỗi'); } }
+$('tok-filter').addEventListener('change', () => { tokSt.page = 1; renderTokens(); });
+$('tok-health-filter').addEventListener('change', () => { tokSt.page = 1; renderTokens(); });
+$('tok-search').addEventListener('input', debounce(() => { tokSt.page = 1; renderTokens(); }, 200));
+$('tok-health').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const f = $('tok-filter').value; const r = await api('/api/tokens/check', { method: 'POST', body: f ? { target: f } : {} }); if (r.ok) toast(`Health: 🟢${r.alive} 🔴${r.dead} ⚪${r.unknown} / ${r.total}`); loadTokens(); }));
+$('tok-export').addEventListener('click', () => {
+  const f = $('tok-filter').value, hf = $('tok-health-filter').value, q = $('tok-search').value.trim().toLowerCase();
+  const list = credsCache.filter((c) => (!f || c.target === f) && (!hf || (c.health || 'unknown') === hf) && (!q || c.email.toLowerCase().includes(q)));
+  const rows = [['email', 'target', 'value', 'health', 'omniroute_connection_id', 'updated_at']];
+  for (const c of list) rows.push([c.email, c.target, c.value, c.health || '', c.omniroute_connection_id || '', c.updated_at || '']);
+  downloadFile('credentials' + (f ? '_' + f : '') + '.csv', rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n'), 'text/csv');
+  toast('Đã export ' + list.length + ' token');
+});
+function downloadFile(name, content, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type })); a.download = name; a.click(); }
+
+// ---------- Pool (Antigravity gateway) ----------
+const agySt = { page: 1, size: remember('agySize', 50) };
+let agyAccounts = [], agyModels = [], agyCfg = {}, agySelected = new Set();
+async function loadAgy() {
+  const [ac, cf, md] = await Promise.all([api('/api/gateway/accounts'), api('/api/gateway/config'), api('/api/gateway/models')]);
+  agyAccounts = ac.accounts || []; agyCfg = cf || {}; agyModels = md.models || [];
+  $('agy-baseurl').value = agyCfg.baseUrl || (location.origin + '/proxy/v1');
+  $('agy-apikey').value = agyCfg.apiKey || '';
+  $('agy-proxy').value = agyCfg.outboundProxy || '';
+  document.querySelectorAll('#agy-strategy button').forEach((b) => b.classList.toggle('active', b.dataset.s === (agyCfg.rotation || 'round-robin')));
+  $('agy-chat-model').innerHTML = agyModels.map((m) => `<option value="${esc(m.id)}">${esc(m.label)}</option>`).join('');
+  $('agy-chat-account').innerHTML = '<option value="auto">auto (theo chiến lược)</option>' + agyAccounts.filter((a) => a.enabled).map((a) => `<option value="${esc(a.email)}">${esc(a.email)}</option>`).join('');
+  $('tc-agy').textContent = agyAccounts.filter((a) => a.enabled).length;
+  if (!$('agy-models').dataset.checked) renderModelChips(agyModels.map((m) => ({ id: m.id, status: m.image ? 'image' : 'unknown' })));
+  renderAgyStats(); renderAgy();
+}
+function renderModelChips(list) {
+  $('agy-models').innerHTML = list.map((m) => {
+    const ic = m.status === 'ok' ? '✅' : m.status === 'quota' ? '⏳' : m.status === 'error' ? '❌' : m.status === 'image' ? '🖼' : '•';
+    return `<span class="chip model-chip ${m.status}" title="${m.status}${m.detail ? ': ' + esc(m.detail) : ''}">${ic} ${esc(m.id)}${m.ms ? ` <span class="faint">${m.ms}ms</span>` : ''}</span>`;
+  }).join('');
+}
+function renderAgyStats() {
+  const on = agyAccounts.filter((a) => a.enabled).length, cd = agyAccounts.filter((a) => a.cooldown).length;
+  const req = agyAccounts.reduce((s, a) => s + a.requests, 0), tok = agyAccounts.reduce((s, a) => s + a.tokensIn + a.tokensOut, 0);
+  const dead = agyAccounts.filter((a) => a.health === 'dead').length;
+  $('stats-agy').innerHTML = mkCard('Account bật', on + ' / ' + agyAccounts.length, 'đang phục vụ') + mkCard('Requests', fmtNum(req), 'tổng đã gọi') + mkCard('Tokens', fmtNum(tok), 'in + out') + mkCard('Cooldown', cd, 'nghỉ (429)') + mkCard('Token chết', dead, 'cần re-login');
+}
+function agyFilterSort() {
+  const q = ($('agy-search').value || '').toLowerCase(), f = $('agy-filter').value, s = $('agy-sort').value;
+  let list = agyAccounts.filter((a) => a.email.toLowerCase().includes(q));
+  if (f === 'on') list = list.filter((a) => a.enabled);
+  else if (f === 'off') list = list.filter((a) => !a.enabled);
+  else if (f === 'cooldown') list = list.filter((a) => a.cooldown);
+  else if (f === 'dead') list = list.filter((a) => a.health === 'dead');
+  if (s === 'requests') list.sort((a, b) => b.requests - a.requests);
+  else if (s === 'quota') list.sort((a, b) => (b.geminiPct ?? -1) - (a.geminiPct ?? -1));
+  else list.sort((a, b) => a.email.localeCompare(b.email));
+  return list;
+}
+function claudePct(a) { const g = (a.quota && a.quota.groups) ? a.quota.groups.find((x) => !/gemini/i.test(x.name)) : null; return g ? g.pct : null; }
+function tokenBadge(health) { const c = health === 'alive' ? 'alive' : health === 'dead' ? 'dead' : 'new'; return `<span class="badge ${c}"><span class="bd"></span>${esc(health || '—')}</span>`; }
+function liveBadge(s) { if (!s) return '<span class="chip">—</span>'; const map = { ok: ['alive', '✓ live'], quota: ['needs_human', '⏳ quota'], error: ['dead', '✗ lỗi'] }; const [cls, lbl] = map[s] || ['new', s]; return `<span class="badge ${cls}"><span class="bd"></span>${lbl}</span>`; }
+function renderAgy() {
+  const body = $('agy-body'); body.innerHTML = '';
+  const full = agyFilterSort();
+  const { rows, total, pages } = paginate(full, agySt);
+  if (!total) { body.innerHTML = '<tr><td colspan="10"><div class="empty">Chưa có account Antigravity nào có token. Harvest luồng agy trước (Tài khoản → Auto Run).</div></td></tr>'; $('agy-pager').innerHTML = ''; return; }
+  for (const a of rows) {
+    const tr = el('tr'); tr.dataset.email = a.email; if (!a.enabled) tr.classList.add('off'); if (a.cooldown) tr.classList.add('cooldown');
+    const gpct = a.geminiPct, cpct = claudePct(a);
+    tr.innerHTML = `
+      <td><input type="checkbox" class="agy-chk" data-email="${esc(a.email)}" ${agySelected.has(a.email) ? 'checked' : ''}></td>
+      <td><label class="switch"><input type="checkbox" class="agy-tog" data-email="${esc(a.email)}" ${a.enabled ? 'checked' : ''}/><span class="track"></span></label></td>
+      <td class="email">${esc(a.email)}</td>
+      <td class="qcell">${gpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(gpct)}">${gpct}%</span>`}</td>
+      <td class="qcell">${cpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(cpct)}">${cpct}%</span>`}</td>
+      <td>${a.requests}</td>
+      <td class="mono faint">${fmtNum(a.tokensIn)}/${fmtNum(a.tokensOut)}</td>
+      <td class="c-token">${tokenBadge(a.health)}</td>
+      <td class="c-live">${liveBadge(a.liveStatus)}</td>
+      <td class="act">
+        <button class="sm icon agy-test" data-email="${esc(a.email)}" title="Check token (còn sống?)">${icon('activity')}</button>
+        <button class="sm icon agy-live" data-email="${esc(a.email)}" title="Check live (gọi model được?)">${icon('zap')}</button>
+        <button class="sm icon agy-quota" data-email="${esc(a.email)}" title="Nạp hạn mức">${icon('gauge')}</button>
+        <button class="sm icon" title="Chat thử account này" onclick="agyChatWith('${esc(a.email)}')">${icon('msg')}</button>
+      </td>`;
+    body.appendChild(tr);
+  }
+  body.querySelectorAll('.agy-tog').forEach((c) => c.addEventListener('change', async () => {
+    const a = agyAccounts.find((x) => x.email === c.dataset.email); if (a) a.enabled = c.checked; renderAgyStats(); // optimistic
+    const r = await api('/api/gateway/accounts/' + encodeURIComponent(c.dataset.email) + '/toggle', { method: 'POST', body: { enabled: c.checked } });
+    if (!r.ok) { if (a) a.enabled = !c.checked; renderAgy(); renderAgyStats(); toast('Đổi trạng thái lỗi'); }
+    $('tc-agy').textContent = agyAccounts.filter((x) => x.enabled).length;
+  }));
+  body.querySelectorAll('.agy-chk').forEach((c) => c.addEventListener('change', () => { if (c.checked) agySelected.add(c.dataset.email); else agySelected.delete(c.dataset.email); updateAgySel(); }));
+  body.querySelectorAll('.agy-test').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+    const r = await api('/api/gateway/accounts/' + encodeURIComponent(b.dataset.email) + '/test', { method: 'POST' });
+    const a = agyAccounts.find((x) => x.email === b.dataset.email); if (a) a.health = r.alive ? 'alive' : 'dead';
+    toast(`${b.dataset.email.split('@')[0]}: token ${r.alive ? 'sống ✓' : 'CHẾT ✗'} (${r.ms}ms)`); renderAgy();
+  })));
+  body.querySelectorAll('.agy-live').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+    const r = await api('/api/gateway/accounts/' + encodeURIComponent(b.dataset.email) + '/checklive', { method: 'POST' });
+    const a = agyAccounts.find((x) => x.email === b.dataset.email); if (a) a.liveStatus = r.status;
+    toast(`${b.dataset.email.split('@')[0]}: live ${r.status === 'ok' ? '✓ ok' : r.status === 'quota' ? '⏳ quota' : '✗ ' + (r.detail || 'lỗi')} (${r.ms}ms)`); renderAgy();
+  })));
+  body.querySelectorAll('.agy-quota').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+    const r = await api('/api/gateway/quota/' + encodeURIComponent(b.dataset.email), { method: 'POST' });
+    if (r.ok) { const a = agyAccounts.find((x) => x.email === b.dataset.email); if (a) { a.quota = r.quota; a.geminiPct = (r.quota.groups.find((g) => /gemini/i.test(g.name)) || {}).pct ?? null; } toast('Đã nạp hạn mức ' + b.dataset.email.split('@')[0]); renderAgy(); }
+    else toast('Lỗi quota: ' + (r.error || ''));
+  })));
+  renderPager('agy-pager', agySt, total, pages, () => { store_('agySize', agySt.size); renderAgy(); });
+  updateAgySel();
+}
+function updateAgySel() { const n = agySelected.size; $('agy-selcount').textContent = n ? `${n} đã chọn` : '0 đã chọn'; $('agy-bulk').classList.toggle('on', n > 0); }
+['agy-search', 'agy-filter', 'agy-sort'].forEach((id) => $(id).addEventListener('input', () => { agySt.page = 1; renderAgy(); }));
+$('agy-check-all').addEventListener('change', (e) => { const { rows } = paginate(agyFilterSort(), agySt); rows.forEach((a) => e.target.checked ? agySelected.add(a.email) : agySelected.delete(a.email)); renderAgy(); });
+$('agy-copy-url').addEventListener('click', () => { navigator.clipboard.writeText($('agy-baseurl').value); toast('Đã copy Base URL'); });
+$('agy-copy-key').addEventListener('click', () => { navigator.clipboard.writeText($('agy-apikey').value); toast('Đã copy API key'); });
+$('agy-regen-key').addEventListener('click', async () => { const r = await api('/api/gateway/config', { method: 'PATCH', body: { regenerateKey: true } }); $('agy-apikey').value = r.config.apiKey; toast('Đã sinh API key mới'); });
+$('agy-save-cfg').addEventListener('click', async () => { await api('/api/gateway/config', { method: 'PATCH', body: { apiKey: $('agy-apikey').value.trim(), outboundProxy: $('agy-proxy').value.trim() } }); toast('Đã lưu cấu hình gateway'); });
+$('agy-strategy').addEventListener('click', async (e) => { const b = e.target.closest('button[data-s]'); if (!b) return; document.querySelectorAll('#agy-strategy button').forEach((x) => x.classList.remove('active')); b.classList.add('active'); await api('/api/gateway/config', { method: 'PATCH', body: { rotation: b.dataset.s } }); toast('Chiến lược: ' + b.textContent.trim()); });
+$('agy-all-on').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { await api('/api/gateway/accounts/bulk', { method: 'POST', body: { enabled: true } }); toast('Đã bật tất cả'); loadAgy(); }));
+$('agy-all-off').addEventListener('click', async (e) => { if (!confirmAct('Tắt tất cả account?')) return; await api('/api/gateway/accounts/bulk', { method: 'POST', body: { enabled: false } }); toast('Đã tắt tất cả'); loadAgy(); });
+$('agy-check-models').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { toast('Đang test model live…'); const r = await api('/api/gateway/models/check', { method: 'POST' }); if (r.models) { renderModelChips(r.models); $('agy-models').dataset.checked = '1'; toast(`Check live qua ${r.account.split('@')[0]}: ${r.models.filter((m) => m.status === 'ok').length}/${r.models.length} ok`); } else toast('Lỗi: ' + (r.error || '')); }));
+$('agy-refresh-quota').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const r = await api('/api/gateway/quota/refresh', { method: 'POST', body: {} }); toast(`Đang nạp hạn mức ${r.queued} account (nền)…`); }));
+$('agy-bulk-on').addEventListener('click', async () => { await api('/api/gateway/accounts/bulk', { method: 'POST', body: { emails: [...agySelected], enabled: true } }); toast('Đã bật ' + agySelected.size); loadAgy(); });
+$('agy-bulk-off').addEventListener('click', async () => { await api('/api/gateway/accounts/bulk', { method: 'POST', body: { emails: [...agySelected], enabled: false } }); toast('Đã tắt ' + agySelected.size); loadAgy(); });
+$('agy-bulk-quota').addEventListener('click', async () => { const r = await api('/api/gateway/quota/refresh', { method: 'POST', body: { emails: [...agySelected] } }); toast(`Đang nạp hạn mức ${r.queued} account (nền)…`); });
+// ---- Check token/live (từng account hoặc tất cả) realtime ----
+let checkTotal = 0, checkDone = 0;
+async function startCheck(emails, mode) {
+  const r = await api('/api/gateway/accounts/check', { method: 'POST', body: { emails, mode } });
+  checkTotal = r.queued; checkDone = 0;
+  $('agy-checkbar').classList.add('on');
+  $('agy-check-label').textContent = `Đang check ${mode === 'live' ? 'live' : mode === 'both' ? 'token+live' : 'token'}…`;
+  $('agy-check-fill').style.width = '0%'; $('agy-check-meta').textContent = `0/${checkTotal}`;
+  toast(`Đang check ${r.queued} account (realtime)…`);
+}
+$('agy-check-token-all').addEventListener('click', () => startCheck([], 'token'));
+$('agy-check-live-all').addEventListener('click', () => startCheck([], 'live'));
+$('agy-bulk-test').addEventListener('click', () => startCheck([...agySelected], 'token'));
+$('agy-bulk-live').addEventListener('click', () => startCheck([...agySelected], 'live'));
+// cập nhật 1 dòng account theo sự kiện check realtime
+function applyCheckEvent(email, check) {
+  const a = agyAccounts.find((x) => x.email === email);
+  if (a) {
+    if (check.kind === 'token') a.health = check.result === 'alive' ? 'alive' : check.result === 'dead' ? 'dead' : a.health;
+    else if (check.kind === 'live') a.liveStatus = check.result;
+  }
+  const tr = document.querySelector(`#agy-body tr[data-email="${CSS.escape(email)}"]`);
+  if (tr && a) { const tc = tr.querySelector('.c-token'); if (tc) tc.innerHTML = tokenBadge(a.health); const lc = tr.querySelector('.c-live'); if (lc) lc.innerHTML = liveBadge(a.liveStatus); }
+  if (check.total) { checkTotal = check.total; checkDone = check.done || checkDone + 1; const pct = Math.round((checkDone / checkTotal) * 100); $('agy-check-fill').style.width = pct + '%'; $('agy-check-meta').textContent = `${checkDone}/${checkTotal}`; if (checkDone >= checkTotal) { setTimeout(() => { $('agy-checkbar').classList.remove('on'); renderAgyStats(); }, 1200); toast('Check xong'); } }
+}
+$('agy-chat-reload').addEventListener('click', () => loadAgy());
+function agyChatWith(email) { document.querySelector('.nav-item[data-tab="chat"]').click(); setTimeout(() => { const sel = $('agy-chat-account'); if (![...sel.options].some((o) => o.value === email)) sel.insertAdjacentHTML('beforeend', `<option value="${esc(email)}">${esc(email)}</option>`); sel.value = email; $('agy-chat-content').focus(); }, 150); }
+$('agy-chat-send').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+  const model = $('agy-chat-model').value, content = $('agy-chat-content').value, account = $('agy-chat-account').value, proxy = $('agy-chat-proxy').value.trim();
+  const out = $('agy-chat-out'); out.className = ''; out.innerHTML = '<span class="spin"></span> đang gọi model…';
+  const r = await api('/api/gateway/chat', { method: 'POST', body: { model, content, account, proxy } });
+  if (r.ok) {
+    let html = `<div class="agy-out"><div class="meta"><span>✓ <b>${esc(r.model)}</b></span><span>account <b>${esc(r.account)}</b></span><span>${r.ms}ms</span><span>${(r.usage && r.usage.totalTokens) || 0} tok</span></div>`;
+    if (r.text) html += `<div class="txt">${esc(r.text)}</div>`;
+    for (const img of (r.images || [])) html += `<img src="${img}" alt="ảnh sinh bởi model"/>`;
+    out.innerHTML = html + '</div>';
+  } else { out.innerHTML = `<div class="agy-out err"><b>✕ Lỗi (${esc(r.account || '')})</b><div class="mono" style="margin-top:6px">${esc(r.error || '')}</div></div>`; }
+}));
+
+// ---------- Hạn mức ----------
+const quotaSt = { page: 1, size: remember('quotaSize', 25) };
+let quotaMode = remember('quotaMode', 'table');
+const quotaTried = new Set(); let quotaAutoRunning = false;
+async function loadQuota() {
+  document.querySelectorAll('#quota-mode button').forEach((b) => b.classList.toggle('active', b.dataset.m === quotaMode));
+  const ac = await api('/api/gateway/accounts'); agyAccounts = ac.accounts || [];
+  renderQuotaStats(); renderQuota();
+}
+function renderQuotaStats() {
+  const withQ = agyAccounts.filter((a) => a.quota);
+  const gem = withQ.map((a) => a.geminiPct ?? 0), cl = withQ.map((a) => claudePct(a) ?? 0);
+  const avg = (arr) => (arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : null);
+  const tiers = {}; withQ.forEach((a) => { if (a.quota.tier) tiers[a.quota.tier] = (tiers[a.quota.tier] || 0) + 1; });
+  const tierStr = Object.entries(tiers).map(([k, v]) => `${k}:${v}`).join(' · ') || '—';
+  const g = avg(gem), c = avg(cl);
+  $('stats-quota').innerHTML = mkCard('Đã nạp hạn mức', `${withQ.length}/${agyAccounts.length}`, withQ.length < agyAccounts.length ? 'đang tự nạp…' : 'account có dữ liệu') +
+    `<div class="card"><div class="label">Gemini TB</div><div class="value">${g == null ? '—' : g + '%'}</div><div class="sub">${qbar(g)}</div></div>` +
+    `<div class="card"><div class="label">Claude/GPT TB</div><div class="value">${c == null ? '—' : c + '%'}</div><div class="sub">${qbar(c)}</div></div>` +
+    mkCard('Tier', tierStr, 'gói account');
+}
+// tự nạp quota cho account trên trang đang xem (nền, giãn nhịp, mỗi account 1 lần)
+async function autoFetchQuota(rows) {
+  const todo = rows.filter((a) => !a.quota && !quotaTried.has(a.email));
+  if (!todo.length || quotaAutoRunning) return;
+  quotaAutoRunning = true;
+  for (const a of todo) {
+    quotaTried.add(a.email);
+    if (!$('view-quota').classList.contains('active')) break;
+    try {
+      const r = await api('/api/gateway/quota/' + encodeURIComponent(a.email), { method: 'POST' });
+      if (r.ok) { const acc = agyAccounts.find((x) => x.email === a.email); if (acc) { acc.quota = r.quota; acc.geminiPct = (r.quota.groups.find((g) => /gemini/i.test(g.name)) || {}).pct ?? null; } if ($('view-quota').classList.contains('active')) { renderQuotaStats(); renderQuota(); } }
+    } catch {}
+    await new Promise((r) => setTimeout(r, 350));
+  }
+  quotaAutoRunning = false;
+}
+function quotaList() {
+  const q = ($('quota-search').value || '').toLowerCase(), s = $('quota-sort').value;
+  let list = agyAccounts.filter((a) => a.email.toLowerCase().includes(q));
+  if (s === 'email') list.sort((a, b) => a.email.localeCompare(b.email));
+  else if (s === 'quota-low') list.sort((a, b) => (a.geminiPct ?? 101) - (b.geminiPct ?? 101));
+  else list.sort((a, b) => (b.geminiPct ?? -1) - (a.geminiPct ?? -1));
+  return list;
+}
+function renderQuota() {
+  const full = quotaList();
+  const { rows, total, pages } = paginate(full, quotaSt);
+  const box = $('quota-body');
+  if (!total) { box.innerHTML = `<div class="empty">Chưa có account. Bấm Refresh để nạp hạn mức.</div>`; $('quota-pager').innerHTML = ''; return; }
+  if (quotaMode === 'card') box.innerHTML = '<div class="qcards">' + rows.map(quotaCard).join('') + '</div>';
+  else box.innerHTML = quotaTable(rows);
+  wireQuotaRefresh();
+  renderPager('quota-pager', quotaSt, total, pages, () => { store_('quotaSize', quotaSt.size); renderQuota(); });
+  autoFetchQuota(rows);
+}
+function modelCols() {
+  const set = new Set();
+  for (const a of agyAccounts) if (a.quota && a.quota.models) for (const m of a.quota.models) {
+    if (/^(chat|tab)[-_]/i.test(m.id)) continue; // bỏ id nội bộ (experiment/tab)
+    set.add(m.id);
+  }
+  return [...set].sort();
+}
+function quotaTable(rows) {
+  const cols = modelCols();
+  const head = `<tr><th>Email</th><th>Tier</th><th>Gemini</th><th>Claude/GPT</th>${cols.map((c) => `<th title="${esc(c)}">${esc(c.replace(/^gemini-|^claude-/, ''))}</th>`).join('')}<th>Reset</th></tr>`;
+  const body = rows.map((a) => {
+    const q = a.quota; const cpct = claudePct(a);
+    const mmap = {}; if (q && q.models) for (const m of q.models) mmap[m.id] = m.pct;
+    const reset = q && q.groups && q.groups[0] ? fmtReset(q.groups[0].resetTime) : '—';
+    const cell = (p) => p == null ? '<span class="faint">—</span>' : `<span class="${qColor(p)}">${p}%</span>`;
+    return `<tr><td class="email">${esc(a.email)}</td><td class="faint">${esc((q && q.tier) || '—')}</td><td class="qcell">${cell(a.geminiPct)}</td><td class="qcell">${cell(cpct)}</td>${cols.map((c) => `<td class="qcell">${cell(mmap[c])}</td>`).join('')}<td class="faint">${reset} <button class="sm icon q-refresh" data-email="${esc(a.email)}" title="Nạp">${icon('refresh')}</button></td></tr>`;
+  }).join('');
+  return `<div class="tablewrap"><table class="quota-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+function quotaCard(a) {
+  const q = a.quota;
+  if (!q) return `<div class="qcard empty-card"><div class="qc-head"><b>${esc(a.email)}</b><button class="sm q-refresh" data-email="${esc(a.email)}">${icon('refresh')} Nạp</button></div><div class="faint">Chưa có hạn mức</div></div>`;
+  const groups = (q.groups || []).map((g) => `<div class="qc-group"><div class="qc-grow"><span>${esc(g.name)}</span><span class="faint">reset ${fmtReset(g.resetTime)}</span></div>${qbar(g.pct)}</div>`).join('');
+  const models = (q.models || []).map((m) => `<span class="chip"><span class="${qColor(m.pct)}">${m.pct}%</span> ${esc(m.id)}</span>`).join('');
+  return `<div class="qcard"><div class="qc-head"><b>${esc(a.email)}</b><span class="chip">${esc(q.tier || '—')}</span><button class="sm icon q-refresh" data-email="${esc(a.email)}" title="Nạp lại">${icon('refresh')}</button></div>${groups}<div class="qc-models">${models}</div></div>`;
+}
+function wireQuotaRefresh() {
+  document.querySelectorAll('#quota-body .q-refresh').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+    const r = await api('/api/gateway/quota/' + encodeURIComponent(b.dataset.email), { method: 'POST' });
+    if (r.ok) { const a = agyAccounts.find((x) => x.email === b.dataset.email); if (a) { a.quota = r.quota; a.geminiPct = (r.quota.groups.find((g) => /gemini/i.test(g.name)) || {}).pct ?? null; } toast('Đã nạp ' + b.dataset.email.split('@')[0]); renderQuota(); }
+    else toast('Lỗi: ' + (r.error || ''));
+  })));
+}
+$('quota-mode').addEventListener('click', (e) => { const b = e.target.closest('button[data-m]'); if (!b) return; quotaMode = b.dataset.m; store_('quotaMode', quotaMode); document.querySelectorAll('#quota-mode button').forEach((x) => x.classList.toggle('active', x === b)); renderQuota(); });
+$('quota-search').addEventListener('input', debounce(() => { quotaSt.page = 1; renderQuota(); }, 200));
+$('quota-sort').addEventListener('change', () => { quotaSt.page = 1; renderQuota(); });
+$('quota-refresh').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const r = await api('/api/gateway/quota/refresh', { method: 'POST', body: {} }); toast(`Đang nạp hạn mức ${r.queued} account (nền)…`); }));
+
+// ---------- Báo cáo sử dụng ----------
+const usageAccSt = { page: 1, size: 25 };
+let usageData = null;
+async function loadUsage() {
+  const range = $('usage-range').value, group = document.querySelector('#usage-group button.active').dataset.g;
+  $('usage-export').href = `/api/gateway/usage/export.csv?range=${range}`;
+  const d = await api(`/api/gateway/usage?range=${range}&groupBy=${group}`); usageData = d;
+  const t = d.totals;
+  $('usage-totals').innerHTML = mkCard('Requests', fmtNum(t.requests), 'trong khoảng') + mkCard('Tokens in', fmtNum(t.tokIn), '') + mkCard('Tokens out', fmtNum(t.tokOut), '') + mkCard('Account hoạt động', t.accounts, '');
+  const maxR = Math.max(1, ...d.series.map((s) => s.requests));
+  $('usage-series').innerHTML = d.series.length ? d.series.map((s) => `<div class="ubar-row"><span class="ubar-lbl">${esc(s.bucket)}</span><div class="ubar"><i style="width:${Math.round((s.requests / maxR) * 100)}%"></i></div><span class="ubar-val">${s.requests} req · ${fmtNum(s.tokIn + s.tokOut)} tok</span></div>`).join('') : '<div class="empty">Chưa có dữ liệu sử dụng</div>';
+  $('usage-models').innerHTML = d.byModel.length ? d.byModel.map((m) => `<tr><td>${esc(m.model)}</td><td>${m.requests}</td><td class="faint">${fmtNum(m.tokIn + m.tokOut)}</td></tr>`).join('') : `<tr><td colspan="3"><div class="empty">—</div></td></tr>`;
+  renderUsageAccounts();
+}
+function renderUsageAccounts() {
+  if (!usageData) return;
+  const { rows, total, pages } = paginate(usageData.byAccount, usageAccSt);
+  $('usage-accounts').innerHTML = total ? rows.map((a) => `<tr><td class="email">${esc(a.email)}</td><td>${a.requests}</td><td class="faint">${fmtNum(a.tokIn + a.tokOut)}</td></tr>`).join('') : `<tr><td colspan="3"><div class="empty">—</div></td></tr>`;
+  renderPager('usage-acc-pager', usageAccSt, total, pages, renderUsageAccounts);
+}
+$('usage-range').addEventListener('change', loadUsage);
+$('usage-group').addEventListener('click', (e) => { const b = e.target.closest('button[data-g]'); if (!b) return; document.querySelectorAll('#usage-group button').forEach((x) => x.classList.toggle('active', x === b)); loadUsage(); });
+
+// ---------- add ----------
+$('add-seg').addEventListener('click', (e) => { const b = e.target.closest('button[data-m]'); if (!b) return; document.querySelectorAll('#add-seg button').forEach((x) => x.classList.remove('active')); b.classList.add('active'); ['single', 'bulk', 'gen', 'file'].forEach((m) => $('add-' + m).style.display = m === b.dataset.m ? 'block' : 'none'); });
+async function addSingle() { if (!$('a-email').value.trim()) return toast('Thiếu email'); await api('/api/accounts', { method: 'POST', body: { email: $('a-email').value.trim(), password: $('a-pass').value, totp_secret: $('a-totp').value.trim(), proxy: $('a-proxy').value } }); $('a-email').value = ''; toast('Đã thêm'); loadAccounts(); loadSummary(); }
+async function importBulk() { const r = await api('/api/accounts/import', { method: 'POST', body: { text: $('a-bulk').value } }); toast('Đã import ' + r.added + ' account'); $('a-bulk').value = ''; loadAccounts(); loadSummary(); }
+async function genRange() { const r = await api('/api/accounts/generate', { method: 'POST', body: { prefix: $('g-prefix').value.trim(), start: +$('g-start').value, end: +$('g-end').value, domain: $('g-domain').value.trim(), password: $('g-pass').value, extra: $('g-extra').value } }); toast('Đã sinh ' + r.added + ' account'); loadAccounts(); loadSummary(); }
+$('a-file-import').addEventListener('click', () => { const f = $('a-file').files[0]; if (!f) return toast('Chọn file'); const rd = new FileReader(); rd.onload = async () => { const r = await api('/api/accounts/import', { method: 'POST', body: { text: String(rd.result) } }); toast('Đã import ' + r.added + ' account'); loadAccounts(); loadSummary(); }; rd.readAsText(f); });
+
+// ---------- settings ----------
+async function loadSettings() {
+  const c = await api('/api/config');
+  $('cfg-pmin').value = c.pacing.minSec; $('cfg-pmax').value = c.pacing.maxSec; $('cfg-cap').value = c.dailyCap; $('cfg-headless').checked = c.headless;
+  $('cfg-fp').checked = c.fingerprint; $('cfg-chrome').value = c.chromeMajor; $('cfg-health').value = c.tokenHealthHours; $('cfg-omni').value = c.omnirouteUrl;
+  const g = await api('/api/gateway/config'); const q = g.quota || {};
+  $('cfg-q-auto').checked = !!q.autoRefresh; $('cfg-q-interval').value = q.intervalMin ?? 30; $('cfg-q-oncall').checked = q.onCall !== false; $('cfg-q-ttl').value = q.cacheTtlMin ?? 10;
+}
+$('cfg-save').addEventListener('click', async () => { await api('/api/config', { method: 'PATCH', body: { pacingMinSec: +$('cfg-pmin').value, pacingMaxSec: +$('cfg-pmax').value, dailyCap: +$('cfg-cap').value, headless: $('cfg-headless').checked } }); toast('Đã lưu cấu hình chạy'); });
+$('cfg-save-fp').addEventListener('click', async () => { await api('/api/config', { method: 'PATCH', body: { fingerprint: $('cfg-fp').checked } }); toast('Đã lưu fingerprint'); });
+$('cfg-q-save').addEventListener('click', async () => { await api('/api/gateway/config', { method: 'PATCH', body: { quota: { autoRefresh: $('cfg-q-auto').checked, intervalMin: +$('cfg-q-interval').value, onCall: $('cfg-q-oncall').checked, cacheTtlMin: +$('cfg-q-ttl').value } } }); toast('Đã lưu cấu hình hạn mức'); });
+$('cfg-q-refresh').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const r = await api('/api/gateway/quota/refresh', { method: 'POST', body: {} }); toast(`Đang nạp hạn mức ${r.queued} account (nền)…`); }));
+$('cfg-health-now').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const r = await api('/api/tokens/check', { method: 'POST', body: {} }); toast(`Health: 🟢${r.alive} 🔴${r.dead} ⚪${r.unknown}`); loadTokens(); }));
+$('cfg-omni-test').addEventListener('click', async () => { const r = await api('/api/omniroute/connections'); toast(r.ok ? `OmniRoute OK · ${r.connections.length} connection` : 'OmniRoute lỗi: ' + r.error); });
+$('cfg-theme').addEventListener('click', toggleTheme);
+
+// ---------- backup import/export ----------
+let backupData = null;
+$('bk-file').addEventListener('change', (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      backupData = JSON.parse(String(rd.result));
+      const c = backupData.counts || {};
+      $('bk-preview').innerHTML = `File: <b>${esc(f.name)}</b> · v${backupData.version || '?'} · ${c.accounts || 0} account · ${c.proxies || 0} proxy · ${c.credentials || 0} token · gateway ${Object.keys(backupData.gateway || {}).length}`;
+      $('bk-import-row').style.display = 'flex';
+    } catch { backupData = null; $('bk-preview').innerHTML = '<span style="color:var(--red)">File JSON không hợp lệ</span>'; $('bk-import-row').style.display = 'none'; }
+  };
+  rd.readAsText(f);
+});
+$('bk-import').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+  if (!backupData) return toast('Chọn file backup trước');
+  const mode = $('bk-mode').value;
+  if (!confirmAct(`Phục hồi (${mode === 'replace' ? 'THAY THẾ toàn bộ' : 'gộp'})? Dữ liệu hiện tại sẽ bị ghi đè.`)) return;
+  const r = await api('/api/backup/import', { method: 'POST', body: { data: backupData, mode } });
+  if (r.ok) { toast(`Đã phục hồi: ${r.restored.accounts} account · ${r.restored.proxies} proxy · ${r.restored.credentials} token`); loadProxies(); loadAccounts(); loadSummary(); loadTokens(); $('bk-import-row').style.display = 'none'; $('bk-preview').innerHTML = ''; $('bk-file').value = ''; }
+  else toast('Lỗi phục hồi: ' + (r.error || ''));
+}));
+
+// ---------- account detail ----------
+function openModal(id) { $(id).classList.add('open'); }
+function closeModal(id) { $(id).classList.remove('open'); }
+document.querySelectorAll('.modal-bg').forEach((m) => m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('open'); }));
+async function showDetail(email) {
+  const a = accounts.find((x) => x.email === email); const cr = await api('/api/credentials'); const creds = cr.credentials.filter((c) => c.email === email);
+  $('detail-title').textContent = email;
+  $('detail-body').innerHTML = `
+    <div class="row" style="gap:16px"><span class="faint">Proxy:</span> ${esc(a.proxy) || '(none)'} <span class="faint">TZ:</span> ${esc(a.tz)}</div>
+    <div style="margin:12px 0">${FLOWS.map((f) => `<span class="badge ${a[f.col]}" style="margin-right:6px"><span class="bd"></span>${f.label}: ${a[f.col]}</span>`).join('')}</div>
+    <h3 style="margin:14px 0 6px;font-size:13px">Credentials</h3>
+    ${creds.length ? creds.map((c) => `<div class="panel" style="margin:0 0 8px;padding:10px 12px"><b>${esc(c.target)}</b> ${c.health ? `<span class="chip">${esc(c.health)}</span>` : ''} ${c.omniroute_connection_id ? `<span class="chip">conn ${esc(c.omniroute_connection_id.slice(0, 8))}</span>` : ''}<div class="mono faint" style="margin-top:4px;word-break:break-all;max-height:70px;overflow:auto">${esc((c.value || '').slice(0, 400))}</div></div>`).join('') : '<div class="faint">Chưa có</div>'}
+    <div class="row end" style="margin-top:12px">${FLOWS.map((f) => `<button class="sm" onclick="runFlow('${email}','${f.key}');toast('Đã xếp ${f.key}')" title="Chạy ${f.key}">${f.label}</button>`).join('')}</div>`;
+  openModal('modal-detail');
+}
+
+// ---------- pending human + notifications ----------
+let notifyOn = false;
+function reqNotify() { if (!('Notification' in window)) return; if (Notification.permission === 'default') Notification.requestPermission().then((p) => { notifyOn = p === 'granted'; }); else notifyOn = Notification.permission === 'granted'; }
+const notified = new Set();
+async function loadHuman() {
+  const { pending } = await api('/api/pending-human'); const b = $('human-banner');
+  b.innerHTML = pending.length ? pending.map((p) => `<div class="human-card"><b>⏸ Run #${p.runId}</b><div class="faint">${esc(p.reason)}</div>
+    <div style="margin-top:8px" class="row"><button class="success sm" onclick="continueRun(${p.runId})" title="Chạy tiếp">${icon('check')} Tiếp tục</button><button class="sm" onclick="skipRun(${p.runId})" title="Bỏ qua">Bỏ qua</button></div></div>`).join('') : '';
+  for (const p of pending) if (!notified.has(p.runId)) { notified.add(p.runId); if (notifyOn) try { const n = new Notification('Cần xử lý tay', { body: p.reason }); n.onclick = () => window.focus(); } catch {} }
+}
+async function continueRun(id) { await api('/api/runs/' + id + '/continue', { method: 'POST' }); loadHuman(); }
+async function skipRun(id) { await api('/api/runs/' + id + '/skip', { method: 'POST' }); loadHuman(); }
+
+// ---------- log (SSE) + segmented + live call ----------
+const logEl = $('log'); let logLines = []; let logPaused = false; let logCat = '';
+const LOGIN_FLOWS = ['google', 'gweb', 'agy', 'kiro'];
+$('log-pause').addEventListener('click', () => { logPaused = !logPaused; $('log-pause').innerHTML = icon(logPaused ? 'play' : 'pause'); toast(logPaused ? 'Log tạm dừng cuộn' : 'Log tiếp tục'); });
+$('log-clear').addEventListener('click', () => { logLines = []; logEl.innerHTML = ''; renderGwlog(); });
+$('log-download').addEventListener('click', () => downloadFile('log.txt', logLines.map((l) => `${l.ts} [${l.level}] ${l.who} ${l.msg}`).join('\n'), 'text/plain'));
+$('log-search').addEventListener('input', debounce(() => renderLog(), 150));
+$('log-level').addEventListener('change', () => renderLog());
+$('log-cat').addEventListener('click', (e) => { const b = e.target.closest('button[data-c]'); if (!b) return; logCat = b.dataset.c; document.querySelectorAll('#log-cat button').forEach((x) => x.classList.toggle('active', x === b)); renderLog(); });
+function catOf(l) { return l.flow === 'gateway' ? 'gateway' : LOGIN_FLOWS.includes(l.flow) ? 'login' : 'other'; }
+function addLog(ev) {
+  const ts = new Date().toLocaleTimeString();
+  const who = ev.email ? `${ev.email.split('@')[0]}${ev.flow && ev.flow !== 'gateway' ? '/' + ev.flow : ''}` : '';
+  logLines.push({ ts, level: ev.level, who, msg: ev.msg, flow: ev.flow, kind: ev.kind, model: ev.model, account: ev.account });
+  if (logLines.length > 1000) logLines.shift();
+  renderLog(true); if (ev.flow === 'gateway') renderGwlog(true);
+}
+function logLineHtml(l) {
+  const arrow = l.kind === 'req' ? '<span class="gw-arrow req">→</span>' : l.kind === 'res' ? '<span class="gw-arrow res">←</span>' : l.kind === 'err' ? '<span class="gw-arrow err">←</span>' : '';
+  const m = arrow ? esc(l.msg.replace(/^[→←]\s*/, '')) : esc(l.msg);
+  return `<div class="line ${l.level} ${l.kind ? 'gw' : ''}"><div class="l1"><span class="ts">${l.ts}</span>${l.who ? `<span class="who">${esc(l.who)}</span>` : ''}</div><div class="msg">${arrow}${m}</div></div>`;
+}
+function renderLog(incremental) {
+  const q = $('log-search').value.trim().toLowerCase(), lv = $('log-level').value;
+  const shown = logLines.filter((l) => (!logCat || catOf(l) === logCat) && (!lv || l.level === lv) && (!q || (l.msg + l.who).toLowerCase().includes(q)));
+  logEl.innerHTML = shown.slice(-400).map(logLineHtml).join('');
+  if (!logPaused && incremental !== false) logEl.scrollTop = logEl.scrollHeight;
+}
+// live call log page
+let gwPaused = false;
+$('gwlog-pause').addEventListener('click', () => { gwPaused = !gwPaused; $('gwlog-pause').innerHTML = icon(gwPaused ? 'play' : 'pause') + (gwPaused ? ' Resume' : ' Pause'); });
+$('gwlog-clear').addEventListener('click', () => { logLines = logLines.filter((l) => l.flow !== 'gateway'); renderGwlog(); });
+$('gwlog-search').addEventListener('input', debounce(() => renderGwlog(), 150));
+function renderGwlog(incremental) {
+  const box = $('gwlog'); if (!box) return;
+  const q = ($('gwlog-search').value || '').toLowerCase();
+  const list = logLines.filter((l) => l.flow === 'gateway' && (!q || ((l.model || '') + (l.account || '') + l.msg).toLowerCase().includes(q)));
+  box.innerHTML = list.length ? list.slice(-400).map(logLineHtml).join('') : '<div class="empty">Chưa có lệnh gọi nào. Gọi model qua Base URL hoặc Chat thử.</div>';
+  if (!gwPaused && incremental !== false) box.scrollTop = box.scrollHeight;
+}
+function connectSSE() {
+  const es = new EventSource('/events');
+  es.onmessage = (ev) => {
+    const e = JSON.parse(ev.data);
+    if (e.type === 'log') {
+      addLog({ level: e.level, msg: e.msg + (e.screenshot ? ` 📷${e.screenshot}` : ''), email: e.email, flow: e.flow, kind: e.kind, model: e.model, account: e.account });
+      if (e.kind === 'check' && e.check && e.account) applyCheckEvent(e.account, e.check);
+    }
+    else if (e.type === 'run') {
+      addLog({ level: e.status === 'failed' ? 'error' : e.status === 'paused_needs_human' ? 'challenge' : 'info', msg: `» ${e.status}${e.detail ? ': ' + e.detail : ''}`, email: e.email, flow: e.flow });
+      if (e.status === 'paused_needs_human') loadHuman();
+      loadAccounts(); loadSummary();
+      if (e.status === 'ok') loadTokens();
+    }
+  };
+}
+
+// ---------- keyboard ----------
+document.addEventListener('keydown', (e) => { if (e.key === '/' && !/input|textarea|select/i.test(document.activeElement.tagName)) { const active = document.querySelector('.view.active'); const s = active && active.querySelector('input[id$="-search"]'); if (s) { e.preventDefault(); s.focus(); } } });
+
+// ---------- init ----------
+async function init() {
+  applyTheme(localStorage.getItem('theme') || 'dark');
+  if (remember('navCollapsed', false)) $('app').classList.add('nav-collapsed');
+  reqNotify();
+  await loadProxies(); await loadAccounts(); await loadSummary(); await loadHuman(); await loadTokens();
+  api('/api/gateway/accounts').then((r) => { $('tc-agy').textContent = (r.accounts || []).filter((a) => a.enabled).length; }).catch(() => {});
+  connectSSE();
+  setInterval(loadSummary, 4000);
+  setInterval(loadHuman, 4000);
+  // khôi phục tab (mặc định Tổng quan)
+  const tab = remember('tab', 'overview');
+  if (tab === 'overview') loadOverview();
+  else { const nav = document.querySelector(`.nav-item[data-tab="${tab}"]`); if (nav) nav.click(); else loadOverview(); }
+}
+init();

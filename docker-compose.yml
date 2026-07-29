@@ -1,0 +1,30 @@
+services:
+  app:
+    build: .
+    image: agy-proxy
+    container_name: agy-proxy
+    ports:
+      - "7788:7788"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "7788"
+      HEADLESS: "true"
+      CHROME_NO_SANDBOX: "1"
+      # OmniRoute chạy ngoài container (trên host) → host.docker.internal
+      OMNIROUTE_URL: "http://host.docker.internal:20128"
+      # Các env khác (OMNIROUTE_PASSWORD, GATEWAY_*, PACING_*, DAILY_LOGIN_CAP…)
+      # đọc từ .env nếu có (bỏ comment env_file bên dưới).
+    # env_file:
+    #   - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - agy-data:/app/data           # accounts/proxies/credentials/gateway.json/state.db (sống còn)
+      - agy-profiles:/app/profiles   # Chrome user-data mỗi account (lớn dần)
+      - agy-screenshots:/app/screenshots
+    restart: unless-stopped
+
+volumes:
+  agy-data:
+  agy-profiles:
+  agy-screenshots:
