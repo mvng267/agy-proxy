@@ -124,9 +124,19 @@ async function update(check) {
   console.log(c.d(`Hiện tại: v${PKG.version} · kiểm tra ${REPO}…`));
   let remote;
   try {
-    const raw = await fetch(`https://raw.githubusercontent.com/${REPO}/main/package.json`, { signal: AbortSignal.timeout(15000) });
-    if (!raw.ok) throw new Error(`HTTP ${raw.status}`);
-    remote = JSON.parse(await raw.text());
+    // GitHub API trước (không dính CDN cache như raw.githubusercontent.com)
+    const api = await fetch(`https://api.github.com/repos/${REPO}/contents/package.json?ref=main`, {
+      headers: { accept: 'application/vnd.github+json', 'user-agent': 'agyproxy-cli' },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (api.ok) {
+      const j = await api.json();
+      remote = JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
+    } else {
+      const raw = await fetch(`https://raw.githubusercontent.com/${REPO}/main/package.json`, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+      if (!raw.ok) throw new Error(`HTTP ${raw.status}`);
+      remote = JSON.parse(await raw.text());
+    }
   } catch (e) {
     console.log(c.r('✗ Không kiểm tra được phiên bản: ') + (e?.message ?? e));
     return;
