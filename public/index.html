@@ -373,6 +373,21 @@
         </div>
         <div class="cards" id="stats-quota"></div>
         <div class="panel">
+          <div class="row" style="justify-content:space-between;align-items:center">
+            <h3 style="margin:0" id="qh-title">Xu hướng hạn mức theo thời gian</h3>
+            <div class="row" style="gap:8px">
+              <select id="qh-range" class="w-auto" title="Khoảng thời gian">
+                <option value="1d">24 giờ</option>
+                <option value="7d" selected>7 ngày</option>
+                <option value="30d">30 ngày</option>
+                <option value="90d">90 ngày</option>
+              </select>
+              <button class="sm" id="qh-all" title="Xem lại toàn pool" style="display:none">← Toàn pool</button>
+            </div>
+          </div>
+          <div id="qh-chart" style="margin-top:10px"></div>
+        </div>
+        <div class="panel">
           <div class="toolbar">
             <div class="search"><svg class="ic search-ic"><use href="#i-search"/></svg><input id="quota-search" placeholder="Tìm email…" title="Tìm theo email" /></div>
             <select id="quota-sort" class="w-auto" title="Sắp xếp"><option value="quota">Quota cao</option><option value="quota-low">Quota thấp</option><option value="email">Email</option></select>

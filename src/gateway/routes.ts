@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
-import { config } from '../config.js';
+import { config, setConfig } from '../config.js';
 import { emitLog } from '../events.js';
 import { store } from '../store/index.js';
 import { recordGatewayUsage, usageTotals, usageSeries, usageByModel, usageByAccount, usageRows, quotaSeries, quotaForAccount, quotaHistoryCount, pruneQuotaHistory } from '../store/db.js';
@@ -328,21 +328,23 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     baseUrl: `http://localhost:${config.port}/proxy/v1`,
   }));
 
+  // Tương thích ngược (trang Pool dùng) — nay GHI DB qua setConfig để sống qua restart.
   app.patch('/api/gateway/config', async (req) => {
     const b = (req.body as any) ?? {};
-    if (typeof b.enabled === 'boolean') config.gateway.enabled = b.enabled;
-    if (b.rotation) config.gateway.rotation = b.rotation;
-    if (typeof b.outboundProxy === 'string') config.gateway.outboundProxy = b.outboundProxy;
-    if (typeof b.cooldownSec === 'number') config.gateway.cooldownSec = b.cooldownSec;
+    const patch: Record<string, unknown> = {};
+    if (typeof b.enabled === 'boolean') patch.gatewayEnabled = b.enabled;
+    if (b.rotation) patch.gatewayRotation = b.rotation;
+    if (typeof b.outboundProxy === 'string') patch.gatewayProxy = b.outboundProxy;
+    if (typeof b.cooldownSec === 'number') patch.gatewayCooldownSec = b.cooldownSec;
     if (b.quota && typeof b.quota === 'object') {
-      const q = config.gateway.quota;
-      if (typeof b.quota.autoRefresh === 'boolean') q.autoRefresh = b.quota.autoRefresh;
-      if (typeof b.quota.intervalMin === 'number') q.intervalMin = b.quota.intervalMin;
-      if (typeof b.quota.onCall === 'boolean') q.onCall = b.quota.onCall;
-      if (typeof b.quota.cacheTtlMin === 'number') q.cacheTtlMin = b.quota.cacheTtlMin;
+      if (typeof b.quota.autoRefresh === 'boolean') patch.quotaAutoRefresh = b.quota.autoRefresh;
+      if (typeof b.quota.intervalMin === 'number') patch.quotaIntervalMin = b.quota.intervalMin;
+      if (typeof b.quota.onCall === 'boolean') patch.quotaOnCall = b.quota.onCall;
+      if (typeof b.quota.cacheTtlMin === 'number') patch.quotaCacheTtlMin = b.quota.cacheTtlMin;
     }
-    if (b.regenerateKey) config.gateway.apiKey = 'agy-' + randomUUID().replace(/-/g, '');
-    else if (typeof b.apiKey === 'string') config.gateway.apiKey = b.apiKey;
+    if (b.regenerateKey) patch.gatewayApiKey = 'agy-' + randomUUID().replace(/-/g, '');
+    else if (typeof b.apiKey === 'string') patch.gatewayApiKey = b.apiKey;
+    setConfig(patch);
     return { ok: true, config: { ...config.gateway } };
   });
 

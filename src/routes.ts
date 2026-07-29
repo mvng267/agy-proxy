@@ -421,11 +421,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       headless?: boolean;
       fingerprint?: boolean;
     };
-    if (typeof b.pacingMinSec === 'number') config.pacing.minSec = Math.max(0, b.pacingMinSec);
-    if (typeof b.pacingMaxSec === 'number') config.pacing.maxSec = Math.max(0, b.pacingMaxSec);
-    if (typeof b.dailyCap === 'number') config.dailyLoginCap = Math.max(0, b.dailyCap);
-    if (typeof b.headless === 'boolean') config.headless = b.headless;
-    if (typeof b.fingerprint === 'boolean') config.fingerprint = b.fingerprint;
+    // Tương thích ngược — nay GHI DB qua setConfig để sống qua restart.
+    const patch: Record<string, unknown> = {};
+    if (typeof b.pacingMinSec === 'number') patch.pacingMinSec = Math.max(0, b.pacingMinSec);
+    if (typeof b.pacingMaxSec === 'number') patch.pacingMaxSec = Math.max(0, b.pacingMaxSec);
+    if (typeof b.dailyCap === 'number') patch.dailyLoginCap = Math.max(0, b.dailyCap);
+    if (typeof b.headless === 'boolean') patch.headless = b.headless;
+    if (typeof b.fingerprint === 'boolean') patch.fingerprint = b.fingerprint;
+    setConfig(patch);
     return {
       ok: true,
       pacing: config.pacing,

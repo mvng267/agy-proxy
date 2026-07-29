@@ -34,14 +34,46 @@ function confirmAct(msg) { return confirm(msg); }
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 function paginate(list, st) { const total = list.length; const pages = Math.max(1, Math.ceil(total / st.size)); if (st.page > pages) st.page = pages; if (st.page < 1) st.page = 1; const start = (st.page - 1) * st.size; return { rows: list.slice(start, start + st.size), total, pages }; }
 // ---- biểu đồ SVG thuần (responsive viewBox, theme-aware) ----
-function svgLine(values, { color = 'var(--primary)', h = 90 } = {}) {
-  if (!values.length) return '<div class="empty">—</div>';
-  const w = 300, pad = 6, max = Math.max(1, ...values), n = values.length;
+/**
+ * Biểu đồ đường SVG. `min`/`max` cho phép ghim thang (vd quota 0–100 hoặc auto-zoom
+ * quanh dải thật) — nếu để auto thang luôn từ 0 nên dải 90–100% sẽ bị bẹt.
+ * `series`: vẽ nhiều đường trên cùng trục.
+ */
+function svgLine(values, opts = {}) {
+  const series = opts.series || [{ values, color: opts.color || 'var(--primary)' }];
+  const all = series.flatMap((s) => s.values).filter((v) => v != null);
+  if (!all.length) return '<div class="empty">Chưa có dữ liệu</div>';
+  const h = opts.h || 90, w = 300, pad = 8;
+  let lo = opts.min != null ? opts.min : Math.min(...all);
+  let hi = opts.max != null ? opts.max : Math.max(...all);
+  if (opts.min == null && opts.max == null) {
+    const span = Math.max(1, hi - lo);
+    lo = Math.max(0, lo - span * 0.15); hi = hi + span * 0.15; // auto-zoom quanh dải thật
+  }
+  if (hi - lo < 1) { hi = lo + 1; }
+  const n = Math.max(...series.map((s) => s.values.length));
   const x = (i) => (n === 1 ? w / 2 : pad + (i * (w - 2 * pad)) / (n - 1));
-  const y = (v) => h - pad - (v / max) * (h - 2 * pad);
-  const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-  const area = `${pad},${h - pad} ${pts} ${w - pad},${h - pad}`;
-  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polygon points="${area}" fill="${color}" opacity="0.12"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/>${values.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2" fill="${color}"/>`).join('')}</svg>`;
+  const y = (v) => h - pad - ((v - lo) / (hi - lo)) * (h - 2 * pad);
+  // lưới ngang mờ (chỉ khi ghim thang, vd 0–100%)
+  const grid = opts.grid === false || opts.min == null ? '' :
+    [0, 0.25, 0.5, 0.75, 1].map((f) => {
+      const gy = (h - pad - f * (h - 2 * pad)).toFixed(1);
+      return `<line x1="${pad}" x2="${w - pad}" y1="${gy}" y2="${gy}" stroke="var(--border)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+    }).join('');
+  const body = series.map((s, si) => {
+    const pts = s.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const area = opts.area === false ? '' : `<polygon points="${pad},${h - pad} ${pts} ${w - pad},${h - pad}" fill="${s.color}" opacity="0.12"/>`;
+    const dots = s.values.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.2" fill="${s.color}"><title>${v}</title></circle>`).join('');
+    // đường thứ 2 nét đứt → không bị che khi hai đường trùng nhau
+    const dash = si > 0 ? ' stroke-dasharray="5 3"' : '';
+    return `${area}<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2"${dash} vector-effect="non-scaling-stroke"/>${dots}`;
+  }).join('');
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${grid}${body}</svg>`;
+}
+/** Chú thích + trục cho biểu đồ (đặt ngoài SVG để không méo theo preserveAspectRatio). */
+function chartLegend(items, from, to, lo, hi) {
+  return `<div class="chart-legend"><span class="cl-items">${items.map((i) => `<span><i style="background:${i.color}"></i>${esc(i.label)}</span>`).join('')}</span>` +
+    `<span class="faint">${esc(from || '')}${to ? ' → ' + esc(to) : ''}${lo != null ? ` · thang ${lo}–${hi}%` : ''}</span></div>`;
 }
 function svgDonut(pct, label, color) {
   const p = pct == null ? 0 : pct, r = 34, c = 2 * Math.PI * r, off = c * (1 - p / 100);
@@ -153,8 +185,18 @@ async function loadOverview() {
     ['Cooldown / chết', `${o.gateway.cooldown} / ${o.gateway.dead}`, 'cần chú ý'],
   ];
   $('ov-kpi').innerHTML = kpis.map(([l, v, s], i) => `<div class="card"><div class="label">${l}</div><div class="value" id="kpi-${i}">${v}</div><div class="sub">${s}</div></div>`).join('');
-  // donut hạn mức
-  $('ov-quota').innerHTML = svgDonut(o.quota.geminiAvg, 'Gemini') + svgDonut(o.quota.thirdPartyAvg, 'Claude/GPT') + `<div class="donut-note faint">${o.quota.fetched}/${o.gateway.total} account đã nạp</div>`;
+  // donut hạn mức + mini xu hướng
+  $('ov-quota').innerHTML = svgDonut(o.quota.geminiAvg, 'Gemini') + svgDonut(o.quota.thirdPartyAvg, 'Claude/GPT') + `<div class="donut-note faint">${o.quota.fetched}/${o.gateway.total} account đã nạp</div><div id="ov-qtrend" style="width:100%"></div>`;
+  api('/api/gateway/quota/history?range=7d').then((qh) => {
+    const s = qh.series || [];
+    const box = $('ov-qtrend'); if (!box) return;
+    box.innerHTML = s.length
+      ? `<div class="faint" style="font-size:11px;margin:6px 0 2px">Xu hướng 7 ngày</div>` + svgLine(null, { series: [
+          { values: s.map((x) => x.gemini ?? 0), color: 'var(--green)' },
+          { values: s.map((x) => x.third ?? 0), color: 'var(--purple)' },
+        ], min: 0, max: 100, h: 56, area: false })
+      : '';
+  }).catch(() => {});
   // usage line
   const vals = o.usage.series.map((s) => s.requests);
   $('ov-usage').innerHTML = svgLine(vals, { color: 'var(--primary)' }) + `<div class="faint" style="font-size:11px;margin-top:4px">${o.usage.series.length ? o.usage.series[0].bucket + ' → ' + o.usage.series[o.usage.series.length - 1].bucket : 'chưa có dữ liệu'}</div>`;
@@ -478,8 +520,44 @@ const quotaTried = new Set(); let quotaAutoRunning = false;
 async function loadQuota() {
   document.querySelectorAll('#quota-mode button').forEach((b) => b.classList.toggle('active', b.dataset.m === quotaMode));
   const ac = await api('/api/gateway/accounts'); agyAccounts = ac.accounts || [];
-  renderQuotaStats(); renderQuota();
+  renderQuotaStats(); renderQuota(); loadQuotaHistory();
 }
+
+// ---------- biểu đồ lịch sử hạn mức ----------
+let qhEmail = null; // null = toàn pool
+async function loadQuotaHistory() {
+  const box = $('qh-chart'); if (!box) return;
+  const range = $('qh-range').value || '7d';
+  skeleton('qh-chart', 3);
+  const q = qhEmail ? `?email=${encodeURIComponent(qhEmail)}&range=${range}` : `?range=${range}`;
+  const d = await api('/api/gateway/quota/history' + q);
+  $('qh-all').style.display = qhEmail ? '' : 'none';
+  $('qh-title').textContent = qhEmail ? `Xu hướng hạn mức · ${qhEmail}` : 'Xu hướng hạn mức theo thời gian (trung bình toàn pool)';
+
+  if (qhEmail) {
+    const pts = d.points || [];
+    if (!pts.length) { box.innerHTML = '<div class="empty">Chưa có lịch sử cho account này — bấm nút Quota ở trang Pool để nạp.</div>'; return; }
+    const gem = pts.map((p) => p.gemini_pct ?? 0), th = pts.map((p) => p.third_pct ?? 0);
+    box.innerHTML = svgLine(null, { series: [
+      { values: gem, color: 'var(--green)' }, { values: th, color: 'var(--purple)' },
+    ], min: 0, max: 100, h: 120, area: false }) + chartLegend(
+      [{ label: 'Gemini', color: 'var(--green)' }, { label: 'Claude/GPT', color: 'var(--purple)' }],
+      new Date(pts[0].ts).toLocaleString(), new Date(pts[pts.length - 1].ts).toLocaleString(), 0, 100);
+    return;
+  }
+  const s = d.series || [];
+  if (!s.length) { box.innerHTML = '<div class="empty">Chưa có dữ liệu lịch sử. Bấm <b>Refresh</b> để nạp hạn mức — mỗi lần nạp sẽ ghi 1 điểm.</div>'; return; }
+  box.innerHTML = svgLine(null, { series: [
+    { values: s.map((x) => x.gemini ?? 0), color: 'var(--green)' },
+    { values: s.map((x) => x.third ?? 0), color: 'var(--purple)' },
+  ], min: 0, max: 100, h: 120, area: false }) + chartLegend(
+    [{ label: 'Gemini', color: 'var(--green)' }, { label: 'Claude/GPT', color: 'var(--purple)' }],
+    s[0].bucket, s[s.length - 1].bucket, 0, 100) +
+    `<div class="faint" style="font-size:11.5px;margin-top:4px">${d.total} bản ghi · gộp theo ${d.groupBy === 'hour' ? 'giờ' : 'ngày'} · click email trong bảng dưới để xem riêng 1 account</div>`;
+}
+$('qh-range').addEventListener('change', loadQuotaHistory);
+$('qh-all').addEventListener('click', () => { qhEmail = null; loadQuotaHistory(); });
+function showQuotaHistory(email) { qhEmail = email; loadQuotaHistory(); $('qh-chart').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 function renderQuotaStats() {
   const withQ = agyAccounts.filter((a) => a.quota);
   const gem = withQ.map((a) => a.geminiPct ?? 0), cl = withQ.map((a) => claudePct(a) ?? 0);
@@ -543,7 +621,7 @@ function quotaTable(rows) {
     const mmap = {}; if (q && q.models) for (const m of q.models) mmap[m.id] = m.pct;
     const reset = q && q.groups && q.groups[0] ? fmtReset(q.groups[0].resetTime) : '—';
     const cell = (p) => p == null ? '<span class="faint">—</span>' : `<span class="${qColor(p)}">${p}%</span>`;
-    return `<tr><td class="email">${esc(a.email)}</td><td class="faint">${esc((q && q.tier) || '—')}</td><td class="qcell">${cell(a.geminiPct)}</td><td class="qcell">${cell(cpct)}</td>${cols.map((c) => `<td class="qcell">${cell(mmap[c])}</td>`).join('')}<td class="faint">${reset} <button class="sm icon q-refresh" data-email="${esc(a.email)}" title="Nạp">${icon('refresh')}</button></td></tr>`;
+    return `<tr><td class="email"><a class="qh-link" data-email="${esc(a.email)}" title="Xem lịch sử hạn mức của account này">${esc(a.email)}</a></td><td class="faint">${esc((q && q.tier) || '—')}</td><td class="qcell">${cell(a.geminiPct)}</td><td class="qcell">${cell(cpct)}</td>${cols.map((c) => `<td class="qcell">${cell(mmap[c])}</td>`).join('')}<td class="faint">${reset} <button class="sm icon q-refresh" data-email="${esc(a.email)}" title="Nạp">${icon('refresh')}</button></td></tr>`;
   }).join('');
   return `<div class="tablewrap"><table class="quota-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
 }
@@ -555,6 +633,9 @@ function quotaCard(a) {
   return `<div class="qcard"><div class="qc-head"><b>${esc(a.email)}</b><span class="chip">${esc(q.tier || '—')}</span><button class="sm icon q-refresh" data-email="${esc(a.email)}" title="Nạp lại">${icon('refresh')}</button></div>${groups}<div class="qc-models">${models}</div></div>`;
 }
 function wireQuotaRefresh() {
+  document.querySelectorAll('#quota-body .qh-link').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault(); showQuotaHistory(a.dataset.email);
+  }));
   document.querySelectorAll('#quota-body .q-refresh').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
     const r = await api('/api/gateway/quota/' + encodeURIComponent(b.dataset.email), { method: 'POST' });
     if (r.ok) { const a = agyAccounts.find((x) => x.email === b.dataset.email); if (a) { a.quota = r.quota; a.geminiPct = (r.quota.groups.find((g) => /gemini/i.test(g.name)) || {}).pct ?? null; } toast('Đã nạp ' + b.dataset.email.split('@')[0]); renderQuota(); }
