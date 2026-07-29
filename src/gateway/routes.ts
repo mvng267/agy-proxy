@@ -106,9 +106,11 @@ function afterCall(account: PoolAccount, model: string, r: { ok: boolean; prompt
  */
 function contextHint(e: unknown, model: string): string | undefined {
   if (!isContextTooLong(e)) return undefined;
+  // LƯU Ý: model Claude (kể cả qua Antigravity) chỉ ~200k token — chỉ GEMINI mới 1M.
   return (
-    `Đầu vào quá dài với ${model}. Dùng model ngữ cảnh lớn hơn (agy/gemini-3-pro-low ~1M token), ` +
-    'hoặc combo/auto để tự chuyển khi vượt ngưỡng, hoặc rút bớt nội dung gửi lên.'
+    `Prompt quá dài với ${model}. Mọi model Claude (cả agy/claude-* lẫn kr/claude-*) giới hạn ~200k token; ` +
+    'chỉ Gemini mới nhận tới 1M → dùng agy/gemini-3-pro-low hoặc agy/gemini-3-flash. ' +
+    'Hoặc dùng combo/auto để tự chuyển, hoặc rút bớt nội dung gửi lên.'
   );
 }
 
@@ -429,6 +431,16 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         pool.report(ctx.account, { ok: false, status: e?.status, err: e?.message });
         afterCall(ctx.account, labelModel, { ok: false, ms });
         const outOfQuota = e?.status === 402 || e?.status === 429 || /MONTHLY_REQUEST_COUNT|quota|exhaust/i.test(String(e?.message ?? ''));
+        // Prompt quá dài KHÔNG phụ thuộc account — thử account khác chỉ tốn thời gian
+        // và làm bẩn log. Dừng ngay để tầng combo đổi sang MODEL khác.
+        const tooLong = isContextTooLong(e);
+        if (tooLong) {
+          emitGw({
+            kind: 'err', account: ctx.account.email, model: labelModel, ms, status: e?.status,
+            msg: `← ✗ ${e?.status ?? ''} prompt quá dài — không thử account khác, cần đổi model ngữ cảnh lớn hơn`,
+          });
+          throw e;
+        }
         if (outOfQuota) skips++;
         else tries++;
         emitGw({

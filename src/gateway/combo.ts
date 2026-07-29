@@ -172,7 +172,11 @@ export function shouldFallback(err: unknown): boolean {
 /** Lỗi "đầu vào quá dài" của các provider (Kiro/Bedrock/Gemini) — dùng để trượt combo. */
 export function isContextTooLong(err: unknown): boolean {
   const e = err as { message?: string } | undefined;
-  return /CONTENT_LENGTH_EXCEEDS_THRESHOLD|Input is too long|length limit exceeded|context length|too many tokens|exceeds the maximum/i.test(
+  // Mỗi upstream một cách diễn đạt:
+  //   Kiro/Bedrock : CONTENT_LENGTH_EXCEEDS_THRESHOLD · "Input is too long" · "length limit exceeded"
+  //   Anthropic    : "Prompt is too long"  (model Claude qua Antigravity dùng chuỗi này)
+  //   Gemini/OpenAI: "context length" · "too many tokens" · "exceeds the maximum"
+  return /CONTENT_LENGTH_EXCEEDS_THRESHOLD|(input|prompt|request)\s+is too long|too long for|length limit exceeded|context[_\s-]?length|maximum context|too many tokens|exceeds the maximum/i.test(
     String(e?.message ?? ''),
   );
 }

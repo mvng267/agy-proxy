@@ -214,3 +214,20 @@ test('shouldFallback: đầu vào quá dài → TRƯỢT sang model ngữ cảnh
   assert.equal(shouldFallback({ status: 400, message: 'invalid model id' }), false);
   assert.equal(isContextTooLong({ message: 'invalid model id' }), false);
 });
+
+test('isContextTooLong: bắt đủ cách diễn đạt của các upstream', () => {
+  for (const m of [
+    'Prompt is too long',                                   // Anthropic (agy/claude-*)
+    'Kiro 400 CONTENT_LENGTH_EXCEEDS_THRESHOLD: Input is too long.',
+    'Failed to buffer the request body: length limit exceeded',
+    'context_length_exceeded',
+    'This model has a maximum context length of 200000 tokens',
+  ]) {
+    assert.equal(isContextTooLong({ message: m }), true, `phải nhận: ${m}`);
+    assert.equal(shouldFallback({ status: 400, message: m }), true, `phải trượt: ${m}`);
+  }
+  // không được bắt nhầm lỗi khác
+  for (const m of ['invalid model id', 'unauthorized', 'account bị khoá']) {
+    assert.equal(isContextTooLong({ message: m }), false, `không được nhận: ${m}`);
+  }
+});
