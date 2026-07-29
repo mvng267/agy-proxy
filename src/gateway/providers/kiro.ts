@@ -6,18 +6,19 @@ import {
   kiroGenerateStream,
   parseKiroCredential,
   refreshKiroToken,
+  fetchKiroUsage,
 } from '../kiro.js';
 import type { GenArgs, LiveResult, Provider, ProviderAccount, ProviderSession, StreamEvent } from './types.js';
-import type { GenResult } from '../antigravity.js';
+import type { GenResult, QuotaInfo } from '../antigravity.js';
 
 /**
  * Adapter Kiro (AWS CodeWhisperer).
- * Khác Antigravity: không có API hạn mức → `quota` KHÔNG được cài; trạng thái còn dùng được
- * chỉ biết bằng cách gọi thử (checkLive). Hết hạn mức tháng = HTTP 402 MONTHLY_REQUEST_COUNT.
+ * Hạn mức lấy THẬT qua GetUsageLimits (host q.us-east-1, KHÔNG tốn credit).
+ * Hết hạn mức tháng = HTTP 402 MONTHLY_REQUEST_COUNT.
  */
 
 const REFRESH_SKEW_MS = 5 * 60 * 1000;
-const LIVE_PROBE_MODEL = 'claude-haiku-4-5'; // model rẻ nhất để dò
+const LIVE_PROBE_MODEL = 'qwen3-coder-next'; // RẺ NHẤT: 0.05 credit/lượt (haiku 0.4, sonnet 1.3)
 
 /** Lỗi này có nghĩa account hết hạn mức (không phải hỏng token). */
 export function isKiroQuotaError(e: unknown): boolean {
@@ -32,7 +33,7 @@ export const kiroProvider: Provider = {
   label: 'Kiro',
   credentialTarget: 'kiro',
   models: KIRO_MODELS,
-  defaultModel: 'claude-sonnet-4',
+  defaultModel: 'claude-sonnet-4.5',
 
   accepts(value) {
     return parseKiroCredential(value) !== null;
@@ -96,7 +97,7 @@ export const kiroProvider: Provider = {
     }
   },
 
-  /** Dò hạn mức bằng cách gọi thật 1 request cực nhỏ (Kiro không có API quota). */
+  /** Gọi thử 1 request cực nhỏ bằng model RẺ NHẤT để xác nhận account còn phục vụ được. */
   async checkLive(_a: ProviderAccount, s: ProviderSession, d?: Dispatcher): Promise<LiveResult> {
     const t0 = Date.now();
     try {
@@ -141,5 +142,21 @@ export const kiroProvider: Provider = {
     return out;
   },
 
-  // quota: KHÔNG cài — Kiro không có API hạn mức. Dùng checkLive để dò.
+  /**
+   * Hạn mức THẬT từ GetUsageLimits (q.us-east-1, KHÔNG tốn credit).
+   * Trả về dạng QuotaInfo để dùng chung mọi UI/biểu đồ sẵn có.
+   */
+  async quota(_a: ProviderAccount, s: ProviderSession, d?: Dispatcher): Promise<QuotaInfo | undefined> {
+    const u = await fetchKiroUsage(s.accessToken, s.profileArn, d);
+    if (!u) return undefined;
+    const reset = u.resetAt ? new Date(u.resetAt).toISOString() : '';
+    return {
+      tier: u.plan,
+      groups: [
+        { name: 'Credits', pct: u.pct, resetTime: reset, desc: `${u.used}/${u.limit} credit · reset sau ${u.daysUntilReset} ngày` },
+      ],
+      models: [],
+      fetchedAt: Date.now(),
+    };
+  },
 };

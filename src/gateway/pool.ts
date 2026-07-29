@@ -54,7 +54,10 @@ export interface PoolAccount extends ProviderAccount {
 /** % hạn mức Gemini còn lại (dùng cho highest-first). null nếu chưa fetch. */
 export function geminiPct(a: PoolAccount): number | null {
   const g = a.quota?.groups?.find((x) => /gemini/i.test(x.name));
-  return g ? g.pct : null;
+  if (g) return g.pct;
+  // Provider khác (Kiro dùng nhóm 'Credits') → lấy nhóm đầu để highest-first vẫn xoay đúng
+  const first = a.quota?.groups?.[0];
+  return first ? first.pct : null;
 }
 
 export interface ReportInfo {

@@ -437,19 +437,13 @@ function renderAgy() {
   for (const a of rows) {
     const tr = el('tr'); tr.dataset.email = a.email; if (!a.enabled) tr.classList.add('off'); if (a.cooldown) tr.classList.add('cooldown');
     const gpct = a.geminiPct, cpct = claudePct(a);
-    // Kiro KHÔNG có API hạn mức → 2 cột quota đổi thành kết quả dò gần nhất + thời điểm hết cooldown
+    // Kiro: hạn mức THẬT lấy từ GetUsageLimits (nhóm 'Credits'), + kết quả dò gần nhất
+    const krCredit = a.quota?.groups?.[0];
     const quotaCells = a.provider === 'kr'
-      ? `<td class="qcell">${a.liveStatus === 'ok' ? '<span class="q-hi">gọi được</span>' : a.liveStatus === 'quota' ? '<span class="q-lo">hết credit</span>' : '<span class="faint">chưa dò</span>'}</td>
-         ${(() => {
-           if (a.creditsUsed == null) return '<td class="qcell"><span class="faint">—</span></td>';
-           // Hết credit nhưng ta chỉ đếm được ít → phần còn lại đã tiêu Ở NƠI KHÁC (Kiro IDE/OmniRoute)
-           const outside = a.liveStatus === 'quota' && a.creditsUsed < a.creditsLimit;
-           const cls = a.creditsUsed >= a.creditsLimit || outside ? 'q-lo' : a.creditsUsed > a.creditsLimit * 0.7 ? 'q-mid' : 'q-hi';
-           const tip = outside
-             ? `Đã hết ${a.creditsLimit} credit tháng này, nhưng chỉ ${a.creditsUsed} lượt đi qua gateway này — phần còn lại tiêu ở nơi khác (Kiro IDE / OmniRoute).`
-             : `Credit đã tiêu QUA GATEWAY NÀY trong tháng. Không tính request từ Kiro IDE/OmniRoute.`;
-           return `<td class="qcell" title="${esc(tip)}"><span class="${cls}">${outside ? `hết · ${a.creditsUsed} qua đây` : `${a.creditsUsed}/${a.creditsLimit}`}</span></td>`;
-         })()}`
+      ? `<td class="qcell" title="${esc(krCredit?.desc || 'Bấm nút ⟲ để nạp hạn mức thật (không tốn credit)')}">
+           ${krCredit ? `<span class="${qColor(krCredit.pct)}">${krCredit.pct}%</span> <span class="faint">${esc(String(krCredit.desc || '').split('·')[0].trim())}</span>`
+             : '<span class="faint">chưa nạp</span>'}</td>
+         <td class="qcell">${a.liveStatus === 'ok' ? '<span class="q-hi">gọi được</span>' : a.liveStatus === 'quota' ? '<span class="q-lo">hết credit</span>' : '<span class="faint">chưa dò</span>'}</td>`
       : `<td class="qcell">${gpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(gpct)}">${gpct}%</span>`}</td>
          <td class="qcell">${cpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(cpct)}">${cpct}%</span>`}</td>`;
     tr.innerHTML = `
@@ -521,10 +515,10 @@ function syncPoolHeaders() {
   const ths = document.querySelectorAll('#view-agy thead th');
   if (ths.length < 5) return;
   const kr = agyProv === 'kr';
-  ths[3].textContent = kr ? 'Dò gần nhất' : 'Gemini';
-  ths[4].textContent = kr ? 'Credit (đã dùng qua đây)' : 'Claude/GPT';
+  ths[3].textContent = kr ? 'Credit còn' : 'Gemini';
+  ths[4].textContent = kr ? 'Dò gần nhất' : 'Claude/GPT';
   const rq = $('agy-refresh-quota');
-  if (rq) { rq.style.display = kr ? 'none' : ''; }
+  if (rq) rq.style.display = ''; // Kiro CÓ API hạn mức thật (GetUsageLimits), không tốn credit
 }
 $('agy-bulk-on').addEventListener('click', async () => { await api('/api/gateway/accounts/bulk', { method: 'POST', body: { emails: [...agySelected], enabled: true } }); toast('Đã bật ' + agySelected.size); loadAgy(); });
 $('agy-bulk-off').addEventListener('click', async () => { await api('/api/gateway/accounts/bulk', { method: 'POST', body: { emails: [...agySelected], enabled: false } }); toast('Đã tắt ' + agySelected.size); loadAgy(); });

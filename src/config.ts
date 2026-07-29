@@ -83,8 +83,8 @@ export const config = {
       historyDays: num(S('quotaHistoryDays'), 90),
     },
     // Endpoint Anthropic (Claude Code): id Anthropic thật sẽ map sang 2 model này
-    anthropicBigModel: S('anthropicBigModel') ?? 'kr/claude-sonnet-4',
-    anthropicSmallModel: S('anthropicSmallModel') ?? 'kr/claude-haiku-4-5',
+    anthropicBigModel: S('anthropicBigModel') ?? 'kr/claude-sonnet-4.5',
+    anthropicSmallModel: S('anthropicSmallModel') ?? 'kr/claude-haiku-4.5',
     // Kiro không có API hạn mức → dò bằng cách gọi thử. TỐN quota thật nên mặc định thưa.
     kiroProbeEnabled: bool(S('kiroProbeEnabled'), false),
     kiroProbeHours: num(S('kiroProbeHours'), 6),

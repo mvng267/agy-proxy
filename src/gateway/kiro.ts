@@ -24,22 +24,111 @@ import type { ChatMessage, GenResult, ProviderModel, StreamEvent } from './provi
 
 export const KIRO_REFRESH_URL = 'https://prod.us-east-1.auth.desktop.kiro.dev/refreshToken';
 export const KIRO_CW_URL = 'https://codewhisperer.us-east-1.amazonaws.com/generateAssistantResponse';
+/** Host REST của Kiro (ListAvailableModels / GetUsageLimits) — KHÁC host suy luận. */
+export const KIRO_Q_URL = 'https://q.us-east-1.amazonaws.com/';
 
-/** Model client-facing (id trần) → id upstream. Đã kiểm chứng live: 3 model chạy được. */
-export const KIRO_MODELS: ProviderModel[] = [
-  { id: 'claude-sonnet-4', label: 'Claude Sonnet 4 (Kiro)', image: false },
-  { id: 'claude-3-7-sonnet', label: 'Claude 3.7 Sonnet (Kiro)', image: false },
-  { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 (Kiro)', image: false },
+/**
+ * Model Kiro — LẤY TỪ ListAvailableModels (đã kiểm chứng live 2026-07-30).
+ * LƯU Ý: id dùng DẤU CHẤM (`claude-sonnet-4.5`), không phải gạch ngang.
+ * `credit` = rateMultiplier: số credit tiêu cho 1 lần gọi (gói FREE có 50 credit/tháng)
+ * → qwen3-coder-next chỉ 0.05 credit ⇒ ~1000 lượt; sonnet 1.3 credit ⇒ ~38 lượt.
+ */
+export interface KiroModel extends ProviderModel {
+  credit: number;
+  maxInput: number;
+}
+export const KIRO_MODELS: KiroModel[] = [
+  { id: 'auto', label: 'Auto (Kiro tự chọn)', image: true, credit: 1, maxInput: 1_000_000 },
+  { id: 'claude-sonnet-4.5', label: 'Claude Sonnet 4.5', image: true, credit: 1.3, maxInput: 200_000 },
+  { id: 'claude-sonnet-4', label: 'Claude Sonnet 4', image: true, credit: 1.3, maxInput: 200_000 },
+  { id: 'claude-haiku-4.5', label: 'Claude Haiku 4.5', image: true, credit: 0.4, maxInput: 200_000 },
+  { id: 'deepseek-3.2', label: 'DeepSeek v3.2', image: true, credit: 0.25, maxInput: 164_000 },
+  { id: 'minimax-m2.5', label: 'MiniMax M2.5', image: false, credit: 0.25, maxInput: 196_000 },
+  { id: 'minimax-m2.1', label: 'MiniMax M2.1', image: true, credit: 0.15, maxInput: 196_000 },
+  { id: 'glm-5', label: 'GLM 5', image: false, credit: 0.5, maxInput: 200_000 },
+  { id: 'qwen3-coder-next', label: 'Qwen3 Coder Next', image: true, credit: 0.05, maxInput: 256_000 },
 ];
 
-const KIRO_UPSTREAM: Record<string, string> = {
-  'claude-sonnet-4': 'CLAUDE_SONNET_4_20250514_V1_0',
-  'claude-3-7-sonnet': 'CLAUDE_3_7_SONNET_20250219_V1_0',
-  'claude-haiku-4-5': 'CLAUDE_3_5_HAIKU_20241022_V1_0',
+/** Bí danh cho người quen gõ gạch ngang (claude-sonnet-4-5 → claude-sonnet-4.5). */
+const KIRO_ALIAS: Record<string, string> = {
+  'claude-sonnet-4-5': 'claude-sonnet-4.5',
+  'claude-haiku-4-5': 'claude-haiku-4.5',
+  'deepseek-3-2': 'deepseek-3.2',
+  'minimax-m2-5': 'minimax-m2.5',
+  'minimax-m2-1': 'minimax-m2.1',
 };
 
 export function resolveKiroUpstream(model: string): string {
-  return KIRO_UPSTREAM[model] ?? model;
+  return KIRO_ALIAS[model] ?? model;
+}
+
+export interface KiroUsage {
+  used: number;
+  limit: number;
+  pct: number; // % CÒN LẠI
+  plan: string;
+  resetAt: number; // epoch ms
+  daysUntilReset: number;
+}
+
+/**
+ * Hạn mức THẬT của Kiro. Endpoint REST khác host suy luận:
+ *   POST https://q.us-east-1.amazonaws.com/
+ *   x-amz-target: AmazonCodeWhispererService.GetUsageLimits
+ * KHÔNG tốn credit.
+ */
+export async function fetchKiroUsage(
+  accessToken: string,
+  profileArn?: string,
+  dispatcher?: Dispatcher,
+): Promise<KiroUsage | undefined> {
+  const res = await fetch(KIRO_Q_URL, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      'content-type': 'application/x-amz-json-1.0',
+      'x-amz-target': 'AmazonCodeWhispererService.GetUsageLimits',
+      'user-agent': 'aws-sdk-js/1.28.1 KiroIDE-0.7.45',
+      'amz-sdk-invocation-id': randomUUID(),
+    },
+    body: JSON.stringify(profileArn ? { profileArn } : {}),
+    signal: AbortSignal.timeout(30_000),
+    ...(dispatcher ? ({ dispatcher } as any) : {}),
+  });
+  if (!res.ok) return undefined;
+  const j = (await res.json()) as any;
+  const b = j?.usageBreakdownList?.find((x: any) => x.resourceType === 'CREDIT') ?? j?.usageBreakdownList?.[0];
+  if (!b) return undefined;
+  const used = Number(b.currentUsage ?? 0);
+  const limit = Number(b.usageLimit ?? 0);
+  return {
+    used,
+    limit,
+    pct: limit > 0 ? Math.max(0, Math.round(((limit - used) / limit) * 100)) : 0,
+    plan: j?.subscriptionInfo?.subscriptionTitle ?? 'KIRO',
+    resetAt: Number(j?.nextDateReset ?? 0) * 1000,
+    daysUntilReset: Number(j?.daysUntilReset ?? 0),
+  };
+}
+
+/** Danh sách model thật của account (dùng để đối chiếu khi Kiro đổi danh mục). */
+export async function fetchKiroModels(accessToken: string, profileArn?: string, dispatcher?: Dispatcher): Promise<{ id: string; name: string; credit: number }[]> {
+  const res = await fetch(KIRO_Q_URL, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      'content-type': 'application/x-amz-json-1.0',
+      'x-amz-target': 'AmazonCodeWhispererService.ListAvailableModels',
+      'user-agent': 'aws-sdk-js/1.28.1 KiroIDE-0.7.45',
+      'amz-sdk-invocation-id': randomUUID(),
+    },
+    body: JSON.stringify({ origin: 'AI_EDITOR', ...(profileArn ? { profileArn } : {}) }),
+    signal: AbortSignal.timeout(30_000),
+    ...(dispatcher ? ({ dispatcher } as any) : {}),
+  });
+  if (!res.ok) return [];
+  const j = (await res.json()) as any;
+  return (j?.models ?? []).map((m: any) => ({ id: m.modelId, name: m.modelName, credit: Number(m.rateMultiplier ?? 1) }));
 }
 
 export interface KiroCredential {

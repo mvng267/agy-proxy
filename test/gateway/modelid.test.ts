@@ -102,9 +102,9 @@ test('parseKiroCredential: chỉ nhận JSON có refreshToken', () => {
   assert.equal(c?.refreshToken, 'x');
 });
 
-test('resolveKiroUpstream: map sang id AWS đã kiểm chứng live', () => {
-  assert.equal(resolveKiroUpstream('claude-sonnet-4'), 'CLAUDE_SONNET_4_20250514_V1_0');
-  assert.equal(resolveKiroUpstream('claude-haiku-4-5'), 'CLAUDE_3_5_HAIKU_20241022_V1_0');
+test('resolveKiroUpstream: bí danh gạch ngang → id thật (dấu chấm)', () => {
+  assert.equal(resolveKiroUpstream('claude-sonnet-4'), 'claude-sonnet-4');
+  assert.equal(resolveKiroUpstream('claude-haiku-4-5'), 'claude-haiku-4.5');
 });
 
 test('messagesToCodeWhisperer: system gộp vào user đầu, user cuối vào currentMessage', () => {
@@ -118,7 +118,7 @@ test('messagesToCodeWhisperer: system gộp vào user đầu, user cuối vào c
   assert.equal(body.profileArn, 'arn:aws:test', 'profileArn phải ở TOP LEVEL');
   const cur = body.conversationState.currentMessage.userInputMessage;
   assert.equal(cur.content, 'Q2', 'tin user cuối là currentMessage');
-  assert.equal(cur.modelId, 'CLAUDE_SONNET_4_20250514_V1_0');
+  assert.equal(cur.modelId, 'claude-sonnet-4');
   assert.equal(cur.origin, 'AI_EDITOR');
   const h = body.conversationState.history;
   assert.equal(h.length, 2);
@@ -173,11 +173,11 @@ test('resultToAnthropic + toStopReason', () => {
 });
 
 test('resolveAnthropicModel: id Anthropic thật → map theo config (ngoại lệ có chủ đích)', () => {
-  const cfg = { big: 'kr/claude-sonnet-4', small: 'kr/claude-haiku-4-5' };
-  assert.equal(resolveAnthropicModel('claude-sonnet-4-5-20250929', cfg), 'kr/claude-sonnet-4');
-  assert.equal(resolveAnthropicModel('claude-3-5-haiku-20241022', cfg), 'kr/claude-haiku-4-5');
+  const cfg = { big: 'kr/claude-sonnet-4.5', small: 'kr/claude-haiku-4.5' };
+  assert.equal(resolveAnthropicModel('claude-sonnet-4-5-20250929', cfg), cfg.big);
+  assert.equal(resolveAnthropicModel('claude-3-5-haiku-20241022', cfg), cfg.small);
   assert.equal(resolveAnthropicModel('agy/gemini-3-flash', cfg), 'agy/gemini-3-flash', 'đã có prefix thì giữ nguyên');
-  assert.equal(resolveAnthropicModel('', cfg), 'kr/claude-sonnet-4');
+  assert.equal(resolveAnthropicModel('', cfg), cfg.big);
 });
 
 test('sseFrame có dòng event: (bắt buộc với Anthropic)', () => {
