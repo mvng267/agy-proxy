@@ -330,10 +330,20 @@ async function loadAgy() {
   renderAgyStats(); renderAgy();
 }
 function renderModelChips(list) {
+  const tip = { ok: 'Gọi được ✓', quota: 'Hết hạn mức tạm thời', error: 'Gọi lỗi', image: 'Model ảnh (chưa kiểm)', unknown: 'Chưa kiểm — bấm Check live' };
   $('agy-models').innerHTML = list.map((m) => {
-    const ic = m.status === 'ok' ? '✅' : m.status === 'quota' ? '⏳' : m.status === 'error' ? '❌' : m.status === 'image' ? '🖼' : '•';
-    return `<span class="chip model-chip ${m.status}" title="${m.status}${m.detail ? ': ' + esc(m.detail) : ''}">${ic} ${esc(m.id)}${m.ms ? ` <span class="faint">${m.ms}ms</span>` : ''}</span>`;
+    const st = m.status || 'unknown';
+    const img = m.image || st === 'image' ? '<span class="mc-img" title="Model ảnh">🖼</span>' : '';
+    return `<span class="chip model-chip ${st}" title="${esc(tip[st] || st)}${m.detail ? ' — ' + esc(m.detail) : ''}">
+      <span class="mc-dot"></span>${img}<b class="mc-id">${esc(m.id)}</b>${m.ms ? `<span class="faint mc-ms">${m.ms}ms</span>` : ''}
+      <button class="mc-copy" data-model="${esc(m.id)}" title="Copy tên model">${icon('copy')}</button>
+    </span>`;
   }).join('');
+  document.querySelectorAll('.mc-copy').forEach((b) => b.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    try { await navigator.clipboard.writeText(b.dataset.model); toast('Đã copy: ' + b.dataset.model); }
+    catch { toast('Copy lỗi'); }
+  }));
 }
 function renderAgyStats() {
   const on = agyAccounts.filter((a) => a.enabled).length, cd = agyAccounts.filter((a) => a.cooldown).length;
@@ -825,6 +835,15 @@ function connectSSE() {
     }
   };
 }
+
+// ---------- sticky header: thêm viền/bóng khi cuộn ----------
+(function stickyHeader() {
+  const main = document.querySelector('.main');
+  if (!main) return;
+  const onScroll = () => main.classList.toggle('scrolled', main.scrollTop > 4);
+  main.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
 
 // ---------- keyboard ----------
 document.addEventListener('keydown', (e) => { if (e.key === '/' && !/input|textarea|select/i.test(document.activeElement.tagName)) { const active = document.querySelector('.view.active'); const s = active && active.querySelector('input[id$="-search"]'); if (s) { e.preventDefault(); s.focus(); } } });
