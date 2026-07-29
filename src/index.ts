@@ -8,6 +8,7 @@ import { bus, type AppEvent } from './events.js';
 import { omniroute } from './omniroute/client.js';
 import { startHealthLoop } from './health/tokenHealth.js';
 import { registerAuth } from './auth.js';
+import { setBareMode } from './gateway/providers/index.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -22,6 +23,7 @@ async function main() {
   // Bảo vệ dashboard + /api/* bằng Basic auth khi có DASHBOARD_PASSWORD.
   // (/proxy/v1/* dùng GATEWAY_API_KEY riêng nên bỏ qua ở đây.)
   // Đăng nhập: session cookie (trình duyệt) + Basic (CLI). Đổi mật khẩu có hiệu lực NGAY.
+  setBareMode(config.gateway.bareModels);
   registerAuth(app);
 
   // Màn đăng nhập

@@ -380,7 +380,14 @@ async function loadAgy() {
   $('agy-apikey').value = agyCfg.apiKey || '';
   $('agy-proxy').value = agyCfg.outboundProxy || '';
   document.querySelectorAll('#agy-strategy button').forEach((b) => b.classList.toggle('active', b.dataset.s === (agyCfg.rotation || 'round-robin')));
-  $('agy-chat-model').innerHTML = agyModels.map((m) => `<option value="${esc(m.id)}">${esc(m.label)}</option>`).join('');
+  // Nhóm theo provider + HIỆN RÕ id có prefix — nếu chỉ hiện nhãn thì không phân biệt được
+  // model nào của Antigravity, model nào của Kiro (cả hai đều có model tên "Claude …").
+  const chatByProv = {};
+  for (const m of agyModels) (chatByProv[m.providerLabel || m.provider || '?'] ??= []).push(m);
+  $('agy-chat-model').innerHTML = Object.entries(chatByProv)
+    .map(([lbl, list]) => `<optgroup label="${esc(lbl)}">${list
+      .map((m) => `<option value="${esc(m.id)}">${esc(m.id)} — ${esc(m.label)}</option>`).join('')}</optgroup>`)
+    .join('');
   $('agy-chat-account').innerHTML = '<option value="auto">auto (theo chiến lược)</option>' + agyAccounts.filter((a) => a.enabled).map((a) => `<option value="${esc(a.email)}">${esc(a.email)}</option>`).join('');
   $('tc-agy').textContent = agyAccounts.filter((a) => a.enabled).length;
   if (!$('agy-models').dataset.checked) renderModelChips(agyModels.map((m) => ({ id: m.id, status: m.image ? 'image' : 'unknown' })));
@@ -739,7 +746,7 @@ async function loadModels() {
   $('models-groups').innerHTML = Object.entries(byProv).map(([pid, list]) => `
     <div class="panel">
       <div class="row" style="justify-content:space-between;align-items:center">
-        <h3 style="margin:0">${esc(list[0].providerLabel || pid)} <span class="chip">${esc(pid)}/</span></h3>
+        <h3 style="margin:0">${esc(list[0].providerLabel || pid)} <span class="faint" style="font-weight:400;font-size:12.5px">${list.length} model</span></h3>
         <span class="faint">${counts[pid] ?? 0} account · ${okOf(pid)} sẵn sàng
           <button class="sm" data-copyall="${esc(pid)}" title="Copy tất cả id">${icon('copy')} Copy tất cả</button></span>
       </div>

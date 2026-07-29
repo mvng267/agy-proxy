@@ -50,6 +50,18 @@ export function allModels(): PrefixedModel[] {
   return out;
 }
 
+/**
+ * Chế độ id trần: bật khi gateway trung gian (OmniRoute…) tự thêm prefix của nó.
+ * Đặt từ config lúc boot — KHÔNG import config ở đây để tránh phụ thuộc vòng.
+ */
+let bareMode = false;
+export function setBareMode(on: boolean): void {
+  bareMode = on;
+}
+export function isBareMode(): boolean {
+  return bareMode;
+}
+
 export type ModelKind = 'provider' | 'combo' | 'auto';
 
 export interface ParsedModel {
@@ -98,6 +110,19 @@ export function parseModelId(raw: string | undefined | null): ParsedModel {
 
   const slash = s.indexOf('/');
   if (slash < 0) {
+    // Chế độ id trần (cho gateway trung gian tự thêm prefix, vd OmniRoute):
+    // chấp nhận id không prefix; đuôi "-kr" để chỉ rõ model Kiro khi trùng tên.
+    if (bareMode) {
+      const krSuffix = s.endsWith('-kr');
+      const base = krSuffix ? s.slice(0, -3) : s;
+      const pid: ProviderId | undefined = krSuffix
+        ? (PROVIDERS.kr.models.some((m) => m.id === base) ? 'kr' : undefined)
+        : guessProvider(base);
+      if (pid) {
+        const norm = PROVIDERS[pid].normalizeModel?.(base) ?? base;
+        return { kind: 'provider', provider: pid, model: norm, prefixed: `${pid}/${norm}` };
+      }
+    }
     const guess = guessProvider(s);
     throw new ModelIdError(
       `Model "${s}" thiếu prefix provider.` + (guess ? ` Dùng "${guess}/${s}".` : ' Xem danh sách ở /proxy/v1/models.'),

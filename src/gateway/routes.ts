@@ -310,8 +310,23 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   // ---------------- OpenAI-compatible ----------------
   app.get('/proxy/v1/models', async (req, reply) => {
     if (!authOk(req)) return reply.code(401).send({ error: 'unauthorized' });
-    const data = allModels().map((m) => ({
-      id: m.prefixed,
+    const q = (req.query ?? {}) as any;
+    /**
+     * Gateway trung gian (OmniRoute, LiteLLM…) TỰ THÊM prefix provider của nó vào id,
+     * nên id `agy/gemini-…` của ta sẽ thành `agy/agy/gemini-…` (prefix chồng prefix).
+     * Với các gateway đó, gọi `?bare=1` để lấy id TRẦN, kèm đuôi phân biệt provider
+     * (`-kr`) cho model trùng tên giữa 2 provider.
+     */
+    const bare = q.bare === '0' || q.bare === 'false' ? false : q.bare === '1' || q.bare === 'true' || config.gateway.bareModels;
+    const all = allModels();
+    // Trùng tên giữa 2 provider, HOẶC trùng tên dành riêng cho combo ảo ('auto') →
+    // model Kiro được thêm đuôi '-kr' để id vẫn duy nhất khi bỏ prefix.
+    const reserved = new Set<string>(['auto', ...AUTO_VARIANT_IDS]);
+    const dupes = new Set(
+      all.map((m) => m.id).filter((id, i, arr) => arr.indexOf(id) !== i || reserved.has(id)),
+    );
+    const data = all.map((m) => ({
+      id: bare ? (dupes.has(m.id) && m.provider === 'kr' ? `${m.id}-kr` : m.id) : m.prefixed,
       object: 'model',
       owned_by: m.provider === 'kr' ? 'kiro' : 'antigravity',
     }));
@@ -811,6 +826,113 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       }
     }
     return { account: accounts.join(', '), models: out };
+  });
+
+  /**
+   * OpenAI **Responses API** — `POST /proxy/v1/responses`.
+   * OmniRoute/Codex gọi đường này thay cho /chat/completions (wire_api="responses").
+   * Không có nó thì báo: `404 Route POST:/proxy/v1/responses not found`.
+   */
+  app.post('/proxy/v1/responses', async (req, reply) => {
+    if (!authOk(req)) return reply.code(401).send({ error: { message: 'unauthorized', type: 'authentication_error' } });
+    if (!config.gateway.enabled) return reply.code(503).send({ error: { message: 'gateway disabled' } });
+    const b = (req.body ?? {}) as any;
+
+    let parsed: ParsedModel;
+    try {
+      parsed = parseModelId(b?.model);
+    } catch (e: any) {
+      return reply.code(400).send({ error: { message: e?.message, type: 'invalid_request_error', param: 'model' } });
+    }
+
+    // input: chuỗi, hoặc mảng {role, content} với content là chuỗi/mảng khối
+    const messages: ChatMessage[] = [];
+    if (b.instructions) messages.push({ role: 'system', content: String(b.instructions) });
+    const pushPart = (role: any, content: any) => {
+      if (typeof content === 'string') messages.push({ role, content });
+      else if (Array.isArray(content)) {
+        const text = content
+          .map((c: any) => (typeof c === 'string' ? c : c?.text ?? c?.input_text ?? ''))
+          .filter(Boolean)
+          .join('\n');
+        if (text) messages.push({ role, content: text });
+      }
+    };
+    if (typeof b.input === 'string') messages.push({ role: 'user', content: b.input });
+    else if (Array.isArray(b.input)) for (const it of b.input) pushPart(it?.role ?? 'user', it?.content ?? it);
+    if (!messages.some((m) => m.role !== 'system')) messages.push({ role: 'user', content: '' });
+
+    const generationConfig: Record<string, unknown> = {};
+    if (typeof b.max_output_tokens === 'number') generationConfig.maxOutputTokens = b.max_output_tokens;
+    if (typeof b.temperature === 'number') generationConfig.temperature = b.temperature;
+    if (typeof b.top_p === 'number') generationConfig.topP = b.top_p;
+
+    try {
+      syncFromStore();
+      // stream của Responses API có bộ sự kiện riêng → v1 trả nguyên khối cho chắc
+      const one = (p: ParsedModel) =>
+        runProviderCall({
+          provider: p.provider!, bare: p.model!, labelModel: p.prefixed,
+          messages, stream: false, reply, endpoint: '/proxy/v1/responses',
+          generationConfig,
+        } as any);
+
+      let out: any;
+      let usedModel = parsed.prefixed;
+      if (parsed.kind === 'provider') {
+        out = await one(parsed);
+      } else {
+        const res = resolveComboPlan(parsed);
+        if ('error' in res) return reply.code(res.status).send({ error: { message: res.error } });
+        let lastErr: any;
+        for (let step = 0; step < Math.min(res.plan.length, 3); step++) {
+          const t0 = Date.now();
+          let p: ParsedModel;
+          try { p = parseModelId(res.plan[step]!.model); } catch (e) { lastErr = e; continue; }
+          if (p.kind !== 'provider') continue;
+          try {
+            out = await one(p);
+            usedModel = res.name;
+            recordComboRun({ combo: res.name, step, model: p.prefixed, ok: true, ms: Date.now() - t0 });
+            break;
+          } catch (e: any) {
+            lastErr = e;
+            recordComboRun({ combo: res.name, step, model: p.prefixed, ok: false, status: e?.status, ms: Date.now() - t0, reason: String(e?.message ?? e) });
+            if (!shouldFallback(e)) throw e;
+          }
+        }
+        if (!out) throw lastErr ?? new NoAccountError(`${res.name}: mọi bước đều lỗi`);
+      }
+
+      const r = out.result;
+      let text = r.text;
+      for (const img of r.images ?? []) text += (text ? '\n\n' : '') + `![image](${img})`;
+      return reply.send({
+        id: 'resp_' + randomUUID().replace(/-/g, ''),
+        object: 'response',
+        created_at: Math.floor(Date.now() / 1000),
+        model: usedModel,
+        status: 'completed',
+        output: [
+          {
+            type: 'message',
+            id: 'msg_' + randomUUID().replace(/-/g, ''),
+            role: 'assistant',
+            status: 'completed',
+            content: [{ type: 'output_text', text, annotations: [] }],
+          },
+        ],
+        output_text: text, // tiện cho client đọc thẳng
+        usage: {
+          input_tokens: r.usage.promptTokens,
+          output_tokens: r.usage.completionTokens,
+          total_tokens: r.usage.totalTokens,
+        },
+      });
+    } catch (e: any) {
+      const code = e instanceof NoAccountError ? 503 : e?.status === 400 ? 400 : 502;
+      return reply.code(code).send({ error: { message: e?.message ?? 'all accounts failed', type: 'api_error' } });
+    }
   });
 
   // ---------------- Anthropic Messages API (cho Claude Code) ----------------

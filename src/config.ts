@@ -75,6 +75,9 @@ export const config = {
     enabled: bool(S('gatewayEnabled') ?? process.env.GATEWAY_ENABLED, true),
     apiKey: S('gatewayApiKey') ?? process.env.GATEWAY_API_KEY ?? '',
     rotation: S('gatewayRotation') ?? process.env.GATEWAY_ROTATION ?? 'round-robin',
+    // Trả model id TRẦN (không prefix) — dùng khi cắm vào gateway khác (OmniRoute) vì
+    // nơi đó tự thêm prefix provider, để nguyên sẽ thành agy/agy/gemini-…
+    bareModels: bool(S('gatewayBareModels'), false),
     outboundProxy: S('gatewayProxy') ?? process.env.GATEWAY_PROXY ?? '',
     cooldownSec: num(S('gatewayCooldownSec') ?? process.env.GATEWAY_COOLDOWN_SEC, 900),
     quota: {
@@ -125,6 +128,7 @@ const SETTERS: Record<string, Setter> = {
   gatewayEnabled: (v) => (config.gateway.enabled = v === 'true'),
   gatewayApiKey: (v) => (config.gateway.apiKey = v),
   gatewayRotation: (v) => (config.gateway.rotation = v),
+  gatewayBareModels: (v) => (config.gateway.bareModels = v === 'true'),
   gatewayProxy: (v) => (config.gateway.outboundProxy = v),
   gatewayCooldownSec: (v) => (config.gateway.cooldownSec = Number(v)),
   quotaAutoRefresh: (v) => (config.gateway.quota.autoRefresh = v === 'true'),
@@ -170,6 +174,7 @@ export function getConfigValue(key: string): unknown {
     case 'gatewayEnabled': return config.gateway.enabled;
     case 'gatewayApiKey': return config.gateway.apiKey;
     case 'gatewayRotation': return config.gateway.rotation;
+    case 'gatewayBareModels': return config.gateway.bareModels;
     case 'gatewayProxy': return config.gateway.outboundProxy;
     case 'gatewayCooldownSec': return config.gateway.cooldownSec;
     case 'quotaAutoRefresh': return config.gateway.quota.autoRefresh;

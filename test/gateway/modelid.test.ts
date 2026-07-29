@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseModelId, ModelIdError, allModels, providerOfTarget, getProvider } from '../../src/gateway/providers/index.js';
+import { parseModelId, ModelIdError, allModels, providerOfTarget, getProvider, setBareMode } from '../../src/gateway/providers/index.js';
 import { planCombo, planAuto, shouldFallback, validateTargets, scoreCandidates, AUTO_VARIANTS, type Combo, type PoolSnapshot } from '../../src/gateway/combo.js';
 import { messagesToCodeWhisperer, parseKiroCredential, resolveKiroUpstream } from '../../src/gateway/kiro.js';
 import { anthropicToMessages, resultToAnthropic, toStopReason, resolveAnthropicModel, sseFrame } from '../../src/gateway/anthropic.js';
@@ -183,4 +183,24 @@ test('resolveAnthropicModel: id Anthropic thật → map theo config (ngoại l�
 test('sseFrame có dòng event: (bắt buộc với Anthropic)', () => {
   const f = sseFrame('message_stop', { type: 'message_stop' });
   assert.match(f, /^event: message_stop\ndata: \{.*\}\n\n$/);
+});
+
+// ---------- chế độ id trần (cắm vào OmniRoute/LiteLLM) ----------
+test('bareMode: id trần gọi được, đuôi -kr chỉ đúng model Kiro', () => {
+  setBareMode(true);
+  try {
+    assert.equal(parseModelId('gemini-2.5-flash').prefixed, 'agy/gemini-2.5-flash');
+    assert.equal(parseModelId('qwen3-coder-next').prefixed, 'kr/qwen3-coder-next');
+    // 'auto' vẫn là combo ảo, KHÔNG được hiểu thành model auto của Kiro
+    assert.equal(parseModelId('auto').kind, 'auto');
+    assert.equal(parseModelId('auto-kr').prefixed, 'kr/auto');
+    // id lạ vẫn báo lỗi rõ ràng
+    assert.throws(() => parseModelId('khong-co-model-nay'), ModelIdError);
+  } finally {
+    setBareMode(false);
+  }
+});
+
+test('tắt bareMode: id trần lại báo 400 kèm gợi ý (mặc định an toàn)', () => {
+  assert.throws(() => parseModelId('gemini-2.5-flash'), (e: any) => e.suggestion === 'agy/gemini-2.5-flash');
 });

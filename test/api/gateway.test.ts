@@ -30,7 +30,7 @@ test('GET /api/gateway/models trả danh sách model', async () => {
 test('GET /proxy/v1/models đúng OpenAI shape + id CÓ prefix provider', async () => {
   // gateway thật có thể đang bật API key → gửi kèm để test không phụ thuộc cấu hình máy
   const headers = config.gateway.apiKey ? { authorization: `Bearer ${config.gateway.apiKey}` } : {};
-  const r = await app.inject({ method: 'GET', url: '/proxy/v1/models', headers });
+  const r = await app.inject({ method: 'GET', url: '/proxy/v1/models?bare=0', headers });
   assert.equal(r.statusCode, 200);
   const j = r.json();
   assert.equal(j.object, 'list');
@@ -104,4 +104,23 @@ test('PATCH /api/gateway/config nhận quota config', async () => {
   assert.equal(config.gateway.quota.onCall, false);
   assert.equal(config.gateway.quota.intervalMin, 45);
   config.gateway.quota.onCall = true;
+});
+
+test('POST /proxy/v1/responses tồn tại + validate model (OmniRoute gọi đường này)', async () => {
+  // trước đây 404 "Route POST:/proxy/v1/responses not found" khi cắm vào OmniRoute
+  const r = await app.inject({ method: 'POST', url: '/proxy/v1/responses', payload: { model: 'khong-ton-tai-xyz', input: 'hi' } });
+  assert.notEqual(r.statusCode, 404, 'endpoint phải tồn tại');
+  assert.equal(r.statusCode, 400);
+  assert.ok(r.json().error?.message, 'lỗi đúng shape OpenAI');
+});
+
+test('GET /proxy/v1/models?bare=1 trả id TRẦN, không trùng nhau', async () => {
+  const headers = config.gateway.apiKey ? { authorization: `Bearer ${config.gateway.apiKey}` } : {};
+  const r = await app.inject({ method: 'GET', url: '/proxy/v1/models?bare=1', headers });
+  assert.equal(r.statusCode, 200);
+  const ids = r.json().data.map((m: any) => m.id);
+  assert.ok(ids.includes('gemini-2.5-flash'), 'id agy phải trần');
+  assert.ok(ids.includes('claude-sonnet-4.5'), 'id kr phải trần');
+  assert.ok(ids.includes('auto-kr'), 'model auto của Kiro phải đổi tên tránh đụng combo auto');
+  assert.equal(new Set(ids).size, ids.length, 'KHÔNG được có id trùng — gateway đích sẽ loạn');
 });

@@ -600,6 +600,9 @@
             </select>
             <label class="fl">API key (trống = không yêu cầu)</label>
             <div class="copybox"><input id="s-apikey" data-key="gatewayApiKey" placeholder="(không bắt buộc)" /><button class="sm icon" id="s-apikey-gen" title="Sinh key mới"><svg class="ic"><use href="#i-refresh"/></svg></button></div>
+            <label class="switch" style="margin-top:10px"><input type="checkbox" id="s-bare" data-key="gatewayBareModels" /><span class="track"></span> Trả model id TRẦN (không prefix)</label>
+            <p class="set-desc" style="margin:4px 0 0">Bật khi cắm gateway này vào <b>OmniRoute / LiteLLM</b> — nơi đó tự thêm prefix provider,
+              để nguyên sẽ thành <span class="mono">agy/agy/gemini-…</span>. Model Kiro trùng tên sẽ có đuôi <span class="mono">-kr</span>.</p>
             <label class="fl">Proxy mặc định cho gateway</label><input id="s-gwproxy" data-key="gatewayProxy" placeholder="http://user:pass@host:port" />
             <label class="fl">Cooldown khi 429 (giây)</label><input id="s-cooldown" type="number" data-key="gatewayCooldownSec" />
             <div class="row end" style="margin-top:12px"><button class="primary" data-save="gateway">Lưu</button></div>
