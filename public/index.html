@@ -721,6 +721,30 @@
 
   <div class="backdrop" id="backdrop"></div>
 
+  <div class="modal-bg" id="modal-combo">
+    <div class="modal">
+      <div class="head"><h3 id="combo-modal-title">Tạo combo</h3><button class="icon ghost" onclick="closeModal('modal-combo')" title="Đóng"><svg class="ic"><use href="#i-x"/></svg></button></div>
+      <div class="body">
+        <label class="fl">Tên combo (gọi bằng <span class="mono">combo/&lt;tên&gt;</span>)</label>
+        <input id="cb-id" placeholder="main" />
+        <label class="fl">Chiến lược</label>
+        <select id="cb-strategy">
+          <option value="priority">Ưu tiên theo thứ tự — hết/lỗi thì trượt xuống dưới</option>
+          <option value="round-robin">Chia tải luân phiên</option>
+          <option value="highest-quota">Ưu tiên nơi còn nhiều hạn mức</option>
+          <option value="weighted">Theo trọng số</option>
+        </select>
+        <label class="fl">Chọn model (bấm để thêm, kéo thứ tự bằng nút ▲▼)</label>
+        <div class="chips" id="cb-pick"></div>
+        <div id="cb-chosen" style="margin-top:10px"></div>
+      </div>
+      <div class="foot">
+        <button onclick="closeModal('modal-combo')">Huỷ</button>
+        <button class="primary" id="cb-save">Lưu combo</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-bg" id="modal-detail">
     <div class="modal">
       <div class="head"><h3 id="detail-title">Chi tiết</h3><button class="icon ghost" onclick="closeModal('modal-detail')" title="Đóng"><svg class="ic"><use href="#i-x"/></svg></button></div>

@@ -5,6 +5,7 @@ import {
   kiroGenerate,
   kiroGenerateStream,
   parseKiroCredential,
+  resolveKiroUpstream,
   refreshKiroToken,
   fetchKiroUsage,
 } from '../kiro.js';
@@ -34,6 +35,11 @@ export const kiroProvider: Provider = {
   credentialTarget: 'kiro',
   models: KIRO_MODELS,
   defaultModel: 'claude-sonnet-4.5',
+
+  /** claude-haiku-4-5 → claude-haiku-4.5 (id thật dùng dấu chấm). */
+  normalizeModel(id) {
+    return resolveKiroUpstream(id);
+  },
 
   accepts(value) {
     return parseKiroCredential(value) !== null;

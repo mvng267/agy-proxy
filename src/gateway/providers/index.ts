@@ -124,5 +124,7 @@ export function parseModelId(raw: string | undefined | null): ParsedModel {
     );
   }
   if (!rest) throw new ModelIdError(`Thiếu tên model sau "${head}/".`);
-  return { kind: 'provider', provider: pid, model: rest, prefixed: `${pid}/${rest}` };
+  // chuẩn hoá bí danh (vd kr/claude-haiku-4-5 → kr/claude-haiku-4.5) để log/usage/combo đồng nhất
+  const norm = PROVIDERS[pid].normalizeModel?.(rest) ?? rest;
+  return { kind: 'provider', provider: pid, model: norm, prefixed: `${pid}/${norm}` };
 }

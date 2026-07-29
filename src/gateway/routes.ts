@@ -937,6 +937,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     );
     const v = validateTargets(targets);
     if (!v.ok) return reply.code(400).send({ ok: false, error: v.error });
+    // lưu id đã CHUẨN HOÁ (kr/claude-sonnet-4-5 → kr/claude-sonnet-4.5) để UI hiện đúng
+    for (const t of targets) t.model = parseModelId(t.model).prefixed;
     const strategy = ['priority', 'round-robin', 'weighted', 'highest-quota'].includes(b.strategy) ? b.strategy : 'priority';
     upsertComboRow({ id, name: String(b.name ?? id), strategy, targets, enabled: b.enabled !== false });
     return { ok: true, id };

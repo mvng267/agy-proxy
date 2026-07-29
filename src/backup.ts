@@ -1,7 +1,7 @@
 import { store } from './store/index.js';
 import { config } from './config.js';
 import { pool, syncFromStore, savePersist } from './gateway/pool.js';
-import { allSettings, setSetting } from './store/db.js';
+import { allSettings, setSetting, listComboRows, upsertComboRow } from './store/db.js';
 import type { Account, Credential, Proxy } from './store/models.js';
 
 /**
@@ -21,6 +21,8 @@ export interface BackupData {
   config: any;
   /** v2: toàn bộ bảng settings (gồm secret) — khôi phục là chạy ngay. */
   settings?: Record<string, string>;
+  /** v2: combo do người dùng tạo (chuỗi model có fallback). */
+  combos?: Array<{ id: string; name: string; strategy: string; targets: unknown; enabled: boolean }>;
 }
 
 export function buildBackup(): BackupData {
@@ -32,6 +34,7 @@ export function buildBackup(): BackupData {
     // TOÀN BỘ cấu hình từ DB — gồm cả secret (mật khẩu OmniRoute, API key, hash mật khẩu
     // dashboard, sessionSecret) để khôi phục máy mới là chạy được ngay.
     settings: allSettings(),
+    combos: listComboRows().map((c) => ({ id: c.id, name: c.name, strategy: c.strategy, targets: JSON.parse(c.targets_json), enabled: c.enabled !== 0 })),
     exportedAt: new Date().toISOString(),
     counts: { accounts: accounts.length, proxies: proxies.length, credentials: credentials.length },
     accounts,
@@ -98,6 +101,17 @@ export function restoreBackup(
   if (data.settings && typeof data.settings === 'object') {
     for (const [k, v] of Object.entries<any>(data.settings)) {
       if (v !== undefined && v !== null) setSetting(k, String(v));
+    }
+  }
+
+  // 5b) combo
+  if (Array.isArray(data.combos)) {
+    for (const c of data.combos) {
+      try {
+        upsertComboRow({ id: c.id, name: c.name, strategy: c.strategy, targets: c.targets, enabled: c.enabled });
+      } catch {
+        /* combo hỏng → bỏ qua, không chặn phần còn lại */
+      }
     }
   }
 

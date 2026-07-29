@@ -803,6 +803,7 @@ async function loadCombo() {
           <div class="row" style="gap:8px;align-items:center;margin-bottom:6px">
             <span class="chip">${i + 1}</span><span class="mono">${esc(t.model)}</span></div>`).join('')}</div>
         <div class="row end" style="margin-top:8px">
+          <button class="sm" data-edit="${esc(c.id)}">Sửa</button>
           <button class="sm" data-test="${esc(c.id)}">Thử</button>
           <button class="sm danger" data-del="${esc(c.id)}">Xoá</button>
         </div>
@@ -813,6 +814,7 @@ async function loadCombo() {
     await navigator.clipboard.writeText(b.dataset.model).catch(() => {});
     toast('Đã copy: ' + b.dataset.model);
   }));
+  document.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openComboModal(r.combos.find((c) => c.id === b.dataset.edit))));
   document.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
     if (!confirmAct(`Xoá combo/${b.dataset.del}?`)) return;
     await api('/api/combos/' + b.dataset.del, { method: 'DELETE' });
@@ -829,17 +831,50 @@ async function loadCombo() {
     loadCombo();
   })));
 }
-$('combo-new').addEventListener('click', async () => {
-  const id = prompt('Tên combo (chỉ chữ/số/-):', 'main');
-  if (!id) return;
-  const models = (modelsCache.length ? modelsCache : (await api('/api/gateway/models')).models).map((m) => m.id);
-  const list = prompt(`Nhập model theo thứ tự ưu tiên, cách nhau dấu phẩy.\nCó thể dùng:\n${models.join(', ')}`, models.slice(0, 2).join(','));
-  if (!list) return;
-  const targets = list.split(',').map((s) => ({ model: s.trim() })).filter((t) => t.model);
-  const r = await api('/api/combos', { method: 'POST', body: { id, name: id, strategy: 'priority', targets } });
-  toast(r.ok ? 'Đã tạo combo/' + r.id : 'Lỗi: ' + r.error);
-  loadCombo();
-});
+// ---- modal tạo/sửa combo: CHỌN model từ danh sách thật, không phải gõ tay ----
+let cbChosen = [];
+async function openComboModal(existing) {
+  const models = modelsCache.length ? modelsCache : (await api('/api/gateway/models')).models;
+  modelsCache = models;
+  cbChosen = existing ? existing.targets.map((t) => t.model) : [];
+  $('combo-modal-title').textContent = existing ? 'Sửa combo/' + existing.id : 'Tạo combo';
+  $('cb-id').value = existing ? existing.id : '';
+  $('cb-id').disabled = !!existing;
+  $('cb-strategy').value = existing ? existing.strategy : 'priority';
+  $('cb-pick').innerHTML = models.map((m) => `
+    <span class="chip model-chip" style="cursor:pointer" data-add="${esc(m.id)}" title="${esc(m.label || m.id)}">
+      <span class="mc-dot"></span><b class="mc-id">${esc(m.id)}</b></span>`).join('');
+  document.querySelectorAll('#cb-pick [data-add]').forEach((c) => c.addEventListener('click', () => {
+    if (!cbChosen.includes(c.dataset.add)) { cbChosen.push(c.dataset.add); renderChosen(); }
+  }));
+  renderChosen();
+  openModal('modal-combo');
+}
+function renderChosen() {
+  $('cb-chosen').innerHTML = cbChosen.length
+    ? cbChosen.map((m, i) => `<div class="row" style="gap:8px;align-items:center;margin-bottom:6px">
+        <span class="chip">${i + 1}</span><span class="mono" style="flex:1">${esc(m)}</span>
+        <button class="sm icon" data-up="${i}" title="Lên">▲</button>
+        <button class="sm icon" data-down="${i}" title="Xuống">▼</button>
+        <button class="sm icon danger" data-rm="${i}" title="Bỏ">${icon('x')}</button></div>`).join('')
+    : '<div class="empty">Chưa chọn model nào — bấm vào model ở trên để thêm.</div>';
+  const swap = (i, j) => { if (j < 0 || j >= cbChosen.length) return; [cbChosen[i], cbChosen[j]] = [cbChosen[j], cbChosen[i]]; renderChosen(); };
+  document.querySelectorAll('[data-up]').forEach((b) => b.addEventListener('click', () => swap(+b.dataset.up, +b.dataset.up - 1)));
+  document.querySelectorAll('[data-down]').forEach((b) => b.addEventListener('click', () => swap(+b.dataset.down, +b.dataset.down + 1)));
+  document.querySelectorAll('[data-rm]').forEach((b) => b.addEventListener('click', () => { cbChosen.splice(+b.dataset.rm, 1); renderChosen(); }));
+}
+$('combo-new').addEventListener('click', () => openComboModal(null));
+$('cb-save').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+  const id = ($('cb-id').value || '').trim();
+  if (!id) return toast('Nhập tên combo');
+  if (!cbChosen.length) return toast('Chọn ít nhất 1 model');
+  const r = await api('/api/combos', {
+    method: 'POST',
+    body: { id, name: id, strategy: $('cb-strategy').value, targets: cbChosen.map((m) => ({ model: m })) },
+  });
+  if (r.ok) { toast('Đã lưu combo/' + r.id); closeModal('modal-combo'); loadCombo(); }
+  else toast('Lỗi: ' + r.error);
+}));
 $('auto-preview').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
   const r = await api('/api/combos/auto/preview?variant=' + $('auto-variant').value);
   $('auto-rank').innerHTML = `

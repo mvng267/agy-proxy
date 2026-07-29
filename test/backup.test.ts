@@ -35,3 +35,26 @@ test('restoreBackup: từ chối file không hợp lệ', () => {
   assert.throws(() => restoreBackup(null));
   assert.throws(() => restoreBackup({ accounts: [] })); // thiếu version
 });
+
+test('backup v2 kèm ĐỦ trạng thái: quota + liveStatus + cooldown + combo', () => {
+  const b = buildBackup();
+  assert.ok(Array.isArray(b.combos), 'phải có khối combos');
+  const gw = Object.values(b.gateway ?? {}) as any[];
+  if (gw.length) {
+    // toPersist phải mang theo trạng thái đã đồng bộ, không chỉ counter
+    const keys = new Set(gw.flatMap((x) => Object.keys(x)));
+    for (const k of ['enabled', 'requests', 'quota', 'liveStatus', 'cooldownUntil', 'projectId']) {
+      assert.ok(keys.has(k), `gateway state thiếu "${k}" → khôi phục sẽ mất trạng thái`);
+    }
+    // khoá phải là dạng ghép provider:email
+    assert.ok(Object.keys(b.gateway).every((k) => k.includes(':')), 'khoá gateway phải là provider:email');
+  }
+});
+
+test('restoreBackup: combo được khôi phục', () => {
+  const b = buildBackup();
+  const fake = { ...b, combos: [{ id: '__t_combo', name: 'T', strategy: 'priority', targets: [{ model: 'agy/gemini-2.5-flash' }], enabled: true }] };
+  restoreBackup(fake, { mode: 'merge' });
+  const after = buildBackup();
+  assert.ok(after.combos!.some((c) => c.id === '__t_combo'), 'combo phải có sau khi khôi phục');
+});

@@ -62,6 +62,9 @@ export interface Provider {
   readonly models: ProviderModel[];
   readonly defaultModel: string;
 
+  /** Chuẩn hoá id model của người dùng về id thật (bí danh → id chính thức). */
+  normalizeModel?(id: string): string;
+
   /** Giá trị credential này có phải của provider không. */
   accepts(value: string): boolean;
   /** Bóc credential thô → refreshToken (+ profileArn/region nếu có). null = không hợp lệ. */
