@@ -316,6 +316,24 @@ export function providerStats(sinceMs: number): { provider: string; n: number; o
   return out;
 }
 
+/**
+ * Credit Kiro đã tiêu QUA GATEWAY NÀY trong tháng hiện tại, theo account.
+ * Kiro KHÔNG có API usage (đã dò: mọi operation đều UnknownOperationException) nên
+ * đây là con số ta tự đếm — KHÔNG tính request thực hiện ngoài gateway (Kiro IDE,
+ * OmniRoute…), vì vậy chỉ là mức TỐI THIỂU đã dùng.
+ * Gói KIRO FREE = 50 credit/tháng (lấy từ listAvailableSubscriptions).
+ */
+export function creditsUsedThisMonth(prefix = 'kr/'): Record<string, number> {
+  const d = new Date();
+  const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+  const rows = db
+    .prepare(`SELECT email, COUNT(*) AS n FROM gateway_usage WHERE ok = 1 AND model LIKE ? AND ts >= ? GROUP BY email`)
+    .all(prefix + '%', monthStart) as { email: string; n: number }[];
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.email] = r.n;
+  return out;
+}
+
 /** Usage gộp theo provider (prefix model). */
 export function usageByProvider(from: number, to: number): { provider: string; requests: number; tokIn: number; tokOut: number }[] {
   return db

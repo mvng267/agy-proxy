@@ -89,6 +89,8 @@ export const config = {
     kiroProbeEnabled: bool(S('kiroProbeEnabled'), false),
     kiroProbeHours: num(S('kiroProbeHours'), 6),
     kiroProbeBatch: num(S('kiroProbeBatch'), 5),
+    // Gói KIRO FREE = 50 credit/tháng (theo listAvailableSubscriptions). Pro=1000, Pro+=2000.
+    kiroCreditLimit: num(S('kiroCreditLimit'), 50),
   },
 };
 
@@ -132,6 +134,7 @@ const SETTERS: Record<string, Setter> = {
   kiroProbeEnabled: (v) => (config.gateway.kiroProbeEnabled = v === 'true'),
   kiroProbeHours: (v) => (config.gateway.kiroProbeHours = Number(v)),
   kiroProbeBatch: (v) => (config.gateway.kiroProbeBatch = Number(v)),
+  kiroCreditLimit: (v) => (config.gateway.kiroCreditLimit = Number(v)),
 };
 
 /** Key là secret — API trả về dạng che. */
@@ -176,6 +179,7 @@ export function getConfigValue(key: string): unknown {
     case 'kiroProbeEnabled': return config.gateway.kiroProbeEnabled;
     case 'kiroProbeHours': return config.gateway.kiroProbeHours;
     case 'kiroProbeBatch': return config.gateway.kiroProbeBatch;
+    case 'kiroCreditLimit': return config.gateway.kiroCreditLimit;
     default: return (config as any)[key];
   }
 }

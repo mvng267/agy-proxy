@@ -439,8 +439,9 @@ function renderAgy() {
     const gpct = a.geminiPct, cpct = claudePct(a);
     // Kiro KHÔNG có API hạn mức → 2 cột quota đổi thành kết quả dò gần nhất + thời điểm hết cooldown
     const quotaCells = a.provider === 'kr'
-      ? `<td class="qcell">${a.liveStatus === 'ok' ? '<span class="q-hi">gọi được</span>' : a.liveStatus === 'quota' ? '<span class="q-lo">hết hạn mức</span>' : '<span class="faint">chưa dò</span>'}</td>
-         <td class="qcell faint">${a.cooldown ? 'nghỉ tới ' + new Date(a.cooldownUntil).toLocaleTimeString() : '—'}</td>`
+      ? `<td class="qcell">${a.liveStatus === 'ok' ? '<span class="q-hi">gọi được</span>' : a.liveStatus === 'quota' ? '<span class="q-lo">hết credit</span>' : '<span class="faint">chưa dò</span>'}</td>
+         <td class="qcell" title="Credit đã tiêu QUA GATEWAY NÀY trong tháng. Không tính request từ Kiro IDE/OmniRoute.">
+           ${a.creditsUsed != null ? `<span class="${a.creditsUsed >= a.creditsLimit ? 'q-lo' : a.creditsUsed > a.creditsLimit * 0.7 ? 'q-mid' : 'q-hi'}">${a.creditsUsed}/${a.creditsLimit}</span>` : '<span class="faint">—</span>'}</td>`
       : `<td class="qcell">${gpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(gpct)}">${gpct}%</span>`}</td>
          <td class="qcell">${cpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(cpct)}">${cpct}%</span>`}</td>`;
     tr.innerHTML = `
@@ -513,7 +514,7 @@ function syncPoolHeaders() {
   if (ths.length < 5) return;
   const kr = agyProv === 'kr';
   ths[3].textContent = kr ? 'Dò gần nhất' : 'Gemini';
-  ths[4].textContent = kr ? 'Nghỉ tới' : 'Claude/GPT';
+  ths[4].textContent = kr ? 'Credit (đã dùng qua đây)' : 'Claude/GPT';
   const rq = $('agy-refresh-quota');
   if (rq) { rq.style.display = kr ? 'none' : ''; }
 }

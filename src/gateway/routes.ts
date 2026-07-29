@@ -7,7 +7,7 @@ import {
   recordGatewayUsage, usageTotals, usageSeries, usageByModel, usageByAccount, usageRows,
   quotaSeries, quotaForAccount, quotaHistoryCount, pruneQuotaHistory,
   listComboRows, getComboRow, upsertComboRow, deleteComboRow, recordComboRun, comboStatsRows,
-  providerStats, usageByProvider, recordQuota,
+  providerStats, usageByProvider, recordQuota, creditsUsedThisMonth,
 } from '../store/db.js';
 import {
   PROVIDERS, PROVIDER_IDS, allModels, parseModelId, ModelIdError,
@@ -447,9 +447,14 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     const now = Date.now();
     const q = (req.query ?? {}) as any;
     const only = q.provider && PROVIDERS[q.provider as ProviderId] ? (q.provider as ProviderId) : undefined;
+    const used = creditsUsedThisMonth('kr/'); // Kiro không có API usage → đếm tại chỗ
+    const limit = config.gateway.kiroCreditLimit;
     return {
       counts: Object.fromEntries(PROVIDER_IDS.map((p) => [p, pool.list(p).length])),
+      creditLimit: limit,
       accounts: pool.list(only).map((a) => ({
+        creditsUsed: a.provider === 'kr' ? used[a.email] ?? 0 : undefined,
+        creditsLimit: a.provider === 'kr' ? limit : undefined,
         provider: a.provider,
         providerLabel: PROVIDERS[a.provider].label,
         key: a.key,
