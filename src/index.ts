@@ -14,6 +14,20 @@ async function main() {
   const app = Fastify({ logger: false });
   await app.register(formbody);
 
+  // Bảo vệ dashboard + /api/* bằng Basic auth khi có DASHBOARD_PASSWORD.
+  // (/proxy/v1/* dùng GATEWAY_API_KEY riêng nên bỏ qua ở đây.)
+  if (config.dashboardPassword) {
+    app.addHook('onRequest', async (req, reply) => {
+      if (req.url.startsWith('/proxy/v1')) return;
+      const h = (req.headers['authorization'] || '') as string;
+      if (h.startsWith('Basic ')) {
+        const [, pass] = Buffer.from(h.slice(6), 'base64').toString('utf8').split(':');
+        if (pass === config.dashboardPassword) return;
+      }
+      reply.header('www-authenticate', 'Basic realm="agyproxy"').code(401).send('Unauthorized');
+    });
+  }
+
   // Static: dashboard + screenshots
   await app.register(fastifyStatic, { root: PUBLIC_DIR, prefix: '/' });
   await app.register(fastifyStatic, {
@@ -43,8 +57,8 @@ async function main() {
 
   await registerRoutes(app);
 
-  // Docker: đặt HOST=0.0.0.0 để truy cập từ ngoài container. Mặc định localhost (an toàn).
-  await app.listen({ port: config.port, host: process.env.HOST ?? '127.0.0.1' });
+  // HOST=0.0.0.0 để truy cập từ máy khác/Docker. Mặc định localhost (an toàn).
+  await app.listen({ port: config.port, host: config.host });
 
   console.log(`\n  Dashboard:  http://localhost:${config.port}`);
   console.log(`  OmniRoute:  ${config.omniroute.url}`);

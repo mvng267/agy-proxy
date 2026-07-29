@@ -37,6 +37,16 @@ agyproxy status                    # trạng thái + số liệu
 | `agyproxy service start\|stop\|restart\|status` | bật/tắt/xem service |
 | `agyproxy version` | phiên bản |
 
+### Cho máy khác truy cập qua IP
+Mặc định server chỉ bind `127.0.0.1` (chỉ máy cài). Mở ra LAN/Internet:
+```bash
+agyproxy restart --host 0.0.0.0          # hoặc đặt HOST=0.0.0.0 trong .env
+# → máy khác vào: http://<IP-máy>:7788
+```
+> ⚠️ **Bắt buộc đặt mật khẩu khi mở**: dashboard hiển thị refresh_token và cho export backup kèm token.
+> Trong `.env`: `DASHBOARD_PASSWORD=matkhau_cua_ban` → trình duyệt sẽ hỏi (user bỏ trống, chỉ nhập password).
+> Endpoint `/proxy/v1/*` không dùng mật khẩu này mà dùng `GATEWAY_API_KEY` riêng (đặt trong tab Pool).
+
 ### Tự chạy khi reboot (VPS / aaPanel)
 ```bash
 agyproxy service install     # systemd --user + enable-linger → lên lại sau reboot

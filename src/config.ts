@@ -37,6 +37,10 @@ function num(v: string | undefined, def: number): number {
 
 export const config = {
   port: num(process.env.PORT, 7788),
+  // Bind host: 127.0.0.1 (chỉ máy này) | 0.0.0.0 (LAN/Internet — NÊN đặt DASHBOARD_PASSWORD)
+  host: process.env.HOST ?? '127.0.0.1',
+  // Mật khẩu bảo vệ dashboard + /api/* (Basic auth). Trống = không yêu cầu.
+  dashboardPassword: process.env.DASHBOARD_PASSWORD ?? '',
   omniroute: {
     url: (process.env.OMNIROUTE_URL ?? 'http://localhost:20128').replace(/\/+$/, ''),
     password: process.env.OMNIROUTE_PASSWORD ?? '',

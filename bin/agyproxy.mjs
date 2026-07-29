@@ -13,7 +13,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, openSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, networkInterfaces } from 'node:os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -30,6 +30,11 @@ const PID_FILE = resolve(HOME, 'agyproxy.pid');
 const LOG_FILE = resolve(HOME, 'agyproxy.log');
 const ENTRY = resolve(ROOT, 'src/index.ts');
 const PORT = process.env.PORT || '7788';
+// --host 0.0.0.0 (hoặc env HOST) để máy khác truy cập qua IP
+const argv = process.argv.slice(2);
+const flagVal = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
+const HOST = flagVal('--host') || process.env.HOST || '127.0.0.1';
+const OPEN = HOST === '0.0.0.0' || HOST === '::';
 
 const c = { g: (s) => `\x1b[32m${s}\x1b[0m`, r: (s) => `\x1b[31m${s}\x1b[0m`, y: (s) => `\x1b[33m${s}\x1b[0m`, d: (s) => `\x1b[90m${s}\x1b[0m`, b: (s) => `\x1b[1m${s}\x1b[0m` };
 
@@ -38,6 +43,14 @@ function readPid() {
   const pid = Number(readFileSync(PID_FILE, 'utf8').trim());
   if (!pid) return null;
   try { process.kill(pid, 0); return pid; } catch { unlinkSync(PID_FILE); return null; }
+}
+
+function lanIp() {
+  const ifs = networkInterfaces();
+  for (const list of Object.values(ifs)) for (const n of list || []) {
+    if (n.family === 'IPv4' && !n.internal) return n.address;
+  }
+  return null;
 }
 
 function tsxBin() {
@@ -57,15 +70,16 @@ function start(detached) {
   if (running) { console.log(c.y(`Đang chạy sẵn (PID ${running}) · http://localhost:${PORT}`)); return; }
   if (!detached) {
     console.log(c.d(`agyproxy v${PKG.version} · data: ${HOME}`));
-    const p = spawn(tsxBin(), [ENTRY], { stdio: 'inherit', env: process.env, cwd: ROOT });
+    const p = spawn(tsxBin(), [ENTRY], { stdio: 'inherit', env: { ...process.env, HOST }, cwd: ROOT });
     p.on('exit', (code) => process.exit(code ?? 0));
     return;
   }
   const out = openSync(LOG_FILE, 'a');
-  const p = spawn(tsxBin(), [ENTRY], { detached: true, stdio: ['ignore', out, out], env: process.env, cwd: ROOT });
+  const p = spawn(tsxBin(), [ENTRY], { detached: true, stdio: ['ignore', out, out], env: { ...process.env, HOST }, cwd: ROOT });
   p.unref();
   writeFileSync(PID_FILE, String(p.pid));
   console.log(c.g('✓ Đã chạy nền') + ` · PID ${p.pid} · http://localhost:${PORT}`);
+  if (OPEN) console.log(c.y(`  ⚠ Mở cho máy khác (HOST=${HOST}) — nên đặt DASHBOARD_PASSWORD trong .env`));
   console.log(c.d(`  log:  agyproxy logs -f   (${LOG_FILE})`));
   console.log(c.d(`  data: ${HOME}`));
 }
@@ -84,6 +98,8 @@ async function status() {
   console.log(`  Tiến trình : ${pid ? c.g('đang chạy') + ` (PID ${pid})` : c.r('đã dừng')}`);
   console.log(`  Dashboard  : http://localhost:${PORT}`);
   console.log(`  Gateway    : http://localhost:${PORT}/proxy/v1`);
+  const lan = lanIp();
+  if (lan) console.log(`  Máy khác   : http://${lan}:${PORT}${OPEN ? '' : c.d('  (đang chỉ localhost — mở bằng: agyproxy restart --host 0.0.0.0)')}`);
   console.log(`  Dữ liệu    : ${HOME}`);
   try {
     const o = await httpJson(`http://localhost:${PORT}/api/overview`);
@@ -155,7 +171,8 @@ function svcInstall() {
   const running = readPid();
   if (running) { console.log(c.d('  Dừng daemon thủ công để service quản lý…')); stop(); }
   const [node, ...args] = svcExecArgs();
-  const env = { AGY_HOME: HOME, PORT: String(PORT), NODE_ENV: 'production' };
+  const env = { AGY_HOME: HOME, PORT: String(PORT), NODE_ENV: 'production', HOST };
+  if (OPEN) console.log(c.y(`  ⚠ Service mở cho máy khác (HOST=${HOST}) — nên đặt DASHBOARD_PASSWORD trong .env`));
   // macOS TCC chặn LaunchAgent ghi vào Desktop/Documents/Downloads → log ra ~/Library/Logs.
   const svcLog = IS_MAC && /\/(Desktop|Documents|Downloads)\//i.test(LOG_FILE)
     ? resolve(homedir(), 'Library/Logs/agyproxy.log')
