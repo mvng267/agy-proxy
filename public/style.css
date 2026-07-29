@@ -266,6 +266,13 @@ tbody tr input[type='checkbox'] { vertical-align: middle; }
 .seg button { background: transparent; border: none; border-radius: 6px; padding: 5px 12px; color: var(--muted); }
 .seg button.active { background: var(--card-2); color: var(--text); }
 
+/* settings tabs */
+.set-tabs { display: flex; flex-wrap: wrap; margin-bottom: 16px; }
+.set-pane { display: none; }
+.set-pane.active { display: block; animation: fadein .15s ease; }
+.set-pane > .panel { margin-bottom: 14px; }
+.rst { color: var(--amber); font-size: 11px; margin-left: 3px; }
+
 /* settings sections */
 .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
 .settings-grid .panel { margin: 0; }

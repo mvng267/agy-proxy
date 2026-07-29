@@ -7,7 +7,8 @@ store.load();
 
 test('buildBackup: shape đầy đủ', () => {
   const b = buildBackup();
-  assert.equal(b.version, 1);
+  assert.equal(b.version, 2);
+  assert.ok(b.settings && typeof b.settings === 'object', 'v2 phải kèm settings');
   assert.ok(b.exportedAt);
   assert.ok(Array.isArray(b.accounts) && Array.isArray(b.proxies) && Array.isArray(b.credentials));
   assert.equal(b.counts.accounts, b.accounts.length);

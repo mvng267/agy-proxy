@@ -586,22 +586,105 @@ async function importBulk() { const r = await api('/api/accounts/import', { meth
 async function genRange() { const r = await api('/api/accounts/generate', { method: 'POST', body: { prefix: $('g-prefix').value.trim(), start: +$('g-start').value, end: +$('g-end').value, domain: $('g-domain').value.trim(), password: $('g-pass').value, extra: $('g-extra').value } }); toast('Đã sinh ' + r.added + ' account'); loadAccounts(); loadSummary(); }
 $('a-file-import').addEventListener('click', () => { const f = $('a-file').files[0]; if (!f) return toast('Chọn file'); const rd = new FileReader(); rd.onload = async () => { const r = await api('/api/accounts/import', { method: 'POST', body: { text: String(rd.result) } }); toast('Đã import ' + r.added + ' account'); loadAccounts(); loadSummary(); }; rd.readAsText(f); });
 
-// ---------- settings ----------
+// ---------- settings (chia tab, mọi trường lưu DB) ----------
+let setMeta = {};
+// tab switching
+$('set-tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-t]'); if (!b) return;
+  document.querySelectorAll('#set-tabs button').forEach((x) => x.classList.toggle('active', x === b));
+  document.querySelectorAll('.set-pane').forEach((p) => p.classList.toggle('active', p.id === 'set-' + b.dataset.t));
+  store_('setTab', b.dataset.t);
+  if (b.dataset.t === 'security') loadSessions();
+});
+
 async function loadSettings() {
-  const c = await api('/api/config');
-  $('cfg-pmin').value = c.pacing.minSec; $('cfg-pmax').value = c.pacing.maxSec; $('cfg-cap').value = c.dailyCap; $('cfg-headless').checked = c.headless;
-  $('cfg-fp').checked = c.fingerprint; $('cfg-chrome').value = c.chromeMajor; $('cfg-health').value = c.tokenHealthHours; $('cfg-omni').value = c.omnirouteUrl;
-  const g = await api('/api/gateway/config'); const q = g.quota || {};
-  $('cfg-q-auto').checked = !!q.autoRefresh; $('cfg-q-interval').value = q.intervalMin ?? 30; $('cfg-q-oncall').checked = q.onCall !== false; $('cfg-q-ttl').value = q.cacheTtlMin ?? 10;
+  const s = await api('/api/settings');
+  setMeta = s.meta || {};
+  const v = s.values || {};
+  // đổ giá trị vào mọi input có data-key
+  document.querySelectorAll('#view-settings [data-key]').forEach((el2) => {
+    const k = el2.dataset.key;
+    if (!(k in v)) return;
+    if (el2.type === 'checkbox') el2.checked = v[k] === true || v[k] === 'true';
+    else el2.value = v[k] ?? '';
+  });
+  $('s-datadir').value = setMeta.dataDir || '';
+  $('s-baseurl').textContent = setMeta.baseUrl || '';
+  $('set-meta').textContent = `v${setMeta.version || ''} · ${Object.keys(v).length} thiết lập`;
+  // đánh dấu trường cần restart
+  (s.restartKeys || []).forEach((k) => {
+    const el3 = document.querySelector(`#view-settings [data-key="${k}"]`);
+    if (el3) el3.title = 'Đổi xong cần Khởi động lại';
+  });
   loadSecurity().catch(() => {});
+  // khôi phục tab đang xem
+  const t = remember('setTab', 'general');
+  const btn = document.querySelector(`#set-tabs button[data-t="${t}"]`);
+  if (btn) btn.click();
 }
-$('cfg-save').addEventListener('click', async () => { await api('/api/config', { method: 'PATCH', body: { pacingMinSec: +$('cfg-pmin').value, pacingMaxSec: +$('cfg-pmax').value, dailyCap: +$('cfg-cap').value, headless: $('cfg-headless').checked } }); toast('Đã lưu cấu hình chạy'); });
-$('cfg-save-fp').addEventListener('click', async () => { await api('/api/config', { method: 'PATCH', body: { fingerprint: $('cfg-fp').checked } }); toast('Đã lưu fingerprint'); });
-$('cfg-q-save').addEventListener('click', async () => { await api('/api/gateway/config', { method: 'PATCH', body: { quota: { autoRefresh: $('cfg-q-auto').checked, intervalMin: +$('cfg-q-interval').value, onCall: $('cfg-q-oncall').checked, cacheTtlMin: +$('cfg-q-ttl').value } } }); toast('Đã lưu cấu hình hạn mức'); });
+
+/** Lưu mọi input data-key trong 1 pane → PATCH /api/settings (ghi DB). */
+async function saveSettingsPane(paneBtn) {
+  const pane = paneBtn.closest('.set-pane');
+  const patch = {};
+  pane.querySelectorAll('[data-key]').forEach((el2) => {
+    const k = el2.dataset.key;
+    let val = el2.type === 'checkbox' ? el2.checked : el2.value;
+    if (el2.type === 'number') val = Number(val);
+    if (typeof val === 'string' && val === '••••••••') return; // secret chưa sửa
+    patch[k] = val;
+  });
+  const r = await api('/api/settings', { method: 'PATCH', body: patch });
+  if (r.ok) {
+    const need = (r.needRestart || []).length;
+    toast(`Đã lưu ${r.changed.length} thiết lập${need ? ' · cần Khởi động lại' : ''}`);
+  } else toast('Lưu lỗi');
+}
+document.querySelectorAll('#view-settings [data-save]').forEach((b) =>
+  b.addEventListener('click', (e) => withSpin(e.currentTarget, () => saveSettingsPane(e.currentTarget))),
+);
+$('s-restart').addEventListener('click', async (e) => {
+  if (!confirmAct('Khởi động lại tiến trình? Dashboard sẽ mất kết nối vài giây.')) return;
+  await api('/api/system/restart', { method: 'POST', body: {} }).catch(() => {});
+  toast('Đang khởi động lại…');
+  setTimeout(() => location.reload(), 4000);
+});
+$('s-apikey-gen').addEventListener('click', () => {
+  const a = new Uint8Array(18); crypto.getRandomValues(a);
+  $('s-apikey').value = 'agy-' + btoa(String.fromCharCode(...a)).replace(/[+/=]/g, '').slice(0, 24);
+  toast('Đã sinh key — nhớ bấm Lưu');
+});
 $('cfg-q-refresh').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const r = await api('/api/gateway/quota/refresh', { method: 'POST', body: {} }); toast(`Đang nạp hạn mức ${r.queued} account (nền)…`); }));
 $('cfg-health-now').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const r = await api('/api/tokens/check', { method: 'POST', body: {} }); toast(`Health: 🟢${r.alive} 🔴${r.dead} ⚪${r.unknown}`); loadTokens(); }));
-$('cfg-omni-test').addEventListener('click', async () => { const r = await api('/api/omniroute/connections'); toast(r.ok ? `OmniRoute OK · ${r.connections.length} connection` : 'OmniRoute lỗi: ' + r.error); });
+$('cfg-omni-test').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+  await saveSettingsPane(e.currentTarget); // lưu url/mật khẩu trước rồi test
+  const r = await api('/api/settings/omniroute/test', { method: 'POST', body: {} });
+  $('s-omni-state').innerHTML = r.ok
+    ? `<span style="color:var(--green)">✓ Kết nối OK · ${r.connections} connection</span>`
+    : `<span style="color:var(--red)">✕ ${esc(r.error || 'lỗi')}</span>`;
+  toast(r.ok ? 'OmniRoute OK' : 'OmniRoute lỗi');
+}));
 $('cfg-theme').addEventListener('click', toggleTheme);
+
+// ---------- phiên đăng nhập + log ----------
+async function loadSessions() {
+  const r = await api('/api/auth/sessions');
+  $('sess-body').innerHTML = (r.sessions || []).length
+    ? r.sessions.map((s) => `<tr><td class="mono" style="max-width:280px">${esc((s.ua || '').slice(0, 60))}${s.current ? ' <span class="chip">phiên này</span>' : ''}</td><td class="mono">${esc(s.ip || '')}</td><td class="faint">${fmtAgo(s.created_at)}</td><td class="faint">${fmtAgo(s.last_seen)}</td><td class="act">${s.current ? '' : `<button class="sm icon danger sess-kill" data-id="${esc(s.id)}" title="Thu hồi">${icon('trash')}</button>`}</td></tr>`).join('')
+    : '<tr><td colspan="5"><div class="empty">Không có phiên</div></td></tr>';
+  $('authlog-body').innerHTML = (r.log || []).length
+    ? r.log.map((l) => `<tr><td class="faint">${new Date(l.ts).toLocaleString()}</td><td class="mono">${esc(l.ip || '')}</td><td>${l.ok ? '<span class="badge alive"><span class="bd"></span>OK</span>' : '<span class="badge dead"><span class="bd"></span>sai</span>'}</td><td class="faint">${esc(l.reason || '')}</td></tr>`).join('')
+    : '<tr><td colspan="4"><div class="empty">Chưa có</div></td></tr>';
+  document.querySelectorAll('.sess-kill').forEach((b) => b.addEventListener('click', async () => {
+    await api('/api/auth/sessions/revoke', { method: 'POST', body: { id: b.dataset.id } });
+    toast('Đã thu hồi phiên'); loadSessions();
+  }));
+}
+$('sess-revoke-others').addEventListener('click', async () => {
+  if (!confirmAct('Đăng xuất tất cả thiết bị khác?')) return;
+  const r = await api('/api/auth/sessions/revoke', { method: 'POST', body: { others: true } });
+  toast(`Đã đăng xuất ${r.revoked} phiên khác`); loadSessions();
+});
 
 // ---------- bảo mật: đổi mật khẩu dashboard ----------
 async function loadSecurity() {

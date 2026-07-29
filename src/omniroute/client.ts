@@ -34,6 +34,13 @@ class OmniRouteClient {
   private cookie = '';
   private authed = false;
 
+  /** Xoá phiên đã cache — gọi khi đổi URL/mật khẩu để lần sau đăng nhập lại. */
+  reset(): void {
+    this.cookie = '';
+    this.authed = false;
+    (this as unknown as { apiKey: string }).apiKey = '';
+  }
+
   private headers(extra?: Record<string, string>): Record<string, string> {
     const h: Record<string, string> = { 'content-type': 'application/json', ...extra };
     if (this.cookie) h['cookie'] = this.cookie;

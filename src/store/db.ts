@@ -1,11 +1,19 @@
 import { DatabaseSync } from 'node:sqlite';
-import { STATE_DB } from '../config.js';
+import { STATE_DB } from '../paths.js';
 
 /**
  * State runtime (không phải nguồn backup — cái đó là CSV).
  * Giữ lịch sử run + log để dashboard hiển thị và để đếm cap/ngày.
  */
 export const db = new DatabaseSync(STATE_DB);
+
+// WAL + busy_timeout: cho phép nhiều tiến trình (server + CLI + test) cùng đọc/ghi
+// mà không bị "database is locked".
+try {
+  db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;`);
+} catch {
+  /* filesystem không hỗ trợ WAL → dùng mặc định */
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS runs (
@@ -36,9 +44,46 @@ db.exec(`
     ok INTEGER NOT NULL DEFAULT 1,   -- 1 thành công, 0 lỗi
     ms INTEGER NOT NULL DEFAULT 0
   );
+  -- Cấu hình lưu bền (thay settings.json): mọi thay đổi từ UI sống qua restart
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  -- Phiên đăng nhập (thu hồi được)
+  CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    created_at INTEGER NOT NULL,
+    last_seen INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    ip TEXT,
+    ua TEXT
+  );
+  -- Log đăng nhập (thành công/thất bại) + chống brute-force
+  CREATE TABLE IF NOT EXISTS auth_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts INTEGER NOT NULL,
+    ip TEXT,
+    ua TEXT,
+    ok INTEGER NOT NULL,
+    reason TEXT
+  );
+  -- Lịch sử hạn mức theo thời gian
+  CREATE TABLE IF NOT EXISTS quota_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts INTEGER NOT NULL,
+    email TEXT NOT NULL,
+    tier TEXT,
+    gemini_pct INTEGER,
+    third_pct INTEGER,
+    models_json TEXT
+  );
   CREATE INDEX IF NOT EXISTS idx_runs_email ON runs(email);
   CREATE INDEX IF NOT EXISTS idx_logs_run ON run_logs(run_id);
   CREATE INDEX IF NOT EXISTS idx_usage_ts ON gateway_usage(ts);
+  CREATE INDEX IF NOT EXISTS idx_qh_ts ON quota_history(ts);
+  CREATE INDEX IF NOT EXISTS idx_qh_email ON quota_history(email, ts);
+  CREATE INDEX IF NOT EXISTS idx_authlog_ts ON auth_log(ts);
 `);
 
 // Migration: thêm cột proxy cho DB cũ (bỏ qua nếu đã có).
@@ -170,6 +215,110 @@ export function usageByAccount(from: number, to: number): { email: string; reque
   return db
     .prepare(`SELECT email, ${AGG} FROM gateway_usage WHERE ts >= ? AND ts < ? GROUP BY email ORDER BY requests DESC`)
     .all(from, to) as any[];
+}
+
+// ---------- settings (key-value, thay settings.json) ----------
+export function getSetting(key: string): string | undefined {
+  const r = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(key) as any;
+  return r?.value;
+}
+export function setSetting(key: string, value: string): void {
+  db.prepare(
+    `INSERT INTO settings (key, value, updated_at) VALUES (?,?,?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+  ).run(key, value, Date.now());
+}
+export function deleteSetting(key: string): void {
+  db.prepare(`DELETE FROM settings WHERE key = ?`).run(key);
+}
+export function allSettings(): Record<string, string> {
+  const rows = db.prepare(`SELECT key, value FROM settings`).all() as any[];
+  const out: Record<string, string> = {};
+  for (const r of rows) out[r.key] = r.value;
+  return out;
+}
+
+// ---------- sessions ----------
+export interface SessionRow { id: string; created_at: number; last_seen: number; expires_at: number; ip: string | null; ua: string | null }
+export function createSession(id: string, expiresAt: number, ip?: string, ua?: string): void {
+  const now = Date.now();
+  db.prepare(`INSERT INTO sessions (id, created_at, last_seen, expires_at, ip, ua) VALUES (?,?,?,?,?,?)`)
+    .run(id, now, now, expiresAt, ip ?? null, (ua ?? '').slice(0, 200));
+}
+export function getSession(id: string): SessionRow | undefined {
+  return db.prepare(`SELECT * FROM sessions WHERE id = ?`).get(id) as any;
+}
+export function touchSession(id: string): void {
+  db.prepare(`UPDATE sessions SET last_seen = ? WHERE id = ?`).run(Date.now(), id);
+}
+export function deleteSession(id: string): void {
+  db.prepare(`DELETE FROM sessions WHERE id = ?`).run(id);
+}
+export function deleteAllSessions(exceptId?: string): number {
+  const r = exceptId
+    ? db.prepare(`DELETE FROM sessions WHERE id <> ?`).run(exceptId)
+    : db.prepare(`DELETE FROM sessions`).run();
+  return Number(r.changes ?? 0);
+}
+export function listSessions(): SessionRow[] {
+  return db.prepare(`SELECT * FROM sessions WHERE expires_at > ? ORDER BY last_seen DESC`).all(Date.now()) as any[];
+}
+export function pruneSessions(): void {
+  db.prepare(`DELETE FROM sessions WHERE expires_at <= ?`).run(Date.now());
+}
+
+// ---------- auth log + chống brute-force ----------
+export function addAuthLog(ip: string, ua: string, ok: boolean, reason?: string): void {
+  db.prepare(`INSERT INTO auth_log (ts, ip, ua, ok, reason) VALUES (?,?,?,?,?)`)
+    .run(Date.now(), ip, (ua ?? '').slice(0, 200), ok ? 1 : 0, reason ?? null);
+}
+export function recentAuthLog(limit = 20): any[] {
+  return db.prepare(`SELECT * FROM auth_log ORDER BY id DESC LIMIT ?`).all(limit) as any[];
+}
+/** Số lần đăng nhập SAI của 1 IP trong `windowMs` gần đây. */
+export function failedLoginCount(ip: string, windowMs: number): number {
+  const since = Date.now() - windowMs;
+  const r = db.prepare(`SELECT COUNT(*) AS n FROM auth_log WHERE ip = ? AND ok = 0 AND ts >= ?`).get(ip, since) as any;
+  return r?.n ?? 0;
+}
+/** Xoá lịch sử sai của IP (sau khi đăng nhập thành công) để mở khoá. */
+export function clearFailedLogins(ip: string): void {
+  db.prepare(`DELETE FROM auth_log WHERE ip = ? AND ok = 0`).run(ip);
+}
+
+// ---------- lịch sử hạn mức ----------
+export interface QuotaHistoryRow { ts: number; email: string; tier: string | null; gemini_pct: number | null; third_pct: number | null }
+export function recordQuota(r: { ts: number; email: string; tier?: string | null; geminiPct?: number | null; thirdPct?: number | null; models?: unknown }): void {
+  db.prepare(`INSERT INTO quota_history (ts, email, tier, gemini_pct, third_pct, models_json) VALUES (?,?,?,?,?,?)`)
+    .run(r.ts, r.email, r.tier ?? null, r.geminiPct ?? null, r.thirdPct ?? null, r.models ? JSON.stringify(r.models) : null);
+}
+/** Xu hướng TB toàn pool theo ngày/giờ. */
+export function quotaSeries(from: number, to: number, groupBy: 'hour' | 'day' = 'day'): { bucket: string; gemini: number; third: number; n: number }[] {
+  const fmt = groupBy === 'hour' ? '%Y-%m-%d %H:00' : '%Y-%m-%d';
+  return db
+    .prepare(
+      `SELECT strftime('${fmt}', ts/1000, 'unixepoch', 'localtime') AS bucket,
+              ROUND(AVG(gemini_pct)) AS gemini, ROUND(AVG(third_pct)) AS third, COUNT(*) AS n
+       FROM quota_history WHERE ts >= ? AND ts < ? GROUP BY bucket ORDER BY bucket ASC`,
+    )
+    .all(from, to) as any[];
+}
+/** Lịch sử của 1 account. */
+export function quotaForAccount(email: string, from: number, to: number): QuotaHistoryRow[] {
+  return db
+    .prepare(`SELECT ts, email, tier, gemini_pct, third_pct FROM quota_history WHERE email = ? AND ts >= ? AND ts < ? ORDER BY ts ASC`)
+    .all(email, from, to) as any[];
+}
+export function quotaHistoryCount(): number {
+  const r = db.prepare(`SELECT COUNT(*) AS n FROM quota_history`).get() as any;
+  return r?.n ?? 0;
+}
+/** Dọn lịch sử cũ hơn `days` ngày (mặc định 90). Trả về số dòng đã xoá. */
+export function pruneQuotaHistory(days = 90): number {
+  const cutoff = Date.now() - days * 86400_000;
+  const r = db.prepare(`DELETE FROM quota_history WHERE ts < ?`).run(cutoff);
+  const r2 = db.prepare(`DELETE FROM auth_log WHERE ts < ?`).run(cutoff);
+  return Number(r.changes ?? 0) + Number(r2.changes ?? 0);
 }
 
 export function usageRows(from: number, to: number): UsageRow[] {

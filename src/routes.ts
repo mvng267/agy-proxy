@@ -8,13 +8,23 @@ import { resumeHuman, skipHuman, pendingHumanRuns } from './flows/runner.js';
 import { recentRuns, runLogs } from './store/db.js';
 import { fetchWebshareList, parseProxyList, testProxy } from './proxy/webshare.js';
 import { omniroute } from './omniroute/client.js';
-import { config, CSV, saveSettings } from './config.js';
-import { checkAll } from './health/tokenHealth.js';
+import { config, CSV, saveSettings, setConfig, getConfigValue, CONFIG_KEYS, SECRET_KEYS, RESTART_KEYS, AGY_HOME, ROOT } from './config.js';
+import { checkAll, restartHealthLoop } from './health/tokenHealth.js';
+import { hashPassword, verifyPassword } from './security.js';
 import { registerGatewayRoutes } from './gateway/routes.js';
 import { buildBackup, restoreBackup } from './backup.js';
 import { pool, geminiPct } from './gateway/pool.js';
 import { usageTotals, usageSeries, usageByModel, usageByAccount } from './store/db.js';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+function pkgVersion(): string {
+  try {
+    return JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8')).version ?? '';
+  } catch {
+    return '';
+  }
+}
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // Gateway "API proxy AGY" (OpenAI-compatible pool Antigravity)
@@ -271,10 +281,58 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
+  // ---------- CẤU HÌNH TỔNG (mọi trường, lưu DB) ----------
+  app.get('/api/settings', async () => {
+    const values: Record<string, unknown> = {};
+    for (const k of CONFIG_KEYS) {
+      const v = getConfigValue(k);
+      // Secret: không trả giá trị thật, chỉ báo có hay không
+      values[k] = SECRET_KEYS.has(k) ? (v ? '••••••••' : '') : v;
+    }
+    return {
+      values,
+      secretKeys: [...SECRET_KEYS],
+      restartKeys: [...RESTART_KEYS],
+      meta: { dataDir: AGY_HOME, version: pkgVersion(), baseUrl: `http://localhost:${config.port}/proxy/v1` },
+    };
+  });
+
+  app.patch('/api/settings', async (req) => {
+    const patch = (req.body as Record<string, unknown>) ?? {};
+    // Bỏ qua secret gửi lên dạng che (người dùng không sửa)
+    for (const k of Object.keys(patch)) {
+      if (SECRET_KEYS.has(k) && patch[k] === '••••••••') delete patch[k];
+      if (k === 'dashboardPassword') delete patch[k]; // đổi mật khẩu qua endpoint riêng
+    }
+    const changed = setConfig(patch);
+    // Áp nóng những thứ cần
+    if (changed.includes('omnirouteUrl') || changed.includes('omniroutePassword')) omniroute.reset();
+    if (changed.includes('tokenHealthHours')) restartHealthLoop(config.tokenHealthHours);
+    const needRestart = changed.filter((k) => RESTART_KEYS.has(k));
+    return { ok: true, changed, needRestart };
+  });
+
+  // Test/đăng nhập OmniRoute ngay trong Cấu hình
+  app.post('/api/settings/omniroute/test', async () => {
+    omniroute.reset();
+    try {
+      const conns = await omniroute.listConnections();
+      return { ok: true, connections: conns.length };
+    } catch (e: any) {
+      return { ok: false, error: e?.message ?? String(e) };
+    }
+  });
+
+  // Khởi động lại (service/CLI sẽ dựng lại tiến trình)
+  app.post('/api/system/restart', async (_req, reply) => {
+    reply.send({ ok: true, message: 'Đang khởi động lại…' });
+    setTimeout(() => process.exit(0), 300);
+  });
+
   // ---------- bảo mật: đổi user/mật khẩu dashboard ----------
   app.get('/api/security', async () => ({
     hasPassword: !!config.dashboardPassword,
-    isDefault: config.dashboardPassword === '123456',
+    isDefault: verifyPassword('123456', config.dashboardPassword),
     user: config.dashboardUser,
     host: config.host,
     open: config.host === '0.0.0.0' || config.host === '::',
@@ -282,8 +340,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/security/password', async (req, reply) => {
     const b = (req.body as { password?: string; user?: string; current?: string }) ?? {};
-    // Đã có mật khẩu → phải nhập đúng mật khẩu hiện tại (chống đổi trộm khi trình duyệt còn phiên).
-    if (config.dashboardPassword && b.current !== config.dashboardPassword) {
+    // Đã có mật khẩu → phải nhập đúng mật khẩu hiện tại (timing-safe, hỗ trợ hash).
+    if (config.dashboardPassword && !verifyPassword(b.current ?? '', config.dashboardPassword)) {
       return reply.code(403).send({ ok: false, error: 'Mật khẩu hiện tại không đúng' });
     }
     const pass = (b.password ?? '').trim();
@@ -291,9 +349,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     if (pass && pass.length < 6) {
       return reply.code(400).send({ ok: false, error: 'Mật khẩu tối thiểu 6 ký tự' });
     }
-    config.dashboardPassword = pass;
+    const stored = pass ? hashPassword(pass) : ''; // lưu HASH, không lưu plaintext
+    config.dashboardPassword = stored;
     config.dashboardUser = user;
-    saveSettings({ dashboardPassword: pass, dashboardUser: user });
+    saveSettings({ dashboardPassword: stored, dashboardUser: user });
     return { ok: true, hasPassword: !!pass, user };
   });
 

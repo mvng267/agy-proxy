@@ -439,77 +439,172 @@
 
       <!-- ============ Cấu hình ============ -->
       <section class="view" id="view-settings">
-        <div class="page-head"><div class="ph-title"><h2>Cấu hình</h2></div></div>
-        <div class="settings-grid">
+        <div class="page-head">
+          <div class="ph-title"><h2>Cấu hình</h2><span class="ph-sub">Mọi thiết lập — lưu vào database</span></div>
+          <div class="ph-actions"><span class="faint" id="set-meta"></span></div>
+        </div>
+        <div class="seg set-tabs" id="set-tabs">
+          <button data-t="general" class="active">Chung</button>
+          <button data-t="harvest">Harvest</button>
+          <button data-t="gateway">Gateway</button>
+          <button data-t="quota">Hạn mức</button>
+          <button data-t="omni">OmniRoute</button>
+          <button data-t="security">Bảo mật</button>
+          <button data-t="advanced">Nâng cao</button>
+          <button data-t="backup">Sao lưu</button>
+        </div>
+
+        <div class="set-pane active" id="set-general">
           <div class="panel">
-            <h3><svg class="ic"><use href="#i-settings"/></svg> Chạy harvest</h3>
-            <p class="set-desc">Giãn nhịp & giới hạn login chống checkpoint.</p>
+            <h3><svg class="ic"><use href="#i-settings"/></svg> Máy chủ</h3>
+            <p class="set-desc">Đổi cổng/host cần <b>khởi động lại</b> mới có hiệu lực.</p>
             <div class="row">
-              <div style="flex:1"><label class="fl">Giãn nhịp min (giây)</label><input id="cfg-pmin" type="number" title="Nghỉ tối thiểu" /></div>
-              <div style="flex:1"><label class="fl">Giãn nhịp max (giây)</label><input id="cfg-pmax" type="number" title="Nghỉ tối đa" /></div>
+              <div style="flex:1"><label class="fl">Cổng (PORT) <span class="rst">⟳</span></label><input id="s-port" type="number" data-key="port" /></div>
+              <div style="flex:1"><label class="fl">Host bind <span class="rst">⟳</span></label>
+                <select id="s-host" data-key="host"><option value="127.0.0.1">127.0.0.1 (chỉ máy này)</option><option value="0.0.0.0">0.0.0.0 (máy khác vào được)</option></select>
+              </div>
             </div>
-            <label class="fl">Cap login / IP / 24h</label><input id="cfg-cap" type="number" title="Login tối đa mỗi IP/24h" />
-            <label class="switch" style="margin-top:12px" title="Ẩn cửa sổ trình duyệt"><input type="checkbox" id="cfg-headless" /><span class="track"></span> Headless</label>
-            <div class="row end" style="margin-top:12px"><button class="primary" id="cfg-save" title="Lưu">Lưu</button></div>
-          </div>
-          <div class="panel">
-            <h3><svg class="ic"><use href="#i-gauge"/></svg> Hạn mức Antigravity</h3>
-            <p class="set-desc">Cách cập nhật hạn mức (163 account tốn API — cân nhắc).</p>
-            <label class="switch"><input type="checkbox" id="cfg-q-auto" /><span class="track"></span> Auto refresh nền</label>
-            <label class="fl" style="margin-top:8px">Chu kỳ auto (phút)</label><input id="cfg-q-interval" type="number" title="Chu kỳ auto refresh" />
-            <label class="switch" style="margin-top:10px"><input type="checkbox" id="cfg-q-oncall" /><span class="track"></span> Cập nhật kèm mỗi lần gọi model</label>
-            <label class="fl" style="margin-top:8px">Cache TTL (phút)</label><input id="cfg-q-ttl" type="number" title="Cache hạn mức" />
-            <div class="row end" style="margin-top:12px"><button id="cfg-q-refresh" title="Refresh tất cả đang bật">Refresh tất cả</button><button class="primary" id="cfg-q-save" title="Lưu">Lưu</button></div>
-          </div>
-          <div class="panel">
-            <h3><svg class="ic"><use href="#i-key"/></svg> Fingerprint</h3>
-            <p class="set-desc">Fingerprint riêng/account (macOS Chrome, slim).</p>
-            <label class="switch"><input type="checkbox" id="cfg-fp" /><span class="track"></span> Bật fingerprint</label>
-            <label class="fl" style="margin-top:10px">Chrome major (host)</label><input id="cfg-chrome" type="number" disabled title="Chrome thật của máy" />
-            <div class="row end" style="margin-top:12px"><button class="primary" id="cfg-save-fp" title="Lưu">Lưu</button></div>
-          </div>
-          <div class="panel">
-            <h3><svg class="ic"><use href="#i-activity"/></svg> Token health</h3>
-            <p class="set-desc">Chu kỳ tự kiểm token còn sống.</p>
-            <label class="fl">Chu kỳ (giờ)</label><input id="cfg-health" type="number" disabled title="Đặt qua .env" />
-            <div class="row end" style="margin-top:12px"><button id="cfg-health-now" title="Kiểm health tất cả ngay">Kiểm tra ngay</button></div>
-          </div>
-          <div class="panel">
-            <h3><svg class="ic"><use href="#i-link"/></svg> OmniRoute</h3>
-            <p class="set-desc">Gateway đích cho Kiro.</p>
-            <label class="fl">URL</label><input id="cfg-omni" readonly title="Đặt qua .env" />
-            <div class="row end" style="margin-top:12px"><button id="cfg-omni-test" title="Test kết nối">Test kết nối</button></div>
+            <label class="fl">Thư mục dữ liệu</label><input id="s-datadir" readonly />
+            <div class="row end" style="margin-top:12px">
+              <button id="s-restart" title="Khởi động lại tiến trình"><svg class="ic"><use href="#i-power"/></svg> Khởi động lại</button>
+              <button class="primary" data-save="general">Lưu</button>
+            </div>
           </div>
           <div class="panel">
             <h3><svg class="ic"><use href="#i-sun"/></svg> Giao diện</h3>
-            <p class="set-desc">Theme sáng/tối.</p>
-            <div class="row" style="margin-top:6px"><button id="cfg-theme" title="Đổi theme"><svg class="ic"><use href="#i-moon"/></svg> Đổi theme</button></div>
+            <p class="set-desc">Sáng/tối (lưu ở trình duyệt).</p>
+            <div class="row"><button id="cfg-theme"><svg class="ic"><use href="#i-moon"/></svg> Đổi theme</button></div>
           </div>
-          <div class="panel">
-            <h3><svg class="ic"><use href="#i-key"/></svg> Bảo mật (đăng nhập dashboard)</h3>
-            <p class="set-desc" id="sec-state">Đang tải…</p>
-            <label class="fl">Tên đăng nhập (để trống = chấp nhận mọi user)</label>
-            <input id="sec-user" placeholder="(để trống)" autocomplete="off" />
-            <label class="fl" id="sec-cur-label" style="display:none">Mật khẩu hiện tại</label>
-            <input id="sec-current" type="password" placeholder="mật khẩu đang dùng" autocomplete="off" style="display:none" />
-            <label class="fl">Mật khẩu mới (tối thiểu 6 ký tự · để trống = TẮT đăng nhập)</label>
-            <input id="sec-pass" type="password" placeholder="mật khẩu mới" autocomplete="new-password" />
-            <div class="row end" style="margin-top:12px">
-              <button id="sec-gen" title="Sinh mật khẩu mạnh ngẫu nhiên"><svg class="ic"><use href="#i-refresh"/></svg> Sinh ngẫu nhiên</button>
-              <button class="primary" id="sec-save" title="Lưu (có hiệu lực ngay)">Lưu mật khẩu</button>
+        </div>
+
+        <div class="set-pane" id="set-harvest">
+          <div class="settings-grid">
+            <div class="panel">
+              <h3><svg class="ic"><use href="#i-play"/></svg> Chạy harvest</h3>
+              <p class="set-desc">Giãn nhịp & giới hạn login chống checkpoint.</p>
+              <div class="row">
+                <div style="flex:1"><label class="fl">Giãn nhịp min (giây)</label><input id="cfg-pmin" type="number" data-key="pacingMinSec" /></div>
+                <div style="flex:1"><label class="fl">Giãn nhịp max (giây)</label><input id="cfg-pmax" type="number" data-key="pacingMaxSec" /></div>
+              </div>
+              <label class="fl">Cap login / IP / 24h</label><input id="cfg-cap" type="number" data-key="dailyLoginCap" />
+              <label class="fl">Chờ xử lý tay tối đa (giây)</label><input id="s-human" type="number" data-key="humanTimeoutSec" />
+              <label class="switch" style="margin-top:12px"><input type="checkbox" id="cfg-headless" data-key="headless" /><span class="track"></span> Headless (ẩn trình duyệt)</label>
+              <div class="row end" style="margin-top:12px"><button class="primary" data-save="harvest">Lưu</button></div>
+            </div>
+            <div class="panel">
+              <h3><svg class="ic"><use href="#i-key"/></svg> Trình duyệt & fingerprint</h3>
+              <p class="set-desc">Fingerprint riêng mỗi account + kênh Chrome.</p>
+              <label class="switch"><input type="checkbox" id="cfg-fp" data-key="fingerprint" /><span class="track"></span> Bật fingerprint</label>
+              <label class="fl" style="margin-top:10px">Chrome major (host)</label><input id="cfg-chrome" type="number" data-key="chromeMajor" />
+              <label class="fl">Browser channel</label>
+              <select id="s-channel" data-key="browserChannel"><option value="chrome">chrome (Chrome thật)</option><option value="bundled">bundled (Chromium — Docker/ARM64)</option></select>
+              <label class="switch" style="margin-top:10px"><input type="checkbox" id="s-nosandbox" data-key="chromeNoSandbox" /><span class="track"></span> --no-sandbox (chạy trong container)</label>
+              <div class="row end" style="margin-top:12px"><button class="primary" data-save="browser">Lưu</button></div>
             </div>
           </div>
+        </div>
+
+        <div class="set-pane" id="set-gateway">
+          <div class="panel">
+            <h3><svg class="ic"><use href="#i-zap"/></svg> Gateway OpenAI</h3>
+            <p class="set-desc">Cổng phục vụ model cho tool coding. Base URL: <b id="s-baseurl" class="mono"></b></p>
+            <label class="switch"><input type="checkbox" id="s-gw-enabled" data-key="gatewayEnabled" /><span class="track"></span> Bật gateway</label>
+            <label class="fl" style="margin-top:10px">Chiến lược xoay account</label>
+            <select id="s-rotation" data-key="gatewayRotation">
+              <option value="round-robin">Round-robin (luân phiên đều)</option>
+              <option value="full-first">Full-first (dùng kiệt 1 account)</option>
+              <option value="failover">Failover (account đầu, nhảy khi lỗi)</option>
+              <option value="highest-first">Cao nhất trước (quota cao)</option>
+            </select>
+            <label class="fl">API key (trống = không yêu cầu)</label>
+            <div class="copybox"><input id="s-apikey" data-key="gatewayApiKey" placeholder="(không bắt buộc)" /><button class="sm icon" id="s-apikey-gen" title="Sinh key mới"><svg class="ic"><use href="#i-refresh"/></svg></button></div>
+            <label class="fl">Proxy mặc định cho gateway</label><input id="s-gwproxy" data-key="gatewayProxy" placeholder="http://user:pass@host:port" />
+            <label class="fl">Cooldown khi 429 (giây)</label><input id="s-cooldown" type="number" data-key="gatewayCooldownSec" />
+            <div class="row end" style="margin-top:12px"><button class="primary" data-save="gateway">Lưu</button></div>
+          </div>
+        </div>
+
+        <div class="set-pane" id="set-quota">
+          <div class="panel">
+            <h3><svg class="ic"><use href="#i-gauge"/></svg> Hạn mức Antigravity</h3>
+            <p class="set-desc">Cách cập nhật hạn mức (nhiều account → cân nhắc số lần gọi API).</p>
+            <label class="switch"><input type="checkbox" id="cfg-q-auto" data-key="quotaAutoRefresh" /><span class="track"></span> Auto refresh nền</label>
+            <label class="fl" style="margin-top:8px">Chu kỳ auto (phút)</label><input id="cfg-q-interval" type="number" data-key="quotaIntervalMin" />
+            <label class="switch" style="margin-top:10px"><input type="checkbox" id="cfg-q-oncall" data-key="quotaOnCall" /><span class="track"></span> Cập nhật kèm mỗi lần gọi model</label>
+            <label class="fl" style="margin-top:8px">Cache TTL (phút)</label><input id="cfg-q-ttl" type="number" data-key="quotaCacheTtlMin" />
+            <label class="fl">Giữ lịch sử hạn mức (ngày)</label><input id="s-q-days" type="number" data-key="quotaHistoryDays" />
+            <div class="row end" style="margin-top:12px"><button id="cfg-q-refresh">Refresh tất cả</button><button class="primary" data-save="quota">Lưu</button></div>
+          </div>
+        </div>
+
+        <div class="set-pane" id="set-omni">
+          <div class="panel">
+            <h3><svg class="ic"><use href="#i-link"/></svg> OmniRoute</h3>
+            <p class="set-desc">Gateway đích cho Kiro. Đổi xong bấm <b>Đăng nhập/Test</b> — có hiệu lực ngay.</p>
+            <label class="fl">URL</label><input id="cfg-omni" data-key="omnirouteUrl" placeholder="http://localhost:20128" />
+            <label class="fl">Mật khẩu</label><input id="s-omni-pass" type="password" data-key="omniroutePassword" placeholder="(giữ nguyên nếu để ••••)" />
+            <div id="s-omni-state" class="faint" style="margin-top:10px"></div>
+            <div class="row end" style="margin-top:12px"><button id="cfg-omni-test"><svg class="ic"><use href="#i-activity"/></svg> Đăng nhập / Test</button><button class="primary" data-save="omni">Lưu</button></div>
+          </div>
+        </div>
+
+        <div class="set-pane" id="set-security">
+          <div class="settings-grid">
+            <div class="panel">
+              <h3><svg class="ic"><use href="#i-key"/></svg> Đăng nhập dashboard</h3>
+              <p class="set-desc" id="sec-state">Đang tải…</p>
+              <label class="fl">Tên đăng nhập (trống = mọi user)</label>
+              <input id="sec-user" placeholder="(để trống)" autocomplete="off" />
+              <label class="fl" id="sec-cur-label" style="display:none">Mật khẩu hiện tại</label>
+              <input id="sec-current" type="password" placeholder="mật khẩu đang dùng" autocomplete="off" style="display:none" />
+              <label class="fl">Mật khẩu mới (≥6 ký tự · trống = TẮT đăng nhập)</label>
+              <input id="sec-pass" type="password" placeholder="mật khẩu mới" autocomplete="new-password" />
+              <div class="row end" style="margin-top:12px">
+                <button id="sec-gen"><svg class="ic"><use href="#i-refresh"/></svg> Sinh ngẫu nhiên</button>
+                <button class="primary" id="sec-save">Lưu mật khẩu</button>
+              </div>
+            </div>
+            <div class="panel">
+              <h3><svg class="ic"><use href="#i-activity"/></svg> Chống dò mật khẩu</h3>
+              <p class="set-desc">Khoá tạm IP khi đăng nhập sai nhiều lần.</p>
+              <label class="fl">Số lần sai tối đa</label><input id="s-maxfail" type="number" data-key="loginMaxFail" />
+              <label class="fl">Thời gian khoá (phút)</label><input id="s-lockmin" type="number" data-key="loginLockMin" />
+              <div class="row end" style="margin-top:12px"><button class="primary" data-save="security">Lưu</button></div>
+            </div>
+            <div class="panel" style="grid-column:1/-1">
+              <div class="row" style="justify-content:space-between">
+                <h3 style="margin:0">Phiên đăng nhập</h3>
+                <button class="sm danger" id="sess-revoke-others">Đăng xuất thiết bị khác</button>
+              </div>
+              <div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>Thiết bị</th><th>IP</th><th>Đăng nhập</th><th>Hoạt động</th><th></th></tr></thead><tbody id="sess-body"></tbody></table></div>
+              <h3 style="margin:16px 0 6px;font-size:13px">Log đăng nhập gần đây</h3>
+              <div class="tablewrap"><table><thead><tr><th>Thời gian</th><th>IP</th><th>Kết quả</th><th>Ghi chú</th></tr></thead><tbody id="authlog-body"></tbody></table></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="set-pane" id="set-advanced">
+          <div class="panel">
+            <h3><svg class="ic"><use href="#i-settings"/></svg> Nâng cao</h3>
+            <p class="set-desc">Chỉ đổi khi bạn biết mình đang làm gì.</p>
+            <label class="fl">Chu kỳ kiểm token health (giờ, 0 = tắt)</label><input id="cfg-health" type="number" data-key="tokenHealthHours" />
+            <label class="fl">Kiro redirect URI</label><input id="s-kiro" data-key="kiroRedirectUri" />
+            <div class="row end" style="margin-top:12px"><button id="cfg-health-now">Kiểm token ngay</button><button class="primary" data-save="advanced">Lưu</button></div>
+          </div>
+        </div>
+
+        <div class="set-pane" id="set-backup">
           <div class="panel">
             <h3><svg class="ic"><use href="#i-download"/></svg> Sao lưu & phục hồi</h3>
-            <p class="set-desc">1 file JSON toàn bộ (accounts + proxies + token + gateway + cấu hình). <b style="color:var(--amber)">Chứa token — giữ an toàn.</b></p>
+            <p class="set-desc">1 file JSON toàn bộ: accounts + proxy + token + <b>cấu hình + mật khẩu</b>. <b style="color:var(--red)">File cực nhạy cảm — giữ như mật khẩu.</b></p>
             <div class="row" style="margin-top:6px">
-              <a class="btn primary" id="bk-export" href="/api/backup/export" download title="Tải backup JSON toàn bộ"><svg class="ic"><use href="#i-download"/></svg> Export backup</a>
-              <label class="btn" title="Chọn file backup JSON"><svg class="ic"><use href="#i-upload"/></svg> Chọn file… <input type="file" id="bk-file" accept=".json" style="display:none" /></label>
+              <a class="btn primary" id="bk-export" href="/api/backup/export" download><svg class="ic"><use href="#i-download"/></svg> Export backup</a>
+              <label class="btn"><svg class="ic"><use href="#i-upload"/></svg> Chọn file… <input type="file" id="bk-file" accept=".json" style="display:none" /></label>
             </div>
             <div id="bk-preview" class="faint" style="margin-top:10px;font-size:12px"></div>
             <div class="row" id="bk-import-row" style="margin-top:10px;display:none">
-              <select id="bk-mode" class="w-auto" title="Cách phục hồi"><option value="merge">Gộp (thêm/ghi đè)</option><option value="replace">Thay thế toàn bộ</option></select>
-              <button class="primary" id="bk-import" title="Phục hồi từ file đã chọn"><svg class="ic"><use href="#i-upload"/></svg> Phục hồi</button>
+              <select id="bk-mode" class="w-auto"><option value="merge">Gộp (thêm/ghi đè)</option><option value="replace">Thay thế toàn bộ</option></select>
+              <button class="primary" id="bk-import"><svg class="ic"><use href="#i-upload"/></svg> Phục hồi</button>
             </div>
           </div>
         </div>

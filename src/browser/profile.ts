@@ -49,7 +49,7 @@ export async function openProfile(
 
   // Channel qua env: 'chrome' (mặc định, host macOS — Chrome thật) hoặc 'bundled'
   // (Docker/Linux ARM64 — Chromium Playwright, vì Google Chrome không có bản arm64).
-  const browserChannel = process.env.BROWSER_CHANNEL ?? 'chrome';
+  const browserChannel = config.browserChannel || 'chrome';
   const context = await chromium.launchPersistentContext(userDataDir, {
     ...(browserChannel && browserChannel !== 'bundled' ? { channel: browserChannel } : {}),
     headless,
@@ -60,7 +60,7 @@ export async function openProfile(
       '--no-default-browser-check',
       '--disable-features=IsolateOrigins,site-per-process',
       // Trong container (chạy root): cần no-sandbox + tránh /dev/shm nhỏ.
-      ...(process.env.CHROME_NO_SANDBOX === '1' ? ['--no-sandbox', '--disable-dev-shm-usage'] : []),
+      ...(config.chromeNoSandbox ? ['--no-sandbox', '--disable-dev-shm-usage'] : []),
     ],
     proxy: proxyToPlaywright(proxy),
     userAgent: nav?.userAgent, // khớp fingerprint (vẫn là macOS Chrome)

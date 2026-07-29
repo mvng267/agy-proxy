@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import type { Dispatcher } from 'undici';
 import { DATA_DIR, config } from '../config.js';
 import { store } from '../store/index.js';
+import { recordQuota } from '../store/db.js';
 import {
   refreshAccessToken,
   discoverProject,
@@ -301,6 +302,22 @@ export async function refreshQuota(account: PoolAccount, force = false): Promise
   const dispatcher = dispatcherFor(account);
   const { accessToken, projectId } = await ensureReady(account, dispatcher);
   account.quota = await fetchQuota(accessToken, projectId, dispatcher);
+  // Ghi LỊCH SỬ hạn mức (chỉ khi fetch thật + có dữ liệu) để vẽ xu hướng theo thời gian.
+  if (account.quota?.groups?.length) {
+    try {
+      const third = account.quota.groups.find((g) => !/gemini/i.test(g.name));
+      recordQuota({
+        ts: account.quota.fetchedAt || Date.now(),
+        email: account.email,
+        tier: account.quota.tier,
+        geminiPct: geminiPct(account),
+        thirdPct: third ? third.pct : null,
+        models: account.quota.models,
+      });
+    } catch {
+      /* không để lỗi ghi lịch sử chặn luồng chính */
+    }
+  }
   savePersist();
   return account.quota;
 }

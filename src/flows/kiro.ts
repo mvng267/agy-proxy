@@ -4,6 +4,7 @@ import { consentStep } from './oauthProvider.js';
 import { performGoogleLogin } from './googleAuth.js';
 import { think, sleep, rand } from '../browser/human.js';
 import { store } from '../store/index.js';
+import { config } from '../config.js';
 import { omniroute } from '../omniroute/client.js';
 
 /**
@@ -22,7 +23,9 @@ const KIRO = {
   tokenUrl: 'https://prod.us-east-1.auth.desktop.kiro.dev/oauth/token',
   refreshUrl: 'https://prod.us-east-1.auth.desktop.kiro.dev/refreshToken',
   // redirect_uri kiểu localhost mà Kiro IDE dùng; ta chỉ intercept, không mở port.
-  redirectUri: process.env.KIRO_REDIRECT_URI || 'http://localhost:49153/oauth/callback',
+  get redirectUri(): string {
+    return config.kiroRedirectUri || 'http://localhost:49153/oauth/callback';
+  },
   region: 'us-east-1',
 };
 

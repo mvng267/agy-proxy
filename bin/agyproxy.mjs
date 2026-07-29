@@ -14,6 +14,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, openSync, statSync } from 'node:fs';
 import { homedir, networkInterfaces } from 'node:os';
+import { DatabaseSync } from 'node:sqlite';
+import { randomBytes } from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -61,13 +63,25 @@ function tsxBin() {
   return existsSync(local) ? local : 'tsx';
 }
 
-/** Mật khẩu dashboard: settings.json (đổi từ UI) → .env → mặc định 123456. */
+/**
+ * Thông tin đăng nhập cho CLI. Mật khẩu trong DB đã được BĂM nên không dùng lại được;
+ * CLI dùng token CLI riêng (sinh + lưu trong bảng settings) để gọi API.
+ * Thứ tự: token CLI trong DB → .env DASHBOARD_PASSWORD → 123456.
+ */
 function dashCreds() {
   let pass = '', user = '';
   try {
-    const s = JSON.parse(readFileSync(resolve(HOME, 'data/settings.json'), 'utf8'));
-    if (typeof s.dashboardPassword === 'string') pass = s.dashboardPassword;
-    if (typeof s.dashboardUser === 'string') user = s.dashboardUser;
+    const db = new DatabaseSync(resolve(HOME, 'data/state.db'));
+    const get = (k) => db.prepare('SELECT value FROM settings WHERE key = ?').get(k)?.value;
+    user = get('dashboardUser') || '';
+    let tok = get('cliToken');
+    if (!tok) {
+      tok = randomBytes(24).toString('base64url');
+      db.prepare('INSERT INTO settings (key,value,updated_at) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
+        .run('cliToken', tok, Date.now());
+    }
+    pass = tok;
+    db.close();
   } catch {}
   if (!pass) {
     try {

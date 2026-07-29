@@ -88,13 +88,20 @@ export async function checkAll(filterTarget?: string): Promise<{ alive: number; 
   return { alive, dead, unknown, total: creds.length };
 }
 
-let loopStarted = false;
+let healthTimer: NodeJS.Timeout | null = null;
 /** Vòng lặp health định kỳ (mặc định 6h). Không chạy trùng. */
 export function startHealthLoop(hours: number): void {
-  if (loopStarted || hours <= 0) return;
-  loopStarted = true;
-  const ms = hours * 3600 * 1000;
-  setInterval(() => {
+  if (healthTimer || hours <= 0) return;
+  healthTimer = setInterval(() => {
     checkAll().catch(() => {});
-  }, ms);
+  }, hours * 3600 * 1000);
+  healthTimer.unref?.();
+}
+/** Đổi chu kỳ lúc chạy (áp nóng, không cần restart). */
+export function restartHealthLoop(hours: number): void {
+  if (healthTimer) {
+    clearInterval(healthTimer);
+    healthTimer = null;
+  }
+  startHealthLoop(hours);
 }

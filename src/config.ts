@@ -1,131 +1,190 @@
 import 'dotenv/config';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
-import { mkdirSync, existsSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { existsSync, readFileSync, renameSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
+import { ROOT, AGY_HOME, DATA_DIR, PROFILES_DIR, SCREENSHOTS_DIR, PUBLIC_DIR, CSV, STATE_DB, SETTINGS_FILE } from './paths.js';
+import { allSettings, setSetting } from './store/db.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-export const ROOT = resolve(__dirname, '..');
-
-/**
- * Nơi lưu dữ liệu (accounts/token/profiles).
- * Thứ tự ưu tiên:
- *  1) AGY_HOME (env) — chỉ định thẳng.
- *  2) <ROOT>/data nếu ĐÃ tồn tại — giữ nguyên cài đặt local/dev cũ (không mất dữ liệu).
- *  3) ~/.agyproxy — mặc định khi cài global bằng CLI (giống ~/.9router).
- */
-export const AGY_HOME =
-  process.env.AGY_HOME
-    ? resolve(process.env.AGY_HOME)
-    : existsSync(resolve(ROOT, 'data'))
-      ? ROOT
-      : resolve(homedir(), '.agyproxy');
-
-export const DATA_DIR = resolve(AGY_HOME, 'data');
-export const PROFILES_DIR = resolve(AGY_HOME, 'profiles');
-export const SCREENSHOTS_DIR = resolve(AGY_HOME, 'screenshots');
-export const PUBLIC_DIR = resolve(ROOT, 'public'); // asset luôn nằm cùng source
-
-for (const d of [DATA_DIR, PROFILES_DIR, SCREENSHOTS_DIR]) {
-  mkdirSync(d, { recursive: true });
-}
+// Re-export đường dẫn để mọi nơi vẫn `import { DATA_DIR } from './config.js'` như cũ.
+export { ROOT, AGY_HOME, DATA_DIR, PROFILES_DIR, SCREENSHOTS_DIR, PUBLIC_DIR, CSV, STATE_DB };
 
 function num(v: string | undefined, def: number): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : def;
 }
+function bool(v: string | undefined, def: boolean): boolean {
+  if (v == null || v === '') return def;
+  return v.toLowerCase() === 'true' || v === '1';
+}
 
 /**
- * Cấu hình đổi được từ giao diện (ghi đè .env, giữ qua restart).
- * File: <DATA_DIR>/settings.json
+ * Cấu hình: DB (bảng settings — đổi từ UI) → biến môi trường → mặc định.
+ * MỌI thay đổi qua setConfig() đều ghi DB nên sống qua restart.
  */
-const SETTINGS_FILE = resolve(DATA_DIR, 'settings.json');
-function loadSettings(): Record<string, unknown> {
-  try {
-    return JSON.parse(readFileSync(SETTINGS_FILE, 'utf8'));
-  } catch {
-    return {};
-  }
-}
-const saved = loadSettings();
 
-export function saveSettings(patch: Record<string, unknown>): void {
-  const cur = loadSettings();
-  const next = { ...cur, ...patch };
-  const tmp = SETTINGS_FILE + '.tmp';
-  writeFileSync(tmp, JSON.stringify(next, null, 2));
-  renameSync(tmp, SETTINGS_FILE);
-}
+// Migrate 1 lần từ settings.json (bản cũ) sang bảng settings trong DB.
+(function migrateLegacySettings() {
+  if (!existsSync(SETTINGS_FILE)) return;
+  try {
+    const j = JSON.parse(readFileSync(SETTINGS_FILE, 'utf8')) as Record<string, unknown>;
+    for (const [k, v] of Object.entries(j)) {
+      if (v !== undefined && v !== null) setSetting(k, String(v));
+    }
+    renameSync(SETTINGS_FILE, SETTINGS_FILE + '.migrated');
+  } catch {
+    /* file hỏng → bỏ qua */
+  }
+})();
+
+const saved = allSettings();
+const S = (key: string): string | undefined => saved[key];
 
 export const config = {
-  port: num(process.env.PORT, 7788),
-  // Bind host: 127.0.0.1 (chỉ máy này) | 0.0.0.0 (LAN/Internet — NÊN đặt DASHBOARD_PASSWORD)
-  host: process.env.HOST ?? '127.0.0.1',
-  // Mật khẩu đăng nhập dashboard. MẶC ĐỊNH '123456' — đổi được trong giao diện.
-  // Ưu tiên settings.json (đổi từ UI) → .env → mặc định.
-  dashboardPassword: (saved.dashboardPassword as string) ?? process.env.DASHBOARD_PASSWORD ?? '123456',
-  dashboardUser: (saved.dashboardUser as string) ?? process.env.DASHBOARD_USER ?? '',
-  // Secret ký session cookie (sinh 1 lần, lưu vào settings.json)
-  sessionSecret: (saved.sessionSecret as string) ?? '',
+  // ---- server (cần khởi động lại khi đổi) ----
+  port: num(S('port') ?? process.env.PORT, 7788),
+  host: S('host') ?? process.env.HOST ?? '127.0.0.1',
+  // ---- đăng nhập dashboard ----
+  dashboardPassword: S('dashboardPassword') ?? process.env.DASHBOARD_PASSWORD ?? '123456',
+  dashboardUser: S('dashboardUser') ?? process.env.DASHBOARD_USER ?? '',
+  sessionSecret: S('sessionSecret') ?? '',
+  // chống brute-force
+  loginMaxFail: num(S('loginMaxFail'), 5),
+  loginLockMin: num(S('loginLockMin'), 15),
+  // ---- OmniRoute ----
   omniroute: {
-    url: (process.env.OMNIROUTE_URL ?? 'http://localhost:20128').replace(/\/+$/, ''),
-    password: process.env.OMNIROUTE_PASSWORD ?? '',
+    url: (S('omnirouteUrl') ?? process.env.OMNIROUTE_URL ?? 'http://localhost:20128').replace(/\/+$/, ''),
+    password: S('omniroutePassword') ?? process.env.OMNIROUTE_PASSWORD ?? '',
   },
+  // ---- harvest ----
   pacing: {
-    minSec: num(process.env.PACING_MIN_SEC, 180),
-    maxSec: num(process.env.PACING_MAX_SEC, 600),
+    minSec: num(S('pacingMinSec') ?? process.env.PACING_MIN_SEC, 180),
+    maxSec: num(S('pacingMaxSec') ?? process.env.PACING_MAX_SEC, 600),
   },
-  dailyLoginCap: num(process.env.DAILY_LOGIN_CAP, 8),
-  humanTimeoutSec: num(process.env.HUMAN_TIMEOUT_SEC, 600),
-  headless: (process.env.HEADLESS ?? 'false').toLowerCase() === 'true',
-  // Fingerprint riêng/account (coherent macOS Chrome). Tắt: FINGERPRINT=false
-  fingerprint: (process.env.FINGERPRINT ?? 'true').toLowerCase() !== 'false',
-  // Major Chrome thật của máy (host) — pin để tránh lệch Client Hints
-  chromeMajor: num(process.env.CHROME_MAJOR, 150),
-  // Chu kỳ tự kiểm token health (giờ). 0 = tắt.
-  tokenHealthHours: num(process.env.TOKEN_HEALTH_HOURS, 6),
-  // Gateway "API proxy AGY": pool account Antigravity phục vụ OpenAI-compatible.
+  dailyLoginCap: num(S('dailyLoginCap') ?? process.env.DAILY_LOGIN_CAP, 8),
+  humanTimeoutSec: num(S('humanTimeoutSec') ?? process.env.HUMAN_TIMEOUT_SEC, 600),
+  headless: bool(S('headless') ?? process.env.HEADLESS, false),
+  fingerprint: bool(S('fingerprint') ?? process.env.FINGERPRINT, true),
+  chromeMajor: num(S('chromeMajor') ?? process.env.CHROME_MAJOR, 150),
+  browserChannel: S('browserChannel') ?? process.env.BROWSER_CHANNEL ?? 'chrome',
+  chromeNoSandbox: bool(S('chromeNoSandbox') ?? process.env.CHROME_NO_SANDBOX, false),
+  tokenHealthHours: num(S('tokenHealthHours') ?? process.env.TOKEN_HEALTH_HOURS, 6),
+  kiroRedirectUri: S('kiroRedirectUri') ?? process.env.KIRO_REDIRECT_URI ?? 'http://localhost:49153/oauth/callback',
+  // ---- gateway ----
   gateway: {
-    enabled: (process.env.GATEWAY_ENABLED ?? 'true').toLowerCase() !== 'false',
-    apiKey: process.env.GATEWAY_API_KEY ?? '', // set → bắt buộc Bearer khi gọi /proxy/v1
-    // round-robin | full-first | failover | highest-first
-    rotation: process.env.GATEWAY_ROTATION ?? 'round-robin',
-    outboundProxy: process.env.GATEWAY_PROXY ?? '', // proxy mặc định cho lệnh gọi Antigravity
-    cooldownSec: num(process.env.GATEWAY_COOLDOWN_SEC, 900), // cooldown khi 429/hết quota
-    // Hạn mức Antigravity: tích hợp nhiều cách lấy, bật/tắt từng cái.
+    enabled: bool(S('gatewayEnabled') ?? process.env.GATEWAY_ENABLED, true),
+    apiKey: S('gatewayApiKey') ?? process.env.GATEWAY_API_KEY ?? '',
+    rotation: S('gatewayRotation') ?? process.env.GATEWAY_ROTATION ?? 'round-robin',
+    outboundProxy: S('gatewayProxy') ?? process.env.GATEWAY_PROXY ?? '',
+    cooldownSec: num(S('gatewayCooldownSec') ?? process.env.GATEWAY_COOLDOWN_SEC, 900),
     quota: {
-      autoRefresh: (process.env.GATEWAY_QUOTA_AUTO ?? 'false').toLowerCase() === 'true',
-      intervalMin: num(process.env.GATEWAY_QUOTA_INTERVAL_MIN, 30),
-      onCall: (process.env.GATEWAY_QUOTA_ON_CALL ?? 'true').toLowerCase() !== 'false',
-      cacheTtlMin: num(process.env.GATEWAY_QUOTA_TTL_MIN, 10),
+      autoRefresh: bool(S('quotaAutoRefresh') ?? process.env.GATEWAY_QUOTA_AUTO, false),
+      intervalMin: num(S('quotaIntervalMin') ?? process.env.GATEWAY_QUOTA_INTERVAL_MIN, 30),
+      onCall: bool(S('quotaOnCall') ?? process.env.GATEWAY_QUOTA_ON_CALL, true),
+      cacheTtlMin: num(S('quotaCacheTtlMin') ?? process.env.GATEWAY_QUOTA_TTL_MIN, 10),
+      historyDays: num(S('quotaHistoryDays'), 90),
     },
   },
 };
 
 export type RotationStrategy = 'round-robin' | 'full-first' | 'failover' | 'highest-first';
 
+/** Map key cấu hình → nơi gán trong object config (dùng cho setConfig + API settings). */
+type Setter = (v: string) => void;
+const SETTERS: Record<string, Setter> = {
+  port: (v) => (config.port = Number(v)),
+  host: (v) => (config.host = v),
+  dashboardPassword: (v) => (config.dashboardPassword = v),
+  dashboardUser: (v) => (config.dashboardUser = v),
+  sessionSecret: (v) => (config.sessionSecret = v),
+  loginMaxFail: (v) => (config.loginMaxFail = Number(v)),
+  loginLockMin: (v) => (config.loginLockMin = Number(v)),
+  omnirouteUrl: (v) => (config.omniroute.url = v.replace(/\/+$/, '')),
+  omniroutePassword: (v) => (config.omniroute.password = v),
+  pacingMinSec: (v) => (config.pacing.minSec = Number(v)),
+  pacingMaxSec: (v) => (config.pacing.maxSec = Number(v)),
+  dailyLoginCap: (v) => (config.dailyLoginCap = Number(v)),
+  humanTimeoutSec: (v) => (config.humanTimeoutSec = Number(v)),
+  headless: (v) => (config.headless = v === 'true'),
+  fingerprint: (v) => (config.fingerprint = v === 'true'),
+  chromeMajor: (v) => (config.chromeMajor = Number(v)),
+  browserChannel: (v) => (config.browserChannel = v),
+  chromeNoSandbox: (v) => (config.chromeNoSandbox = v === 'true'),
+  tokenHealthHours: (v) => (config.tokenHealthHours = Number(v)),
+  kiroRedirectUri: (v) => (config.kiroRedirectUri = v),
+  gatewayEnabled: (v) => (config.gateway.enabled = v === 'true'),
+  gatewayApiKey: (v) => (config.gateway.apiKey = v),
+  gatewayRotation: (v) => (config.gateway.rotation = v),
+  gatewayProxy: (v) => (config.gateway.outboundProxy = v),
+  gatewayCooldownSec: (v) => (config.gateway.cooldownSec = Number(v)),
+  quotaAutoRefresh: (v) => (config.gateway.quota.autoRefresh = v === 'true'),
+  quotaIntervalMin: (v) => (config.gateway.quota.intervalMin = Number(v)),
+  quotaOnCall: (v) => (config.gateway.quota.onCall = v === 'true'),
+  quotaCacheTtlMin: (v) => (config.gateway.quota.cacheTtlMin = Number(v)),
+  quotaHistoryDays: (v) => (config.gateway.quota.historyDays = Number(v)),
+};
+
+/** Key là secret — API trả về dạng che. */
+export const SECRET_KEYS = new Set(['dashboardPassword', 'sessionSecret', 'omniroutePassword', 'gatewayApiKey']);
+/** Key đổi xong phải khởi động lại mới có hiệu lực. */
+export const RESTART_KEYS = new Set(['port', 'host']);
+export const CONFIG_KEYS = Object.keys(SETTERS);
+
+/** Đổi cấu hình: áp vào RAM + GHI DB (sống qua restart). Trả về các key đã đổi. */
+export function setConfig(patch: Record<string, unknown>): string[] {
+  const changed: string[] = [];
+  for (const [k, raw] of Object.entries(patch)) {
+    const set = SETTERS[k];
+    if (!set || raw === undefined || raw === null) continue;
+    const v = typeof raw === 'boolean' ? String(raw) : String(raw);
+    set(v);
+    setSetting(k, v);
+    changed.push(k);
+  }
+  return changed;
+}
+
+/** Giá trị hiện tại theo key (để API settings trả về). */
+export function getConfigValue(key: string): unknown {
+  switch (key) {
+    case 'omnirouteUrl': return config.omniroute.url;
+    case 'omniroutePassword': return config.omniroute.password;
+    case 'pacingMinSec': return config.pacing.minSec;
+    case 'pacingMaxSec': return config.pacing.maxSec;
+    case 'gatewayEnabled': return config.gateway.enabled;
+    case 'gatewayApiKey': return config.gateway.apiKey;
+    case 'gatewayRotation': return config.gateway.rotation;
+    case 'gatewayProxy': return config.gateway.outboundProxy;
+    case 'gatewayCooldownSec': return config.gateway.cooldownSec;
+    case 'quotaAutoRefresh': return config.gateway.quota.autoRefresh;
+    case 'quotaIntervalMin': return config.gateway.quota.intervalMin;
+    case 'quotaOnCall': return config.gateway.quota.onCall;
+    case 'quotaCacheTtlMin': return config.gateway.quota.cacheTtlMin;
+    case 'quotaHistoryDays': return config.gateway.quota.historyDays;
+    default: return (config as any)[key];
+  }
+}
+
+/** Tương thích ngược: code cũ gọi saveSettings({...}) vẫn hoạt động (ghi DB). */
+export function saveSettings(patch: Record<string, unknown>): void {
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined || v === null) continue;
+    setSetting(k, String(v));
+    const set = SETTERS[k];
+    if (set) set(String(v));
+  }
+}
+
+// Sinh secret ký session lần đầu chạy.
+if (!config.sessionSecret) {
+  config.sessionSecret = randomBytes(32).toString('hex');
+  setSetting('sessionSecret', config.sessionSecret);
+}
+
 /**
  * OAuth client của app Antigravity desktop (installed app — công khai, nhúng trong
- * mọi bản cài; các tool tham chiếu đều dùng chung). KHÔNG phải credential riêng.
- * Cho override qua env; literal tách chuỗi để không dính secret-scanning của GitHub.
+ * mọi bản cài). KHÔNG phải credential riêng. Literal tách chuỗi để không dính secret-scanning.
  */
 export const AGY_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 export const AGY_CLIENT_ID =
   process.env.AGY_CLIENT_ID ?? '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
 export const AGY_CLIENT_SECRET =
   process.env.AGY_CLIENT_SECRET ?? ['GOCSPX', 'K58FWR486LdLJ1mLB8sXC4z6qDAf'].join('-');
-
-// Sinh secret ký session lần đầu chạy.
-if (!config.sessionSecret) {
-  config.sessionSecret = randomBytes(32).toString('hex');
-  saveSettings({ sessionSecret: config.sessionSecret });
-}
-
-export const CSV = {
-  accounts: resolve(DATA_DIR, 'accounts.csv'),
-  proxies: resolve(DATA_DIR, 'proxies.csv'),
-  credentials: resolve(DATA_DIR, 'credentials.csv'),
-};
-
-export const STATE_DB = resolve(DATA_DIR, 'state.db');

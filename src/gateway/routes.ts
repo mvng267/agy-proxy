@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
 import { emitLog } from '../events.js';
 import { store } from '../store/index.js';
-import { recordGatewayUsage, usageTotals, usageSeries, usageByModel, usageByAccount, usageRows } from '../store/db.js';
+import { recordGatewayUsage, usageTotals, usageSeries, usageByModel, usageByAccount, usageRows, quotaSeries, quotaForAccount, quotaHistoryCount, pruneQuotaHistory } from '../store/db.js';
 import {
   pool,
   syncFromStore,
@@ -614,16 +614,44 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     return head + body;
   });
 
-  // ---------------- Auto refresh quota (nền) ----------------
-  if (config.gateway.quota?.autoRefresh) {
-    setInterval(() => {
-      const enabled = pool.list().filter((a) => a.enabled);
-      (async () => {
-        for (const a of enabled) {
+  // ---------------- Lịch sử hạn mức ----------------
+  app.get('/api/gateway/quota/history', async (req) => {
+    const q = req.query as any;
+    const to = q.to ? Number(q.to) : Date.now();
+    const days = q.range === '90d' ? 90 : q.range === '30d' ? 30 : q.range === '1d' ? 1 : 7;
+    const from = q.from ? Number(q.from) : to - days * 86400_000;
+    const groupBy = q.groupBy === 'hour' || days <= 1 ? 'hour' : 'day';
+    if (q.email) {
+      return { email: q.email, points: quotaForAccount(String(q.email), from, to) };
+    }
+    return { series: quotaSeries(from, to, groupBy), groupBy, total: quotaHistoryCount() };
+  });
+
+  // ---------------- Auto refresh quota (nền, ÁP NÓNG) ----------------
+  // Timer tự lên lịch lại mỗi vòng → bật/tắt & đổi chu kỳ có hiệu lực NGAY, không cần restart.
+  let quotaTimer: NodeJS.Timeout | null = null;
+  const scheduleQuotaLoop = () => {
+    if (quotaTimer) clearTimeout(quotaTimer);
+    const mins = Math.max(1, config.gateway.quota?.intervalMin ?? 30);
+    quotaTimer = setTimeout(async () => {
+      if (config.gateway.quota?.autoRefresh) {
+        for (const a of pool.list().filter((x) => x.enabled)) {
           await refreshQuota(a).catch(() => {});
           await new Promise((r) => setTimeout(r, 500));
         }
-      })().catch(() => {});
-    }, Math.max(5, config.gateway.quota.intervalMin) * 60_000);
-  }
+      }
+      scheduleQuotaLoop();
+    }, mins * 60_000);
+    quotaTimer.unref?.();
+  };
+  scheduleQuotaLoop();
+
+  // Dọn lịch sử cũ (theo cấu hình, mặc định 90 ngày): lúc boot + mỗi 24h.
+  const prune = () => {
+    try {
+      pruneQuotaHistory(config.gateway.quota?.historyDays ?? 90);
+    } catch { /* bỏ qua */ }
+  };
+  prune();
+  setInterval(prune, 24 * 3600_000).unref?.();
 }

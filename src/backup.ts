@@ -1,6 +1,7 @@
 import { store } from './store/index.js';
 import { config } from './config.js';
 import { pool, syncFromStore, savePersist } from './gateway/pool.js';
+import { allSettings, setSetting } from './store/db.js';
 import type { Account, Credential, Proxy } from './store/models.js';
 
 /**
@@ -18,6 +19,8 @@ export interface BackupData {
   credentials: Credential[];
   gateway: Record<string, any>;
   config: any;
+  /** v2: toàn bộ bảng settings (gồm secret) — khôi phục là chạy ngay. */
+  settings?: Record<string, string>;
 }
 
 export function buildBackup(): BackupData {
@@ -25,7 +28,10 @@ export function buildBackup(): BackupData {
   const proxies = store.listProxies();
   const credentials = store.listCredentials();
   return {
-    version: 1,
+    version: 2,
+    // TOÀN BỘ cấu hình từ DB — gồm cả secret (mật khẩu OmniRoute, API key, hash mật khẩu
+    // dashboard, sessionSecret) để khôi phục máy mới là chạy được ngay.
+    settings: allSettings(),
     exportedAt: new Date().toISOString(),
     counts: { accounts: accounts.length, proxies: proxies.length, credentials: credentials.length },
     accounts,
@@ -52,8 +58,8 @@ export function restoreBackup(
   data: any,
   opts: { mode?: 'merge' | 'replace' } = {},
 ): { restored: { accounts: number; proxies: number; credentials: number; gateway: number } } {
-  if (!data || typeof data !== 'object' || data.version !== 1) {
-    throw new Error('File backup không hợp lệ (cần version=1)');
+  if (!data || typeof data !== 'object' || (data.version !== 1 && data.version !== 2)) {
+    throw new Error('File backup không hợp lệ (cần version 1 hoặc 2)');
   }
   const mode = opts.mode === 'replace' ? 'replace' : 'merge';
 
@@ -88,7 +94,14 @@ export function restoreBackup(
     }
     savePersist();
   }
-  // 5) config runtime
+  // 5) settings (v2): ghi thẳng vào DB → cấu hình sống qua restart
+  if (data.settings && typeof data.settings === 'object') {
+    for (const [k, v] of Object.entries<any>(data.settings)) {
+      if (v !== undefined && v !== null) setSetting(k, String(v));
+    }
+  }
+
+  // 6) config runtime (backup v1 cũ) — vẫn áp để tương thích ngược
   const c = data.config;
   if (c && typeof c === 'object') {
     if (c.pacing) {
