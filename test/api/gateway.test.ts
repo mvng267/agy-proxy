@@ -16,7 +16,7 @@ before(async () => {
   await app.register(formbody);
   await registerGatewayRoutes(app);
   await app.ready();
-  sampleEmail = pool.list()[0]?.email ?? '';
+  sampleEmail = pool.list('agy')[0]?.email ?? '';
 });
 
 test('GET /api/gateway/models trả danh sách model', async () => {
@@ -57,10 +57,10 @@ test('PATCH /api/gateway/config đổi rotation', async () => {
 
 test('toggle account đổi enabled', async (t) => {
   if (!sampleEmail) return t.skip('không có account agy trong store');
-  const before = pool.accounts.get(sampleEmail)!.enabled;
+  const before = pool.get(sampleEmail, "agy")!.enabled;
   const r = await app.inject({ method: 'POST', url: `/api/gateway/accounts/${encodeURIComponent(sampleEmail)}/toggle`, payload: { enabled: !before } });
   assert.equal(r.statusCode, 200);
-  assert.equal(pool.accounts.get(sampleEmail)!.enabled, !before);
+  assert.equal(pool.get(sampleEmail, "agy")!.enabled, !before);
   // khôi phục
   await app.inject({ method: 'POST', url: `/api/gateway/accounts/${encodeURIComponent(sampleEmail)}/toggle`, payload: { enabled: before } });
 });

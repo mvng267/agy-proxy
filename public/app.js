@@ -125,6 +125,9 @@ $('nav').addEventListener('click', (e) => {
   if (t === 'quota') loadQuota();
   if (t === 'usage') loadUsage();
   if (t === 'gwlog') renderGwlog();
+  if (t === 'models') loadModels();
+  if (t === 'combo') loadCombo();
+  if (t === 'tools') loadTools();
   if (t === 'settings') loadSettings();
 });
 
@@ -676,6 +679,182 @@ async function addSingle() { if (!$('a-email').value.trim()) return toast('Thi�
 async function importBulk() { const r = await api('/api/accounts/import', { method: 'POST', body: { text: $('a-bulk').value } }); toast('Đã import ' + r.added + ' account'); $('a-bulk').value = ''; loadAccounts(); loadSummary(); }
 async function genRange() { const r = await api('/api/accounts/generate', { method: 'POST', body: { prefix: $('g-prefix').value.trim(), start: +$('g-start').value, end: +$('g-end').value, domain: $('g-domain').value.trim(), password: $('g-pass').value, extra: $('g-extra').value } }); toast('Đã sinh ' + r.added + ' account'); loadAccounts(); loadSummary(); }
 $('a-file-import').addEventListener('click', () => { const f = $('a-file').files[0]; if (!f) return toast('Chọn file'); const rd = new FileReader(); rd.onload = async () => { const r = await api('/api/accounts/import', { method: 'POST', body: { text: String(rd.result) } }); toast('Đã import ' + r.added + ' account'); loadAccounts(); loadSummary(); }; rd.readAsText(f); });
+
+// ---------- Models (tách theo provider) ----------
+let modelsCache = [];
+async function loadModels() {
+  const [g, accs] = await Promise.all([api('/api/gateway/models'), api('/api/gateway/accounts')]);
+  modelsCache = g.models || [];
+  $('tc-models').textContent = modelsCache.length;
+  const byProv = {};
+  for (const m of modelsCache) (byProv[m.provider] ??= []).push(m);
+  const counts = accs.counts || {};
+  const okOf = (p) => (accs.accounts || []).filter((a) => a.provider === p && !a.cooldown && a.enabled).length;
+  $('models-groups').innerHTML = Object.entries(byProv).map(([pid, list]) => `
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h3 style="margin:0">${esc(list[0].providerLabel || pid)} <span class="chip">${esc(pid)}/</span></h3>
+        <span class="faint">${counts[pid] ?? 0} account · ${okOf(pid)} sẵn sàng
+          <button class="sm" data-copyall="${esc(pid)}" title="Copy tất cả id">${icon('copy')} Copy tất cả</button></span>
+      </div>
+      <div class="chips" id="mg-${esc(pid)}" style="margin-top:10px">${list.map((m) => modelChip(m)).join('')}</div>
+    </div>`).join('');
+  wireModelChips();
+  document.querySelectorAll('[data-copyall]').forEach((b) => b.addEventListener('click', async () => {
+    const ids = modelsCache.filter((m) => m.provider === b.dataset.copyall).map((m) => m.id).join('\n');
+    await navigator.clipboard.writeText(ids).catch(() => {});
+    toast('Đã copy ' + ids.split('\n').length + ' model id');
+  }));
+}
+function modelChip(m) {
+  const st = m.status || 'unknown';
+  const tip = { ok: 'Gọi được ✓', quota: 'Hết hạn mức', error: 'Gọi lỗi', unknown: 'Chưa kiểm — bấm Check live' }[st] || st;
+  return `<span class="chip model-chip ${st}" title="${esc(tip)}${m.detail ? ' — ' + esc(m.detail) : ''}">
+    <span class="mc-dot"></span>${m.image ? '<span class="mc-img">🖼</span>' : ''}<b class="mc-id">${esc(m.id)}</b>${m.ms ? `<span class="faint mc-ms">${m.ms}ms</span>` : ''}
+    <button class="mc-copy" data-model="${esc(m.id)}" title="Copy tên model">${icon('copy')}</button></span>`;
+}
+function wireModelChips() {
+  document.querySelectorAll('#models-groups .mc-copy').forEach((b) => b.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await navigator.clipboard.writeText(b.dataset.model).catch(() => {});
+    toast('Đã copy: ' + b.dataset.model);
+  }));
+}
+$('models-check').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+  toast('Đang gọi thử từng model (có thể mất 1-2 phút)…');
+  const r = await api('/api/gateway/models/check?provider=all', { method: 'POST', body: {} });
+  const st = {};
+  for (const m of r.models || []) st[m.id] = m;
+  modelsCache = modelsCache.map((m) => ({ ...m, ...(st[m.id] || {}) }));
+  const byProv = {};
+  for (const m of modelsCache) (byProv[m.provider] ??= []).push(m);
+  for (const [pid, list] of Object.entries(byProv)) {
+    const el2 = $('mg-' + pid);
+    if (el2) el2.innerHTML = list.map(modelChip).join('');
+  }
+  wireModelChips();
+  const ok = (r.models || []).filter((m) => m.status === 'ok').length;
+  toast(`Check live: ${ok}/${(r.models || []).length} model gọi được`);
+}));
+
+// ---------- Combo ----------
+async function loadCombo() {
+  const r = await api('/api/combos');
+  $('tc-combo').textContent = (r.combos || []).length;
+  $('auto-chips').innerHTML = (r.autoVariants || []).map((v) => `
+    <span class="chip model-chip ok"><span class="mc-dot"></span><b class="mc-id">${esc(v)}</b>
+    <button class="mc-copy" data-model="${esc(v)}" title="Copy">${icon('copy')}</button></span>`).join('');
+  $('combo-list').innerHTML = (r.combos || []).length
+    ? r.combos.map((c) => `
+      <div class="panel">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h3 style="margin:0">combo/${esc(c.id)}
+            <button class="mc-copy" data-model="combo/${esc(c.id)}" title="Copy id">${icon('copy')}</button></h3>
+          <span class="faint">${esc({ priority: 'Ưu tiên theo thứ tự', 'round-robin': 'Chia tải', weighted: 'Trọng số', 'highest-quota': 'Quota cao nhất' }[c.strategy] || c.strategy)}
+            · ${c.calls} gọi · ${c.fallbacks} lần trượt</span>
+        </div>
+        <div style="margin-top:10px">${c.targets.map((t, i) => `
+          <div class="row" style="gap:8px;align-items:center;margin-bottom:6px">
+            <span class="chip">${i + 1}</span><span class="mono">${esc(t.model)}</span></div>`).join('')}</div>
+        <div class="row end" style="margin-top:8px">
+          <button class="sm" data-test="${esc(c.id)}">Thử</button>
+          <button class="sm danger" data-del="${esc(c.id)}">Xoá</button>
+        </div>
+      </div>`).join('')
+    : '<div class="panel"><div class="empty">Chưa có combo. Bấm <b>Tạo combo</b> để ghép nhiều model có dự phòng.</div></div>';
+
+  document.querySelectorAll('#view-combo .mc-copy').forEach((b) => b.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(b.dataset.model).catch(() => {});
+    toast('Đã copy: ' + b.dataset.model);
+  }));
+  document.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirmAct(`Xoá combo/${b.dataset.del}?`)) return;
+    await api('/api/combos/' + b.dataset.del, { method: 'DELETE' });
+    toast('Đã xoá'); loadCombo();
+  }));
+  document.querySelectorAll('[data-test]').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+    const t0 = Date.now();
+    const res = await fetch('/proxy/v1/chat/completions', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: `combo/${b.dataset.test}`, messages: [{ role: 'user', content: 'Reply with exactly: PONG' }] }),
+    });
+    const j = await res.json();
+    toast(res.ok ? `✓ ${j.choices?.[0]?.message?.content?.slice(0, 30)} · ${Date.now() - t0}ms` : '✗ ' + (j.error?.message || j.error));
+    loadCombo();
+  })));
+}
+$('combo-new').addEventListener('click', async () => {
+  const id = prompt('Tên combo (chỉ chữ/số/-):', 'main');
+  if (!id) return;
+  const models = (modelsCache.length ? modelsCache : (await api('/api/gateway/models')).models).map((m) => m.id);
+  const list = prompt(`Nhập model theo thứ tự ưu tiên, cách nhau dấu phẩy.\nCó thể dùng:\n${models.join(', ')}`, models.slice(0, 2).join(','));
+  if (!list) return;
+  const targets = list.split(',').map((s) => ({ model: s.trim() })).filter((t) => t.model);
+  const r = await api('/api/combos', { method: 'POST', body: { id, name: id, strategy: 'priority', targets } });
+  toast(r.ok ? 'Đã tạo combo/' + r.id : 'Lỗi: ' + r.error);
+  loadCombo();
+});
+$('auto-preview').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+  const r = await api('/api/combos/auto/preview?variant=' + $('auto-variant').value);
+  $('auto-rank').innerHTML = `
+    <div class="tablewrap"><table><thead><tr><th>#</th><th>Model</th><th>Điểm</th><th>Sức khoẻ</th><th>Quota</th><th>Độ trễ</th><th>Tỉ lệ OK</th></tr></thead><tbody>
+    ${(r.ranking || []).map((s, i) => `<tr><td>${i + 1}</td><td class="mono">${esc(s.model)}</td><td><b>${s.score.toFixed(3)}</b></td>
+      <td>${(s.detail.health * 100).toFixed(0)}%</td><td>${(s.detail.quota * 100).toFixed(0)}%</td>
+      <td>${(s.detail.latency * 100).toFixed(0)}%</td><td>${(s.detail.success * 100).toFixed(0)}%</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="faint" style="margin-top:6px">Thứ tự sẽ thử: ${(r.plan || []).map((t) => `<span class="chip">${esc(t.model)}</span>`).join(' → ')}</div>`;
+}));
+
+// ---------- CLI Tools ----------
+async function loadTools() {
+  const r = await api('/api/tools');
+  const models = (modelsCache.length ? modelsCache : (await api('/api/gateway/models')).models).map((m) => m.id);
+  const combos = (await api('/api/combos').catch(() => ({}))) || {};
+  const allIds = [...models, ...(combos.combos || []).map((c) => 'combo/' + c.id), ...(combos.autoVariants || [])];
+  $('tools-base').textContent = `OpenAI ${r.baseUrl.openai} · Anthropic ${r.baseUrl.anthropic}`;
+  $('tc-tools').textContent = (r.tools || []).filter((t) => t.configured).length + '/' + (r.tools || []).length;
+  $('tools-warn').innerHTML = r.warning
+    ? `<div class="panel" style="border-color:var(--red)"><b style="color:var(--red)">⚠ ${esc(r.warning)}</b></div>` : '';
+  $('tools-grid').innerHTML = (r.tools || []).map((t) => `
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h3 style="margin:0">${esc(t.label)}</h3>
+        ${t.configured ? '<span class="badge ok"><span class="bd"></span>Đã cấu hình</span>' : `<span class="chip">${t.installed ? 'Chưa cấu hình' : 'Chưa cài'}</span>`}
+      </div>
+      <p class="set-desc mono" style="font-size:11.5px">${esc(t.path)}</p>
+      <p class="set-desc">Chuẩn: <b>${t.api === 'anthropic' ? 'Anthropic /v1/messages' : 'OpenAI /proxy/v1'}</b>${t.model ? ` · đang dùng <b>${esc(t.model)}</b>` : ''}</p>
+      <label class="fl">Model</label>
+      <select data-model-for="${esc(t.id)}">${allIds.map((m) => `<option ${m === (t.model || r.defaultModel) ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
+      ${t.notes ? `<p class="set-desc" style="margin-top:8px">${esc(t.notes)}</p>` : ''}
+      <div class="row end" style="margin-top:12px">
+        <button class="sm" data-preview="${esc(t.id)}">Xem trước</button>
+        <button class="sm primary" data-apply="${esc(t.id)}">${t.configured ? 'Cấu hình lại' : 'Cấu hình'}</button>
+        ${t.configured || t.hasBackup ? `<button class="sm danger" data-undo="${esc(t.id)}">Gỡ</button>` : ''}
+      </div>
+    </div>`).join('');
+
+  const modelOf = (id) => document.querySelector(`[data-model-for="${id}"]`)?.value;
+  document.querySelectorAll('[data-preview]').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+    const p = await api(`/api/tools/${b.dataset.preview}/preview`, { method: 'POST', body: { model: modelOf(b.dataset.preview) } });
+    if (!p.ok) return toast('Lỗi: ' + p.error);
+    $('detail-title').textContent = 'Sẽ ghi vào ' + p.path;
+    $('detail-body').innerHTML =
+      `${p.before ? `<h3 style="font-size:12px">Hiện tại</h3><pre class="agy-out" style="max-height:180px">${esc(p.before)}</pre>` : '<p class="faint">File chưa tồn tại — sẽ tạo mới.</p>'}
+       <h3 style="font-size:12px;margin-top:10px">Sau khi ghi</h3><pre class="agy-out" style="max-height:220px">${esc(p.after)}</pre>`;
+    openModal('modal-detail');
+  })));
+  document.querySelectorAll('[data-apply]').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+    const r2 = await api(`/api/tools/${b.dataset.apply}/apply`, { method: 'POST', body: { model: modelOf(b.dataset.apply) } });
+    toast(r2.ok ? `Đã cấu hình · model ${r2.model}${r2.backup ? ' (đã backup)' : ''}` : 'Lỗi: ' + r2.error);
+    loadTools();
+  })));
+  document.querySelectorAll('[data-undo]').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirmAct('Gỡ cấu hình và khôi phục file cũ?')) return;
+    const r2 = await api(`/api/tools/${b.dataset.undo}/undo`, { method: 'POST', body: {} });
+    toast(r2.detail || (r2.ok ? 'Đã gỡ' : 'Không gỡ được'));
+    loadTools();
+  }));
+}
 
 // ---------- settings (chia tab, mọi trường lưu DB) ----------
 let setMeta = {};

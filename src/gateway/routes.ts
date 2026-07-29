@@ -3,7 +3,24 @@ import { randomUUID } from 'node:crypto';
 import { config, setConfig } from '../config.js';
 import { emitLog } from '../events.js';
 import { store } from '../store/index.js';
-import { recordGatewayUsage, usageTotals, usageSeries, usageByModel, usageByAccount, usageRows, quotaSeries, quotaForAccount, quotaHistoryCount, pruneQuotaHistory } from '../store/db.js';
+import {
+  recordGatewayUsage, usageTotals, usageSeries, usageByModel, usageByAccount, usageRows,
+  quotaSeries, quotaForAccount, quotaHistoryCount, pruneQuotaHistory,
+  listComboRows, getComboRow, upsertComboRow, deleteComboRow, recordComboRun, comboStatsRows,
+  providerStats, usageByProvider, recordQuota,
+} from '../store/db.js';
+import {
+  PROVIDERS, PROVIDER_IDS, allModels, parseModelId, ModelIdError,
+  type ParsedModel, type ProviderId, type ProviderSession,
+} from './providers/index.js';
+import {
+  planCombo, planAuto, shouldFallback, validateTargets, AUTO_VARIANT_IDS, AUTO_VARIANTS, scoreCandidates,
+  type Combo, type ComboStrategy, type ComboTarget, type PoolSnapshot,
+} from './combo.js';
+import {
+  anthropicToMessages, anthropicGenerationConfig, resultToAnthropic, sseFrame,
+  anthropicErrorBody, resolveAnthropicModel, type AnthropicRequest,
+} from './anthropic.js';
 import {
   pool,
   syncFromStore,
@@ -99,27 +116,35 @@ function authOk(req: FastifyRequest): boolean {
   return h === `Bearer ${key}` || h === key;
 }
 
-/** Chọn account (ép email nếu có) + lấy access_token/project sẵn sàng. */
+/** Lấy account theo email + provider từ query (mặc định agy → URL cũ vẫn đúng). */
+function accOf(req: FastifyRequest, email: string): PoolAccount | undefined {
+  const q = (req.query ?? {}) as any;
+  const pid = (q.provider as ProviderId) || 'agy';
+  return pool.get(email, PROVIDERS[pid] ? pid : 'agy');
+}
+
+/** Chọn account của ĐÚNG provider (ép email nếu có) + lấy session sẵn sàng. */
 async function pickReady(
+  provider: ProviderId,
   forcedEmail: string | undefined,
   proxyOverride: string | undefined,
-): Promise<{ account: PoolAccount; accessToken: string; projectId: string; dispatcher: any }> {
+): Promise<{ account: PoolAccount; session: ProviderSession; dispatcher: any }> {
   let account: PoolAccount;
   if (forcedEmail) {
-    const a = pool.accounts.get(forcedEmail);
-    if (!a) throw new NoAccountError(`Account ${forcedEmail} không có trong pool`);
+    const a = pool.get(forcedEmail, provider);
+    if (!a) throw new NoAccountError(`Account ${forcedEmail} không có trong pool ${provider}`);
     if (!a.enabled) throw new NoAccountError(`Account ${forcedEmail} đang tắt`);
     account = a;
     account.inflight++; // đối xứng với pool.release() ở finally
   } else {
-    account = pool.pick(strategy()); // pick đã inflight++
+    account = pool.pick(strategy(), Date.now(), provider); // pick đã inflight++
   }
   try {
     const dispatcher = dispatcherFor(account, proxyOverride);
-    const { accessToken, projectId } = await ensureReady(account, dispatcher);
-    return { account, accessToken, projectId, dispatcher };
+    const session = await ensureReady(account, dispatcher);
+    return { account, session, dispatcher };
   } catch (e) {
-    pool.release(account.email); // chuẩn bị token/project lỗi → trả lại inflight
+    pool.release(account); // chuẩn bị token/project lỗi → trả lại inflight
     throw e;
   }
 }
@@ -168,114 +193,266 @@ function sseChunk(reply: FastifyReply, model: string, id: string, delta: any, fi
   reply.raw.write(`data: ${JSON.stringify(chunk)}\n\n`);
 }
 
+// ---------------- Combo helpers ----------------
+function listCombos(): Combo[] {
+  return listComboRows().map((r) => ({
+    id: r.id,
+    name: r.name,
+    strategy: r.strategy as ComboStrategy,
+    targets: JSON.parse(r.targets_json) as ComboTarget[],
+    enabled: r.enabled !== 0,
+  }));
+}
+
+let statsCache: { at: number; snap: PoolSnapshot } | null = null;
+/** Ảnh chụp pool cho chấm điểm — cache 60s (KHÔNG truy vấn DB mỗi request). */
+function poolSnapshot(): PoolSnapshot {
+  if (statsCache && Date.now() - statsCache.at < 60_000) return statsCache.snap;
+  const stats = providerStats(Date.now() - 24 * 3600_000);
+  const snap: PoolSnapshot = {};
+  for (const pid of PROVIDER_IDS) {
+    const all = pool.list(pid);
+    const avail = pool.candidates(Date.now(), pid);
+    const st = stats.find((s) => s.provider === pid);
+    const withQuota = all.map((a) => geminiPct(a)).filter((x): x is number => x != null);
+    snap[pid] = {
+      provider: pid,
+      available: avail.length,
+      total: all.length,
+      quotaAvg: withQuota.length ? Math.round(withQuota.reduce((s, x) => s + x, 0) / withQuota.length) : null,
+      p95Ms: st?.p95 ?? null,
+      successRate: st?.okRate ?? null,
+      inflight: all.reduce((s, a) => s + a.inflight, 0),
+    };
+  }
+  statsCache = { at: Date.now(), snap };
+  return snap;
+}
+
 export async function registerGatewayRoutes(app: FastifyInstance): Promise<void> {
-  syncFromStore();
+  syncFromStore(true);
+
+  /** Chạy combo/auto: thử từng bước, trượt sang bước kế khi shouldFallback. */
+  async function runComboRequest(
+    parsed: ParsedModel,
+    o: {
+      messages: ChatMessage[];
+      stream: boolean;
+      reply: FastifyReply;
+      runProviderCall: (opts: any) => Promise<{ done: true } | { result: GenResult }>;
+    },
+  ): Promise<any> {
+    const snap = poolSnapshot();
+    let plan: ComboTarget[];
+    let comboName: string;
+
+    if (parsed.kind === 'auto') {
+      comboName = parsed.prefixed;
+      plan = planAuto(parsed.combo || 'default', snap);
+    } else {
+      const c = listCombos().find((x) => x.id === parsed.combo);
+      if (!c) return o.reply.code(404).send({ error: `Combo "${parsed.combo}" không tồn tại` });
+      if (!c.enabled) return o.reply.code(503).send({ error: `Combo "${c.id}" đang tắt` });
+      comboName = `combo/${c.id}`;
+      plan = planCombo(c, snap);
+    }
+    if (!plan.length) return o.reply.code(503).send({ error: `${comboName}: không có model nào khả dụng` });
+
+    const maxSteps = Math.min(plan.length, 3);
+    let lastErr: any;
+    for (let step = 0; step < maxSteps; step++) {
+      const t = plan[step]!;
+      const t0 = Date.now();
+      let p: ParsedModel;
+      try {
+        p = parseModelId(t.model);
+      } catch (e: any) {
+        lastErr = e;
+        continue;
+      }
+      if (p.kind !== 'provider') continue; // combo không được trỏ tới combo
+      try {
+        if (o.stream && step === 0) sseInit(o.reply);
+        const out = await o.runProviderCall({
+          provider: p.provider!, bare: p.model!, labelModel: p.prefixed,
+          messages: o.messages, stream: o.stream, reply: o.reply, endpoint: comboName,
+        });
+        recordComboRun({ combo: comboName, step, model: p.prefixed, ok: true, ms: Date.now() - t0 });
+        if ('done' in out) return o.reply;
+        return o.reply.send(openaiCompletion(comboName, out.result));
+      } catch (e: any) {
+        lastErr = e;
+        recordComboRun({ combo: comboName, step, model: p.prefixed, ok: false, status: e?.status, ms: Date.now() - t0, reason: String(e?.message ?? e) });
+        emitGw({
+          kind: 'err', account: '-', model: comboName, status: e?.status,
+          msg: `${comboName} bước ${step + 1} (${p.prefixed}) lỗi → ${shouldFallback(e) ? 'trượt sang bước kế' : 'dừng'}: ${String(e?.message ?? e).slice(0, 80)}`,
+        });
+        // stream đã gửi byte → không phát lại được (giới hạn đã biết)
+        if (o.stream && o.reply.raw.headersSent) throw e;
+        if (!shouldFallback(e)) throw e;
+      }
+    }
+    throw lastErr ?? new NoAccountError(`${comboName}: mọi bước đều lỗi`);
+  }
 
   // ---------------- OpenAI-compatible ----------------
   app.get('/proxy/v1/models', async (req, reply) => {
     if (!authOk(req)) return reply.code(401).send({ error: 'unauthorized' });
-    return {
-      object: 'list',
-      data: MODELS.map((m) => ({ id: m.id, object: 'model', owned_by: 'antigravity' })),
-    };
+    const data = allModels().map((m) => ({
+      id: m.prefixed,
+      object: 'model',
+      owned_by: m.provider === 'kr' ? 'kiro' : 'antigravity',
+    }));
+    // combo do người dùng tạo + combo ảo auto
+    for (const c of listCombos()) data.push({ id: `combo/${c.id}`, object: 'model', owned_by: 'combo' });
+    for (const v of AUTO_VARIANT_IDS) data.push({ id: v, object: 'model', owned_by: 'combo' });
+    return { object: 'list', data };
   });
 
-  app.post('/proxy/v1/chat/completions', async (req, reply) => {
-    if (!authOk(req)) return reply.code(401).send({ error: 'unauthorized' });
-    if (!config.gateway.enabled) return reply.code(503).send({ error: 'gateway disabled' });
-    const body = req.body as any;
-    const model = body?.model || 'gemini-3-pro-low';
-    const messages = toMessages(body);
-    const stream = !!body?.stream;
-    syncFromStore();
-
-    // thử tối đa vài account (failover tự nhiên qua strategy)
-    const maxTry = Math.min(3, Math.max(1, pool.candidates().length));
+  /**
+   * Chạy 1 lượt gọi model (đã biết provider + id trần) với failover qua nhiều account.
+   * Trả về true nếu đã gửi response (stream), hoặc GenResult nếu non-stream.
+   */
+  async function runProviderCall(opts: {
+    provider: ProviderId;
+    bare: string;
+    labelModel: string; // id có prefix — dùng cho log/usage/echo
+    messages: ChatMessage[];
+    stream: boolean;
+    reply: FastifyReply;
+    forcedEmail?: string;
+    proxyOverride?: string;
+    endpoint?: string;
+    onStreamDelta?: (t: string) => void;
+    sseWriter?: (delta: string) => void;
+  }): Promise<{ done: true } | { result: GenResult }> {
+    const { provider, bare, labelModel, messages, stream, reply } = opts;
+    const p = PROVIDERS[provider];
+    const avail = pool.candidates(Date.now(), provider).length;
+    // Lỗi thật (5xx/mạng) chỉ thử 3 account. Nhưng account HẾT HẠN MỨC thì bị cooldown
+    // ngay khi report → bỏ qua rất rẻ, nên không tính vào hạn thử (tối đa 12 lần bỏ qua).
+    // Cần thiết vì pool Kiro có ~40% account đã cạn hạn mức tháng.
+    const maxTry = Math.min(3, Math.max(1, avail));
+    const maxSkip = Math.min(12, avail);
     let lastErr: any;
-    for (let attempt = 0; attempt < maxTry; attempt++) {
+    let tries = 0;
+    let skips = 0;
+
+    for (let attempt = 0; tries < maxTry && skips <= maxSkip; attempt++) {
       let ctx: Awaited<ReturnType<typeof pickReady>>;
       try {
-        ctx = await pickReady(undefined, undefined);
+        ctx = await pickReady(provider, opts.forcedEmail, opts.proxyOverride);
       } catch (e) {
         lastErr = e;
         break;
       }
       const t0 = Date.now();
       const plabel = proxyLabelOf(ctx.account);
-      emitGw({ kind: 'req', account: ctx.account.email, model, proxy: plabel, endpoint: '/proxy/v1', attempt: attempt + 1, msg: `→ ${model} · ${ctx.account.email}${stream ? ' (stream)' : ''} · proxy:${plabel}` });
+      emitGw({
+        kind: 'req', account: ctx.account.email, model: labelModel, proxy: plabel,
+        endpoint: opts.endpoint ?? '/proxy/v1', attempt: attempt + 1,
+        msg: `→ ${labelModel} · ${ctx.account.email}${stream ? ' (stream)' : ''} · proxy:${plabel}`,
+      });
       try {
         if (stream) {
-          sseInit(reply);
           const id = 'chatcmpl-' + randomUUID();
-          let pt = 0;
-          let ct = 0;
-          for await (const ev of generateStream({
-            accessToken: ctx.accessToken,
-            projectId: ctx.projectId,
-            model,
-            messages,
-            dispatcher: ctx.dispatcher,
-          })) {
-            if (ev.delta) sseChunk(reply, model, id, { content: ev.delta }, null);
-            if (ev.image) sseChunk(reply, model, id, { content: `\n![image](${ev.image})` }, null);
-            if (ev.usage) {
-              pt = ev.usage.promptTokens;
-              ct = ev.usage.completionTokens;
+          let pt = 0, ct = 0;
+          for await (const ev of p.generateStream({ session: ctx.session, model: bare, messages, dispatcher: ctx.dispatcher })) {
+            if (ev.delta) {
+              if (opts.sseWriter) opts.sseWriter(ev.delta);
+              else sseChunk(reply, labelModel, id, { content: ev.delta }, null);
             }
+            if (ev.image && !opts.sseWriter) sseChunk(reply, labelModel, id, { content: `\n![image](${ev.image})` }, null);
+            if (ev.usage) { pt = ev.usage.promptTokens; ct = ev.usage.completionTokens; }
           }
-          sseChunk(reply, model, id, {}, 'stop');
-          reply.raw.write('data: [DONE]\n\n');
-          reply.raw.end();
+          if (!opts.sseWriter) {
+            sseChunk(reply, labelModel, id, {}, 'stop');
+            reply.raw.write('data: [DONE]\n\n');
+            reply.raw.end();
+          }
           const ms = Date.now() - t0;
-          pool.report(ctx.account.email, { ok: true, promptTokens: pt, completionTokens: ct });
-          afterCall(ctx.account, model, { ok: true, promptTokens: pt, completionTokens: ct, ms });
+          pool.report(ctx.account, { ok: true, promptTokens: pt, completionTokens: ct });
+          afterCall(ctx.account, labelModel, { ok: true, promptTokens: pt, completionTokens: ct, ms });
           savePersist();
-          emitGw({ kind: 'res', account: ctx.account.email, model, ms, tokens: pt + ct, status: 200, msg: `← 200 · stream · ${pt + ct} tok · ${ms}ms` });
-          return reply;
-        } else {
-          const r = await generate({
-            accessToken: ctx.accessToken,
-            projectId: ctx.projectId,
-            model,
-            messages,
-            dispatcher: ctx.dispatcher,
-          });
-          const ms = Date.now() - t0;
-          pool.report(ctx.account.email, {
-            ok: true,
-            promptTokens: r.usage.promptTokens,
-            completionTokens: r.usage.completionTokens,
-          });
-          afterCall(ctx.account, model, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, ms });
-          savePersist();
-          emitGw({ kind: 'res', account: ctx.account.email, model, ms, tokens: r.usage.totalTokens, status: 200, msg: `← 200 · ${r.usage.totalTokens} tok · ${ms}ms` });
-          return reply.send(openaiCompletion(model, r));
+          emitGw({ kind: 'res', account: ctx.account.email, model: labelModel, ms, tokens: pt + ct, status: 200, msg: `← 200 · stream · ${pt + ct} tok · ${ms}ms` });
+          return { done: true };
         }
+        const r = await p.generate({ session: ctx.session, model: bare, messages, dispatcher: ctx.dispatcher });
+        const ms = Date.now() - t0;
+        pool.report(ctx.account, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens });
+        afterCall(ctx.account, labelModel, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, ms });
+        savePersist();
+        emitGw({ kind: 'res', account: ctx.account.email, model: labelModel, ms, tokens: r.usage.totalTokens, status: 200, msg: `← 200 · ${r.usage.totalTokens} tok · ${ms}ms` });
+        return { result: r };
       } catch (e: any) {
         lastErr = e;
         const ms = Date.now() - t0;
-        pool.report(ctx.account.email, { ok: false, status: e?.status, err: e?.message });
-        afterCall(ctx.account, model, { ok: false, ms });
-        emitGw({ kind: 'err', account: ctx.account.email, model, ms, status: e?.status, msg: `← ✗ ${e?.status ?? ''} ${String(e?.message ?? e).slice(0, 100)}` });
-        if (stream && reply.raw.headersSent) {
-          reply.raw.end();
-          return reply;
-        }
-        // thử account kế
+        pool.report(ctx.account, { ok: false, status: e?.status, err: e?.message });
+        afterCall(ctx.account, labelModel, { ok: false, ms });
+        const outOfQuota = e?.status === 402 || e?.status === 429 || /MONTHLY_REQUEST_COUNT|quota|exhaust/i.test(String(e?.message ?? ''));
+        if (outOfQuota) skips++;
+        else tries++;
+        emitGw({
+          kind: 'err', account: ctx.account.email, model: labelModel, ms, status: e?.status,
+          msg: `← ✗ ${e?.status ?? ''} ${outOfQuota ? '(hết hạn mức → đổi account)' : ''} ${String(e?.message ?? e).slice(0, 90)}`,
+        });
+        if (stream && reply.raw.headersSent) throw e; // đã gửi byte → không cứu được
       } finally {
-        pool.release(ctx.account.email);
+        pool.release(ctx.account);
       }
     }
-    const code = lastErr instanceof NoAccountError ? 503 : 502;
-    return reply.code(code).send({ error: lastErr?.message ?? 'all accounts failed' });
+    throw lastErr ?? new NoAccountError();
+  }
+
+  app.post('/proxy/v1/chat/completions', async (req, reply) => {
+    if (!authOk(req)) return reply.code(401).send({ error: 'unauthorized' });
+    if (!config.gateway.enabled) return reply.code(503).send({ error: 'gateway disabled' });
+    const body = req.body as any;
+    const messages = toMessages(body);
+    const stream = !!body?.stream;
+    syncFromStore();
+
+    let parsed: ParsedModel;
+    try {
+      parsed = parseModelId(body?.model);
+    } catch (e: any) {
+      return reply.code(400).send({ error: { message: e.message, type: 'invalid_request_error', param: 'model', suggestion: e.suggestion } });
+    }
+
+    try {
+      // combo / auto → engine combo tự lo fallback
+      if (parsed.kind !== 'provider') {
+        return await runComboRequest(parsed, { messages, stream, reply, runProviderCall });
+      }
+      if (stream) sseInit(reply);
+      const out = await runProviderCall({
+        provider: parsed.provider!, bare: parsed.model!, labelModel: parsed.prefixed,
+        messages, stream, reply,
+      });
+      if ('done' in out) return reply;
+      return reply.send(openaiCompletion(parsed.prefixed, out.result));
+    } catch (e: any) {
+      if (stream && reply.raw.headersSent) {
+        reply.raw.end();
+        return reply;
+      }
+      const code = e instanceof NoAccountError ? 503 : e?.status === 400 ? 400 : 502;
+      return reply.code(code).send({ error: e?.message ?? 'all accounts failed' });
+    }
   });
 
   // ---------------- Quản lý (tab UI) ----------------
-  app.get('/api/gateway/accounts', async () => {
+  app.get('/api/gateway/accounts', async (req) => {
     syncFromStore();
     const now = Date.now();
+    const q = (req.query ?? {}) as any;
+    const only = q.provider && PROVIDERS[q.provider as ProviderId] ? (q.provider as ProviderId) : undefined;
     return {
-      accounts: pool.list().map((a) => ({
+      counts: Object.fromEntries(PROVIDER_IDS.map((p) => [p, pool.list(p).length])),
+      accounts: pool.list(only).map((a) => ({
+        provider: a.provider,
+        providerLabel: PROVIDERS[a.provider].label,
+        key: a.key,
         email: a.email,
         enabled: a.enabled,
         health: a.health,
@@ -297,7 +474,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   app.post('/api/gateway/accounts/:email/toggle', async (req) => {
     const { email } = req.params as { email: string };
     const { enabled } = (req.body as { enabled?: boolean }) ?? {};
-    const a = pool.accounts.get(email);
+    const a = accOf(req, email);
     if (a) a.enabled = enabled ?? !a.enabled;
     savePersist();
     return { ok: !!a, enabled: a?.enabled };
@@ -308,7 +485,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     let n = 0;
     const list = emails && emails.length ? emails : pool.list().map((a) => a.email);
     for (const e of list) {
-      const a = pool.accounts.get(e);
+      const a = e.includes(':') ? pool.getByKey(e) : pool.get(e, 'agy');
       if (a) {
         a.enabled = !!enabled;
         n++;
@@ -349,31 +526,42 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   });
 
   app.get('/api/gateway/models', async () => ({
-    models: MODELS.map((m) => ({ id: m.id, label: m.label, image: m.image })),
+    models: allModels().map((m) => ({
+      id: m.prefixed, bare: m.id, label: m.label, image: m.image,
+      provider: m.provider, providerLabel: m.providerLabel,
+    })),
   }));
 
   // Chat thử qua pool (hoặc ép 1 account) — trả text + images (non-stream, dễ render).
   app.post('/api/gateway/chat', async (req, reply) => {
     const b = req.body as any;
-    const model = b?.model || 'gemini-3-pro-low';
     const messages = toMessages(b);
     const forced = b?.account && b.account !== 'auto' ? String(b.account) : undefined;
     const proxy = b?.proxy ? String(b.proxy) : undefined;
     syncFromStore();
+    let parsed: ParsedModel;
+    try {
+      parsed = parseModelId(b?.model);
+    } catch (e: any) {
+      return reply.code(400).send({ error: e.message, suggestion: e.suggestion });
+    }
+    if (parsed.kind !== 'provider') {
+      return reply.code(400).send({ error: 'Chat thử chỉ nhận model thật (agy/… hoặc kr/…), không nhận combo.' });
+    }
+    const model = parsed.prefixed;
     const t0 = Date.now();
     let ctx: Awaited<ReturnType<typeof pickReady>>;
     try {
-      ctx = await pickReady(forced, proxy);
+      ctx = await pickReady(parsed.provider!, forced, proxy);
     } catch (e: any) {
       return reply.code(e?.code ?? 503).send({ error: e?.message ?? 'no account' });
     }
     const plabel = proxyLabelOf(ctx.account, proxy);
     emitGw({ kind: 'req', account: ctx.account.email, model, proxy: plabel, endpoint: 'chat-test', msg: `→ ${model} · ${ctx.account.email} · chat-test · proxy:${plabel}` });
     try {
-      const r = await generate({
-        accessToken: ctx.accessToken,
-        projectId: ctx.projectId,
-        model,
+      const r = await PROVIDERS[parsed.provider!].generate({
+        session: ctx.session,
+        model: parsed.model!,
         messages,
         dispatcher: ctx.dispatcher,
       });
@@ -411,7 +599,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   app.post('/api/gateway/quota/:email', async (req, reply) => {
     const { email } = req.params as { email: string };
     syncFromStore();
-    const a = pool.accounts.get(email);
+    const a = accOf(req, email);
     if (!a) return reply.code(404).send({ error: 'không có account' });
     try {
       const q = await refreshQuota(a, true);
@@ -424,7 +612,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   app.post('/api/gateway/quota/refresh', async (req) => {
     const { emails } = (req.body as { emails?: string[] }) ?? {};
     syncFromStore();
-    const targets = (emails && emails.length ? emails.map((e) => pool.accounts.get(e)).filter(Boolean) : pool.list().filter((a) => a.enabled)) as PoolAccount[];
+    const targets = (emails && emails.length ? emails.map((e) => (e.includes(':') ? pool.getByKey(e) : pool.get(e, 'agy'))).filter(Boolean) : pool.list().filter((a) => a.enabled)) as PoolAccount[];
     // chạy nền tuần tự, giãn nhịp nhẹ
     (async () => {
       let done = 0;
@@ -481,14 +669,17 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     const t0 = Date.now();
     try {
       const dispatcher = dispatcherFor(a);
-      const { accessToken, projectId } = await ensureReady(a, dispatcher);
-      await generate({ accessToken, projectId, model: 'gemini-2.5-flash', messages: [{ role: 'user', content: 'hi' }], dispatcher, generationConfig: { maxOutputTokens: 8 } });
-      a.health = 'alive';
-      a.liveStatus = 'ok';
-      return { status: 'ok', ms: Date.now() - t0 };
+      const session = await ensureReady(a, dispatcher);
+      const r = await PROVIDERS[a.provider].checkLive(a, session, dispatcher);
+      a.liveStatus = r.status;
+      if (r.status === 'ok') a.health = 'alive';
+      // Kiro: 402 hết hạn mức tháng → cho nghỉ dài để pool không chọn lại
+      if (r.status === 'quota') a.cooldownUntil = Date.now() + 12 * 3600 * 1000;
+      recordQuota({ ts: Date.now(), email: a.email, tier: a.provider, geminiPct: null, thirdPct: null, probeOk: r.status === 'ok' });
+      return r;
     } catch (e: any) {
       const msg = String(e?.message ?? e);
-      const quota = e?.status === 429 || /quota|exhaust|resource_exhausted/i.test(msg);
+      const quota = e?.status === 429 || e?.status === 402 || /quota|exhaust|resource_exhausted|MONTHLY_REQUEST/i.test(msg);
       if (e?.status === 401 || /invalid_grant/i.test(msg)) a.health = 'dead';
       a.liveStatus = quota ? 'quota' : 'error';
       return { status: quota ? 'quota' : 'error', ms: Date.now() - t0, detail: msg.slice(0, 120) };
@@ -503,7 +694,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   app.post('/api/gateway/accounts/:email/test', async (req, reply) => {
     const { email } = req.params as { email: string };
     syncFromStore();
-    const a = pool.accounts.get(email);
+    const a = accOf(req, email);
     if (!a) return reply.code(404).send({ error: 'không có account' });
     const r = await testAccount(a);
     emitCheck(email, 'token', r.alive ? 'alive' : 'dead', r.alive ? 'info' : 'warn');
@@ -513,7 +704,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   app.post('/api/gateway/accounts/:email/checklive', async (req, reply) => {
     const { email } = req.params as { email: string };
     syncFromStore();
-    const a = pool.accounts.get(email);
+    const a = accOf(req, email);
     if (!a) return reply.code(404).send({ error: 'không có account' });
     const r = await checkLiveAccount(a);
     emitCheck(email, 'live', r.status, r.status === 'ok' ? 'info' : r.status === 'quota' ? 'warn' : 'error');
@@ -525,7 +716,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     const { emails, mode } = (req.body as { emails?: string[]; mode?: 'token' | 'live' | 'both' }) ?? {};
     const m = mode || 'token';
     syncFromStore();
-    const targets = (emails && emails.length ? emails.map((e) => pool.accounts.get(e)).filter(Boolean) : pool.list()) as PoolAccount[];
+    const targets = (emails && emails.length ? emails.map((e) => (e.includes(':') ? pool.getByKey(e) : pool.get(e, 'agy'))).filter(Boolean) : pool.list()) as PoolAccount[];
     const total = targets.length;
     (async () => {
       let i = 0, okc = 0;
@@ -555,7 +746,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   app.post('/api/gateway/accounts/test-bulk', async (req) => {
     const { emails } = (req.body as { emails?: string[] }) ?? {};
     syncFromStore();
-    const targets = (emails && emails.length ? emails.map((e) => pool.accounts.get(e)).filter(Boolean) : pool.list()) as PoolAccount[];
+    const targets = (emails && emails.length ? emails.map((e) => (e.includes(':') ? pool.getByKey(e) : pool.get(e, 'agy'))).filter(Boolean) : pool.list()) as PoolAccount[];
     const total = targets.length;
     (async () => {
       let i = 0;
@@ -573,15 +764,193 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   // ---------------- Check live model ----------------
   app.post('/api/gateway/models/check', async (req, reply) => {
     syncFromStore();
-    let ctx: Awaited<ReturnType<typeof pickReady>>;
-    try {
-      ctx = await pickReady(undefined, undefined);
-    } catch (e: any) {
-      return reply.code(e?.code ?? 503).send({ error: e?.message ?? 'no account' });
+    const q = (req.query ?? {}) as any;
+    const want: ProviderId[] =
+      q.provider === 'all' || !q.provider ? [...PROVIDER_IDS] : [String(q.provider) as ProviderId];
+    const out: { id: string; status: string; ms: number; detail?: string; provider: ProviderId; account?: string }[] = [];
+    const accounts: string[] = [];
+    for (const pid of want) {
+      if (!PROVIDERS[pid]) continue;
+      let ctx: Awaited<ReturnType<typeof pickReady>>;
+      try {
+        ctx = await pickReady(pid, undefined, undefined);
+      } catch (e: any) {
+        for (const m of PROVIDERS[pid].models) {
+          out.push({ id: `${pid}/${m.id}`, provider: pid, status: 'error', ms: 0, detail: e?.message ?? 'no account' });
+        }
+        continue;
+      }
+      try {
+        const res = await PROVIDERS[pid].checkModelsLive(ctx.session, ctx.dispatcher);
+        accounts.push(`${pid}:${ctx.account.email}`);
+        for (const r of res) out.push({ ...r, id: `${pid}/${r.id}`, provider: pid, account: ctx.account.email });
+        log(ctx.account.email, 'info', `check live model ${pid}: ${res.filter((r) => r.status === 'ok').length}/${res.length} ok`);
+      } finally {
+        pool.release(ctx.account);
+      }
     }
-    const results = await checkModelsLive(ctx.accessToken, ctx.projectId, ctx.dispatcher);
-    log(ctx.account.email, 'info', `check live model qua ${ctx.account.email}: ${results.filter((r) => r.status === 'ok').length}/${results.length} ok`);
-    return { account: ctx.account.email, models: results };
+    return { account: accounts.join(', '), models: out };
+  });
+
+  // ---------------- Anthropic Messages API (cho Claude Code) ----------------
+  // Claude Code cấu hình ANTHROPIC_BASE_URL=http://host:port (KHÔNG kèm /v1) rồi tự gọi /v1/messages.
+  const anthropicPaths = ['/v1/messages', '/anthropic/v1/messages'];
+
+  /** Kiểm key kiểu Anthropic: x-api-key hoặc Authorization: Bearer. */
+  function anthropicAuthOk(req: FastifyRequest): boolean {
+    const key = config.gateway.apiKey;
+    if (!key) return true;
+    const xk = (req.headers['x-api-key'] || '') as string;
+    const h = (req.headers['authorization'] || '') as string;
+    return xk === key || h === `Bearer ${key}` || h === key;
+  }
+
+  for (const path of anthropicPaths) {
+    app.post(path, async (req, reply) => {
+      if (!anthropicAuthOk(req)) return reply.code(401).send(anthropicErrorBody(401, 'invalid x-api-key'));
+      if (!config.gateway.enabled) return reply.code(503).send(anthropicErrorBody(503, 'gateway disabled'));
+      const b = (req.body ?? {}) as AnthropicRequest;
+      if (!Array.isArray(b.messages) || !b.messages.length) {
+        return reply.code(400).send(anthropicErrorBody(400, 'messages[] là bắt buộc'));
+      }
+      syncFromStore();
+
+      const wanted = resolveAnthropicModel(b.model, {
+        big: config.gateway.anthropicBigModel,
+        small: config.gateway.anthropicSmallModel,
+      });
+      let parsed: ParsedModel;
+      try {
+        parsed = parseModelId(wanted);
+      } catch (e: any) {
+        return reply.code(400).send(anthropicErrorBody(400, e.message));
+      }
+
+      const messages = anthropicToMessages(b);
+      const generationConfig = anthropicGenerationConfig(b);
+      const stream = !!b.stream;
+      const echoModel = b.model || parsed.prefixed;
+      const msgId = 'msg_' + randomUUID().replace(/-/g, '');
+
+      const call = async (target: ParsedModel, streamWriter?: (t: string) => void) => {
+        if (target.kind !== 'provider') {
+          // combo/auto: chạy qua engine combo, chỉ hỗ trợ non-stream cho gọn ở v1
+          throw Object.assign(new Error('Anthropic endpoint chưa hỗ trợ combo — dùng agy/… hoặc kr/…'), { status: 400 });
+        }
+        return runProviderCall({
+          provider: target.provider!, bare: target.model!, labelModel: target.prefixed,
+          messages, stream: !!streamWriter, reply, endpoint: '/v1/messages',
+          sseWriter: streamWriter,
+          generationConfig,
+        } as any);
+      };
+
+      try {
+        if (!stream) {
+          const out = await call(parsed);
+          if ('result' in out) return reply.send(resultToAnthropic(echoModel, out.result, msgId));
+          return reply;
+        }
+
+        // ----- streaming theo đúng thứ tự sự kiện Anthropic -----
+        sseInit(reply);
+        reply.raw.write(sseFrame('message_start', {
+          type: 'message_start',
+          message: { id: msgId, type: 'message', role: 'assistant', model: echoModel, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 0, output_tokens: 0 } },
+        }));
+        reply.raw.write(sseFrame('content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }));
+        const ping = setInterval(() => reply.raw.write(sseFrame('ping', { type: 'ping' })), 15_000);
+        let outChars = 0;
+        try {
+          await call(parsed, (t) => {
+            outChars += t.length;
+            reply.raw.write(sseFrame('content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: t } }));
+          });
+          reply.raw.write(sseFrame('content_block_stop', { type: 'content_block_stop', index: 0 }));
+          reply.raw.write(sseFrame('message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: Math.ceil(outChars / 4) } }));
+          reply.raw.write(sseFrame('message_stop', { type: 'message_stop' }));
+        } finally {
+          clearInterval(ping);
+        }
+        reply.raw.end();
+        return reply;
+      } catch (e: any) {
+        const status = e?.status === 400 ? 400 : e instanceof NoAccountError ? 503 : 502;
+        if (reply.raw.headersSent) {
+          reply.raw.write(sseFrame('error', anthropicErrorBody(status, String(e?.message ?? e))));
+          reply.raw.end();
+          return reply;
+        }
+        return reply.code(status).send(anthropicErrorBody(status, String(e?.message ?? e)));
+      }
+    });
+  }
+
+  for (const path of ['/v1/models', '/anthropic/v1/models']) {
+    app.get(path, async (req, reply) => {
+      if (!anthropicAuthOk(req)) return reply.code(401).send(anthropicErrorBody(401, 'invalid x-api-key'));
+      const data = allModels().map((m) => ({
+        type: 'model', id: m.prefixed, display_name: `${m.label} (${m.providerLabel})`,
+        created_at: new Date(0).toISOString(),
+      }));
+      return { data, has_more: false, first_id: data[0]?.id ?? null, last_id: data[data.length - 1]?.id ?? null };
+    });
+  }
+
+  for (const path of ['/v1/messages/count_tokens', '/anthropic/v1/messages/count_tokens']) {
+    app.post(path, async (req) => {
+      const b = (req.body ?? {}) as AnthropicRequest;
+      const chars = JSON.stringify(b.messages ?? []).length + JSON.stringify(b.system ?? '').length;
+      return { input_tokens: Math.ceil(chars / 4) };
+    });
+  }
+
+  // ---------------- Combo CRUD ----------------
+  app.get('/api/combos', async () => {
+    const stats = comboStatsRows(Date.now() - 7 * 86400_000);
+    return {
+      combos: listCombos().map((c) => {
+        const s = stats.find((x) => x.combo === `combo/${c.id}`);
+        return { ...c, calls: s?.calls ?? 0, fallbacks: s?.fallbacks ?? 0 };
+      }),
+      autoVariants: AUTO_VARIANT_IDS,
+      weights: AUTO_VARIANTS,
+    };
+  });
+
+  app.post('/api/combos', async (req, reply) => {
+    const b = (req.body ?? {}) as any;
+    const id = String(b.id ?? '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    if (!id) return reply.code(400).send({ ok: false, error: 'thiếu id combo' });
+    if (id === 'auto') return reply.code(400).send({ ok: false, error: '"auto" là tên dành riêng' });
+    const targets = (Array.isArray(b.targets) ? b.targets : []).map((t: any) =>
+      typeof t === 'string' ? { model: t } : { model: String(t.model), weight: t.weight ? Number(t.weight) : undefined },
+    );
+    const v = validateTargets(targets);
+    if (!v.ok) return reply.code(400).send({ ok: false, error: v.error });
+    const strategy = ['priority', 'round-robin', 'weighted', 'highest-quota'].includes(b.strategy) ? b.strategy : 'priority';
+    upsertComboRow({ id, name: String(b.name ?? id), strategy, targets, enabled: b.enabled !== false });
+    return { ok: true, id };
+  });
+
+  app.delete('/api/combos/:id', async (req) => {
+    const { id } = req.params as { id: string };
+    deleteComboRow(id);
+    return { ok: true };
+  });
+
+  /** Bảng xếp hạng hiện tại của `auto` (đúng thứ tự sẽ thử). */
+  app.get('/api/combos/auto/preview', async (req) => {
+    const q = (req.query ?? {}) as any;
+    const variant = String(q.variant ?? 'default').replace(/^auto\/?/, '') || 'default';
+    const snap = poolSnapshot();
+    return {
+      variant,
+      weights: AUTO_VARIANTS[variant] ?? AUTO_VARIANTS.default,
+      snapshot: snap,
+      plan: planAuto(variant, snap),
+      ranking: scoreCandidates(snap, AUTO_VARIANTS[variant] ?? AUTO_VARIANTS.default!).slice(0, 12),
+    };
   });
 
   // ---------------- Báo cáo sử dụng ----------------

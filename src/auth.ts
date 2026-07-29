@@ -121,7 +121,9 @@ const PUBLIC_PATHS = new Set(['/login', '/login.html', '/style.css', '/api/auth/
 export function registerAuth(app: FastifyInstance): void {
   app.addHook('onRequest', async (req, reply) => {
     const url = req.url.split('?')[0] || '';
-    if (url.startsWith('/proxy/v1')) return; // gateway dùng API key riêng
+    // Endpoint suy luận dùng GATEWAY_API_KEY riêng, không dùng phiên dashboard:
+    //  /proxy/v1/*  (OpenAI)   ·  /v1/*, /anthropic/*  (Anthropic — Claude Code gọi <base>/v1/messages)
+    if (url.startsWith('/proxy/v1') || url.startsWith('/v1/') || url.startsWith('/anthropic/')) return;
     if (PUBLIC_PATHS.has(url)) return;
     if (isAuthed(req)) return;
 

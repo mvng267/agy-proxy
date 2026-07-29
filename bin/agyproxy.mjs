@@ -93,6 +93,61 @@ function dashCreds() {
   return { user, pass: pass || '123456' };
 }
 
+async function postJson(url, body) {
+  const { user, pass } = dashCreds();
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'user-agent': 'agyproxy-cli', accept: 'application/json', 'content-type': 'application/json',
+      authorization: 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64'),
+    },
+    body: JSON.stringify(body ?? {}),
+    signal: AbortSignal.timeout(30000),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+  return j;
+}
+
+/**
+ * Cấu hình 1 tool CLI. Gọi HTTP tới server (writer đã audit nằm ở src/tools/writer.ts)
+ * → chỉ MỘT bản implement, không nhân đôi logic ghi file trong CLI.
+ */
+async function setupTool(id, opts = {}) {
+  if (!readPid()) {
+    console.log(c.r('✗ Server chưa chạy.') + c.d(' Chạy trước: agyproxy start -d'));
+    return;
+  }
+  const base = `http://localhost:${PORT}`;
+  const body = {};
+  if (opts.model) body.model = opts.model;
+  if (opts.small) body.smallModel = opts.small;
+  if (opts.url) body.anthropicBaseUrl = opts.url;
+  try {
+    if (opts.undo) {
+      const r = await postJson(`${base}/api/tools/${id}/undo`, {});
+      console.log(r.ok ? c.g('✓ ') + r.detail : c.y('· ' + r.detail));
+      console.log(c.d('  ' + r.path));
+      return;
+    }
+    const p = await postJson(`${base}/api/tools/${id}/preview`, body);
+    console.log(c.b(`${p.label}`) + c.d(`  ${p.path}`));
+    if (!p.installed) console.log(c.y('  ⚠ Chưa thấy tool này cài trên máy — vẫn ghi được để dùng sau.'));
+    if (opts.dryRun) {
+      console.log(c.d('--- nội dung sẽ ghi (dry-run) ---'));
+      console.log(p.after.trim());
+      return;
+    }
+    const r = await postJson(`${base}/api/tools/${id}/apply`, body);
+    console.log(c.g('✓ Đã cấu hình') + ` · model ${r.model}`);
+    if (r.backup) console.log(c.d(`  backup: ${r.backup.split('/').pop()}`));
+    if (p.notes) console.log(c.d('  ' + p.notes));
+    console.log(c.d(`  gỡ: agyproxy setup-${id.replace('claude-profile', 'claude --profile')} --undo`));
+  } catch (e) {
+    console.log(c.r('✗ ') + (e?.message ?? e));
+  }
+}
+
 async function httpJson(url, opts = {}) {
   const { user, pass } = dashCreds();
   const basic = 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
@@ -336,6 +391,9 @@ function help() {
   ${c.b('agyproxy update --check')} chỉ kiểm tra có bản mới không
   ${c.b('agyproxy service ...')}   tự chạy khi reboot (${IS_MAC ? 'launchd' : 'systemd'})
      ${c.d('install | uninstall | start | stop | restart | status')}
+  ${c.b('agyproxy setup-claude')}  cắm Claude Code vào pool  ${c.d('[--profile] [--model kr/claude-sonnet-4]')}
+  ${c.b('agyproxy setup-codex')}   cắm Codex   ${c.d('· setup-hermes · setup-antigravity')}
+     ${c.d('thêm --dry-run để xem trước, --undo để gỡ')}
   ${c.b('agyproxy version')}       phiên bản
 
   Dashboard: http://localhost:${PORT}   ·   Gateway: /proxy/v1
@@ -353,6 +411,17 @@ switch (cmd) {
   case 'logs': case 'log': logs(has('-f') || has('--follow')); break;
   case 'update': case 'upgrade': await update(has('--check')); break;
   case 'service': case 'svc': service(rest[0]); break;
+  case 'setup-claude':
+  case 'setup-codex':
+  case 'setup-hermes':
+  case 'setup-antigravity': {
+    const id = cmd === 'setup-claude' && has('--profile') ? 'claude-profile' : cmd.replace('setup-', '');
+    await setupTool(id, {
+      model: flagVal('--model'), small: flagVal('--small'), url: flagVal('--url'),
+      dryRun: has('--dry-run'), undo: has('--undo'),
+    });
+    break;
+  }
   case 'version': case '-v': case '--version': console.log(PKG.version); break;
   case 'help': case '-h': case '--help': case undefined: help(); break;
   default: console.log(c.r(`Lệnh không hợp lệ: ${cmd}`)); help(); process.exit(1);

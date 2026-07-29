@@ -88,3 +88,37 @@ docker compose up -d --build
 `PORT` `HOST` `HEADLESS` `CHROME_NO_SANDBOX` `OMNIROUTE_URL` `OMNIROUTE_PASSWORD` `GATEWAY_ROTATION` `GATEWAY_API_KEY` `GATEWAY_QUOTA_*` `PACING_MIN_SEC` `PACING_MAX_SEC` `DAILY_LOGIN_CAP` `FINGERPRINT` `CHROME_MAJOR` `TOKEN_HEALTH_HOURS` — xem `.env.example`.
 
 > ⚠️ `data/`, `profiles/`, `.env` đã nằm trong `.gitignore` — không đẩy token/credential lên git. Gộp nhiều account free-tier có thể trái ToS Google; tự cân nhắc.
+
+## Gateway 2 provider: `agy/` + `kr/`
+Model **bắt buộc có prefix** (gọi id trần → 400 kèm gợi ý đúng):
+
+| Prefix | Nguồn | Model |
+|---|---|---|
+| `agy/` | Antigravity (188 account) | gemini-3-pro-high/low, gemini-3.1-pro-preview, gemini-3-flash, gemini-3.5-flash-low, gemini-2.5-flash/pro, gemini-3.1-flash-image, claude-sonnet-4-6, claude-opus-4-6-thinking |
+| `kr/` | Kiro / AWS CodeWhisperer (147 account) | claude-sonnet-4, claude-3-7-sonnet, claude-haiku-4-5 |
+| `combo/<tên>` | Chuỗi model tự fallback | tạo ở trang **Combo** |
+| `auto`, `auto/fast\|quota\|stable` | Tự chấm điểm chọn đường mỗi request | không cần tạo |
+
+Kiro **không có API hạn mức**; hết hạn mức tháng trả `402 MONTHLY_REQUEST_COUNT` → account tự nghỉ 12h và request chuyển sang account khác.
+
+## Endpoint
+| Chuẩn | URL | Dùng cho |
+|---|---|---|
+| OpenAI | `http://host:7788/proxy/v1` | Codex, Hermes, Cline, Aider, opencode… |
+| **Anthropic** | `http://host:7788` (**không** kèm `/v1`) | **Claude Code** (tự gọi `/v1/messages`) |
+
+> Claude Code v1: gọi + stream text OK, **chưa hỗ trợ tool-use** (chưa sửa file/chạy lệnh được).
+
+## Cắm tool coding (1 chạm)
+Trang **CLI Tools** trong dashboard, hoặc terminal:
+```bash
+agyproxy setup-claude --profile --model kr/claude-sonnet-4   # profile riêng, KHÔNG đụng settings.json gốc
+agyproxy setup-claude --model kr/claude-sonnet-4             # merge vào settings.json (có backup)
+agyproxy setup-codex  --model agy/gemini-3-pro-low
+agyproxy setup-hermes --model combo/main
+agyproxy setup-antigravity
+# --dry-run xem trước · --undo gỡ và khôi phục backup
+```
+Mọi thao tác ghi file đều: chỉ trong `$HOME`, **merge** (không đè), **backup** `.agybak-*` (giữ 5 bản), ghi atomic, `chmod 600`. **Không bao giờ** sửa `~/.zshrc`.
+
+> ⚠️ Nếu gateway bind `0.0.0.0` mà **chưa đặt API key**, việc cấu hình tool bị **từ chối** — vì lúc đó gateway là open relay tới toàn bộ account.

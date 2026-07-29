@@ -12,6 +12,7 @@ import { config, CSV, saveSettings, setConfig, getConfigValue, CONFIG_KEYS, SECR
 import { checkAll, restartHealthLoop } from './health/tokenHealth.js';
 import { hashPassword, verifyPassword } from './security.js';
 import { registerGatewayRoutes } from './gateway/routes.js';
+import { registerToolRoutes } from './tools/routes.js';
 import { buildBackup, restoreBackup } from './backup.js';
 import { pool, geminiPct } from './gateway/pool.js';
 import { usageTotals, usageSeries, usageByModel, usageByAccount } from './store/db.js';
@@ -29,6 +30,7 @@ function pkgVersion(): string {
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // Gateway "API proxy AGY" (OpenAI-compatible pool Antigravity)
   await registerGatewayRoutes(app);
+  registerToolRoutes(app);
 
   // ---------- accounts ----------
   app.get('/api/accounts', async () => ({ accounts: store.listAccounts() }));

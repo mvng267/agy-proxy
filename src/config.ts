@@ -82,6 +82,9 @@ export const config = {
       cacheTtlMin: num(S('quotaCacheTtlMin') ?? process.env.GATEWAY_QUOTA_TTL_MIN, 10),
       historyDays: num(S('quotaHistoryDays'), 90),
     },
+    // Endpoint Anthropic (Claude Code): id Anthropic thật sẽ map sang 2 model này
+    anthropicBigModel: S('anthropicBigModel') ?? 'kr/claude-sonnet-4',
+    anthropicSmallModel: S('anthropicSmallModel') ?? 'kr/claude-haiku-4-5',
   },
 };
 
@@ -120,6 +123,8 @@ const SETTERS: Record<string, Setter> = {
   quotaOnCall: (v) => (config.gateway.quota.onCall = v === 'true'),
   quotaCacheTtlMin: (v) => (config.gateway.quota.cacheTtlMin = Number(v)),
   quotaHistoryDays: (v) => (config.gateway.quota.historyDays = Number(v)),
+  anthropicBigModel: (v) => (config.gateway.anthropicBigModel = v),
+  anthropicSmallModel: (v) => (config.gateway.anthropicSmallModel = v),
 };
 
 /** Key là secret — API trả về dạng che. */
@@ -159,6 +164,8 @@ export function getConfigValue(key: string): unknown {
     case 'quotaOnCall': return config.gateway.quota.onCall;
     case 'quotaCacheTtlMin': return config.gateway.quota.cacheTtlMin;
     case 'quotaHistoryDays': return config.gateway.quota.historyDays;
+    case 'anthropicBigModel': return config.gateway.anthropicBigModel;
+    case 'anthropicSmallModel': return config.gateway.anthropicSmallModel;
     default: return (config as any)[key];
   }
 }

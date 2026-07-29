@@ -70,12 +70,16 @@
       <div class="nav-item" data-tab="tokens" data-tip="Token" title="Token thu được + health + export"><svg class="ic"><use href="#i-key"/></svg><span class="lbl">Token</span><span class="cnt" id="tc-tok">0</span></div>
       <div class="nav-item" data-tab="connections" data-tip="Connections" title="Pool connection trong OmniRoute"><svg class="ic"><use href="#i-link"/></svg><span class="lbl">Connections</span><span class="cnt" id="tc-conn">0</span></div>
       <div class="nav-item" data-tab="add" data-tip="Thêm tài khoản" title="Thêm / import / sinh dải account"><svg class="ic"><use href="#i-plus"/></svg><span class="lbl">Thêm TK</span></div>
-      <div class="nav-group">Antigravity</div>
+      <div class="nav-group">Gateway</div>
+      <div class="nav-item" data-tab="models" data-tip="Models" title="Mọi model gọi được, tách theo provider"><svg class="ic"><use href="#i-grid"/></svg><span class="lbl">Models</span><span class="cnt" id="tc-models">0</span></div>
+      <div class="nav-item" data-tab="combo" data-tip="Combo" title="Chuỗi model tự fallback khi hết hạn mức"><svg class="ic"><use href="#i-list"/></svg><span class="lbl">Combo</span><span class="cnt" id="tc-combo">0</span></div>
       <div class="nav-item" data-tab="agy" data-tip="Pool" title="Gateway OpenAI + bật/tắt account + model"><svg class="ic"><use href="#i-zap"/></svg><span class="lbl">Pool</span><span class="cnt" id="tc-agy">0</span></div>
       <div class="nav-item" data-tab="quota" data-tip="Hạn mức" title="Credit từng tài khoản (bảng / thẻ)"><svg class="ic"><use href="#i-gauge"/></svg><span class="lbl">Hạn mức</span></div>
       <div class="nav-item" data-tab="usage" data-tip="Báo cáo sử dụng" title="Usage theo ngày/tuần/model/account"><svg class="ic"><use href="#i-chart"/></svg><span class="lbl">Báo cáo</span></div>
       <div class="nav-item" data-tab="chat" data-tip="Chat thử" title="Chat thử model (kể cả ảnh)"><svg class="ic"><use href="#i-msg"/></svg><span class="lbl">Chat thử</span></div>
       <div class="nav-item" data-tab="gwlog" data-tip="Live call log" title="Log request→response gateway realtime"><svg class="ic"><use href="#i-terminal"/></svg><span class="lbl">Live call log</span></div>
+      <div class="nav-group">Kết nối</div>
+      <div class="nav-item" data-tab="tools" data-tip="CLI Tools" title="Cắm Claude Code / Codex / Hermes vào pool này"><svg class="ic"><use href="#i-link"/></svg><span class="lbl">CLI Tools</span><span class="cnt" id="tc-tools">0</span></div>
       <div class="nav-sep"></div>
       <div class="nav-item" data-tab="settings" data-tip="Cấu hình" title="Cấu hình chạy, hạn mức, OmniRoute, giao diện"><svg class="ic"><use href="#i-settings"/></svg><span class="lbl">Cấu hình</span></div>
       <div class="nav-foot"><button class="icon ghost" id="btn-nav-collapse" title="Thu gọn/mở rộng menu"><svg class="ic"><use href="#i-collapse"/></svg></button></div>
@@ -360,6 +364,49 @@
       </section>
 
       <!-- ============ Hạn mức ============ -->
+      <section class="view" id="view-models">
+        <div class="page-head">
+          <div class="ph-title"><h2>Models</h2><span class="ph-sub">Mọi model gọi được qua Base URL</span></div>
+          <div class="ph-actions"><button class="sm" id="models-check" title="Gọi thử từng model"><svg class="ic"><use href="#i-activity"/></svg> Check live</button></div>
+        </div>
+        <div id="models-groups"></div>
+      </section>
+
+      <section class="view" id="view-combo">
+        <div class="page-head">
+          <div class="ph-title"><h2>Combo</h2><span class="ph-sub">Gọi 1 id, tự trượt sang model kế khi hết hạn mức</span></div>
+          <div class="ph-actions"><button class="sm primary" id="combo-new"><svg class="ic"><use href="#i-plus"/></svg> Tạo combo</button></div>
+        </div>
+        <div id="combo-list"></div>
+        <div class="panel">
+          <h3>auto — dựng theo từng request (không cần tạo)</h3>
+          <p class="set-desc">Chấm điểm bằng số liệu thật: sức khoẻ pool · hạn mức · độ trễ p95 · tỉ lệ thành công · tải hiện tại.</p>
+          <div class="chips" id="auto-chips"></div>
+          <div class="row" style="margin-top:10px">
+            <select id="auto-variant" class="w-auto">
+              <option value="default">auto (cân bằng)</option>
+              <option value="fast">auto/fast (nhanh nhất)</option>
+              <option value="quota">auto/quota (còn nhiều hạn mức)</option>
+              <option value="stable">auto/stable (ổn định nhất)</option>
+            </select>
+            <button class="sm" id="auto-preview">Xem bảng xếp hạng hiện tại</button>
+          </div>
+          <div id="auto-rank" style="margin-top:10px"></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-tools">
+        <div class="page-head">
+          <div class="ph-title"><h2>CLI Tools</h2><span class="ph-sub">Cắm tool coding vào pool này</span></div>
+          <div class="ph-actions"><span class="faint mono" id="tools-base"></span></div>
+        </div>
+        <div id="tools-warn"></div>
+        <div class="settings-grid" id="tools-grid"></div>
+        <div class="panel">
+          <p class="set-desc" style="margin:0">💡 Hoặc chạy trong terminal: <code>agyproxy setup-claude --profile --model kr/claude-sonnet-4</code> · thêm <code>--dry-run</code> để xem trước, <code>--undo</code> để gỡ.</p>
+        </div>
+      </section>
+
       <section class="view" id="view-quota">
         <div class="page-head">
           <div class="ph-title"><h2>Hạn mức</h2><span class="ph-sub">Credit từng tài khoản</span></div>

@@ -78,6 +78,23 @@ db.exec(`
     third_pct INTEGER,
     models_json TEXT
   );
+  -- Combo: chuỗi model gọi được như 1 id, tự fallback
+  CREATE TABLE IF NOT EXISTS combos (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    strategy TEXT NOT NULL,
+    targets_json TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  -- Vết chạy combo: vì sao trượt bước nào (hiện trên UI)
+  CREATE TABLE IF NOT EXISTS combo_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts INTEGER NOT NULL, combo TEXT NOT NULL, step INTEGER NOT NULL,
+    model TEXT NOT NULL, ok INTEGER NOT NULL, status INTEGER, ms INTEGER, reason TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_combo_runs_ts ON combo_runs(ts);
   CREATE INDEX IF NOT EXISTS idx_runs_email ON runs(email);
   CREATE INDEX IF NOT EXISTS idx_logs_run ON run_logs(run_id);
   CREATE INDEX IF NOT EXISTS idx_usage_ts ON gateway_usage(ts);
@@ -91,6 +108,29 @@ try {
   db.exec(`ALTER TABLE runs ADD COLUMN proxy TEXT`);
 } catch {
   /* cột đã tồn tại */
+}
+try {
+  db.exec(`ALTER TABLE quota_history ADD COLUMN probe_ok INTEGER`);
+} catch {
+  /* cột đã tồn tại */
+}
+
+/**
+ * Migration MỘT LẦN lúc load module: model id cũ chưa có prefix → 'agy/…'.
+ * Bắt buộc vì agy có claude-sonnet-4-6 còn Kiro có claude-sonnet-4 — không prefix thì
+ * báo cáo trộn 2 provider. KHÔNG dùng trigger/normalize lúc đọc (test ghi id trần sau khi load).
+ */
+try {
+  const done = db.prepare(`SELECT value FROM settings WHERE key = 'migratedUsageModelPrefix'`).get() as any;
+  if (!done) {
+    db.exec(`UPDATE gateway_usage SET model = 'agy/' || model WHERE model NOT LIKE '%/%'`);
+    db.prepare(
+      `INSERT INTO settings (key,value,updated_at) VALUES (?,?,?)
+       ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+    ).run('migratedUsageModelPrefix', '1', Date.now());
+  }
+} catch {
+  /* bảng chưa sẵn sàng → lần chạy sau thử lại */
 }
 
 export interface RunRow {
@@ -217,6 +257,75 @@ export function usageByAccount(from: number, to: number): { email: string; reque
     .all(from, to) as any[];
 }
 
+// ---------- combos ----------
+export interface ComboRow { id: string; name: string; strategy: string; targets_json: string; enabled: number; created_at: number; updated_at: number }
+export function listComboRows(): ComboRow[] {
+  return db.prepare(`SELECT * FROM combos ORDER BY id`).all() as any[];
+}
+export function getComboRow(id: string): ComboRow | undefined {
+  return db.prepare(`SELECT * FROM combos WHERE id = ?`).get(id) as any;
+}
+export function upsertComboRow(r: { id: string; name: string; strategy: string; targets: unknown; enabled?: boolean }): void {
+  const now = Date.now();
+  db.prepare(
+    `INSERT INTO combos (id,name,strategy,targets_json,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?)
+     ON CONFLICT(id) DO UPDATE SET name=excluded.name, strategy=excluded.strategy,
+       targets_json=excluded.targets_json, enabled=excluded.enabled, updated_at=excluded.updated_at`,
+  ).run(r.id, r.name, r.strategy, JSON.stringify(r.targets ?? []), r.enabled === false ? 0 : 1, now, now);
+}
+export function deleteComboRow(id: string): void {
+  db.prepare(`DELETE FROM combos WHERE id = ?`).run(id);
+}
+export function recordComboRun(r: { combo: string; step: number; model: string; ok: boolean; status?: number; ms?: number; reason?: string }): void {
+  db.prepare(`INSERT INTO combo_runs (ts,combo,step,model,ok,status,ms,reason) VALUES (?,?,?,?,?,?,?,?)`)
+    .run(Date.now(), r.combo, r.step, r.model, r.ok ? 1 : 0, r.status ?? null, r.ms ?? null, (r.reason ?? '').slice(0, 200));
+}
+export function comboStatsRows(sinceMs: number): { combo: string; calls: number; fallbacks: number }[] {
+  return db
+    .prepare(
+      `SELECT combo,
+              SUM(CASE WHEN step = 0 THEN 1 ELSE 0 END) AS calls,
+              SUM(CASE WHEN step > 0 THEN 1 ELSE 0 END) AS fallbacks
+       FROM combo_runs WHERE ts >= ? GROUP BY combo`,
+    )
+    .all(sinceMs) as any[];
+}
+
+/** Số liệu p95 + tỉ lệ thành công theo provider (prefix của model) trong `sinceMs`. */
+export function providerStats(sinceMs: number): { provider: string; n: number; okRate: number; p95: number }[] {
+  const rows = db
+    .prepare(
+      `SELECT substr(model, 1, instr(model, '/') - 1) AS provider, ok, ms
+       FROM gateway_usage WHERE ts >= ? AND instr(model, '/') > 0`,
+    )
+    .all(sinceMs) as { provider: string; ok: number; ms: number }[];
+  const by = new Map<string, { ok: number; n: number; ms: number[] }>();
+  for (const r of rows) {
+    const e = by.get(r.provider) ?? { ok: 0, n: 0, ms: [] };
+    e.n++;
+    if (r.ok) e.ok++;
+    if (r.ms > 0) e.ms.push(r.ms);
+    by.set(r.provider, e);
+  }
+  const out: { provider: string; n: number; okRate: number; p95: number }[] = [];
+  for (const [provider, e] of by) {
+    e.ms.sort((a, b) => a - b);
+    const p95 = e.ms.length ? e.ms[Math.min(e.ms.length - 1, Math.floor(e.ms.length * 0.95))]! : 0;
+    out.push({ provider, n: e.n, okRate: e.n ? e.ok / e.n : 0, p95 });
+  }
+  return out;
+}
+
+/** Usage gộp theo provider (prefix model). */
+export function usageByProvider(from: number, to: number): { provider: string; requests: number; tokIn: number; tokOut: number }[] {
+  return db
+    .prepare(
+      `SELECT COALESCE(NULLIF(substr(model, 1, instr(model,'/') - 1), ''), 'agy') AS provider,
+              ${AGG} FROM gateway_usage WHERE ts >= ? AND ts < ? GROUP BY provider ORDER BY requests DESC`,
+    )
+    .all(from, to) as any[];
+}
+
 // ---------- settings (key-value, thay settings.json) ----------
 export function getSetting(key: string): string | undefined {
   const r = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(key) as any;
@@ -288,9 +397,13 @@ export function clearFailedLogins(ip: string): void {
 
 // ---------- lịch sử hạn mức ----------
 export interface QuotaHistoryRow { ts: number; email: string; tier: string | null; gemini_pct: number | null; third_pct: number | null }
-export function recordQuota(r: { ts: number; email: string; tier?: string | null; geminiPct?: number | null; thirdPct?: number | null; models?: unknown }): void {
-  db.prepare(`INSERT INTO quota_history (ts, email, tier, gemini_pct, third_pct, models_json) VALUES (?,?,?,?,?,?)`)
-    .run(r.ts, r.email, r.tier ?? null, r.geminiPct ?? null, r.thirdPct ?? null, r.models ? JSON.stringify(r.models) : null);
+export function recordQuota(r: { ts: number; email: string; tier?: string | null; geminiPct?: number | null; thirdPct?: number | null; models?: unknown; probeOk?: boolean }): void {
+  db.prepare(`INSERT INTO quota_history (ts, email, tier, gemini_pct, third_pct, models_json, probe_ok) VALUES (?,?,?,?,?,?,?)`)
+    .run(
+      r.ts, r.email, r.tier ?? null, r.geminiPct ?? null, r.thirdPct ?? null,
+      r.models ? JSON.stringify(r.models) : null,
+      r.probeOk === undefined ? null : r.probeOk ? 1 : 0,
+    );
 }
 /** Xu hướng TB toàn pool theo ngày/giờ. */
 export function quotaSeries(from: number, to: number, groupBy: 'hour' | 'day' = 'day'): { bucket: string; gemini: number; third: number; n: number }[] {

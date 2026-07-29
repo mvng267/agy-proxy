@@ -1,31 +1,39 @@
-import { writeFileSync, readFileSync, renameSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, renameSync, existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Dispatcher } from 'undici';
 import { DATA_DIR, config } from '../config.js';
 import { store } from '../store/index.js';
 import { recordQuota } from '../store/db.js';
-import {
-  refreshAccessToken,
-  discoverProject,
-  proxyDispatcher,
-  fetchQuota,
-  type TokenInfo,
-  type QuotaInfo,
-} from './antigravity.js';
+import { PROVIDERS, providerOfTarget, type ProviderAccount, type ProviderId, type ProviderSession } from './providers/index.js';
+import { proxyDispatcher, type TokenInfo, type QuotaInfo } from './antigravity.js';
 
 /**
- * Pool account Antigravity + 4 chiến lược xoay. Logic chọn/đếm/cooldown tách vào
- * class Pool (pure, unit-test được, không đụng mạng). Phần lấy token/project
- * (mạng) nằm ở hàm ensureReady dùng singleton.
+ * Pool account ĐA PROVIDER (Antigravity + Kiro) + 4 chiến lược xoay.
+ * Logic chọn/đếm/cooldown nằm trong class Pool (thuần, unit-test được, không đụng mạng);
+ * phần mạng (token/project) do provider lo, pool chỉ dedupe promise.
+ *
+ * KHOÁ GHÉP `${provider}:${email}` — bắt buộc vì 147 email Kiro trùng email Antigravity.
  */
 
 export type Strategy = 'round-robin' | 'full-first' | 'failover' | 'highest-first';
 
-export interface PoolAccount {
+export function poolKey(provider: ProviderId, email: string): string {
+  return `${provider}:${email}`;
+}
+
+export interface UpsertInput {
+  provider: ProviderId;
   email: string;
   refreshToken: string;
+  credential: string;
   proxyLabel: string;
   health: string;
+  profileArn?: string;
+  region?: string;
+}
+
+export interface PoolAccount extends ProviderAccount {
+  proxyLabel: string;
   // persisted
   enabled: boolean;
   requests: number;
@@ -40,7 +48,7 @@ export interface PoolAccount {
   liveStatus?: 'ok' | 'quota' | 'error'; // kết quả check live gần nhất
   token?: TokenInfo;
   projectId?: string;
-  ready?: Promise<{ accessToken: string; projectId: string }>; // dedupe refresh khi nhiều call đồng thời
+  ready?: Promise<ProviderSession>; // dedupe refresh khi nhiều call đồng thời
 }
 
 /** % hạn mức Gemini còn lại (dùng cho highest-first). null nếu chưa fetch. */
@@ -59,17 +67,22 @@ export interface ReportInfo {
 
 export class NoAccountError extends Error {
   code = 503;
-  constructor(msg = 'Không có account Antigravity khả dụng (tắt hết / cooldown / dead)') {
+  constructor(msg = 'Không có account khả dụng (tắt hết / cooldown / dead)') {
     super(msg);
   }
 }
 
-function blankAccount(email: string, refreshToken: string, proxyLabel: string, health: string): PoolAccount {
+function blankAccount(i: UpsertInput): PoolAccount {
   return {
-    email,
-    refreshToken,
-    proxyLabel,
-    health,
+    provider: i.provider,
+    email: i.email,
+    key: poolKey(i.provider, i.email),
+    refreshToken: i.refreshToken,
+    credential: i.credential,
+    profileArn: i.profileArn,
+    region: i.region,
+    proxyLabel: i.proxyLabel,
+    health: i.health,
     enabled: true,
     requests: 0,
     tokensIn: 0,
@@ -83,34 +96,47 @@ function blankAccount(email: string, refreshToken: string, proxyLabel: string, h
 }
 
 export class Pool {
-  accounts = new Map<string, PoolAccount>();
-  private rrCursor = 0;
+  accounts = new Map<string, PoolAccount>(); // khoá = `${provider}:${email}`
+  private rrCursor = new Map<ProviderId, number>(); // cursor RIÊNG mỗi provider
 
   /** Thêm/cập nhật account (giữ nguyên state cũ nếu đã tồn tại). */
-  upsert(email: string, refreshToken: string, proxyLabel: string, health: string): PoolAccount {
-    const cur = this.accounts.get(email);
+  upsert(i: UpsertInput): PoolAccount {
+    const key = poolKey(i.provider, i.email);
+    const cur = this.accounts.get(key);
     if (cur) {
-      cur.refreshToken = refreshToken;
-      cur.proxyLabel = proxyLabel;
-      cur.health = health;
+      cur.refreshToken = i.refreshToken;
+      cur.credential = i.credential;
+      cur.proxyLabel = i.proxyLabel;
+      cur.health = i.health;
+      if (i.profileArn) cur.profileArn = i.profileArn;
+      if (i.region) cur.region = i.region;
       return cur;
     }
-    const a = blankAccount(email, refreshToken, proxyLabel, health);
-    this.accounts.set(email, a);
+    const a = blankAccount(i);
+    this.accounts.set(key, a);
     return a;
   }
 
-  remove(email: string): void {
-    this.accounts.delete(email);
+  /** Lấy theo email + provider (mặc định agy để tương thích code cũ). */
+  get(email: string, provider: ProviderId = 'agy'): PoolAccount | undefined {
+    return this.accounts.get(poolKey(provider, email));
+  }
+  getByKey(key: string): PoolAccount | undefined {
+    return this.accounts.get(key);
   }
 
-  list(): PoolAccount[] {
-    return [...this.accounts.values()];
+  remove(key: string): void {
+    this.accounts.delete(key);
   }
 
-  /** Account đủ điều kiện phục vụ tại thời điểm now. */
-  candidates(now = Date.now()): PoolAccount[] {
-    return this.list().filter(
+  list(provider?: ProviderId): PoolAccount[] {
+    const all = [...this.accounts.values()];
+    return provider ? all.filter((a) => a.provider === provider) : all;
+  }
+
+  /** Account đủ điều kiện phục vụ tại thời điểm now (lọc theo provider nếu có). */
+  candidates(now = Date.now(), provider?: ProviderId): PoolAccount[] {
+    return this.list(provider).filter(
       (a) => a.enabled && a.health !== 'dead' && (a.cooldownUntil || 0) <= now,
     );
   }
@@ -121,17 +147,26 @@ export class Pool {
    * mọi strategy đều tự xoay sang account khác thay vì dồn 1 account. Khi tải thấp thì
    * full-first/failover vẫn "dính" account đầu như thiết kế.
    */
-  pick(strategy: Strategy, now = Date.now()): PoolAccount {
-    const all = this.candidates(now);
-    if (!all.length) throw new NoAccountError();
+  pick(strategy: Strategy, now = Date.now(), provider?: ProviderId): PoolAccount {
+    const all = this.candidates(now, provider);
+    if (!all.length) {
+      throw new NoAccountError(
+        provider
+          ? `Không có account ${PROVIDERS[provider]?.label ?? provider} khả dụng (tắt hết / cooldown / hết hạn mức)`
+          : undefined,
+      );
+    }
     // chỉ xét nhóm account đang rảnh nhất (inflight tối thiểu)
     const minInflight = Math.min(...all.map((a) => a.inflight));
     const c = all.filter((a) => a.inflight === minInflight);
     let chosen: PoolAccount;
     switch (strategy) {
       case 'round-robin': {
-        chosen = c[this.rrCursor % c.length]!;
-        this.rrCursor = (this.rrCursor + 1) % Math.max(1, c.length);
+        // cursor RIÊNG mỗi provider — cursor chung sẽ làm xoay lệch/đói account
+        const ck = provider ?? 'agy';
+        const cur = this.rrCursor.get(ck) ?? 0;
+        chosen = c[cur % c.length]!;
+        this.rrCursor.set(ck, (cur + 1) % Math.max(1, c.length));
         break;
       }
       case 'highest-first': {
@@ -152,34 +187,43 @@ export class Pool {
     return chosen;
   }
 
-  /** Giải phóng account sau khi request xong (inflight--). */
-  release(email: string): void {
-    const a = this.accounts.get(email);
-    if (a && a.inflight > 0) a.inflight--;
+  /** Giải phóng account sau khi request xong (inflight--). Nhận account hoặc khoá. */
+  release(a: PoolAccount | string): void {
+    const acc = typeof a === 'string' ? this.accounts.get(a) : a;
+    if (acc && acc.inflight > 0) acc.inflight--;
   }
 
-  /** Cập nhật counters + cooldown sau 1 request. */
-  report(email: string, info: ReportInfo, now = Date.now()): void {
-    const a = this.accounts.get(email);
-    if (!a) return;
-    a.requests++;
-    a.tokensIn += info.promptTokens ?? 0;
-    a.tokensOut += info.completionTokens ?? 0;
-    a.lastUsed = now;
+  /**
+   * Cập nhật counters + cooldown sau 1 request.
+   * Nhận OBJECT account (email không còn định danh duy nhất khi có 2 provider).
+   */
+  report(a: PoolAccount | string, info: ReportInfo, now = Date.now()): void {
+    const acc = typeof a === 'string' ? this.accounts.get(a) : a;
+    if (!acc) return;
+    acc.requests++;
+    acc.tokensIn += info.promptTokens ?? 0;
+    acc.tokensOut += info.completionTokens ?? 0;
+    acc.lastUsed = now;
     if (info.ok) {
-      a.lastError = '';
+      acc.lastError = '';
     } else {
-      a.lastError = info.err ?? `HTTP ${info.status ?? '?'}`;
-      const quota = info.status === 429 || /quota|exhaust|resource_exhausted/i.test(info.err ?? '');
-      if (quota) a.cooldownUntil = now + config.gateway.cooldownSec * 1000;
+      acc.lastError = info.err ?? `HTTP ${info.status ?? '?'}`;
+      // 402 = Kiro hết hạn mức THÁNG; 429 = rate limit / quota Antigravity
+      const monthly = info.status === 402 || /MONTHLY_REQUEST_COUNT/i.test(info.err ?? '');
+      const quota = monthly || info.status === 429 || /quota|exhaust|resource_exhausted/i.test(info.err ?? '');
+      if (quota) {
+        // hết hạn mức tháng → nghỉ dài (mặc định 12h) thay vì cooldown ngắn
+        acc.cooldownUntil = now + (monthly ? 12 * 3600 : config.gateway.cooldownSec) * 1000;
+        acc.liveStatus = 'quota';
+      }
     }
   }
 
-  /** State cần persist (enabled + counters + quota cache). */
+  /** State cần persist (enabled + counters + quota cache). Khoá = `${provider}:${email}`. */
   toPersist(): Record<string, any> {
     const out: Record<string, any> = {};
     for (const a of this.accounts.values()) {
-      out[a.email] = {
+      out[a.key] = {
         enabled: a.enabled,
         requests: a.requests,
         tokensIn: a.tokensIn,
@@ -193,8 +237,10 @@ export class Pool {
   }
 
   applyPersist(data: Record<string, Partial<PoolAccount>>): void {
-    for (const [email, s] of Object.entries(data || {})) {
-      const a = this.accounts.get(email);
+    for (const [rawKey, s] of Object.entries(data || {})) {
+      // khoá cũ (chỉ email, không có ':') = account Antigravity → migrate êm
+      const key = rawKey.includes(':') ? rawKey : poolKey('agy', rawKey);
+      const a = this.accounts.get(key);
       if (!a) continue;
       if (typeof s.enabled === 'boolean') a.enabled = s.enabled;
       a.requests = s.requests ?? a.requests;
@@ -212,45 +258,91 @@ export const pool = new Pool();
 const PERSIST = resolve(DATA_DIR, 'gateway.json');
 const REFRESH_SKEW_MS = 5 * 60 * 1000;
 
-/** Nạp account agy từ store (giữ state), rồi áp persist. Gọi lúc boot + khi cần refresh danh sách. */
-export function syncFromStore(): void {
-  const creds = store.listCredentials().filter((c) => c.target === 'agy' && c.value.startsWith('1//'));
+const SYNC_MIN_MS = 2000; // syncFromStore chạy mỗi request → chặn quét lại quá dày
+let lastSyncAt = 0;
+
+/**
+ * Nạp account MỌI provider từ store (giữ state), rồi áp persist.
+ * Tối ưu: bỏ qua nếu vừa sync < 2s; chỉ parseCredential khi giá trị thô đổi
+ * (147 credential Kiro là JSON — parse mỗi request sẽ rất tốn).
+ */
+export function syncFromStore(force = false): void {
+  if (!force && Date.now() - lastSyncAt < SYNC_MIN_MS) return;
   const seen = new Set<string>();
-  for (const c of creds) {
+  for (const c of store.listCredentials()) {
+    const p = providerOfTarget(c.target);
+    if (!p || !p.accepts(c.value)) continue;
+    const existing = pool.get(c.email, p.id);
+    const parsed =
+      existing && existing.credential === c.value
+        ? { refreshToken: existing.refreshToken, profileArn: existing.profileArn, region: existing.region }
+        : p.parseCredential(c.value);
+    if (!parsed) continue;
     const acc = store.getAccount(c.email);
-    pool.upsert(c.email, c.value, acc?.proxy ?? '', c.health || 'unknown');
-    seen.add(c.email);
+    const a = pool.upsert({
+      provider: p.id,
+      email: c.email,
+      credential: c.value,
+      refreshToken: parsed.refreshToken,
+      profileArn: parsed.profileArn,
+      region: parsed.region,
+      proxyLabel: acc?.proxy ?? '',
+      health: c.health || 'unknown',
+    });
+    seen.add(a.key);
   }
-  for (const a of pool.list()) if (!seen.has(a.email)) pool.remove(a.email);
+  for (const a of pool.list()) if (!seen.has(a.key)) pool.remove(a.key);
+  lastSyncAt = Date.now();
   loadPersist();
 }
 
-let persistLoaded = false;
+let persistMtime = -1;
 function loadPersist(): void {
-  if (persistLoaded) {
-    // đã có state trong RAM; chỉ áp cho account mới
-  }
-  if (!existsSync(PERSIST)) {
-    persistLoaded = true;
-    return;
-  }
+  if (!existsSync(PERSIST)) return;
   try {
+    // Gate theo mtime: file này ~700KB, trước đây bị đọc lại MỖI request.
+    const m = statSync(PERSIST).mtimeMs;
+    if (m === persistMtime) return;
+    persistMtime = m;
     const data = JSON.parse(readFileSync(PERSIST, 'utf8')) as Record<string, Partial<PoolAccount>>;
     pool.applyPersist(data);
   } catch {
     /* file hỏng → bỏ qua */
   }
-  persistLoaded = true;
 }
 
-export function savePersist(): void {
+/** Ghi persist ngay (đồng bộ). Dùng khi thoát tiến trình. */
+export function flushPersist(): void {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
   try {
     const tmp = PERSIST + '.tmp';
     writeFileSync(tmp, JSON.stringify(pool.toPersist(), null, 2));
     renameSync(tmp, PERSIST);
+    persistMtime = statSync(PERSIST).mtimeMs;
   } catch {
     /* không chặn request vì lỗi ghi */
   }
+}
+
+let saveTimer: NodeJS.Timeout | null = null;
+/** Gộp nhiều lần ghi trong ~2s thành 1 (trước đây ghi cả file mỗi request). */
+export function savePersist(): void {
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    flushPersist();
+  }, 2000);
+  saveTimer.unref?.();
+}
+
+for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(sig, () => {
+    flushPersist();
+    process.exit(0);
+  });
 }
 
 /** Proxy URL từ label account (proxies.csv) → http://user:pass@host:port. */
@@ -273,35 +365,32 @@ export function dispatcherFor(account: PoolAccount, overrideProxyUrl?: string): 
  * DEDUPE: nhiều request đồng thời trúng cùng account (chưa có token/project) sẽ
  * dùng CHUNG 1 lần refresh — tránh gọi trùng gây rate limit khi burst.
  */
-export async function ensureReady(
-  account: PoolAccount,
-  dispatcher?: Dispatcher,
-): Promise<{ accessToken: string; projectId: string }> {
-  const now = Date.now();
-  const fresh = account.token && account.token.expiresAt - REFRESH_SKEW_MS > now && account.projectId;
-  if (fresh) return { accessToken: account.token!.accessToken, projectId: account.projectId! };
+export async function ensureReady(account: PoolAccount, dispatcher?: Dispatcher): Promise<ProviderSession> {
+  const p = PROVIDERS[account.provider];
+  if (p.sessionFresh(account, Date.now())) return p.sessionOf(account);
   if (!account.ready) {
-    account.ready = (async () => {
-      if (!account.token || account.token.expiresAt - REFRESH_SKEW_MS <= Date.now()) {
-        account.token = await refreshAccessToken(account.refreshToken, dispatcher);
+    account.ready = p
+      .ensureReady(account, dispatcher)
+      .then((s) => {
         account.health = 'alive';
-      }
-      if (!account.projectId) {
-        account.projectId = await discoverProject(account.token.accessToken, dispatcher);
-      }
-      return { accessToken: account.token.accessToken, projectId: account.projectId };
-    })().finally(() => { account.ready = undefined; });
+        return s;
+      })
+      .finally(() => {
+        account.ready = undefined;
+      });
   }
   return account.ready;
 }
 
-/** Nạp hạn mức cho account (cache TTL). force=true bỏ qua cache. */
+/** Nạp hạn mức cho account (cache TTL). force=true bỏ qua cache. Provider không có quota → undefined. */
 export async function refreshQuota(account: PoolAccount, force = false): Promise<QuotaInfo | undefined> {
+  const p = PROVIDERS[account.provider];
+  if (!p.quota) return undefined; // Kiro: không có API hạn mức
   const ttl = (config.gateway.quota?.cacheTtlMin ?? 10) * 60 * 1000;
   if (!force && account.quota && Date.now() - account.quota.fetchedAt < ttl) return account.quota;
   const dispatcher = dispatcherFor(account);
-  const { accessToken, projectId } = await ensureReady(account, dispatcher);
-  account.quota = await fetchQuota(accessToken, projectId, dispatcher);
+  const session = await ensureReady(account, dispatcher);
+  account.quota = await p.quota(account, session, dispatcher);
   // Ghi LỊCH SỬ hạn mức (chỉ khi fetch thật + có dữ liệu) để vẽ xu hướng theo thời gian.
   if (account.quota?.groups?.length) {
     try {
