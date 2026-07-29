@@ -32,7 +32,18 @@ agyproxy status                    # trạng thái + số liệu
 | `agyproxy logs -f` | xem log realtime |
 | `agyproxy update` | **kiểm tra GitHub & tự cập nhật** (git pull hoặc npm -g) |
 | `agyproxy update --check` | chỉ kiểm tra có bản mới |
+| `agyproxy service install` | **tự chạy khi reboot** (systemd trên Linux/VPS · launchd trên macOS) |
+| `agyproxy service uninstall` | gỡ tự chạy |
+| `agyproxy service start\|stop\|restart\|status` | bật/tắt/xem service |
 | `agyproxy version` | phiên bản |
+
+### Tự chạy khi reboot (VPS / aaPanel)
+```bash
+agyproxy service install     # systemd --user + enable-linger → lên lại sau reboot
+agyproxy service status
+```
+Service có **auto-restart** (Restart=always / KeepAlive): process chết là tự dựng lại. Gỡ bằng `agyproxy service uninstall`.
+Trên macOS, nếu source nằm trong `~/Desktop`/`~/Documents` thì log service ghi ở `~/Library/Logs/agyproxy.log` (do macOS TCC chặn LaunchAgent ghi vào các thư mục đó).
 
 Dữ liệu mặc định ở `~/.agyproxy` (accounts, token, profiles, log). Đổi bằng env `AGY_HOME`. Nếu chạy từ thư mục source đã có `data/` thì giữ nguyên chỗ cũ.
 

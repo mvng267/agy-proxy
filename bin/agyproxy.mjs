@@ -139,6 +139,126 @@ async function update(check) {
   if (wasRunning) { console.log(c.d('  Khởi động lại…')); start(true); }
 }
 
+// ---------- service (tự chạy khi reboot): systemd (Linux) | launchd (macOS) ----------
+const IS_MAC = process.platform === 'darwin';
+const SVC_LABEL = 'com.agyproxy';
+const PLIST = resolve(homedir(), 'Library/LaunchAgents', `${SVC_LABEL}.plist`);
+const UNIT_DIR = resolve(homedir(), '.config/systemd/user');
+const UNIT = resolve(UNIT_DIR, 'agyproxy.service');
+
+function svcExecArgs() {
+  // node --import tsx src/index.ts  (chạy trực tiếp, service manager lo phần nền)
+  return [process.execPath, '--import', 'tsx', ENTRY];
+}
+
+function svcInstall() {
+  const running = readPid();
+  if (running) { console.log(c.d('  Dừng daemon thủ công để service quản lý…')); stop(); }
+  const [node, ...args] = svcExecArgs();
+  const env = { AGY_HOME: HOME, PORT: String(PORT), NODE_ENV: 'production' };
+  // macOS TCC chặn LaunchAgent ghi vào Desktop/Documents/Downloads → log ra ~/Library/Logs.
+  const svcLog = IS_MAC && /\/(Desktop|Documents|Downloads)\//i.test(LOG_FILE)
+    ? resolve(homedir(), 'Library/Logs/agyproxy.log')
+    : LOG_FILE;
+
+  if (IS_MAC) {
+    mkdirSync(dirname(PLIST), { recursive: true });
+    const envXml = Object.entries(env).map(([k, v]) => `      <key>${k}</key><string>${v}</string>`).join('\n');
+    writeFileSync(PLIST, `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>${SVC_LABEL}</string>
+  <key>ProgramArguments</key><array>
+${[node, ...args].map((a) => `    <string>${a}</string>`).join('\n')}
+  </array>
+  <key>WorkingDirectory</key><string>${ROOT}</string>
+  <key>EnvironmentVariables</key><dict>
+${envXml}
+      <key>PATH</key><string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>${svcLog}</string>
+  <key>StandardErrorPath</key><string>${svcLog}</string>
+</dict></plist>
+`);
+    try { execFileSync('launchctl', ['unload', PLIST], { stdio: 'ignore' }); } catch {}
+    execFileSync('launchctl', ['load', '-w', PLIST], { stdio: 'inherit' });
+    console.log(c.g('✓ Đã cài service (launchd)') + ` · ${PLIST}`);
+    console.log(c.d('  Tự chạy khi đăng nhập máy. Tắt: agyproxy service uninstall'));
+  } else {
+    mkdirSync(UNIT_DIR, { recursive: true });
+    const envLines = Object.entries(env).map(([k, v]) => `Environment=${k}=${v}`).join('\n');
+    writeFileSync(UNIT, `[Unit]
+Description=agyproxy — Antigravity gateway
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=${ROOT}
+${envLines}
+ExecStart=${[node, ...args].join(' ')}
+Restart=always
+RestartSec=5
+StandardOutput=append:${svcLog}
+StandardError=append:${svcLog}
+
+[Install]
+WantedBy=default.target
+`);
+    execFileSync('systemctl', ['--user', 'daemon-reload'], { stdio: 'inherit' });
+    execFileSync('systemctl', ['--user', 'enable', '--now', 'agyproxy'], { stdio: 'inherit' });
+    console.log(c.g('✓ Đã cài service (systemd --user)') + ` · ${UNIT}`);
+    try { execFileSync('loginctl', ['enable-linger', process.env.USER || ''], { stdio: 'ignore' }); console.log(c.d('  Đã bật linger → chạy cả khi chưa đăng nhập (reboot vẫn lên).')); }
+    catch { console.log(c.y('  Lưu ý: chạy `sudo loginctl enable-linger $USER` để tự lên sau reboot.')); }
+  }
+}
+
+function svcUninstall() {
+  if (IS_MAC) {
+    if (!existsSync(PLIST)) { console.log(c.y('Chưa cài service.')); return; }
+    try { execFileSync('launchctl', ['unload', '-w', PLIST], { stdio: 'ignore' }); } catch {}
+    try { unlinkSync(PLIST); } catch {}
+    console.log(c.g('✓ Đã gỡ service (launchd)'));
+  } else {
+    try { execFileSync('systemctl', ['--user', 'disable', '--now', 'agyproxy'], { stdio: 'inherit' }); } catch {}
+    try { unlinkSync(UNIT); } catch {}
+    try { execFileSync('systemctl', ['--user', 'daemon-reload'], { stdio: 'ignore' }); } catch {}
+    console.log(c.g('✓ Đã gỡ service (systemd)'));
+  }
+}
+
+function svcCtl(action) {
+  if (IS_MAC) {
+    if (!existsSync(PLIST)) { console.log(c.y('Chưa cài service. Chạy: agyproxy service install')); return; }
+    if (action === 'status') {
+      try {
+        const out = execFileSync('launchctl', ['list'], { encoding: 'utf8' }).split('\n').find((l) => l.includes(SVC_LABEL));
+        console.log(out ? c.g('✓ Service đang bật (launchd)') + c.d(`  ${out.trim()}`) : c.r('✗ Service đã cài nhưng chưa nạp'));
+      } catch { console.log(c.r('không đọc được trạng thái')); }
+      return;
+    }
+    if (action === 'stop') { try { execFileSync('launchctl', ['unload', PLIST], { stdio: 'ignore' }); } catch {} console.log(c.g('✓ Đã dừng service')); }
+    if (action === 'start') { try { execFileSync('launchctl', ['load', '-w', PLIST], { stdio: 'ignore' }); } catch {} console.log(c.g('✓ Đã bật service')); }
+    if (action === 'restart') { try { execFileSync('launchctl', ['unload', PLIST], { stdio: 'ignore' }); execFileSync('launchctl', ['load', '-w', PLIST], { stdio: 'ignore' }); } catch {} console.log(c.g('✓ Đã khởi động lại service')); }
+  } else {
+    try { execFileSync('systemctl', ['--user', action, 'agyproxy'], { stdio: 'inherit' }); } catch (e) { console.log(c.r('lỗi: ') + (e?.message ?? e)); }
+  }
+}
+
+function service(sub) {
+  switch (sub) {
+    case 'install': case 'enable': svcInstall(); break;
+    case 'uninstall': case 'remove': case 'disable': svcUninstall(); break;
+    case 'start': case 'stop': case 'restart': case 'status': svcCtl(sub); break;
+    default:
+      console.log(`${c.b('agyproxy service')} — tự chạy khi reboot (${IS_MAC ? 'launchd/macOS' : 'systemd/Linux'})
+  install    cài + bật (tự chạy khi khởi động máy)
+  uninstall  gỡ hẳn service
+  start | stop | restart | status`);
+  }
+}
+
 function help() {
   console.log(`${c.b('agyproxy')} v${PKG.version} — Antigravity gateway CLI
 
@@ -150,6 +270,8 @@ function help() {
   ${c.b('agyproxy logs [-f]')}     xem log (-f theo dõi)
   ${c.b('agyproxy update')}        cập nhật từ GitHub (${REPO})
   ${c.b('agyproxy update --check')} chỉ kiểm tra có bản mới không
+  ${c.b('agyproxy service ...')}   tự chạy khi reboot (${IS_MAC ? 'launchd' : 'systemd'})
+     ${c.d('install | uninstall | start | stop | restart | status')}
   ${c.b('agyproxy version')}       phiên bản
 
   Dashboard: http://localhost:${PORT}   ·   Gateway: /proxy/v1
@@ -166,6 +288,7 @@ switch (cmd) {
   case 'status': case 'st': await status(); break;
   case 'logs': case 'log': logs(has('-f') || has('--follow')); break;
   case 'update': case 'upgrade': await update(has('--check')); break;
+  case 'service': case 'svc': service(rest[0]); break;
   case 'version': case '-v': case '--version': console.log(PKG.version); break;
   case 'help': case '-h': case '--help': case undefined: help(); break;
   default: console.log(c.r(`Lệnh không hợp lệ: ${cmd}`)); help(); process.exit(1);
