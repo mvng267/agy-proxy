@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseModelId, ModelIdError, allModels, providerOfTarget, getProvider, setBareMode } from '../../src/gateway/providers/index.js';
-import { planCombo, planAuto, shouldFallback, validateTargets, scoreCandidates, AUTO_VARIANTS, type Combo, type PoolSnapshot } from '../../src/gateway/combo.js';
+import { planCombo, planAuto, shouldFallback, isContextTooLong, validateTargets, scoreCandidates, AUTO_VARIANTS, type Combo, type PoolSnapshot } from '../../src/gateway/combo.js';
 import { messagesToCodeWhisperer, parseKiroCredential, resolveKiroUpstream } from '../../src/gateway/kiro.js';
 import { anthropicToMessages, resultToAnthropic, toStopReason, resolveAnthropicModel, sseFrame } from '../../src/gateway/anthropic.js';
 
@@ -203,4 +203,14 @@ test('bareMode: id trần gọi được, đuôi -kr chỉ đúng model Kiro', (
 
 test('tắt bareMode: id trần lại báo 400 kèm gợi ý (mặc định an toàn)', () => {
   assert.throws(() => parseModelId('gemini-2.5-flash'), (e: any) => e.suggestion === 'agy/gemini-2.5-flash');
+});
+
+test('shouldFallback: đầu vào quá dài → TRƯỢT sang model ngữ cảnh lớn hơn', () => {
+  // Kiro chặn quanh ~100k token dù công bố 200k; Antigravity nhận 1M → trượt là đúng
+  assert.equal(shouldFallback({ status: 400, message: 'Kiro 400 CONTENT_LENGTH_EXCEEDS_THRESHOLD: Input is too long.' }), true);
+  assert.equal(shouldFallback({ status: 400, message: 'Failed to buffer the request body: length limit exceeded' }), true);
+  assert.equal(isContextTooLong({ message: 'context length exceeded' }), true);
+  // lỗi người dùng thật vẫn KHÔNG trượt (tránh đốt quota account khác)
+  assert.equal(shouldFallback({ status: 400, message: 'invalid model id' }), false);
+  assert.equal(isContextTooLong({ message: 'invalid model id' }), false);
 });

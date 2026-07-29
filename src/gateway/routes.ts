@@ -14,7 +14,7 @@ import {
   type ParsedModel, type ProviderId, type ProviderSession,
 } from './providers/index.js';
 import {
-  planCombo, planAuto, shouldFallback, validateTargets, AUTO_VARIANT_IDS, AUTO_VARIANTS, scoreCandidates,
+  planCombo, planAuto, shouldFallback, isContextTooLong, validateTargets, AUTO_VARIANT_IDS, AUTO_VARIANTS, scoreCandidates,
   type Combo, type ComboStrategy, type ComboTarget, type PoolSnapshot,
 } from './combo.js';
 import {
@@ -98,6 +98,18 @@ function afterCall(account: PoolAccount, model: string, r: { ok: boolean; prompt
   if (r.ok && config.gateway.quota?.onCall) {
     refreshQuota(account).catch(() => {}); // nền, không chặn
   }
+}
+
+/**
+ * Lỗi "đầu vào quá dài": biến thành thông báo hành động được.
+ * Kiro/Bedrock chặn quanh ~100k token dù công bố 200k; Antigravity nhận tới 1M.
+ */
+function contextHint(e: unknown, model: string): string | undefined {
+  if (!isContextTooLong(e)) return undefined;
+  return (
+    `Đầu vào quá dài với ${model}. Dùng model ngữ cảnh lớn hơn (agy/gemini-3-pro-low ~1M token), ` +
+    'hoặc combo/auto để tự chuyển khi vượt ngưỡng, hoặc rút bớt nội dung gửi lên.'
+  );
 }
 
 function proxyLabelOf(account: PoolAccount, override?: string): string {
@@ -464,7 +476,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         return reply;
       }
       const code = e instanceof NoAccountError ? 503 : e?.status === 400 ? 400 : 502;
-      return reply.code(code).send({ error: e?.message ?? 'all accounts failed' });
+      const hint = contextHint(e, parsed.prefixed);
+      return reply.code(code).send({ error: hint ?? e?.message ?? 'all accounts failed', ...(hint ? { detail: e?.message } : {}) });
     }
   });
 
@@ -948,7 +961,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       });
     } catch (e: any) {
       const code = e instanceof NoAccountError ? 503 : e?.status === 400 ? 400 : 502;
-      return reply.code(code).send({ error: { message: e?.message ?? 'all accounts failed', type: 'api_error' } });
+      const hint = contextHint(e, parsed.prefixed);
+      return reply.code(code).send({ error: { message: hint ?? e?.message ?? 'all accounts failed', type: 'api_error' } });
     }
   });
 

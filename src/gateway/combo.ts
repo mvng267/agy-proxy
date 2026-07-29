@@ -159,11 +159,22 @@ export function shouldFallback(err: unknown): boolean {
   const e = err as { status?: number; code?: number; message?: string; name?: string } | undefined;
   if (!e) return false;
   const status = e.status ?? e.code;
+  const msg = String(e.message ?? '');
+  // 400 vì VƯỢT NGỮ CẢNH của model → không phải lỗi người dùng, mà là model này quá nhỏ.
+  // Trượt sang model kế (vd Kiro ~100k → Antigravity 1M) thay vì trả lỗi.
+  if (isContextTooLong(e)) return true;
   if (status === 400 || status === 401 || status === 403) return false;
   if (status === 402 || status === 429) return true; // hết hạn mức
   if (typeof status === 'number' && status >= 500) return true;
-  const msg = String(e.message ?? '');
   return /timeout|aborted|ECONN|fetch failed|socket|quota|exhaust|MONTHLY_REQUEST_COUNT|khả dụng/i.test(msg);
+}
+
+/** Lỗi "đầu vào quá dài" của các provider (Kiro/Bedrock/Gemini) — dùng để trượt combo. */
+export function isContextTooLong(err: unknown): boolean {
+  const e = err as { message?: string } | undefined;
+  return /CONTENT_LENGTH_EXCEEDS_THRESHOLD|Input is too long|length limit exceeded|context length|too many tokens|exceeds the maximum/i.test(
+    String(e?.message ?? ''),
+  );
 }
 
 /** Chặn combo trỏ vòng vào chính nó / vào combo khác. */
