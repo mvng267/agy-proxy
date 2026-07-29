@@ -227,6 +227,7 @@ export interface ToolStatus {
   api: string;
   path: string;
   installed: boolean;
+  via?: string;
   exists: boolean;
   configured: boolean;
   hasBackup: boolean;
@@ -268,5 +269,6 @@ export function toolStatus(id: ToolId, home = homedir()): ToolStatus {
   } catch {
     /* thư mục chưa có */
   }
-  return { id, label: def.label, api: def.api, path, installed: def.detect(home).installed, exists, configured, hasBackup, model, notes: def.notes, unsupported: def.unsupported };
+  const det = def.detect(home);
+  return { id, label: def.label, api: def.api, path, installed: det.installed, via: det.via, exists, configured, hasBackup, model, notes: def.notes, unsupported: def.unsupported };
 }

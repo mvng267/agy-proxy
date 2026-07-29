@@ -168,3 +168,14 @@ test('undo: file rỗng còn sót từ lần trước vẫn dọn được', () 
   assert.equal(r.restored, true);
   assert.equal(existsSync(resolve(home, '.gemini/.env')), false);
 });
+
+test('detect: nhận Claude Code khi CHỈ có binary, chưa có ~/.claude', () => {
+  const home = tmpHome();
+  // mô phỏng vừa `npm i -g @anthropic-ai/claude-code`: có binary, chưa chạy lần nào
+  mkdirSync(resolve(home, '.local/bin'), { recursive: true });
+  writeFileSync(resolve(home, '.local/bin/claude'), '#!/bin/sh\n');
+  assert.equal(existsSync(resolve(home, '.claude')), false, 'chưa có thư mục config');
+  const st = toolStatus('claude', home);
+  assert.equal(st.installed, true, 'phải nhận ra qua binary trong PATH');
+  assert.match(String(st.via), /claude/);
+});

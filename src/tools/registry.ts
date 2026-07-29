@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 
 /**
@@ -49,6 +50,37 @@ function claudeEnv(v: SetupValues): Record<string, unknown> {
   };
 }
 
+/**
+ * Có lệnh này trong PATH không — quét thư mục trong $PATH bằng fs (KHÔNG spawn process).
+ * Cần vì cài mới `npm i -g @anthropic-ai/claude-code` thì binary đã có nhưng
+ * thư mục ~/.claude CHƯA tồn tại (chỉ tạo sau lần chạy đầu) → dò theo thư mục sẽ trượt.
+ */
+export function hasBin(name: string, home = homedir()): boolean {
+  const dirs = (process.env.PATH ?? '').split(':').filter(Boolean);
+  // thêm các nơi npm/bun/pnpm hay đặt binary global mà PATH của service có thể thiếu
+  for (const extra of ['.local/bin', '.npm-global/bin', '.bun/bin', '.volta/bin', 'node_modules/.bin']) {
+    dirs.push(resolve(home, extra));
+  }
+  dirs.push('/usr/local/bin', '/opt/homebrew/bin', '/usr/bin');
+  for (const d of dirs) {
+    try {
+      if (existsSync(resolve(d, name))) return true;
+    } catch {
+      /* thư mục không đọc được */
+    }
+  }
+  return false;
+}
+
+/** Đã cài nếu CÓ BINARY trong PATH hoặc đã có thư mục cấu hình. */
+function detectBinOrDir(bin: string, dir: string) {
+  return (home: string) => {
+    const byBin = hasBin(bin, home);
+    const byDir = existsSync(resolve(home, dir));
+    return { installed: byBin || byDir, via: byBin ? `lệnh ${bin}` : byDir ? `thư mục ~/${dir}` : undefined };
+  };
+}
+
 export const TOOLS: Record<ToolId, ToolDef> = {
   claude: {
     id: 'claude',
@@ -56,7 +88,7 @@ export const TOOLS: Record<ToolId, ToolDef> = {
     format: 'json',
     api: 'anthropic',
     configPath: (home) => resolve(home, '.claude/settings.json'),
-    detect: (home) => ({ installed: existsSync(resolve(home, '.claude')), via: 'dir ~/.claude' }),
+    detect: detectBinOrDir('claude', '.claude'),
     patch: claudeEnv,
     notes: 'Merge vào settings.json đang dùng — MỌI phiên Claude Code sau đó sẽ đi qua gateway này.',
   },
@@ -66,7 +98,7 @@ export const TOOLS: Record<ToolId, ToolDef> = {
     format: 'json',
     api: 'anthropic',
     configPath: (home) => resolve(home, '.claude/settings.agyproxy.json'),
-    detect: (home) => ({ installed: existsSync(resolve(home, '.claude')), via: 'dir ~/.claude' }),
+    detect: detectBinOrDir('claude', '.claude'),
     patch: claudeEnv,
     notes: 'KHÔNG đụng file gốc. Chạy: claude --settings ~/.claude/settings.agyproxy.json',
   },
@@ -76,7 +108,7 @@ export const TOOLS: Record<ToolId, ToolDef> = {
     format: 'json',
     api: 'openai',
     configPath: (home) => resolve(home, '.config/opencode/opencode.json'),
-    detect: (home) => ({ installed: existsSync(resolve(home, '.config/opencode')), via: 'dir ~/.config/opencode' }),
+    detect: detectBinOrDir('opencode', '.config/opencode'),
     // opencode dùng khối provider riêng (ai-sdk openai-compatible), model gọi là `agyproxy/<id>`
     patch: (v) => ({
       model: `agyproxy/${v.model}`,
@@ -103,7 +135,7 @@ export const TOOLS: Record<ToolId, ToolDef> = {
     format: 'env',
     api: 'openai',
     configPath: (home) => resolve(home, '.gemini/.env'),
-    detect: (home) => ({ installed: existsSync(resolve(home, '.gemini')), via: 'dir ~/.gemini' }),
+    detect: detectBinOrDir('gemini', '.gemini'),
     patch: (v) =>
       [
         MARK_BEGIN,
@@ -120,7 +152,7 @@ export const TOOLS: Record<ToolId, ToolDef> = {
     format: 'marker',
     api: 'openai',
     configPath: (home) => resolve(home, '.codex/config.toml'),
-    detect: (home) => ({ installed: existsSync(resolve(home, '.codex')), via: 'dir ~/.codex' }),
+    detect: detectBinOrDir('codex', '.codex'),
     patch: (v) =>
       [
         MARK_BEGIN,
@@ -142,7 +174,7 @@ export const TOOLS: Record<ToolId, ToolDef> = {
     format: 'env',
     api: 'openai',
     configPath: (home) => resolve(home, '.hermes/.env'),
-    detect: (home) => ({ installed: existsSync(resolve(home, '.hermes')), via: 'dir ~/.hermes' }),
+    detect: detectBinOrDir('hermes', '.hermes'),
     patch: (v) =>
       [
         MARK_BEGIN,

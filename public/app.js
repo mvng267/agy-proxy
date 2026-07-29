@@ -922,7 +922,7 @@ async function loadTools() {
       </div>
       <p class="set-desc mono" style="font-size:11.5px">${esc(t.path)}</p>
       <p class="set-desc">Chuẩn <b>${t.api === 'anthropic' ? 'Anthropic' : 'OpenAI'}</b>
-        · ${t.installed ? '<span style="color:var(--green)">đã cài trên máy</span>' : '<span class="faint">chưa thấy cài</span>'}
+        · ${t.installed ? `<span style="color:var(--green)">đã cài${t.via ? ' · ' + esc(t.via) : ''}</span>` : '<span class="faint">chưa thấy cài</span>'}
         ${t.model ? ` · đang dùng <b>${esc(t.model)}</b>` : ''}</p>
       ${t.unsupported ? `<p class="set-desc" style="color:var(--amber)">⚠ ${esc(t.unsupported)}</p>` : ''}
       <label class="fl">Model (chọn combo nếu muốn tự dự phòng khi hết hạn mức)</label>
