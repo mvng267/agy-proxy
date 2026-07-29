@@ -194,13 +194,22 @@ export function undoTool(id: ToolId, home = homedir()): UndoResult {
     return { restored: true, path, detail: `Đã khôi phục từ ${baks[0]}` };
   }
 
-  // 2) file text có khối marker → gỡ khối
+  // 2) file text có khối marker → gỡ khối. Gỡ xong mà file RỖNG thì xoá hẳn
+  //    (file này do ta tạo ra, để lại file rỗng sẽ khiến lần Huỷ sau báo "không tìm thấy").
   if (def.format !== 'json') {
     const cur = readFileSync(path, 'utf8');
     if (cur.includes(MARKERS.begin)) {
       const next = removeMarkerBlock(cur);
+      if (!next.trim()) {
+        unlinkSync(path);
+        return { restored: true, path, detail: 'Đã gỡ cấu hình và xoá file rỗng' };
+      }
       writeFileSync(path, next);
       return { restored: true, path, detail: 'Đã gỡ khối cấu hình agyproxy' };
+    }
+    if (!cur.trim()) {
+      unlinkSync(path); // file rỗng còn sót từ lần gỡ trước
+      return { restored: true, path, detail: 'Đã xoá file rỗng còn sót' };
     }
   }
 

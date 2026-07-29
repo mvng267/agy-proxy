@@ -64,3 +64,14 @@ test('pruneQuotaHistory: xoá dòng cũ hơn N ngày', () => {
   pruneQuotaHistory(90);
   assert.equal(quotaForAccount('__old@x', old - 1000, old + 1000).length, 0);
 });
+
+test('maxBodyMb: mặc định 32MB (Fastify mặc định 1MB là quá nhỏ cho tool coding)', () => {
+  assert.ok(config.maxBodyMb >= 8, 'body limit phải đủ lớn cho prompt kèm file');
+  assert.ok(CONFIG_KEYS.includes('maxBodyMb'));
+  assert.ok(RESTART_KEYS.has('maxBodyMb'), 'đổi giới hạn body phải khởi động lại mới có hiệu lực');
+  const old = config.maxBodyMb;
+  setConfig({ maxBodyMb: 16 });
+  assert.equal(config.maxBodyMb, 16);
+  assert.equal(getSetting('maxBodyMb'), '16');
+  setConfig({ maxBodyMb: old });
+});

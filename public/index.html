@@ -407,6 +407,17 @@
           <div class="ph-actions"><span class="faint mono" id="tools-base"></span></div>
         </div>
         <div id="tools-warn"></div>
+        <div class="panel agy-connect">
+          <div class="row" style="align-items:flex-end;gap:12px;flex-wrap:wrap">
+            <div style="flex:1;min-width:220px">
+              <label class="fl">Đổi nhanh model cho MỌI tool đang bật</label>
+              <select id="tools-bulk-model"></select>
+            </div>
+            <button class="primary" id="tools-bulk-apply" title="Ghi model này vào tất cả tool đang bật">Áp cho tất cả</button>
+            <button class="danger" id="tools-bulk-off" title="Tắt hết, trả mọi file về như cũ">Tắt tất cả</button>
+          </div>
+          <p class="set-desc" style="margin:10px 0 0" id="tools-bulk-note"></p>
+        </div>
         <div class="settings-grid" id="tools-grid"></div>
         <div class="panel">
           <p class="set-desc" style="margin:0">💡 Hoặc chạy trong terminal: <code>agyproxy setup-claude --profile --model kr/claude-sonnet-4</code> · thêm <code>--dry-run</code> để xem trước, <code>--undo</code> để gỡ.</p>
@@ -532,6 +543,9 @@
                 <select id="s-host" data-key="host"><option value="127.0.0.1">127.0.0.1 (chỉ máy này)</option><option value="0.0.0.0">0.0.0.0 (máy khác vào được)</option></select>
               </div>
             </div>
+            <label class="fl">Giới hạn body request (MB) <span class="rst">⟳</span>
+              <span class="faint">— tool coding gửi cả file + hội thoại; đặt thấp sẽ dính lỗi 413</span></label>
+            <input id="s-maxbody" type="number" data-key="maxBodyMb" />
             <label class="fl">Thư mục dữ liệu</label><input id="s-datadir" readonly />
             <div class="row end" style="margin-top:12px">
               <button id="s-restart" title="Khởi động lại tiến trình"><svg class="ic"><use href="#i-power"/></svg> Khởi động lại</button>

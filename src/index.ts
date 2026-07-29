@@ -14,7 +14,9 @@ import { resolve } from 'node:path';
 async function main() {
   store.load();
 
-  const app = Fastify({ logger: false });
+  // bodyLimit: Fastify mặc định CHỈ 1 MB → tool coding gửi cả file + lịch sử hội thoại
+  // là dính 413 FST_ERR_CTP_BODY_TOO_LARGE. 32 MB khớp giới hạn phía client (Claude Code…).
+  const app = Fastify({ logger: false, bodyLimit: config.maxBodyMb * 1024 * 1024 });
   await app.register(formbody);
 
   // Bảo vệ dashboard + /api/* bằng Basic auth khi có DASHBOARD_PASSWORD.

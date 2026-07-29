@@ -42,6 +42,8 @@ export const config = {
   // ---- server (cần khởi động lại khi đổi) ----
   port: num(S('port') ?? process.env.PORT, 7788),
   host: S('host') ?? process.env.HOST ?? '127.0.0.1',
+  // Giới hạn body request (MB). Fastify mặc định 1 MB — quá nhỏ cho tool coding.
+  maxBodyMb: num(S('maxBodyMb') ?? process.env.MAX_BODY_MB, 32),
   // ---- đăng nhập dashboard ----
   dashboardPassword: S('dashboardPassword') ?? process.env.DASHBOARD_PASSWORD ?? '123456',
   dashboardUser: S('dashboardUser') ?? process.env.DASHBOARD_USER ?? '',
@@ -101,6 +103,7 @@ type Setter = (v: string) => void;
 const SETTERS: Record<string, Setter> = {
   port: (v) => (config.port = Number(v)),
   host: (v) => (config.host = v),
+  maxBodyMb: (v) => (config.maxBodyMb = Number(v)),
   dashboardPassword: (v) => (config.dashboardPassword = v),
   dashboardUser: (v) => (config.dashboardUser = v),
   sessionSecret: (v) => (config.sessionSecret = v),
@@ -140,7 +143,7 @@ const SETTERS: Record<string, Setter> = {
 /** Key là secret — API trả về dạng che. */
 export const SECRET_KEYS = new Set(['dashboardPassword', 'sessionSecret', 'omniroutePassword', 'gatewayApiKey']);
 /** Key đổi xong phải khởi động lại mới có hiệu lực. */
-export const RESTART_KEYS = new Set(['port', 'host']);
+export const RESTART_KEYS = new Set(['port', 'host', 'maxBodyMb']);
 export const CONFIG_KEYS = Object.keys(SETTERS);
 
 /** Đổi cấu hình: áp vào RAM + GHI DB (sống qua restart). Trả về các key đã đổi. */

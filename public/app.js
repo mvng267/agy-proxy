@@ -928,6 +928,14 @@ async function loadTools() {
       </div>
     </div>`).join('');
 
+  // ---- thanh đổi nhanh: 1 model → mọi tool đang bật ----
+  const on = (r.tools || []).filter((t) => t.configured);
+  $('tools-bulk-model').innerHTML = optionsHtml;
+  $('tools-bulk-model').value = on[0]?.model || r.defaultModel;
+  $('tools-bulk-note').innerHTML = on.length
+    ? `Đang bật: <b>${on.map((t) => esc(t.label)).join(', ')}</b> — bấm “Áp cho tất cả” là đổi model cho hết, không phải sửa từng cái.`
+    : 'Chưa tool nào bật. Bật công tắc ở thẻ bên dưới, hoặc chọn model rồi bấm “Áp cho tất cả” để bật hàng loạt.';
+
   // chọn đúng model đang dùng (hoặc mặc định)
   for (const t of r.tools || []) {
     const sel = document.querySelector(`[data-model-for="${t.id}"]`);
@@ -935,6 +943,38 @@ async function loadTools() {
     const want = t.model || r.defaultModel;
     if ([...sel.options].some((o) => o.value === want)) sel.value = want;
   }
+  // Áp model cho tất cả tool ĐANG BẬT (nếu chưa có cái nào bật → hỏi bật những tool đã cài)
+  $('tools-bulk-apply').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+    const model = $('tools-bulk-model').value;
+    let list = (r.tools || []).filter((t) => t.configured);
+    if (!list.length) {
+      list = (r.tools || []).filter((t) => t.installed && !t.unsupported);
+      if (!list.length) return toast('Không thấy tool nào đã cài');
+      if (!confirmAct(`Chưa tool nào bật. Bật ${list.length} tool đã cài (${list.map((t) => t.label).join(', ')}) với model ${model}?`)) return;
+    }
+    let ok = 0;
+    const fail = [];
+    for (const t of list) {
+      const r2 = await api(`/api/tools/${t.id}/apply`, { method: 'POST', body: { model } });
+      if (r2.ok) ok++; else fail.push(`${t.label}: ${r2.error}`);
+    }
+    toast(`Đã áp ${model} cho ${ok}/${list.length} tool` + (fail.length ? ` · lỗi: ${fail[0]}` : ''));
+    loadTools();
+  }));
+
+  $('tools-bulk-off').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+    const list = (r.tools || []).filter((t) => t.configured || t.hasBackup);
+    if (!list.length) return toast('Không có tool nào đang bật');
+    if (!confirmAct(`Tắt ${list.length} tool và trả mọi file cấu hình về như cũ?`)) return;
+    let ok = 0;
+    for (const t of list) {
+      const r2 = await api(`/api/tools/${t.id}/undo`, { method: 'POST', body: {} });
+      if (r2.ok) ok++;
+    }
+    toast(`Đã tắt ${ok}/${list.length} tool, trả về như cũ`);
+    loadTools();
+  }));
+
   // công tắc: bật = ghi luôn, tắt = trả về như cũ
   document.querySelectorAll('.tool-sw').forEach((sw) => sw.addEventListener('change', async () => {
     const id = sw.dataset.tool;

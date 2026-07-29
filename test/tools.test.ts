@@ -149,3 +149,22 @@ test('mọi tool đăng ký đều có path nằm trong HOME', () => {
     assert.ok(def.configPath(home).startsWith(home), `${id} ghi ra ngoài home`);
   }
 });
+
+test('undo: gỡ khối xong file rỗng thì XOÁ hẳn (không để lại file rỗng)', () => {
+  const home = tmpHome();
+  applyTool('gemini', V, home);
+  const p = resolve(home, '.gemini/.env');
+  assert.ok(existsSync(p));
+  const r = undoTool('gemini', home);
+  assert.equal(r.restored, true);
+  assert.equal(existsSync(p), false, 'file do ta tạo, gỡ xong phải biến mất');
+});
+
+test('undo: file rỗng còn sót từ lần trước vẫn dọn được', () => {
+  const home = tmpHome();
+  mkdirSync(resolve(home, '.gemini'), { recursive: true });
+  writeFileSync(resolve(home, '.gemini/.env'), '   \n');
+  const r = undoTool('gemini', home);
+  assert.equal(r.restored, true);
+  assert.equal(existsSync(resolve(home, '.gemini/.env')), false);
+});
