@@ -8,7 +8,7 @@ import { resumeHuman, skipHuman, pendingHumanRuns } from './flows/runner.js';
 import { recentRuns, runLogs } from './store/db.js';
 import { fetchWebshareList, parseProxyList, testProxy } from './proxy/webshare.js';
 import { omniroute } from './omniroute/client.js';
-import { config, CSV } from './config.js';
+import { config, CSV, saveSettings } from './config.js';
 import { checkAll } from './health/tokenHealth.js';
 import { registerGatewayRoutes } from './gateway/routes.js';
 import { buildBackup, restoreBackup } from './backup.js';
@@ -269,6 +269,32 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       sched: scheduler.status(),
       omniOk,
     };
+  });
+
+  // ---------- bảo mật: đổi user/mật khẩu dashboard ----------
+  app.get('/api/security', async () => ({
+    hasPassword: !!config.dashboardPassword,
+    isDefault: config.dashboardPassword === '123456',
+    user: config.dashboardUser,
+    host: config.host,
+    open: config.host === '0.0.0.0' || config.host === '::',
+  }));
+
+  app.post('/api/security/password', async (req, reply) => {
+    const b = (req.body as { password?: string; user?: string; current?: string }) ?? {};
+    // Đã có mật khẩu → phải nhập đúng mật khẩu hiện tại (chống đổi trộm khi trình duyệt còn phiên).
+    if (config.dashboardPassword && b.current !== config.dashboardPassword) {
+      return reply.code(403).send({ ok: false, error: 'Mật khẩu hiện tại không đúng' });
+    }
+    const pass = (b.password ?? '').trim();
+    const user = (b.user ?? '').trim();
+    if (pass && pass.length < 6) {
+      return reply.code(400).send({ ok: false, error: 'Mật khẩu tối thiểu 6 ký tự' });
+    }
+    config.dashboardPassword = pass;
+    config.dashboardUser = user;
+    saveSettings({ dashboardPassword: pass, dashboardUser: user });
+    return { ok: true, hasPassword: !!pass, user };
   });
 
   // ---------- backup / restore toàn bộ (JSON kèm token) ----------

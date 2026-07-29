@@ -61,8 +61,28 @@ function tsxBin() {
   return existsSync(local) ? local : 'tsx';
 }
 
+/** Mật khẩu dashboard: settings.json (đổi từ UI) → .env → mặc định 123456. */
+function dashCreds() {
+  let pass = '', user = '';
+  try {
+    const s = JSON.parse(readFileSync(resolve(HOME, 'data/settings.json'), 'utf8'));
+    if (typeof s.dashboardPassword === 'string') pass = s.dashboardPassword;
+    if (typeof s.dashboardUser === 'string') user = s.dashboardUser;
+  } catch {}
+  if (!pass) {
+    try {
+      const env = readFileSync(resolve(ROOT, '.env'), 'utf8');
+      pass = (env.match(/^DASHBOARD_PASSWORD=(.*)$/m)?.[1] ?? '').trim();
+      user = user || (env.match(/^DASHBOARD_USER=(.*)$/m)?.[1] ?? '').trim();
+    } catch {}
+  }
+  return { user, pass: pass || '123456' };
+}
+
 async function httpJson(url, opts = {}) {
-  const r = await fetch(url, { headers: { 'user-agent': 'agyproxy-cli', accept: 'application/json', ...(opts.headers || {}) }, signal: AbortSignal.timeout(15000) });
+  const { user, pass } = dashCreds();
+  const basic = 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
+  const r = await fetch(url, { headers: { 'user-agent': 'agyproxy-cli', accept: 'application/json', authorization: basic, ...(opts.headers || {}) }, signal: AbortSignal.timeout(15000) });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }

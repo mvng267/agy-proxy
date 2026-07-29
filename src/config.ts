@@ -1,8 +1,9 @@
 import 'dotenv/config';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { mkdirSync, existsSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { randomBytes } from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(__dirname, '..');
@@ -35,12 +36,38 @@ function num(v: string | undefined, def: number): number {
   return Number.isFinite(n) ? n : def;
 }
 
+/**
+ * Cấu hình đổi được từ giao diện (ghi đè .env, giữ qua restart).
+ * File: <DATA_DIR>/settings.json
+ */
+const SETTINGS_FILE = resolve(DATA_DIR, 'settings.json');
+function loadSettings(): Record<string, unknown> {
+  try {
+    return JSON.parse(readFileSync(SETTINGS_FILE, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+const saved = loadSettings();
+
+export function saveSettings(patch: Record<string, unknown>): void {
+  const cur = loadSettings();
+  const next = { ...cur, ...patch };
+  const tmp = SETTINGS_FILE + '.tmp';
+  writeFileSync(tmp, JSON.stringify(next, null, 2));
+  renameSync(tmp, SETTINGS_FILE);
+}
+
 export const config = {
   port: num(process.env.PORT, 7788),
   // Bind host: 127.0.0.1 (chỉ máy này) | 0.0.0.0 (LAN/Internet — NÊN đặt DASHBOARD_PASSWORD)
   host: process.env.HOST ?? '127.0.0.1',
-  // Mật khẩu bảo vệ dashboard + /api/* (Basic auth). Trống = không yêu cầu.
-  dashboardPassword: process.env.DASHBOARD_PASSWORD ?? '',
+  // Mật khẩu đăng nhập dashboard. MẶC ĐỊNH '123456' — đổi được trong giao diện.
+  // Ưu tiên settings.json (đổi từ UI) → .env → mặc định.
+  dashboardPassword: (saved.dashboardPassword as string) ?? process.env.DASHBOARD_PASSWORD ?? '123456',
+  dashboardUser: (saved.dashboardUser as string) ?? process.env.DASHBOARD_USER ?? '',
+  // Secret ký session cookie (sinh 1 lần, lưu vào settings.json)
+  sessionSecret: (saved.sessionSecret as string) ?? '',
   omniroute: {
     url: (process.env.OMNIROUTE_URL ?? 'http://localhost:20128').replace(/\/+$/, ''),
     password: process.env.OMNIROUTE_PASSWORD ?? '',
@@ -88,6 +115,12 @@ export const AGY_CLIENT_ID =
   process.env.AGY_CLIENT_ID ?? '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
 export const AGY_CLIENT_SECRET =
   process.env.AGY_CLIENT_SECRET ?? ['GOCSPX', 'K58FWR486LdLJ1mLB8sXC4z6qDAf'].join('-');
+
+// Sinh secret ký session lần đầu chạy.
+if (!config.sessionSecret) {
+  config.sessionSecret = randomBytes(32).toString('hex');
+  saveSettings({ sessionSecret: config.sessionSecret });
+}
 
 export const CSV = {
   accounts: resolve(DATA_DIR, 'accounts.csv'),

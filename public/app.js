@@ -102,6 +102,7 @@ $('btn-nav').addEventListener('click', () => { $('nav').classList.toggle('open')
 $('btn-log').addEventListener('click', () => { $('logpane').classList.toggle('open'); $('backdrop').classList.toggle('on', $('logpane').classList.contains('open')); });
 $('backdrop').addEventListener('click', closeDrawers);
 $('btn-nav-collapse').addEventListener('click', () => { const c = $('app').classList.toggle('nav-collapsed'); store_('navCollapsed', c); });
+$('btn-logout').addEventListener('click', async () => { if (!confirm('Đăng xuất?')) return; await api('/api/auth/logout', { method: 'POST', body: {} }); location.href = '/login'; });
 function applyTheme(t) { document.documentElement.setAttribute('data-theme', t); localStorage.setItem('theme', t); $('btn-theme').innerHTML = icon(t === 'light' ? 'sun' : 'moon'); }
 function toggleTheme() { applyTheme((localStorage.getItem('theme') || 'dark') === 'dark' ? 'light' : 'dark'); }
 $('btn-theme').addEventListener('click', toggleTheme);
@@ -592,6 +593,7 @@ async function loadSettings() {
   $('cfg-fp').checked = c.fingerprint; $('cfg-chrome').value = c.chromeMajor; $('cfg-health').value = c.tokenHealthHours; $('cfg-omni').value = c.omnirouteUrl;
   const g = await api('/api/gateway/config'); const q = g.quota || {};
   $('cfg-q-auto').checked = !!q.autoRefresh; $('cfg-q-interval').value = q.intervalMin ?? 30; $('cfg-q-oncall').checked = q.onCall !== false; $('cfg-q-ttl').value = q.cacheTtlMin ?? 10;
+  loadSecurity().catch(() => {});
 }
 $('cfg-save').addEventListener('click', async () => { await api('/api/config', { method: 'PATCH', body: { pacingMinSec: +$('cfg-pmin').value, pacingMaxSec: +$('cfg-pmax').value, dailyCap: +$('cfg-cap').value, headless: $('cfg-headless').checked } }); toast('Đã lưu cấu hình chạy'); });
 $('cfg-save-fp').addEventListener('click', async () => { await api('/api/config', { method: 'PATCH', body: { fingerprint: $('cfg-fp').checked } }); toast('Đã lưu fingerprint'); });
@@ -600,6 +602,36 @@ $('cfg-q-refresh').addEventListener('click', (e) => withSpin(e.currentTarget, as
 $('cfg-health-now').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const r = await api('/api/tokens/check', { method: 'POST', body: {} }); toast(`Health: 🟢${r.alive} 🔴${r.dead} ⚪${r.unknown}`); loadTokens(); }));
 $('cfg-omni-test').addEventListener('click', async () => { const r = await api('/api/omniroute/connections'); toast(r.ok ? `OmniRoute OK · ${r.connections.length} connection` : 'OmniRoute lỗi: ' + r.error); });
 $('cfg-theme').addEventListener('click', toggleTheme);
+
+// ---------- bảo mật: đổi mật khẩu dashboard ----------
+async function loadSecurity() {
+  const s = await api('/api/security');
+  $('sec-user').value = s.user || '';
+  const cur = $('sec-current'), lbl = $('sec-cur-label');
+  cur.style.display = s.hasPassword ? '' : 'none';
+  lbl.style.display = s.hasPassword ? '' : 'none';
+  const openWarn = s.open && !s.hasPassword
+    ? '<b style="color:var(--red)">⚠ Đang mở cho máy khác (0.0.0.0) mà CHƯA có mật khẩu — ai vào IP này cũng xem được token!</b>'
+    : s.open ? 'Đang mở cho máy khác qua IP · <b style="color:var(--green)">đã khoá bằng mật khẩu</b>'
+    : 'Chỉ truy cập từ máy này (127.0.0.1).';
+  $('sec-state').innerHTML = (s.hasPassword ? '🔒 <b>Đã bật đăng nhập</b>' : '🔓 <b>Chưa đặt mật khẩu</b>') + ' · ' + openWarn;
+}
+$('sec-gen').addEventListener('click', () => {
+  const a = new Uint8Array(9); crypto.getRandomValues(a);
+  const p = btoa(String.fromCharCode(...a)).replace(/[+/=]/g, '').slice(0, 12);
+  $('sec-pass').value = p; $('sec-pass').type = 'text';
+  toast('Mật khẩu gợi ý: ' + p + ' (nhớ lưu lại)');
+});
+$('sec-save').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+  const password = $('sec-pass').value.trim(), user = $('sec-user').value.trim(), current = $('sec-current').value;
+  if (!password && !confirmAct('Để trống = TẮT đăng nhập, ai vào được địa chỉ này cũng dùng được. Tiếp tục?')) return;
+  const r = await api('/api/security/password', { method: 'POST', body: { password, user, current } });
+  if (r.ok) {
+    toast(password ? 'Đã đổi mật khẩu — lần sau đăng nhập bằng mật khẩu mới' : 'Đã tắt đăng nhập');
+    $('sec-pass').value = ''; $('sec-pass').type = 'password'; $('sec-current').value = '';
+    loadSecurity();
+  } else toast('Lỗi: ' + (r.error || ''));
+}));
 
 // ---------- backup import/export ----------
 let backupData = null;

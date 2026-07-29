@@ -57,6 +57,7 @@
       <span id="pill-omni" class="status-pill" title="Trạng thái kết nối OmniRoute"><span class="dot"></span> OmniRoute</span>
       <div class="spacer"></div>
       <button class="icon ghost" id="btn-theme" title="Đổi sáng/tối"><svg class="ic"><use href="#i-moon"/></svg></button>
+      <button class="icon ghost" id="btn-logout" title="Đăng xuất"><svg class="ic"><use href="#i-power"/></svg></button>
       <button class="icon ghost hide-desktop" id="btn-log" title="Mở/đóng log"><svg class="ic"><use href="#i-panel"/></svg></button>
     </div>
 
@@ -483,6 +484,20 @@
             <h3><svg class="ic"><use href="#i-sun"/></svg> Giao diện</h3>
             <p class="set-desc">Theme sáng/tối.</p>
             <div class="row" style="margin-top:6px"><button id="cfg-theme" title="Đổi theme"><svg class="ic"><use href="#i-moon"/></svg> Đổi theme</button></div>
+          </div>
+          <div class="panel">
+            <h3><svg class="ic"><use href="#i-key"/></svg> Bảo mật (đăng nhập dashboard)</h3>
+            <p class="set-desc" id="sec-state">Đang tải…</p>
+            <label class="fl">Tên đăng nhập (để trống = chấp nhận mọi user)</label>
+            <input id="sec-user" placeholder="(để trống)" autocomplete="off" />
+            <label class="fl" id="sec-cur-label" style="display:none">Mật khẩu hiện tại</label>
+            <input id="sec-current" type="password" placeholder="mật khẩu đang dùng" autocomplete="off" style="display:none" />
+            <label class="fl">Mật khẩu mới (tối thiểu 6 ký tự · để trống = TẮT đăng nhập)</label>
+            <input id="sec-pass" type="password" placeholder="mật khẩu mới" autocomplete="new-password" />
+            <div class="row end" style="margin-top:12px">
+              <button id="sec-gen" title="Sinh mật khẩu mạnh ngẫu nhiên"><svg class="ic"><use href="#i-refresh"/></svg> Sinh ngẫu nhiên</button>
+              <button class="primary" id="sec-save" title="Lưu (có hiệu lực ngay)">Lưu mật khẩu</button>
+            </div>
           </div>
           <div class="panel">
             <h3><svg class="ic"><use href="#i-download"/></svg> Sao lưu & phục hồi</h3>

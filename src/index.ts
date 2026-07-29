@@ -7,6 +7,9 @@ import { registerRoutes } from './routes.js';
 import { bus, type AppEvent } from './events.js';
 import { omniroute } from './omniroute/client.js';
 import { startHealthLoop } from './health/tokenHealth.js';
+import { registerAuth } from './auth.js';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 async function main() {
   store.load();
@@ -16,17 +19,14 @@ async function main() {
 
   // Bảo vệ dashboard + /api/* bằng Basic auth khi có DASHBOARD_PASSWORD.
   // (/proxy/v1/* dùng GATEWAY_API_KEY riêng nên bỏ qua ở đây.)
-  if (config.dashboardPassword) {
-    app.addHook('onRequest', async (req, reply) => {
-      if (req.url.startsWith('/proxy/v1')) return;
-      const h = (req.headers['authorization'] || '') as string;
-      if (h.startsWith('Basic ')) {
-        const [, pass] = Buffer.from(h.slice(6), 'base64').toString('utf8').split(':');
-        if (pass === config.dashboardPassword) return;
-      }
-      reply.header('www-authenticate', 'Basic realm="agyproxy"').code(401).send('Unauthorized');
-    });
-  }
+  // Đăng nhập: session cookie (trình duyệt) + Basic (CLI). Đổi mật khẩu có hiệu lực NGAY.
+  registerAuth(app);
+
+  // Màn đăng nhập
+  app.get('/login', async (_req, reply) => {
+    reply.type('text/html');
+    return readFileSync(resolve(PUBLIC_DIR, 'login.html'), 'utf8');
+  });
 
   // Static: dashboard + screenshots
   await app.register(fastifyStatic, { root: PUBLIC_DIR, prefix: '/' });

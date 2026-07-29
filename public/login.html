@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Đăng nhập · agyproxy</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>%E2%9A%A1</text></svg>" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    body { display: grid; place-items: center; min-height: 100vh; overflow: auto; }
+    .login-box { width: min(380px, 92vw); background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 28px 26px; box-shadow: var(--shadow); }
+    .login-logo { width: 46px; height: 46px; border-radius: 12px; background: var(--primary); color: var(--primary-fg); display: grid; place-items: center; margin: 0 auto 14px; }
+    .login-logo svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .login-box h1 { font-size: 19px; text-align: center; margin: 0 0 4px; }
+    .login-sub { text-align: center; color: var(--muted); font-size: 12.5px; margin-bottom: 20px; }
+    .login-box input { margin-bottom: 12px; }
+    .login-box button { width: 100%; justify-content: center; height: 38px; }
+    .login-err { color: var(--red); font-size: 12.5px; min-height: 18px; margin-top: 8px; text-align: center; }
+    .login-hint { color: var(--faint); font-size: 11.5px; text-align: center; margin-top: 14px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <div class="login-logo"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+    <h1>agyproxy</h1>
+    <div class="login-sub">Đăng nhập để quản lý pool Antigravity</div>
+    <form id="f" autocomplete="off">
+      <label class="fl">Tên đăng nhập <span class="faint">(bỏ trống nếu chưa đặt)</span></label>
+      <input id="user" placeholder="(tuỳ chọn)" autocomplete="username" />
+      <label class="fl">Mật khẩu</label>
+      <input id="pass" type="password" placeholder="mật khẩu" autocomplete="current-password" autofocus />
+      <button class="primary" type="submit" id="btn">Đăng nhập</button>
+    </form>
+    <div class="login-err" id="err"></div>
+    <div class="login-hint">Mật khẩu mặc định: <b>123456</b><br/>Đăng nhập xong nên đổi ở <b>Cấu hình → Bảo mật</b>.</div>
+  </div>
+  <script>
+    const f = document.getElementById('f'), err = document.getElementById('err'), btn = document.getElementById('btn');
+    (function () { const t = localStorage.getItem('theme') || 'dark'; document.documentElement.setAttribute('data-theme', t); })();
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      err.textContent = ''; btn.disabled = true; btn.textContent = 'Đang kiểm tra…';
+      try {
+        const r = await fetch('/api/auth/login', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ password: document.getElementById('pass').value, user: document.getElementById('user').value }),
+        });
+        const j = await r.json();
+        if (j.ok) { location.href = '/'; return; }
+        err.textContent = j.error || 'Sai mật khẩu';
+      } catch (e2) { err.textContent = 'Lỗi kết nối'; }
+      btn.disabled = false; btn.textContent = 'Đăng nhập';
+    });
+  </script>
+</body>
+</html>
