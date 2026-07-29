@@ -27,12 +27,17 @@ test('GET /api/gateway/models trả danh sách model', async () => {
   assert.ok(j.models.some((m: any) => m.image === true), 'phải có model ảnh');
 });
 
-test('GET /proxy/v1/models đúng OpenAI shape', async () => {
-  const r = await app.inject({ method: 'GET', url: '/proxy/v1/models' });
+test('GET /proxy/v1/models đúng OpenAI shape + id CÓ prefix provider', async () => {
+  // gateway thật có thể đang bật API key → gửi kèm để test không phụ thuộc cấu hình máy
+  const headers = config.gateway.apiKey ? { authorization: `Bearer ${config.gateway.apiKey}` } : {};
+  const r = await app.inject({ method: 'GET', url: '/proxy/v1/models', headers });
   assert.equal(r.statusCode, 200);
   const j = r.json();
   assert.equal(j.object, 'list');
   assert.ok(j.data[0].id && j.data[0].object === 'model');
+  assert.ok(j.data.some((m: any) => m.id.startsWith('agy/')), 'phải có model agy/');
+  assert.ok(j.data.some((m: any) => m.id.startsWith('kr/')), 'phải có model kr/');
+  assert.ok(j.data.some((m: any) => m.id === 'auto'), 'phải có combo ảo auto');
 });
 
 test('GET /api/gateway/accounts đúng shape', async () => {

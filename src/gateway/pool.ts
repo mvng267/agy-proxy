@@ -231,6 +231,10 @@ export class Pool {
         lastUsed: a.lastUsed,
         quota: a.quota,
         projectId: a.projectId, // stable per-account → bỏ discoverProject chậm sau restart
+        // Giữ cooldown + kết quả dò qua restart: account Kiro cạn hạn mức THÁNG nghỉ 12h,
+        // nếu quên thì mỗi lần khởi động lại sẽ thử lại và đốt thêm 1 request thật.
+        cooldownUntil: a.cooldownUntil || 0,
+        liveStatus: a.liveStatus,
       };
     }
     return out;
@@ -249,6 +253,9 @@ export class Pool {
       a.lastUsed = s.lastUsed ?? a.lastUsed;
       if (s.quota && !a.quota) a.quota = s.quota; // giữ quota qua restart (TTL tự lo refresh)
       if (s.projectId && !a.projectId) a.projectId = s.projectId; // bỏ discoverProject sau restart
+      // chỉ khôi phục cooldown còn hiệu lực (đã qua thì bỏ)
+      if (s.cooldownUntil && s.cooldownUntil > Date.now()) a.cooldownUntil = s.cooldownUntil;
+      if (s.liveStatus && !a.liveStatus) a.liveStatus = s.liveStatus;
     }
   }
 }

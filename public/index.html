@@ -93,6 +93,7 @@
           <div class="ph-actions"><button class="sm" id="ov-refresh" title="Làm mới"><svg class="ic"><use href="#i-refresh"/></svg> Làm mới</button></div>
         </div>
         <div class="cards" id="ov-kpi"></div>
+        <div class="cards" id="ov-providers"></div>
         <div class="ov-grid">
           <div class="panel"><h3>Hạn mức tổng</h3><div id="ov-quota" class="ov-donuts"></div></div>
           <div class="panel ov-wide"><h3>Requests 7 ngày</h3><div id="ov-usage"></div></div>
@@ -284,7 +285,12 @@
       <!-- ============ Pool (Antigravity gateway) ============ -->
       <section class="view" id="view-agy">
         <div class="page-head">
-          <div class="ph-title"><h2>Pool</h2><span class="ph-sub">Gateway OpenAI cho Antigravity</span></div>
+          <div class="ph-title"><h2>Pool</h2><span class="ph-sub">Xoay account theo provider</span>
+            <div class="seg sm" id="agy-prov" title="Lọc theo provider">
+              <button data-p="agy" class="active">Antigravity <span class="cnt" id="pc-agy">0</span></button>
+              <button data-p="kr">Kiro <span class="cnt" id="pc-kr">0</span></button>
+            </div>
+          </div>
           <div class="ph-actions">
             <div class="seg sm" id="agy-strategy" title="Chiến lược xoay account">
               <button data-s="round-robin" class="active" title="Luân phiên đều">Round-robin</button>
@@ -596,6 +602,18 @@
             <label class="fl" style="margin-top:8px">Cache TTL (phút)</label><input id="cfg-q-ttl" type="number" data-key="quotaCacheTtlMin" />
             <label class="fl">Giữ lịch sử hạn mức (ngày)</label><input id="s-q-days" type="number" data-key="quotaHistoryDays" />
             <div class="row end" style="margin-top:12px"><button id="cfg-q-refresh">Refresh tất cả</button><button class="primary" data-save="quota">Lưu</button></div>
+          </div>
+          <div class="panel">
+            <h3><svg class="ic"><use href="#i-activity"/></svg> Dò hạn mức Kiro</h3>
+            <p class="set-desc">Kiro <b>không có API hạn mức</b> — chỉ biết còn dùng được bằng cách gọi thử.
+              <b style="color:var(--amber)">Mỗi lần dò tiêu tốn 1 request thật</b> của account đó.</p>
+            <label class="switch"><input type="checkbox" id="s-kp-on" data-key="kiroProbeEnabled" /><span class="track"></span> Tự dò định kỳ</label>
+            <label class="fl" style="margin-top:8px">Chu kỳ (giờ)</label><input id="s-kp-h" type="number" data-key="kiroProbeHours" />
+            <label class="fl">Số account mỗi lượt</label><input id="s-kp-b" type="number" data-key="kiroProbeBatch" />
+            <div class="row end" style="margin-top:12px">
+              <button id="s-kp-now" title="Dò ngay 10 account Kiro">Dò ngay</button>
+              <button class="primary" data-save="kiroprobe">Lưu</button>
+            </div>
           </div>
         </div>
 

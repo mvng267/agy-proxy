@@ -85,6 +85,10 @@ export const config = {
     // Endpoint Anthropic (Claude Code): id Anthropic thật sẽ map sang 2 model này
     anthropicBigModel: S('anthropicBigModel') ?? 'kr/claude-sonnet-4',
     anthropicSmallModel: S('anthropicSmallModel') ?? 'kr/claude-haiku-4-5',
+    // Kiro không có API hạn mức → dò bằng cách gọi thử. TỐN quota thật nên mặc định thưa.
+    kiroProbeEnabled: bool(S('kiroProbeEnabled'), false),
+    kiroProbeHours: num(S('kiroProbeHours'), 6),
+    kiroProbeBatch: num(S('kiroProbeBatch'), 5),
   },
 };
 
@@ -125,6 +129,9 @@ const SETTERS: Record<string, Setter> = {
   quotaHistoryDays: (v) => (config.gateway.quota.historyDays = Number(v)),
   anthropicBigModel: (v) => (config.gateway.anthropicBigModel = v),
   anthropicSmallModel: (v) => (config.gateway.anthropicSmallModel = v),
+  kiroProbeEnabled: (v) => (config.gateway.kiroProbeEnabled = v === 'true'),
+  kiroProbeHours: (v) => (config.gateway.kiroProbeHours = Number(v)),
+  kiroProbeBatch: (v) => (config.gateway.kiroProbeBatch = Number(v)),
 };
 
 /** Key là secret — API trả về dạng che. */
@@ -166,6 +173,9 @@ export function getConfigValue(key: string): unknown {
     case 'quotaHistoryDays': return config.gateway.quota.historyDays;
     case 'anthropicBigModel': return config.gateway.anthropicBigModel;
     case 'anthropicSmallModel': return config.gateway.anthropicSmallModel;
+    case 'kiroProbeEnabled': return config.gateway.kiroProbeEnabled;
+    case 'kiroProbeHours': return config.gateway.kiroProbeHours;
+    case 'kiroProbeBatch': return config.gateway.kiroProbeBatch;
     default: return (config as any)[key];
   }
 }

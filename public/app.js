@@ -188,6 +188,13 @@ async function loadOverview() {
     ['Cooldown / chết', `${o.gateway.cooldown} / ${o.gateway.dead}`, 'cần chú ý'],
   ];
   $('ov-kpi').innerHTML = kpis.map(([l, v, s], i) => `<div class="card"><div class="label">${l}</div><div class="value" id="kpi-${i}">${v}</div><div class="sub">${s}</div></div>`).join('');
+  // dải thống kê TÁCH THEO PROVIDER
+  $('ov-providers').innerHTML = (o.providers || []).map((p) => `<div class="card provider">
+    <div class="label">${esc(p.label)} <span class="chip">${esc(p.id)}/</span></div>
+    <div class="value">${p.ready}<span class="faint" style="font-size:15px">/${p.total}</span></div>
+    <div class="sub">sẵn sàng · ${p.cooldown} nghỉ${p.quotaAvg != null ? ` · quota TB ${p.quotaAvg}%` : p.probeOk ? ` · ${p.probeOk} dò OK` : ''}</div>
+    <div class="sub">${fmtNum(p.requests)} req/7d · ${fmtNum(p.tokens)} tok${p.estimated ? ' (ước lượng)' : ''}</div>
+  </div>`).join('');
   // donut hạn mức + mini xu hướng
   $('ov-quota').innerHTML = svgDonut(o.quota.geminiAvg, 'Gemini') + svgDonut(o.quota.thirdPartyAvg, 'Claude/GPT') + `<div class="donut-note faint">${o.quota.fetched}/${o.gateway.total} account đã nạp</div><div id="ov-qtrend" style="width:100%"></div>`;
   api('/api/gateway/quota/history?range=7d').then((qh) => {
@@ -361,9 +368,14 @@ function downloadFile(name, content, type) { const a = document.createElement('a
 // ---------- Pool (Antigravity gateway) ----------
 const agySt = { page: 1, size: remember('agySize', 50) };
 let agyAccounts = [], agyModels = [], agyCfg = {}, agySelected = new Set();
+let agyProv = remember('agyProv', 'agy'); // provider đang xem ở trang Pool
 async function loadAgy() {
   const [ac, cf, md] = await Promise.all([api('/api/gateway/accounts'), api('/api/gateway/config'), api('/api/gateway/models')]);
   agyAccounts = ac.accounts || []; agyCfg = cf || {}; agyModels = md.models || [];
+  const pc = ac.counts || {};
+  if ($('pc-agy')) $('pc-agy').textContent = pc.agy ?? 0;
+  if ($('pc-kr')) $('pc-kr').textContent = pc.kr ?? 0;
+  document.querySelectorAll('#agy-prov button').forEach((x) => x.classList.toggle('active', x.dataset.p === agyProv));
   $('agy-baseurl').value = agyCfg.baseUrl || (location.origin + '/proxy/v1');
   $('agy-apikey').value = agyCfg.apiKey || '';
   $('agy-proxy').value = agyCfg.outboundProxy || '';
@@ -398,7 +410,7 @@ function renderAgyStats() {
 }
 function agyFilterSort() {
   const q = ($('agy-search').value || '').toLowerCase(), f = $('agy-filter').value, s = $('agy-sort').value;
-  let list = agyAccounts.filter((a) => a.email.toLowerCase().includes(q));
+  let list = agyAccounts.filter((a) => (a.provider || 'agy') === agyProv && a.email.toLowerCase().includes(q));
   if (f === 'on') list = list.filter((a) => a.enabled);
   else if (f === 'off') list = list.filter((a) => !a.enabled);
   else if (f === 'cooldown') list = list.filter((a) => a.cooldown);
@@ -412,19 +424,30 @@ function claudePct(a) { const g = (a.quota && a.quota.groups) ? a.quota.groups.f
 function tokenBadge(health) { const c = health === 'alive' ? 'alive' : health === 'dead' ? 'dead' : 'new'; return `<span class="badge ${c}"><span class="bd"></span>${esc(health || '—')}</span>`; }
 function liveBadge(s) { if (!s) return '<span class="chip">—</span>'; const map = { ok: ['alive', '✓ live'], quota: ['needs_human', '⏳ quota'], error: ['dead', '✗ lỗi'] }; const [cls, lbl] = map[s] || ['new', s]; return `<span class="badge ${cls}"><span class="bd"></span>${lbl}</span>`; }
 function renderAgy() {
+  syncPoolHeaders();
   const body = $('agy-body'); body.innerHTML = '';
   const full = agyFilterSort();
   const { rows, total, pages } = paginate(full, agySt);
-  if (!total) { body.innerHTML = '<tr><td colspan="10"><div class="empty">Chưa có account Antigravity nào có token. Harvest luồng agy trước (Tài khoản → Auto Run).</div></td></tr>'; $('agy-pager').innerHTML = ''; return; }
+  if (!total) {
+    body.innerHTML = `<tr><td colspan="10"><div class="empty">${agyProv === 'kr'
+      ? 'Chưa có account Kiro nào có token. Harvest luồng kiro trước (Tài khoản → Auto Run).'
+      : 'Chưa có account Antigravity nào có token. Harvest luồng agy trước (Tài khoản → Auto Run).'}</div></td></tr>`;
+    $('agy-pager').innerHTML = ''; return;
+  }
   for (const a of rows) {
     const tr = el('tr'); tr.dataset.email = a.email; if (!a.enabled) tr.classList.add('off'); if (a.cooldown) tr.classList.add('cooldown');
     const gpct = a.geminiPct, cpct = claudePct(a);
+    // Kiro KHÔNG có API hạn mức → 2 cột quota đổi thành kết quả dò gần nhất + thời điểm hết cooldown
+    const quotaCells = a.provider === 'kr'
+      ? `<td class="qcell">${a.liveStatus === 'ok' ? '<span class="q-hi">gọi được</span>' : a.liveStatus === 'quota' ? '<span class="q-lo">hết hạn mức</span>' : '<span class="faint">chưa dò</span>'}</td>
+         <td class="qcell faint">${a.cooldown ? 'nghỉ tới ' + new Date(a.cooldownUntil).toLocaleTimeString() : '—'}</td>`
+      : `<td class="qcell">${gpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(gpct)}">${gpct}%</span>`}</td>
+         <td class="qcell">${cpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(cpct)}">${cpct}%</span>`}</td>`;
     tr.innerHTML = `
       <td><input type="checkbox" class="agy-chk" data-email="${esc(a.email)}" ${agySelected.has(a.email) ? 'checked' : ''}></td>
       <td><label class="switch"><input type="checkbox" class="agy-tog" data-email="${esc(a.email)}" ${a.enabled ? 'checked' : ''}/><span class="track"></span></label></td>
       <td class="email">${esc(a.email)}</td>
-      <td class="qcell">${gpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(gpct)}">${gpct}%</span>`}</td>
-      <td class="qcell">${cpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(cpct)}">${cpct}%</span>`}</td>
+      ${quotaCells}
       <td>${a.requests}</td>
       <td class="mono faint">${fmtNum(a.tokensIn)}/${fmtNum(a.tokensOut)}</td>
       <td class="c-token">${tokenBadge(a.health)}</td>
@@ -439,23 +462,23 @@ function renderAgy() {
   }
   body.querySelectorAll('.agy-tog').forEach((c) => c.addEventListener('change', async () => {
     const a = agyAccounts.find((x) => x.email === c.dataset.email); if (a) a.enabled = c.checked; renderAgyStats(); // optimistic
-    const r = await api('/api/gateway/accounts/' + encodeURIComponent(c.dataset.email) + '/toggle', { method: 'POST', body: { enabled: c.checked } });
+    const r = await api('/api/gateway/accounts/' + encodeURIComponent(c.dataset.email) + '/toggle?provider=' + agyProv, { method: 'POST', body: { enabled: c.checked } });
     if (!r.ok) { if (a) a.enabled = !c.checked; renderAgy(); renderAgyStats(); toast('Đổi trạng thái lỗi'); }
     $('tc-agy').textContent = agyAccounts.filter((x) => x.enabled).length;
   }));
   body.querySelectorAll('.agy-chk').forEach((c) => c.addEventListener('change', () => { if (c.checked) agySelected.add(c.dataset.email); else agySelected.delete(c.dataset.email); updateAgySel(); }));
   body.querySelectorAll('.agy-test').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
-    const r = await api('/api/gateway/accounts/' + encodeURIComponent(b.dataset.email) + '/test', { method: 'POST' });
+    const r = await api('/api/gateway/accounts/' + encodeURIComponent(b.dataset.email) + '/test?provider=' + agyProv, { method: 'POST' });
     const a = agyAccounts.find((x) => x.email === b.dataset.email); if (a) a.health = r.alive ? 'alive' : 'dead';
     toast(`${b.dataset.email.split('@')[0]}: token ${r.alive ? 'sống ✓' : 'CHẾT ✗'} (${r.ms}ms)`); renderAgy();
   })));
   body.querySelectorAll('.agy-live').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
-    const r = await api('/api/gateway/accounts/' + encodeURIComponent(b.dataset.email) + '/checklive', { method: 'POST' });
+    const r = await api('/api/gateway/accounts/' + encodeURIComponent(b.dataset.email) + '/checklive?provider=' + agyProv, { method: 'POST' });
     const a = agyAccounts.find((x) => x.email === b.dataset.email); if (a) a.liveStatus = r.status;
     toast(`${b.dataset.email.split('@')[0]}: live ${r.status === 'ok' ? '✓ ok' : r.status === 'quota' ? '⏳ quota' : '✗ ' + (r.detail || 'lỗi')} (${r.ms}ms)`); renderAgy();
   })));
   body.querySelectorAll('.agy-quota').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
-    const r = await api('/api/gateway/quota/' + encodeURIComponent(b.dataset.email), { method: 'POST' });
+    const r = await api('/api/gateway/quota/' + encodeURIComponent(b.dataset.email) + '?provider=' + agyProv, { method: 'POST' });
     if (r.ok) { const a = agyAccounts.find((x) => x.email === b.dataset.email); if (a) { a.quota = r.quota; a.geminiPct = (r.quota.groups.find((g) => /gemini/i.test(g.name)) || {}).pct ?? null; } toast('Đã nạp hạn mức ' + b.dataset.email.split('@')[0]); renderAgy(); }
     else toast('Lỗi quota: ' + (r.error || ''));
   })));
@@ -474,6 +497,26 @@ $('agy-all-on').addEventListener('click', (e) => withSpin(e.currentTarget, async
 $('agy-all-off').addEventListener('click', async (e) => { if (!confirmAct('Tắt tất cả account?')) return; await api('/api/gateway/accounts/bulk', { method: 'POST', body: { enabled: false } }); toast('Đã tắt tất cả'); loadAgy(); });
 $('agy-check-models').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { toast('Đang test model live…'); const r = await api('/api/gateway/models/check', { method: 'POST' }); if (r.models) { renderModelChips(r.models); $('agy-models').dataset.checked = '1'; toast(`Check live qua ${r.account.split('@')[0]}: ${r.models.filter((m) => m.status === 'ok').length}/${r.models.length} ok`); } else toast('Lỗi: ' + (r.error || '')); }));
 $('agy-refresh-quota').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const r = await api('/api/gateway/quota/refresh', { method: 'POST', body: {} }); toast(`Đang nạp hạn mức ${r.queued} account (nền)…`); }));
+
+// tab provider ở trang Pool
+$('agy-prov').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-p]'); if (!b) return;
+  document.querySelectorAll('#agy-prov button').forEach((x) => x.classList.toggle('active', x === b));
+  agyProv = b.dataset.p; store_('agyProv', agyProv);
+  agySelected.clear(); updateAgySel();
+  agySt.page = 1;
+  renderAgy(); renderAgyStats();
+});
+/** Cột quota chỉ có nghĩa với Antigravity — đổi tiêu đề khi xem Kiro. */
+function syncPoolHeaders() {
+  const ths = document.querySelectorAll('#view-agy thead th');
+  if (ths.length < 5) return;
+  const kr = agyProv === 'kr';
+  ths[3].textContent = kr ? 'Dò gần nhất' : 'Gemini';
+  ths[4].textContent = kr ? 'Nghỉ tới' : 'Claude/GPT';
+  const rq = $('agy-refresh-quota');
+  if (rq) { rq.style.display = kr ? 'none' : ''; }
+}
 $('agy-bulk-on').addEventListener('click', async () => { await api('/api/gateway/accounts/bulk', { method: 'POST', body: { emails: [...agySelected], enabled: true } }); toast('Đã bật ' + agySelected.size); loadAgy(); });
 $('agy-bulk-off').addEventListener('click', async () => { await api('/api/gateway/accounts/bulk', { method: 'POST', body: { emails: [...agySelected], enabled: false } }); toast('Đã tắt ' + agySelected.size); loadAgy(); });
 $('agy-bulk-quota').addEventListener('click', async () => { const r = await api('/api/gateway/quota/refresh', { method: 'POST', body: { emails: [...agySelected] } }); toast(`Đang nạp hạn mức ${r.queued} account (nền)…`); });
@@ -640,7 +683,7 @@ function wireQuotaRefresh() {
     e.preventDefault(); showQuotaHistory(a.dataset.email);
   }));
   document.querySelectorAll('#quota-body .q-refresh').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
-    const r = await api('/api/gateway/quota/' + encodeURIComponent(b.dataset.email), { method: 'POST' });
+    const r = await api('/api/gateway/quota/' + encodeURIComponent(b.dataset.email) + '?provider=' + agyProv, { method: 'POST' });
     if (r.ok) { const a = agyAccounts.find((x) => x.email === b.dataset.email); if (a) { a.quota = r.quota; a.geminiPct = (r.quota.groups.find((g) => /gemini/i.test(g.name)) || {}).pct ?? null; } toast('Đã nạp ' + b.dataset.email.split('@')[0]); renderQuota(); }
     else toast('Lỗi: ' + (r.error || ''));
   })));
@@ -924,6 +967,10 @@ $('s-apikey-gen').addEventListener('click', () => {
   $('s-apikey').value = 'agy-' + btoa(String.fromCharCode(...a)).replace(/[+/=]/g, '').slice(0, 24);
   toast('Đã sinh key — nhớ bấm Lưu');
 });
+$('s-kp-now').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
+  const r = await api('/api/gateway/probe?provider=kr&limit=10', { method: 'POST', body: {} });
+  toast(`Đang dò ${r.queued} account Kiro (nền — xem Live log)`);
+}));
 $('cfg-q-refresh').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const r = await api('/api/gateway/quota/refresh', { method: 'POST', body: {} }); toast(`Đang nạp hạn mức ${r.queued} account (nền)…`); }));
 $('cfg-health-now').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const r = await api('/api/tokens/check', { method: 'POST', body: {} }); toast(`Health: 🟢${r.alive} 🔴${r.dead} ⚪${r.unknown}`); loadTokens(); }));
 $('cfg-omni-test').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {

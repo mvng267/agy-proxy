@@ -1017,6 +1017,54 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   };
   scheduleQuotaLoop();
 
+  // ---------------- Tự dò hạn mức Kiro (Kiro KHÔNG có API quota) ----------------
+  // Mỗi vòng chỉ dò 1 LÔ NHỎ account chưa biết trạng thái → tránh đốt hạn mức thật.
+  let probeTimer: NodeJS.Timeout | null = null;
+  const scheduleKiroProbe = () => {
+    if (probeTimer) clearTimeout(probeTimer);
+    const hours = Math.max(1, config.gateway.kiroProbeHours);
+    probeTimer = setTimeout(async () => {
+      if (config.gateway.kiroProbeEnabled) {
+        const batch = Math.max(1, config.gateway.kiroProbeBatch);
+        // ưu tiên account chưa dò bao giờ, rồi tới account dò lâu nhất
+        const targets = pool
+          .candidates(Date.now(), 'kr')
+          .filter((a) => a.enabled)
+          .sort((x, y) => (x.liveStatus ? 1 : 0) - (y.liveStatus ? 1 : 0) || (x.lastUsed || 0) - (y.lastUsed || 0))
+          .slice(0, batch);
+        for (const a of targets) {
+          try {
+            const r = await checkLiveAccount(a);
+            log(a.email, r.status === 'ok' ? 'info' : 'warn', `dò hạn mức Kiro: ${r.status} (${r.ms}ms)`);
+          } catch {
+            /* bỏ qua, vòng sau dò lại */
+          }
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+        if (targets.length) savePersist();
+      }
+      scheduleKiroProbe();
+    }, hours * 3600_000);
+    probeTimer.unref?.();
+  };
+  scheduleKiroProbe();
+
+  /** Dò tay: POST /api/gateway/probe?provider=kr&limit=10 */
+  app.post('/api/gateway/probe', async (req) => {
+    const q = (req.query ?? {}) as any;
+    const pid = (q.provider as ProviderId) || 'kr';
+    const limit = Math.min(50, Math.max(1, Number(q.limit) || 10));
+    const targets = pool.candidates(Date.now(), pid).filter((a) => a.enabled).slice(0, limit);
+    (async () => {
+      for (const a of targets) {
+        await checkLiveAccount(a).catch(() => {});
+        await new Promise((r) => setTimeout(r, 1200));
+      }
+      savePersist();
+    })().catch(() => {});
+    return { queued: targets.length, provider: pid };
+  });
+
   // Dọn lịch sử cũ (theo cấu hình, mặc định 90 ngày): lúc boot + mỗi 24h.
   const prune = () => {
     try {

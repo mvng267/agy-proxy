@@ -167,3 +167,25 @@ test('report: 402 MONTHLY_REQUEST_COUNT → cooldown DÀI (hết hạn mức th�
   assert.ok(a.cooldownUntil >= now + 11 * 3600 * 1000, 'hết hạn mức tháng phải nghỉ dài, không phải cooldown ngắn');
   assert.equal(a.liveStatus, 'quota');
 });
+
+test('persist GIỮ cooldown + liveStatus qua restart (không đốt lại quota Kiro)', () => {
+  const p = mk2();
+  const now = Date.now();
+  const a = p.get('a@x', 'kr')!;
+  p.report(a, { ok: false, status: 402, err: 'MONTHLY_REQUEST_COUNT' }, now);
+  const snap = p.toPersist();
+
+  const q = mk2();
+  q.applyPersist(snap);
+  const b = q.get('a@x', 'kr')!;
+  assert.ok(b.cooldownUntil > now, 'cooldown phải sống qua restart');
+  assert.equal(b.liveStatus, 'quota');
+  assert.equal(q.candidates(now, 'kr').some((x) => x.email === 'a@x'), false, 'không được chọn lại account đã cạn');
+});
+
+test('persist BỎ cooldown đã hết hạn', () => {
+  const p = mk2();
+  const stale = { 'kr:a@x': { cooldownUntil: Date.now() - 60_000, liveStatus: 'quota' } };
+  p.applyPersist(stale as any);
+  assert.equal(p.get('a@x', 'kr')!.cooldownUntil, 0, 'cooldown quá hạn thì bỏ qua');
+});

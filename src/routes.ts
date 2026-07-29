@@ -15,7 +15,8 @@ import { registerGatewayRoutes } from './gateway/routes.js';
 import { registerToolRoutes } from './tools/routes.js';
 import { buildBackup, restoreBackup } from './backup.js';
 import { pool, geminiPct } from './gateway/pool.js';
-import { usageTotals, usageSeries, usageByModel, usageByAccount } from './store/db.js';
+import { PROVIDERS, PROVIDER_IDS } from './gateway/providers/index.js';
+import { usageTotals, usageSeries, usageByModel, usageByAccount, usageByProvider } from './store/db.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -271,11 +272,32 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     // usage 7 ngày
     const to = now, from = to - 7 * 86400_000;
     const usage = { totals: usageTotals(from, to), series: usageSeries(from, to, 'day'), byModel: usageByModel(from, to).slice(0, 6), byAccount: usageByAccount(from, to).slice(0, 6) };
+    // thống kê TÁCH THEO PROVIDER (agy có quota thật, kr chỉ có kết quả dò)
+    const byProv = usageByProvider(from, to);
+    const providers = PROVIDER_IDS.map((pid) => {
+      const list = pool.list(pid);
+      const q = list.filter((a) => a.quota).map((a) => geminiPct(a) ?? 0);
+      const u = byProv.find((x) => x.provider === pid);
+      return {
+        id: pid,
+        label: PROVIDERS[pid].label,
+        total: list.length,
+        enabled: list.filter((a) => a.enabled).length,
+        ready: list.filter((a) => a.enabled && a.health !== 'dead' && (a.cooldownUntil || 0) <= now).length,
+        cooldown: list.filter((a) => (a.cooldownUntil || 0) > now).length,
+        quotaAvg: q.length ? Math.round(q.reduce((x, y) => x + y, 0) / q.length) : null,
+        probeOk: list.filter((a) => a.liveStatus === 'ok').length,
+        requests: u?.requests ?? 0,
+        tokens: (u?.tokIn ?? 0) + (u?.tokOut ?? 0),
+        estimated: pid === 'kr', // Kiro không trả usage → token là ước lượng
+      };
+    });
     let omniOk = false; try { await omniroute.listConnections(); omniOk = true; } catch { /* offline */ }
     return {
       accounts: { total: accounts.length, counts },
       proxies: store.listProxies().length,
       gateway: gw,
+      providers,
       quota: { fetched: withQ.length, geminiAvg: avg(gem), thirdPartyAvg: avg(tp) },
       usage,
       sched: scheduler.status(),
