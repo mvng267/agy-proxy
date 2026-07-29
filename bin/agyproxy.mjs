@@ -33,8 +33,11 @@ const PORT = process.env.PORT || '7788';
 // --host 0.0.0.0 (hoặc env HOST) để máy khác truy cập qua IP
 const argv = process.argv.slice(2);
 const flagVal = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
-const HOST = flagVal('--host') || process.env.HOST || '127.0.0.1';
+// Chỉ set khi có --host / env HOST — KHÔNG mặc định, để .env tự quyết định.
+const HOST_EXPLICIT = flagVal('--host') || process.env.HOST || null;
+const HOST = HOST_EXPLICIT || '127.0.0.1'; // chỉ dùng để hiển thị
 const OPEN = HOST === '0.0.0.0' || HOST === '::';
+const hostEnv = HOST_EXPLICIT ? { HOST: HOST_EXPLICIT } : {};
 
 const c = { g: (s) => `\x1b[32m${s}\x1b[0m`, r: (s) => `\x1b[31m${s}\x1b[0m`, y: (s) => `\x1b[33m${s}\x1b[0m`, d: (s) => `\x1b[90m${s}\x1b[0m`, b: (s) => `\x1b[1m${s}\x1b[0m` };
 
@@ -70,12 +73,12 @@ function start(detached) {
   if (running) { console.log(c.y(`Đang chạy sẵn (PID ${running}) · http://localhost:${PORT}`)); return; }
   if (!detached) {
     console.log(c.d(`agyproxy v${PKG.version} · data: ${HOME}`));
-    const p = spawn(tsxBin(), [ENTRY], { stdio: 'inherit', env: { ...process.env, HOST }, cwd: ROOT });
+    const p = spawn(tsxBin(), [ENTRY], { stdio: 'inherit', env: { ...process.env, ...hostEnv }, cwd: ROOT });
     p.on('exit', (code) => process.exit(code ?? 0));
     return;
   }
   const out = openSync(LOG_FILE, 'a');
-  const p = spawn(tsxBin(), [ENTRY], { detached: true, stdio: ['ignore', out, out], env: { ...process.env, HOST }, cwd: ROOT });
+  const p = spawn(tsxBin(), [ENTRY], { detached: true, stdio: ['ignore', out, out], env: { ...process.env, ...hostEnv }, cwd: ROOT });
   p.unref();
   writeFileSync(PID_FILE, String(p.pid));
   console.log(c.g('✓ Đã chạy nền') + ` · PID ${p.pid} · http://localhost:${PORT}`);
@@ -181,7 +184,7 @@ function svcInstall() {
   const running = readPid();
   if (running) { console.log(c.d('  Dừng daemon thủ công để service quản lý…')); stop(); }
   const [node, ...args] = svcExecArgs();
-  const env = { AGY_HOME: HOME, PORT: String(PORT), NODE_ENV: 'production', HOST };
+  const env = { AGY_HOME: HOME, PORT: String(PORT), NODE_ENV: 'production', ...hostEnv };
   if (OPEN) console.log(c.y(`  ⚠ Service mở cho máy khác (HOST=${HOST}) — nên đặt DASHBOARD_PASSWORD trong .env`));
   // macOS TCC chặn LaunchAgent ghi vào Desktop/Documents/Downloads → log ra ~/Library/Logs.
   const svcLog = IS_MAC && /\/(Desktop|Documents|Downloads)\//i.test(LOG_FILE)
