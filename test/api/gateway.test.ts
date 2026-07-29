@@ -124,3 +124,12 @@ test('GET /proxy/v1/models?bare=1 trả id TRẦN, không trùng nhau', async ()
   assert.ok(ids.includes('auto-kr'), 'model auto của Kiro phải đổi tên tránh đụng combo auto');
   assert.equal(new Set(ids).size, ids.length, 'KHÔNG được có id trùng — gateway đích sẽ loạn');
 });
+
+test('GET /proxy/v1/models/:id — retrieve model (gateway trung gian gọi để xác thực)', async () => {
+  const headers = config.gateway.apiKey ? { authorization: `Bearer ${config.gateway.apiKey}` } : {};
+  const ok = await app.inject({ method: 'GET', url: '/proxy/v1/models/gemini-2.5-flash', headers });
+  assert.equal(ok.statusCode, 200);
+  assert.equal(ok.json().object, 'model');
+  const bad = await app.inject({ method: 'GET', url: '/proxy/v1/models/khong-ton-tai-xyz', headers });
+  assert.equal(bad.statusCode, 404, 'model lạ phải 404, không phải 500');
+});

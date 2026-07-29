@@ -828,6 +828,23 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     return { account: accounts.join(', '), models: out };
   });
 
+  /** OpenAI retrieve-model: `GET /proxy/v1/models/:id` — vài gateway gọi để xác thực model. */
+  app.get('/proxy/v1/models/:id', async (req, reply) => {
+    if (!authOk(req)) return reply.code(401).send({ error: { message: 'unauthorized' } });
+    const raw = decodeURIComponent((req.params as any).id ?? '');
+    try {
+      const p = parseModelId(raw);
+      return {
+        id: raw,
+        object: 'model',
+        created: 0,
+        owned_by: p.kind === 'provider' ? (p.provider === 'kr' ? 'kiro' : 'antigravity') : 'combo',
+      };
+    } catch (e: any) {
+      return reply.code(404).send({ error: { message: e?.message ?? 'model not found', type: 'invalid_request_error' } });
+    }
+  });
+
   /**
    * OpenAI **Responses API** — `POST /proxy/v1/responses`.
    * OmniRoute/Codex gọi đường này thay cho /chat/completions (wire_api="responses").
