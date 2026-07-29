@@ -1,15 +1,30 @@
 import 'dotenv/config';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(__dirname, '..');
 
-export const DATA_DIR = resolve(ROOT, 'data');
-export const PROFILES_DIR = resolve(ROOT, 'profiles');
-export const SCREENSHOTS_DIR = resolve(ROOT, 'screenshots');
-export const PUBLIC_DIR = resolve(ROOT, 'public');
+/**
+ * Nơi lưu dữ liệu (accounts/token/profiles).
+ * Thứ tự ưu tiên:
+ *  1) AGY_HOME (env) — chỉ định thẳng.
+ *  2) <ROOT>/data nếu ĐÃ tồn tại — giữ nguyên cài đặt local/dev cũ (không mất dữ liệu).
+ *  3) ~/.agyproxy — mặc định khi cài global bằng CLI (giống ~/.9router).
+ */
+export const AGY_HOME =
+  process.env.AGY_HOME
+    ? resolve(process.env.AGY_HOME)
+    : existsSync(resolve(ROOT, 'data'))
+      ? ROOT
+      : resolve(homedir(), '.agyproxy');
+
+export const DATA_DIR = resolve(AGY_HOME, 'data');
+export const PROFILES_DIR = resolve(AGY_HOME, 'profiles');
+export const SCREENSHOTS_DIR = resolve(AGY_HOME, 'screenshots');
+export const PUBLIC_DIR = resolve(ROOT, 'public'); // asset luôn nằm cùng source
 
 for (const d of [DATA_DIR, PROFILES_DIR, SCREENSHOTS_DIR]) {
   mkdirSync(d, { recursive: true });

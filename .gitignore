@@ -15,3 +15,7 @@ _shot*.ts
 
 # Claude Code local config
 .claude/
+
+# CLI runtime
+agyproxy.pid
+agyproxy.log

@@ -11,8 +11,32 @@ Cổng **OpenAI-compatible** gom pool nhiều tài khoản **Antigravity** (Goog
 - **Backup/restore toàn bộ** bằng 1 file JSON (accounts + proxies + credentials + gateway + config).
 - Dashboard 100% ReUI, dark/light, responsive.
 
-## Chạy local (macOS/Linux)
-Cần **Node ≥ 24** (cho `node:sqlite`) + Google Chrome.
+## Cài đặt CLI (khuyến nghị — giống 9router)
+Cần **Node ≥ 24** (cho `node:sqlite`). Harvest login thì cần thêm Google Chrome.
+```bash
+npm install -g github:mvng267/agy-proxy
+npx playwright install chrome      # chỉ cần nếu dùng harvest login
+
+agyproxy start -d                  # chạy nền
+agyproxy status                    # trạng thái + số liệu
+```
+
+### Lệnh CLI
+| Lệnh | Việc |
+|---|---|
+| `agyproxy start` | chạy foreground |
+| `agyproxy start -d` | **chạy nền** (daemon, ghi PID + log) |
+| `agyproxy stop` | dừng tiến trình nền |
+| `agyproxy restart` | khởi động lại (nền) |
+| `agyproxy status` | trạng thái + account + pool + usage |
+| `agyproxy logs -f` | xem log realtime |
+| `agyproxy update` | **kiểm tra GitHub & tự cập nhật** (git pull hoặc npm -g) |
+| `agyproxy update --check` | chỉ kiểm tra có bản mới |
+| `agyproxy version` | phiên bản |
+
+Dữ liệu mặc định ở `~/.agyproxy` (accounts, token, profiles, log). Đổi bằng env `AGY_HOME`. Nếu chạy từ thư mục source đã có `data/` thì giữ nguyên chỗ cũ.
+
+## Chạy từ source (dev)
 ```bash
 npm install
 npx playwright install chrome

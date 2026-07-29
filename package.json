@@ -1,9 +1,18 @@
 {
-  "name": "omniroute-account-manager",
-  "version": "0.1.0",
-  "private": true,
+  "name": "agy-proxy",
+  "version": "1.0.0",
   "type": "module",
-  "description": "Playwright account manager: bán tự động login Google, thu credential và đẩy vào OmniRoute providers",
+  "description": "Antigravity gateway: cổng OpenAI-compatible gom pool tài khoản Antigravity + dashboard quản lý",
+  "bin": {
+    "agyproxy": "bin/agyproxy.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "public",
+    ".env.example",
+    "README.md"
+  ],
   "engines": {
     "node": ">=22"
   },
