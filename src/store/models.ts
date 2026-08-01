@@ -1,11 +1,12 @@
-export type FlowKey = 'google' | 'gweb' | 'agy' | 'gcli' | 'kiro';
+export type FlowKey = 'google' | 'gweb' | 'agy' | 'agycli' | 'gcli' | 'kiro';
 
-export const FLOW_KEYS: FlowKey[] = ['google', 'gweb', 'agy', 'gcli', 'kiro'];
+export const FLOW_KEYS: FlowKey[] = ['google', 'gweb', 'agy', 'agycli', 'gcli', 'kiro'];
 
 export const FLOW_LABEL: Record<FlowKey, string> = {
   google: 'Google Login',
   gweb: 'Gemini Web',
   agy: 'Antigravity',
+  agycli: 'Antigravity CLI',
   gcli: 'Gemini CLI',
   kiro: 'Kiro',
 };
@@ -24,6 +25,7 @@ export interface Account {
   status_google: TargetStatus;
   status_gweb: TargetStatus;
   status_agy: TargetStatus;
+  status_agycli: TargetStatus;
   status_gcli: TargetStatus;
   status_kiro: TargetStatus;
   last_run: string;
@@ -42,6 +44,7 @@ export const ACCOUNT_HEADERS: (keyof Account)[] = [
   'status_google',
   'status_gweb',
   'status_agy',
+  'status_agycli',
   'status_gcli',
   'status_kiro',
   'last_run',

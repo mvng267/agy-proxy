@@ -1,6 +1,7 @@
 // ===== Antigravity Account Manager — frontend =====
 const FLOWS = [
   { key: 'agy', label: 'Antigravity', col: 'status_agy' },
+  { key: 'agycli', label: 'Antigravity CLI', col: 'status_agycli' },
   { key: 'kiro', label: 'Kiro', col: 'status_kiro' },
 ];
 const PIPELINE = FLOWS.map((f) => f.key);
@@ -231,6 +232,7 @@ function accountMatches(a) {
   const sts = PIPELINE.map((k) => a['status_' + k]);
   if (f === 'both-ok') return sts.every((s) => s === 'ok');
   if (f === 'miss-agy') return a.status_agy !== 'ok';
+  if (f === 'miss-agycli') return a.status_agycli !== 'ok';
   if (f === 'miss-kiro') return a.status_kiro !== 'ok';
   if (f === 'new') return sts.some((s) => s === 'new');
   return sts.includes(f);
@@ -240,7 +242,7 @@ function renderAccounts() {
   const body = $('acc-body'); body.innerHTML = '';
   const full = accounts.filter(accountMatches);
   const { rows, total, pages } = paginate(full, accSt);
-  if (!total) { body.innerHTML = `<tr><td colspan="7"><div class="empty">Không có tài khoản khớp</div></td></tr>`; $('acc-pager').innerHTML = ''; updateSel(); return; }
+  if (!total) { body.innerHTML = `<tr><td colspan="8"><div class="empty">Không có tài khoản khớp</div></td></tr>`; $('acc-pager').innerHTML = ''; updateSel(); return; }
   for (const a of rows) {
     const tr = el('tr'); if (selected.has(a.email)) tr.classList.add('sel');
     const proxyOpts = ['<option value="">(none)</option>'].concat(proxyLabels.map((l) => `<option ${l === a.proxy ? 'selected' : ''}>${esc(l)}</option>`)).join('');
@@ -1208,7 +1210,7 @@ async function skipRun(id) { await api('/api/runs/' + id + '/skip', { method: 'P
 
 // ---------- log (SSE) + segmented + live call ----------
 const logEl = $('log'); let logLines = []; let logPaused = false; let logCat = '';
-const LOGIN_FLOWS = ['google', 'gweb', 'agy', 'kiro'];
+const LOGIN_FLOWS = ['google', 'gweb', 'agy', 'agycli', 'kiro'];
 $('log-pause').addEventListener('click', () => { logPaused = !logPaused; $('log-pause').innerHTML = icon(logPaused ? 'play' : 'pause'); toast(logPaused ? 'Log tạm dừng cuộn' : 'Log tiếp tục'); });
 $('log-clear').addEventListener('click', () => { logLines = []; logEl.innerHTML = ''; renderGwlog(); });
 $('log-download').addEventListener('click', () => downloadFile('log.txt', logLines.map((l) => `${l.ts} [${l.level}] ${l.who} ${l.msg}`).join('\n'), 'text/plain'));

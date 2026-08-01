@@ -184,7 +184,7 @@ export function runLogs(runId: number): unknown[] {
   return db.prepare(`SELECT * FROM run_logs WHERE run_id = ? ORDER BY id ASC`).all(runId);
 }
 
-const LOGIN_FLOWS = "('google','agy','kiro')";
+const LOGIN_FLOWS = "('google','agy','agycli','kiro')";
 
 /** Tổng số login thành công (mọi flow có đăng nhập) trong 24h — cho hiển thị. */
 export function loginsLast24h(): number {
