@@ -197,7 +197,16 @@ async function loadOverview() {
     <div class="sub">${fmtNum(p.requests)} req/7d · ${fmtNum(p.tokens)} tok${p.estimated ? ' (ước lượng)' : ''}</div>
   </div>`).join('');
   // donut hạn mức + mini xu hướng
-  $('ov-quota').innerHTML = svgDonut(o.quota.geminiAvg, 'Gemini') + svgDonut(o.quota.thirdPartyAvg, 'Claude/GPT') + `<div class="donut-note faint">${o.quota.fetched}/${o.gateway.total} account đã nạp</div><div id="ov-qtrend" style="width:100%"></div>`;
+  // 2 bể ĐỘC LẬP — tiêu Gemini không ăn vào Claude, nên hiện tách kèm giờ reset riêng.
+  const qmeta = [
+    o.quota.tier ? esc(o.quota.tier) : '',
+    o.quota.geminiReset ? 'Gemini reset ' + fmtReset(o.quota.geminiReset) : '',
+    o.quota.thirdPartyReset ? 'Claude/GPT reset ' + fmtReset(o.quota.thirdPartyReset) : '',
+  ].filter(Boolean).join(' · ');
+  $('ov-quota').innerHTML = svgDonut(o.quota.geminiAvg, 'Gemini') + svgDonut(o.quota.thirdPartyAvg, 'Claude/GPT')
+    + `<div class="donut-note faint">${o.quota.fetched}/${o.gateway.total} account đã nạp</div>`
+    + (qmeta ? `<div class="donut-note faint" style="font-size:11px">${qmeta}</div>` : '')
+    + `<div id="ov-qtrend" style="width:100%"></div>`;
   api('/api/gateway/quota/history?range=7d').then((qh) => {
     const s = qh.series || [];
     const box = $('ov-qtrend'); if (!box) return;
@@ -430,6 +439,17 @@ function agyFilterSort() {
   return list;
 }
 function claudePct(a) { const g = (a.quota && a.quota.groups) ? a.quota.groups.find((x) => !/gemini/i.test(x.name)) : null; return g ? g.pct : null; }
+/** Tooltip ô quota: tên bể + tier + giờ reset (dữ liệu đã có sẵn, trước đây không hiện). */
+function bucketTip(a, bucket) {
+  const gs = (a.quota && a.quota.groups) || [];
+  const g = gs.find((x) => (bucket === 'gemini') === /gemini/i.test(x.name));
+  if (!g) return 'Chưa nạp hạn mức';
+  const bits = [g.name];
+  if (a.quota.tier) bits.push('tier: ' + a.quota.tier);
+  if (g.resetTime) bits.push('reset: ' + fmtReset(g.resetTime));
+  if (g.desc) bits.push(g.desc);
+  return bits.join(' · ');
+}
 function tokenBadge(health) { const c = health === 'alive' ? 'alive' : health === 'dead' ? 'dead' : 'new'; return `<span class="badge ${c}"><span class="bd"></span>${esc(health || '—')}</span>`; }
 function liveBadge(s) { if (!s) return '<span class="chip">—</span>'; const map = { ok: ['alive', '✓ live'], quota: ['needs_human', '⏳ quota'], error: ['dead', '✗ lỗi'] }; const [cls, lbl] = map[s] || ['new', s]; return `<span class="badge ${cls}"><span class="bd"></span>${lbl}</span>`; }
 function renderAgy() {
@@ -453,8 +473,8 @@ function renderAgy() {
            ${krCredit ? `<span class="${qColor(krCredit.pct)}">${krCredit.pct}%</span> <span class="faint">${esc(String(krCredit.desc || '').split('·')[0].trim())}</span>`
              : '<span class="faint">chưa nạp</span>'}</td>
          <td class="qcell">${a.liveStatus === 'ok' ? '<span class="q-hi">gọi được</span>' : a.liveStatus === 'quota' ? '<span class="q-lo">hết credit</span>' : '<span class="faint">chưa dò</span>'}</td>`
-      : `<td class="qcell">${gpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(gpct)}">${gpct}%</span>`}</td>
-         <td class="qcell">${cpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(cpct)}">${cpct}%</span>`}</td>`;
+      : `<td class="qcell" title="${esc(bucketTip(a, 'gemini'))}">${gpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(gpct)}">${gpct}%</span>`}</td>
+         <td class="qcell" title="${esc(bucketTip(a, 'claude'))}">${cpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(cpct)}">${cpct}%</span>`}</td>`;
     tr.innerHTML = `
       <td><input type="checkbox" class="agy-chk" data-email="${esc(a.email)}" ${agySelected.has(a.email) ? 'checked' : ''}></td>
       <td><label class="switch"><input type="checkbox" class="agy-tog" data-email="${esc(a.email)}" ${a.enabled ? 'checked' : ''}/><span class="track"></span></label></td>
@@ -735,36 +755,79 @@ async function importBulk() { const r = await api('/api/accounts/import', { meth
 async function genRange() { const r = await api('/api/accounts/generate', { method: 'POST', body: { prefix: $('g-prefix').value.trim(), start: +$('g-start').value, end: +$('g-end').value, domain: $('g-domain').value.trim(), password: $('g-pass').value, extra: $('g-extra').value } }); toast('Đã sinh ' + r.added + ' account'); loadAccounts(); loadSummary(); }
 $('a-file-import').addEventListener('click', () => { const f = $('a-file').files[0]; if (!f) return toast('Chọn file'); const rd = new FileReader(); rd.onload = async () => { const r = await api('/api/accounts/import', { method: 'POST', body: { text: String(rd.result) } }); toast('Đã import ' + r.added + ' account'); loadAccounts(); loadSummary(); }; rd.readAsText(f); });
 
-// ---------- Models (tách theo provider) ----------
+// ---------- Models (tách theo provider + BỂ hạn mức) ----------
+// Antigravity chia quota 2 bể ĐỘC LẬP: "Gemini Models" và "Claude and GPT models".
+// Gom nhóm theo bể vì đó mới là ranh giới THẬT — quyết định model nào còn gọi được.
 let modelsCache = [];
+let bucketStat = {}; // { gemini: {pct, reset}, claude: {pct, reset} } — TB toàn pool
+const BUCKET_LABEL = { gemini: 'Gemini Models', claude: 'Claude and GPT models' };
+
+/** TB % + giờ reset gần nhất của mỗi bể, gộp từ các account đã nạp hạn mức. */
+function calcBucketStat(accounts) {
+  const acc = { gemini: [], claude: [] };
+  const reset = {};
+  for (const a of accounts || []) {
+    if (a.provider !== 'agy' || !a.quota) continue;
+    for (const g of a.quota.groups || []) {
+      const k = /gemini/i.test(g.name) ? 'gemini' : 'claude';
+      acc[k].push(g.pct);
+      if (g.resetTime) reset[k] = g.resetTime;
+    }
+  }
+  const out = {};
+  for (const k of ['gemini', 'claude']) {
+    if (acc[k].length) out[k] = { pct: Math.round(acc[k].reduce((s, x) => s + x, 0) / acc[k].length), reset: reset[k] || '' };
+  }
+  return out;
+}
+
 async function loadModels() {
   const [g, accs] = await Promise.all([api('/api/gateway/models'), api('/api/gateway/accounts')]);
   modelsCache = g.models || [];
   $('tc-models').textContent = modelsCache.length;
-  const byProv = {};
-  for (const m of modelsCache) (byProv[m.provider] ??= []).push(m);
+  bucketStat = calcBucketStat(accs.accounts);
+
+  // Khoá nhóm = provider + bể (provider không chia bể thì chỉ theo provider).
+  const groups = {};
+  for (const m of modelsCache) (groups[m.bucket ? `${m.provider}:${m.bucket}` : m.provider] ??= []).push(m);
   const counts = accs.counts || {};
   const okOf = (p) => (accs.accounts || []).filter((a) => a.provider === p && !a.cooldown && a.enabled).length;
-  $('models-groups').innerHTML = Object.entries(byProv).map(([pid, list]) => `
+
+  $('models-groups').innerHTML = Object.entries(groups).map(([key, list]) => {
+    const pid = key.split(':')[0];
+    const bk = list[0].bucket;
+    const st = bk ? bucketStat[bk] : null;
+    const title = bk ? `${list[0].providerLabel || pid} · ${BUCKET_LABEL[bk] || bk}` : (list[0].providerLabel || pid);
+    // Bể cạn → cảnh báo ngay ở tiêu đề, không phải bấm Check live mới biết.
+    const quotaTag = st
+      ? `<span class="${st.pct <= 0 ? 'q-lo' : st.pct < 25 ? 'q-mid' : 'q-hi'}" title="TB hạn mức còn lại của bể này${st.reset ? ' · reset ' + fmtReset(st.reset) : ''}">${st.pct}% còn lại${st.pct <= 0 ? ' — ĐÃ CẠN' : ''}</span>`
+      : '<span class="faint" title="Chưa nạp hạn mức account nào">— chưa rõ hạn mức</span>';
+    return `
     <div class="panel">
       <div class="row" style="justify-content:space-between;align-items:center">
-        <h3 style="margin:0">${esc(list[0].providerLabel || pid)} <span class="faint" style="font-weight:400;font-size:12.5px">${list.length} model</span></h3>
-        <span class="faint">${counts[pid] ?? 0} account · ${okOf(pid)} sẵn sàng
-          <button class="sm" data-copyall="${esc(pid)}" title="Copy tất cả id">${icon('copy')} Copy tất cả</button></span>
+        <h3 style="margin:0">${esc(title)} <span class="faint" style="font-weight:400;font-size:12.5px">${list.length} model</span></h3>
+        <span class="faint">${quotaTag} · ${counts[pid] ?? 0} account · ${okOf(pid)} sẵn sàng
+          <button class="sm" data-copyall="${esc(key)}" title="Copy tất cả id">${icon('copy')} Copy tất cả</button></span>
       </div>
-      <div class="chips" id="mg-${esc(pid)}" style="margin-top:10px">${list.map((m) => modelChip(m)).join('')}</div>
-    </div>`).join('');
+      <div class="chips" id="mg-${esc(key.replace(':', '-'))}" style="margin-top:10px">${list.map((m) => modelChip(m)).join('')}</div>
+    </div>`;
+  }).join('');
   wireModelChips();
   document.querySelectorAll('[data-copyall]').forEach((b) => b.addEventListener('click', async () => {
-    const ids = modelsCache.filter((m) => m.provider === b.dataset.copyall).map((m) => m.id).join('\n');
+    const [pid, bk] = b.dataset.copyall.split(':');
+    const ids = modelsCache.filter((m) => m.provider === pid && (!bk || m.bucket === bk)).map((m) => m.id).join('\n');
     await navigator.clipboard.writeText(ids).catch(() => {});
     toast('Đã copy ' + ids.split('\n').length + ' model id');
   }));
 }
+
 function modelChip(m) {
-  const st = m.status || 'unknown';
+  // Bể đã cạn thì model chắc chắn không gọi được → hiện đỏ NGAY, kể cả chưa Check live.
+  const st = m.status || (m.bucket && bucketStat[m.bucket] && bucketStat[m.bucket].pct <= 0 ? 'quota' : 'unknown');
   const tip = { ok: 'Gọi được ✓', quota: 'Hết hạn mức', error: 'Gọi lỗi', unknown: 'Chưa kiểm — bấm Check live' }[st] || st;
-  return `<span class="chip model-chip ${st}" title="${esc(tip)}${m.detail ? ' — ' + esc(m.detail) : ''}">
+  const bs = m.bucket ? bucketStat[m.bucket] : null;
+  const bucketTip = bs ? ` · bể ${BUCKET_LABEL[m.bucket]}: ${bs.pct}% còn lại${bs.reset ? ', reset ' + fmtReset(bs.reset) : ''}` : '';
+  return `<span class="chip model-chip ${st}" title="${esc(tip)}${m.detail ? ' — ' + esc(m.detail) : ''}${esc(bucketTip)}">
     <span class="mc-dot"></span>${m.image ? '<span class="mc-img">🖼</span>' : ''}<b class="mc-id">${esc(m.id)}</b>${m.ms ? `<span class="faint mc-ms">${m.ms}ms</span>` : ''}
     <button class="mc-copy" data-model="${esc(m.id)}" title="Copy tên model">${icon('copy')}</button></span>`;
 }

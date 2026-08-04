@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Pool, NoAccountError, poolKey } from '../../src/gateway/pool.js';
+import { Pool, NoAccountError, poolKey, geminiPct, claudePct, bucketPct } from '../../src/gateway/pool.js';
 
 /**
  * 9 assertion gốc GIỮ NGUYÊN — bằng chứng logic xoay account không đổi sau khi
@@ -188,4 +188,59 @@ test('persist BỎ cooldown đã hết hạn', () => {
   const stale = { 'kr:a@x': { cooldownUntil: Date.now() - 60_000, liveStatus: 'quota' } };
   p.applyPersist(stale as any);
   assert.equal(p.get('a@x', 'kr')!.cooldownUntil, 0, 'cooldown quá hạn thì bỏ qua');
+});
+
+// ---------- Bể hạn mức: 2 bể ĐỘC LẬP của Antigravity ----------
+// Bug thật: xếp hạng account bằng % Gemini khi gọi model Claude → chọn nhầm account
+// đã cạn Claude (Gemini 100% mà Claude 0% vẫn được ưu tiên).
+
+function withQuota(p: Pool, email: string, gemini: number, claude: number) {
+  const a = p.upsert({ provider: 'agy', email, refreshToken: 'r', credential: 'c', proxyLabel: '', health: 'ok' });
+  a.quota = {
+    tier: 'Antigravity Starter Quota',
+    groups: [
+      { name: 'Gemini Models', pct: gemini, resetTime: '' },
+      { name: 'Claude and GPT models', pct: claude, resetTime: '' },
+    ],
+    models: [],
+    fetchedAt: Date.now(),
+  } as any;
+  return a;
+}
+
+test('bucketPct đọc ĐÚNG bể, không lẫn sang bể kia', () => {
+  const p = new Pool();
+  const a = withQuota(p, 'x@t.vn', 73, 97);
+  assert.equal(geminiPct(a), 73);
+  assert.equal(claudePct(a), 97);
+  assert.equal(bucketPct(a, 'gemini'), 73);
+  assert.equal(bucketPct(a, 'claude'), 97);
+  assert.equal(bucketPct(a, undefined), 73, 'không biết bể → về Gemini như cũ');
+});
+
+test('highest-first chọn account theo bể CLAUDE khi gọi model Claude', () => {
+  const p = new Pool();
+  // A: Gemini đầy nhưng Claude CẠN — cũ sẽ chọn nhầm A vì chỉ nhìn Gemini
+  withQuota(p, 'a@t.vn', 100, 0);
+  // B: Gemini thấp hơn nhưng Claude còn nhiều
+  withQuota(p, 'b@t.vn', 50, 90);
+
+  assert.equal(p.pick('highest-first', Date.now(), 'agy', 'claude').email, 'b@t.vn');
+  p.release(p.get('b@t.vn')!);
+  assert.equal(p.pick('highest-first', Date.now(), 'agy', 'gemini').email, 'a@t.vn', 'gọi Gemini thì vẫn chọn A');
+});
+
+test('provider không chia bể (Kiro) → bucketPct rơi về nhóm đầu', () => {
+  const p = new Pool();
+  const a = p.upsert({ provider: 'kr', email: 'k@t.vn', refreshToken: 'r', credential: '{"refreshToken":"r"}', proxyLabel: '', health: 'ok' });
+  a.quota = { tier: null, groups: [{ name: 'Credits', pct: 42, resetTime: '' }], models: [], fetchedAt: Date.now() } as any;
+  assert.equal(bucketPct(a, 'claude'), 42, 'không có nhóm Claude riêng → dùng nhóm đầu');
+  assert.equal(bucketPct(a, 'gemini'), 42);
+});
+
+test('chưa nạp quota → null, không đoán bừa', () => {
+  const p = new Pool();
+  const a = p.upsert({ provider: 'agy', email: 'n@t.vn', refreshToken: 'r', credential: 'c', proxyLabel: '', health: 'ok' });
+  assert.equal(bucketPct(a, 'claude'), null);
+  assert.equal(bucketPct(a, 'gemini'), null);
 });

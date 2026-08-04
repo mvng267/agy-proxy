@@ -1,5 +1,5 @@
 import type { Dispatcher } from 'undici';
-import type { ChatMessage, GenResult, QuotaInfo, TokenInfo, ToolCall, ToolDef, Usage } from '../antigravity.js';
+import type { ChatMessage, GenResult, QuotaBucket, QuotaInfo, TokenInfo, ToolCall, ToolDef, Usage } from '../antigravity.js';
 
 /**
  * Trừu tượng provider: gateway phục vụ nhiều nguồn model (Antigravity, Kiro…).
@@ -37,6 +37,8 @@ export interface ProviderModel {
   image: boolean;
   /** Trần ngữ cảnh (token). Dùng để gợi ý model thay thế khi prompt quá dài. */
   maxInput?: number;
+  /** Bể hạn mức (agy chia 2 bể độc lập). Không đặt = provider không chia bể (Kiro). */
+  bucket?: QuotaBucket;
 }
 
 export interface GenArgs {
@@ -95,4 +97,4 @@ export interface Provider {
   quota?(a: ProviderAccount, s: ProviderSession, d?: Dispatcher): Promise<QuotaInfo | undefined>;
 }
 
-export type { ChatMessage, GenResult, QuotaInfo, TokenInfo, ToolCall, ToolDef, Usage };
+export type { ChatMessage, GenResult, QuotaBucket, QuotaInfo, TokenInfo, ToolCall, ToolDef, Usage };

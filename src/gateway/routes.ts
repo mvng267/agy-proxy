@@ -11,7 +11,7 @@ import {
 } from '../store/db.js';
 import {
   PROVIDERS, PROVIDER_IDS, allModels, parseModelId, ModelIdError,
-  type ParsedModel, type ProviderId, type ProviderSession,
+  type ParsedModel, type ProviderId, type ProviderSession, type QuotaBucket,
 } from './providers/index.js';
 import {
   planCombo, planAuto, shouldFallback, isContextTooLong, validateTargets, AUTO_VARIANT_IDS, AUTO_VARIANTS, scoreCandidates,
@@ -29,6 +29,7 @@ import {
   dispatcherFor,
   refreshQuota,
   geminiPct,
+  claudePct,
   NoAccountError,
   type PoolAccount,
   type Strategy,
@@ -147,10 +148,16 @@ function accOf(req: FastifyRequest, email: string): PoolAccount | undefined {
 }
 
 /** Chọn account của ĐÚNG provider (ép email nếu có) + lấy session sẵn sàng. */
+/** Bể hạn mức của 1 model (id TRẦN). undefined = provider không chia bể. */
+function bucketOf(provider: ProviderId, bare: string): QuotaBucket | undefined {
+  return PROVIDERS[provider]?.models.find((m) => m.id === bare)?.bucket;
+}
+
 async function pickReady(
   provider: ProviderId,
   forcedEmail: string | undefined,
   proxyOverride: string | undefined,
+  bucket?: QuotaBucket,
 ): Promise<{ account: PoolAccount; session: ProviderSession; dispatcher: any }> {
   let account: PoolAccount;
   if (forcedEmail) {
@@ -160,7 +167,7 @@ async function pickReady(
     account = a;
     account.inflight++; // đối xứng với pool.release() ở finally
   } else {
-    account = pool.pick(strategy(), Date.now(), provider); // pick đã inflight++
+    account = pool.pick(strategy(), Date.now(), provider, bucket); // pick đã inflight++
   }
   try {
     const dispatcher = dispatcherFor(account, proxyOverride);
@@ -472,7 +479,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     for (let attempt = 0; tries < maxTry && skips <= maxSkip; attempt++) {
       let ctx: Awaited<ReturnType<typeof pickReady>>;
       try {
-        ctx = await pickReady(provider, opts.forcedEmail, opts.proxyOverride);
+        ctx = await pickReady(provider, opts.forcedEmail, opts.proxyOverride, bucketOf(provider, bare));
       } catch (e) {
         lastErr = e;
         break;
@@ -628,6 +635,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         lastError: a.lastError,
         quota: a.quota ?? null,
         geminiPct: geminiPct(a),
+        claudePct: claudePct(a),
         liveStatus: a.liveStatus ?? null,
         hasProxy: !!a.proxyLabel,
       })),
@@ -692,6 +700,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     models: allModels().map((m) => ({
       id: m.prefixed, bare: m.id, label: m.label, image: m.image,
       provider: m.provider, providerLabel: m.providerLabel,
+      bucket: m.bucket, maxInput: m.maxInput,
     })),
   }));
 

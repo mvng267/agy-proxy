@@ -266,9 +266,22 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     };
     // quota tổng hợp
     const withQ = pl.filter((a) => a.quota);
-    const gem = withQ.map((a) => geminiPct(a) ?? 0);
-    const tp = withQ.map((a) => a.quota?.groups?.find((g) => !/gemini/i.test(g.name))?.pct ?? 0);
+    // Bỏ account KHÔNG có nhóm tương ứng thay vì tính 0% — nếu không, account chỉ có
+    // nhóm Gemini sẽ kéo trung bình Claude xuống 0 và báo cạn nhầm.
+    const gem = withQ.map((a) => geminiPct(a)).filter((x): x is number => x != null);
+    const tp = withQ
+      .map((a) => a.quota?.groups?.find((g) => !/gemini/i.test(g.name))?.pct)
+      .filter((x): x is number => x != null);
     const avg = (arr: number[]) => (arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : null);
+    // Giờ reset + tier của từng bể (lấy account mới nạp nhất — mọi account cùng tier thì như nhau)
+    const bucketMeta = (isGem: boolean) => {
+      for (const a of withQ) {
+        const g = a.quota?.groups?.find((x) => isGem === /gemini/i.test(x.name));
+        if (g?.resetTime) return { reset: g.resetTime, name: g.name };
+      }
+      return null;
+    };
+    const tierName = withQ.find((a) => a.quota?.tier)?.quota?.tier ?? null;
     // usage 7 ngày
     const to = now, from = to - 7 * 86400_000;
     const usage = { totals: usageTotals(from, to), series: usageSeries(from, to, 'day'), byModel: usageByModel(from, to).slice(0, 6), byAccount: usageByAccount(from, to).slice(0, 6) };
@@ -298,7 +311,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       proxies: store.listProxies().length,
       gateway: gw,
       providers,
-      quota: { fetched: withQ.length, geminiAvg: avg(gem), thirdPartyAvg: avg(tp) },
+      quota: {
+        fetched: withQ.length,
+        geminiAvg: avg(gem),
+        thirdPartyAvg: avg(tp),
+        tier: tierName,
+        geminiReset: bucketMeta(true)?.reset ?? null,
+        thirdPartyReset: bucketMeta(false)?.reset ?? null,
+      },
       usage,
       sched: scheduler.status(),
       omniOk,

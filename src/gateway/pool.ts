@@ -5,7 +5,7 @@ import { DATA_DIR, config } from '../config.js';
 import { store } from '../store/index.js';
 import { recordQuota } from '../store/db.js';
 import { PROVIDERS, providerOfTarget, type ProviderAccount, type ProviderId, type ProviderSession } from './providers/index.js';
-import { proxyDispatcher, type TokenInfo, type QuotaInfo } from './antigravity.js';
+import { proxyDispatcher, type TokenInfo, type QuotaInfo, type QuotaBucket } from './antigravity.js';
 
 /**
  * Pool account ĐA PROVIDER (Antigravity + Kiro) + 4 chiến lược xoay.
@@ -51,13 +51,37 @@ export interface PoolAccount extends ProviderAccount {
   ready?: Promise<ProviderSession>; // dedupe refresh khi nhiều call đồng thời
 }
 
+/** Nhóm quota nào là bể Gemini (upstream đặt tên "Gemini Models"). */
+const isGeminiGroup = (name: string) => /gemini/i.test(name);
+
 /** % hạn mức Gemini còn lại (dùng cho highest-first). null nếu chưa fetch. */
 export function geminiPct(a: PoolAccount): number | null {
-  const g = a.quota?.groups?.find((x) => /gemini/i.test(x.name));
+  const g = a.quota?.groups?.find((x) => isGeminiGroup(x.name));
   if (g) return g.pct;
   // Provider khác (Kiro dùng nhóm 'Credits') → lấy nhóm đầu để highest-first vẫn xoay đúng
   const first = a.quota?.groups?.[0];
   return first ? first.pct : null;
+}
+
+/**
+ * % hạn mức bể Claude+GPT còn lại ("Claude and GPT models"). null nếu chưa fetch
+ * hoặc provider không chia bể.
+ */
+export function claudePct(a: PoolAccount): number | null {
+  const g = a.quota?.groups?.find((x) => !isGeminiGroup(x.name));
+  return g ? g.pct : null;
+}
+
+/**
+ * % còn lại của ĐÚNG bể mà model sắp gọi thuộc về.
+ *
+ * Cần thiết vì 2 bể độc lập: xếp hạng account bằng % Gemini khi đang gọi model Claude
+ * sẽ chọn nhầm account đã cạn Claude (Gemini 100% mà Claude 0% vẫn được ưu tiên).
+ * Không biết bể (Kiro, hoặc chưa nạp quota) → rơi về geminiPct như cũ.
+ */
+export function bucketPct(a: PoolAccount, bucket?: QuotaBucket): number | null {
+  if (bucket === 'claude') return claudePct(a) ?? geminiPct(a);
+  return geminiPct(a);
 }
 
 export interface ReportInfo {
@@ -150,7 +174,7 @@ export class Pool {
    * mọi strategy đều tự xoay sang account khác thay vì dồn 1 account. Khi tải thấp thì
    * full-first/failover vẫn "dính" account đầu như thiết kế.
    */
-  pick(strategy: Strategy, now = Date.now(), provider?: ProviderId): PoolAccount {
+  pick(strategy: Strategy, now = Date.now(), provider?: ProviderId, bucket?: QuotaBucket): PoolAccount {
     const all = this.candidates(now, provider);
     if (!all.length) {
       throw new NoAccountError(
@@ -174,8 +198,10 @@ export class Pool {
       }
       case 'highest-first': {
         chosen = [...c].sort((x, y) => {
-          const cx = geminiPct(x) ?? -1;
-          const cy = geminiPct(y) ?? -1;
+          // Xếp theo % của ĐÚNG bể model sắp gọi — dùng % Gemini để chọn account
+          // cho model Claude sẽ ưu tiên nhầm account đã cạn Claude.
+          const cx = bucketPct(x, bucket) ?? -1;
+          const cy = bucketPct(y, bucket) ?? -1;
           if (cy !== cx) return cy - cx;
           return (x.lastUsed || 0) - (y.lastUsed || 0);
         })[0]!;
