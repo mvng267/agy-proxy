@@ -306,9 +306,17 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       };
     });
     let omniOk = false; try { await omniroute.listConnections(); omniOk = true; } catch { /* offline */ }
+    // Phân bố account trên mỗi IP — nhiều account chung 1 IP dễ kéo checkpoint chain
+    // (xem docs/DECISIONS.md §5). Trước đây chỉ /api/summary có, Tổng quan không vẽ được.
+    const proxyLoad: Record<string, number> = {};
+    for (const a of accounts) {
+      const k = a.proxy || '(direct)';
+      proxyLoad[k] = (proxyLoad[k] ?? 0) + 1;
+    }
     return {
       accounts: { total: accounts.length, counts },
       proxies: store.listProxies().length,
+      proxyLoad,
       gateway: gw,
       providers,
       quota: {

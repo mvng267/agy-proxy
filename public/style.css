@@ -22,6 +22,8 @@
   --purple: oklch(0.606 0.25 292.717); --purple-soft: oklch(0.606 0.25 292.717 / 15%); /* info/violet */
   --r: 10px;      /* ReUI --radius 0.625rem */
   --r-sm: 8px;
+  /* Scale spacing (trước đây hard-code 14/16/17px rải rác → khó giữ nhịp đều) */
+  --space-1: 4px; --space-2: 8px; --space-3: 14px; --space-4: 18px; --space-5: 24px;
   --shadow: 0 4px 14px oklch(0 0 0 / 45%), 0 1px 3px oklch(0 0 0 / 35%);
   --nav-w: 216px;
   --log-w: 372px;
@@ -92,6 +94,7 @@ code { font-family: var(--mono); font-size: 0.9em; background: var(--card-2); pa
 .brand .logo { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-size: 16px; background: var(--primary); color: var(--primary-fg); }
 .spacer { flex: 1; }
 .hide-desktop { display: none; }
+.hide-mobile { display: inline-flex; }
 
 .status-pill {
   display: inline-flex; align-items: center; gap: 7px;
@@ -180,12 +183,26 @@ button .ic, .btn .ic { margin: 0; }
 }
 
 /* ===================== Main ===================== */
-.main { grid-area: main; overflow-y: auto; padding: 0 20px 40px; }
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 16px; }
-.card { background: linear-gradient(180deg, var(--card), var(--surface)); border: 1px solid var(--border); border-radius: var(--r); padding: 15px 17px; }
+.main { grid-area: main; overflow-y: auto; padding: 0 20px 40px;  container-type: inline-size; }
+/* KPI tự chia theo CHIỀU RỘNG THẬT của vùng nội dung (container query), nên thu/mở
+   panel log là tự sắp lại ngay — không phụ thuộc khổ màn hình.
+   `auto-fit` + minmax để hàng luôn lấp đầy, không rớt 1 thẻ lẻ chông chênh. */
+.cards { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); }
+/* Số thẻ cố định → chia đều theo container để KHÔNG rớt 1 thẻ lẻ xuống hàng dưới.
+   Container query: đo vùng nội dung thật, nên thu/mở panel log là tự sắp lại. */
+.cards.c2 { grid-template-columns: repeat(2, 1fr); }
+.cards.c3 { grid-template-columns: repeat(3, 1fr); }
+.cards.c4 { grid-template-columns: repeat(4, 1fr); }
+.cards.c5 { grid-template-columns: repeat(5, 1fr); }
+.cards.c6 { grid-template-columns: repeat(6, 1fr); }
+@container (max-width: 900px) { .cards.c4, .cards.c5, .cards.c6 { grid-template-columns: repeat(2, 1fr); } .cards.c3 { grid-template-columns: repeat(3, 1fr); } }
+@container (max-width: 560px) { .cards, .cards.c2, .cards.c3, .cards.c4, .cards.c5, .cards.c6 { grid-template-columns: 1fr 1fr; } }
+.card { background: linear-gradient(180deg, var(--card), var(--surface)); border: 1px solid var(--border); border-radius: var(--r); padding: var(--space-3) var(--space-4); min-height: 92px; display: flex; flex-direction: column; justify-content: center; }
 .card .label { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-.card .value { font-size: 27px; font-weight: 700; margin-top: 3px; letter-spacing: -.02em; }
-.card .sub { font-size: 12px; color: var(--faint); margin-top: 2px; }
+/* chữ dài (vd tier "Antigravity Starter Quota") phải xuống dòng chứ không tràn thẻ */
+.card .value { font-size: 27px; font-weight: 700; margin-top: 3px; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.card .value.sm { font-size: 15px; line-height: 1.35; font-weight: 600; }
+.card .sub { font-size: 12px; color: var(--faint); margin-top: 2px; overflow-wrap: anywhere; }
 .card.provider .value { font-size: 20px; }
 .prog { height: 6px; border-radius: 3px; background: var(--card-2); margin-top: 9px; overflow: hidden; }
 .prog > i { display: block; height: 100%; background: linear-gradient(90deg, var(--green), #6be39a); border-radius: 3px; transition: width .4s; }
@@ -225,17 +242,31 @@ textarea { font-family: var(--mono); font-size: 12.5px; resize: vertical; }
 .search { position: relative; flex: 1; min-width: 160px; max-width: 320px; }
 .search input { padding-left: 32px; }
 .search .search-ic { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--faint); pointer-events: none; }
-.tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r); background: var(--card); }
+/* BẢNG TỰ CO THEO CONTAINER (container query — không phụ thuộc khổ màn hình, nên
+   thu/mở panel log là bảng tự thích ứng ngay). Nguyên tắc:
+   - ô KHÔNG nowrap mặc định → cột tự co, chữ dài xuống 2 dòng thay vì đẩy tràn
+   - cột đánh dấu .col-lo/.col-mid tự ẩn khi container hẹp dần
+   Trước đây nowrap toàn cục khiến mọi cột giữ nguyên bề rộng → luôn phải kéo ngang. */
+.tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r); background: var(--card); container-type: inline-size; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: auto; }
-thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; text-align: left; padding: 0 14px; height: 42px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--border); white-space: nowrap; }
-tbody td { padding: 0 14px; height: 48px; border-bottom: 1px solid var(--border); white-space: nowrap; vertical-align: middle; }
+thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; text-align: left; padding: 0 14px; height: 42px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--border); }
+tbody td { padding: 10px 14px; min-height: 48px; border-bottom: 1px solid var(--border); vertical-align: middle; overflow-wrap: anywhere; }
+/* Ẩn dần theo ĐỘ RỘNG BẢNG: cột ưu tiên thấp đi trước, cột lõi luôn ở lại */
+@container (max-width: 1000px) { .col-lo { display: none; } }
+@container (max-width: 760px)  { .col-mid { display: none; } }
+@container (max-width: 560px)  { .col-sm { display: none; } }
+/* Nghịch đảo: dòng phụ trong ô chỉ hiện KHI cột riêng đã bị ẩn → không lặp thông tin */
+.only-narrow { display: none; }
+@container (max-width: 1000px) { .only-narrow { display: block; } }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--card-2); }
 tbody tr.sel { background: var(--primary-soft); }
 td.email { font-weight: 500; }
 td.mono { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 /* action cell: nút inline thẳng hàng, không kéo dãn chiều cao dòng */
-td.act { white-space: nowrap; }
+/* Ghim cột hành động bên phải — trước đây nút bị cắt mất ở mép, phải cuộn ngang mới bấm được */
+td.act { white-space: nowrap; position: sticky; right: 0; background: var(--card); box-shadow: -8px 0 12px -8px oklch(0 0 0 / 35%); }
+thead th.act { position: sticky; right: 0; background: var(--card-2); z-index: 2; }
 td.act button { vertical-align: middle; }
 td.act button + button { margin-left: 6px; }
 button.sm.icon { padding: 5px; }
@@ -335,6 +366,9 @@ tbody tr input[type='checkbox'] { vertical-align: middle; }
   .logpane.open { transform: translateX(0); }
   .app.log-collapsed .logpane { display: flex; }
   .hide-desktop { display: inline-flex; }
+  /* ≤1024px log đã là drawer → nút thu gọn desktop không còn ý nghĩa */
+  .hide-mobile { display: none; }
+  #btn-log-show { display: none !important; }
 }
 /* ===================== Tổng quan + biểu đồ + polish ===================== */
 .ov-grid { display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 14px; margin-bottom: 16px; }
@@ -356,8 +390,49 @@ tbody tr input[type='checkbox'] { vertical-align: middle; }
 .hbar { display: flex; height: 16px; border-radius: 8px; overflow: hidden; background: var(--card-2); }
 .hbar-seg.ok { background: var(--green); } .hbar-seg.cd { background: var(--amber); } .hbar-seg.dead { background: var(--red); } .hbar-seg.off { background: var(--faint); }
 .hbar-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 11.5px; color: var(--muted); }
+/* .lg dạng CŨ = ô vuông màu đứng riêng; dạng MỚI (hàm hbar) = span bọc chữ, chấm màu là <i> con */
 .hbar-legend .lg { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+.hbar-legend .lg:has(> i) { width: auto; height: auto; border-radius: 0; margin-right: 0; }
+.hbar-legend .lg > i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
 .hbar-legend .lg.ok { background: var(--green); } .hbar-legend .lg.cd { background: var(--amber); } .hbar-legend .lg.dead { background: var(--red); } .hbar-legend .lg.off { background: var(--faint); }
+
+/* Dòng chi tiết hạn mức mở khi bấm ▸ (thay cho 20 cột model trong bảng) */
+.q-detail > td { background: var(--card-2); padding: var(--space-3) var(--space-4) !important; }
+.qd { display: grid; gap: var(--space-3); }
+.qd .qc-group { display: grid; gap: 4px; }
+.qd .chips { gap: 6px; }
+.qd .chip { font-size: 11.5px; }
+tbody tr.q-row:hover { background: var(--card-2); }
+
+/* Tóm tắt model theo bể (tab Pool) — thay danh sách lặp lại của tab Models */
+.model-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: var(--space-2); margin-top: var(--space-2); }
+.ms-item { display: flex; align-items: center; gap: var(--space-2); padding: 10px 12px; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-sm); font-size: 12.5px; }
+.ms-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.ms-n { color: var(--muted); white-space: nowrap; }
+.ms-q { white-space: nowrap; font-weight: 600; }
+
+/* Hiệu năng provider (Tổng quan) */
+.perf-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.perf-row:last-child { border-bottom: none; }
+.perf-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-size: 13px; }
+
+/* Lưới 3 cột cho hàng chart (Live log, Báo cáo…) */
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); margin-bottom: var(--space-4); }
+.grid3 .panel { margin: 0; }
+@media (max-width: 1100px) { .grid3 { grid-template-columns: 1fr; } }
+/* Log gọi chiếm hết chiều cao còn lại thay vì để trống 70% màn hình */
+.gwlog-tall { min-height: 48vh; max-height: 62vh; }
+
+/* Ô bảng 2 dòng: gộp cột phụ vào cột chính để KHÔNG phải kéo ngang.
+   Dòng 1 = giá trị chính, dòng 2 = phụ (mờ, nhỏ hơn). */
+.cell-2line { display: flex; flex-direction: column; gap: 2px; line-height: 1.3; }
+.cell-2line > .c-main { font-weight: 600; }
+.cell-2line > .c-sub { font-size: 11.5px; color: var(--faint); }
+.cell-2line .qbar { height: 13px; }
+/* sparkline nhúng trong KPI card / ô bảng */
+.spark { display: block; width: 100%; height: 24px; margin-top: 6px; opacity: .9; }
+.card .spark { margin-top: 8px; }
+td .spark { width: 84px; height: 18px; margin: 0; }
 
 /* skeleton shimmer */
 .skel { height: 14px; border-radius: 6px; margin: 8px 0; background: linear-gradient(90deg, var(--card-2) 25%, var(--border) 37%, var(--card-2) 63%); background-size: 400% 100%; animation: shimmer 1.3s ease infinite; }

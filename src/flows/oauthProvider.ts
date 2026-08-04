@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import { randomUUID } from 'node:crypto';
 import { RunContext } from './runner.js';
 import { humanClick, think, sleep, rand } from '../browser/human.js';
 import { performGoogleLogin } from './googleAuth.js';
@@ -34,6 +35,55 @@ async function exchangeAntigravityToken(code: string, redirectUri: string): Prom
   const j = JSON.parse(text) as { refresh_token?: string };
   if (!j.refresh_token) throw new Error('không có refresh_token trong response');
   return j.refresh_token;
+}
+
+/** Scope Antigravity IDE cần (khớp scope OmniRoute cấp — xem connection.scope). */
+const AGY_SCOPES = [
+  'https://www.googleapis.com/auth/cloud-platform',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+  'openid',
+].join(' ');
+
+/**
+ * Tự dựng authUrl Google khi OmniRoute không phản hồi.
+ *
+ * OmniRoute chỉ là NƠI NHẬN (một chiều): thiếu nó ta vẫn phải lấy được refresh_token,
+ * vì `exchangeAntigravityToken` gọi thẳng Google chứ không qua OmniRoute. Trước đây
+ * `oauthAuthorize` là bước đầu tiên nên OmniRoute chết là cả luồng chết ngay
+ * ("fetch failed"), không harvest được token nào.
+ */
+function localAuthUrl(): { authUrl: string; state: string; codeVerifier: string; redirectUri: string; flowType: string } {
+  const state = randomUUID().replace(/-/g, '');
+  const redirectUri = 'http://localhost:8080/callback';
+  const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  u.searchParams.set('client_id', AGY_CLIENT_ID);
+  u.searchParams.set('redirect_uri', redirectUri);
+  u.searchParams.set('response_type', 'code');
+  u.searchParams.set('scope', AGY_SCOPES);
+  u.searchParams.set('access_type', 'offline');
+  u.searchParams.set('prompt', 'consent'); // buộc trả refresh_token kể cả khi đã grant
+  u.searchParams.set('state', state);
+  return { authUrl: u.toString(), state, codeVerifier: '', redirectUri, flowType: 'local' };
+}
+
+/** Lấy authUrl: ưu tiên OmniRoute, hỏng thì tự dựng (chỉ dùng được cho target agy). */
+async function getAuthUrl(
+  provider: string,
+  target: string,
+  ctx: RunContext,
+): Promise<{ authUrl: string; state: string; codeVerifier: string; redirectUri: string; flowType: string; viaOmni: boolean }> {
+  try {
+    const a = await omniroute.oauthAuthorize(provider);
+    if (a.authUrl) return { ...a, authUrl: a.authUrl, viaOmni: true };
+    throw new Error(`không trả authUrl (flowType=${a.flowType})`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // agycli/gcli lưu token BÊN TRONG OmniRoute → không có OmniRoute thì vô nghĩa.
+    if (target !== 'agy') throw new Error(`OmniRoute không sẵn sàng (${msg}) — target ${target} bắt buộc cần OmniRoute`);
+    ctx.log(`OmniRoute lỗi (${msg}) → tự dựng authUrl, vẫn lấy refresh_token`, 'warn');
+    return { ...localAuthUrl(), viaOmni: false };
+  }
 }
 
 const CONFIRM =
@@ -102,11 +152,8 @@ export function makeOAuthFlow(provider: string, target: 'agy' | 'agycli' | 'gcli
   return async function oauthFlow(ctx: RunContext): Promise<void> {
     const { page, account } = ctx;
 
-    ctx.log(`OAuth ${provider}: lấy authUrl từ OmniRoute`);
-    const auth = await omniroute.oauthAuthorize(provider);
-    if (!auth.authUrl) {
-      throw new Error(`OmniRoute không trả authUrl cho ${provider} (flowType=${auth.flowType})`);
-    }
+    ctx.log(`OAuth ${provider}: lấy authUrl`);
+    const auth = await getAuthUrl(provider, target, ctx);
 
     // Intercept redirect callback để rút code (redirect_uri nằm trong container:8080)
     const redirect = new URL(auth.redirectUri);
@@ -134,7 +181,7 @@ export function makeOAuthFlow(provider: string, target: 'agy' | 'agycli' | 'gcli
       ? auth.authUrl
       : auth.authUrl + (auth.authUrl.includes('?') ? '&' : '?') + 'hl=en';
 
-    ctx.log(`Mở link OAuth ${provider} từ OmniRoute`);
+    ctx.log(`Mở link OAuth ${provider} (${auth.viaOmni ? 'từ OmniRoute' : 'tự dựng'})`);
     await page.goto(authUrlEn, { waitUntil: 'domcontentloaded' }).catch(() => {});
     await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
     await think(1000, 2200);
@@ -163,6 +210,7 @@ export function makeOAuthFlow(provider: string, target: 'agy' | 'agycli' | 'gcli
       // round 2 (account đã login+grant nên nhanh) -> lấy Google refresh_token (1//...).
       let connId = '';
       try {
+        if (!auth.viaOmni) throw new Error('OmniRoute không sẵn sàng — bỏ qua bước đăng ký');
         ctx.log('Round 1: đăng ký vào OmniRoute (exchange)');
         await omniroute.oauthExchange(provider, {
           code: capturedCode,
@@ -178,7 +226,7 @@ export function makeOAuthFlow(provider: string, target: 'agy' | 'agycli' | 'gcli
       }
 
       ctx.log('Round 2: lấy refresh_token');
-      const auth2 = await omniroute.oauthAuthorize(provider);
+      const auth2 = await getAuthUrl(provider, target, ctx);
       capturedCode = null;
       const url2 = (auth2.authUrl ?? auth.authUrl) + (String(auth2.authUrl).includes('?') ? '&' : '?') + 'hl=en';
       await page.goto(url2, { waitUntil: 'domcontentloaded' }).catch(() => {});

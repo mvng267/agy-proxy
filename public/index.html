@@ -58,6 +58,7 @@
       <div class="spacer"></div>
       <button class="icon ghost" id="btn-theme" title="Đổi sáng/tối"><svg class="ic"><use href="#i-moon"/></svg></button>
       <button class="icon ghost" id="btn-logout" title="Đăng xuất"><svg class="ic"><use href="#i-power"/></svg></button>
+      <button class="icon ghost" id="btn-log-show" title="Hiện panel log" hidden><svg class="ic"><use href="#i-panel"/></svg></button>
       <button class="icon ghost hide-desktop" id="btn-log" title="Mở/đóng log"><svg class="ic"><use href="#i-panel"/></svg></button>
     </div>
 
@@ -92,16 +93,20 @@
         <div class="page-head"><div class="ph-title"><h2>Tổng quan</h2><span class="ph-sub">Bảng điều khiển toàn hệ thống</span></div>
           <div class="ph-actions"><button class="sm" id="ov-refresh" title="Làm mới"><svg class="ic"><use href="#i-refresh"/></svg> Làm mới</button></div>
         </div>
-        <div class="cards" id="ov-kpi"></div>
-        <div class="cards" id="ov-providers"></div>
+        <div class="cards c3" id="ov-kpi"></div>
+        <div class="cards c2" id="ov-providers"></div>
         <div class="ov-grid">
           <div class="panel"><h3>Hạn mức tổng</h3><div id="ov-quota" class="ov-donuts"></div></div>
           <div class="panel ov-wide"><h3>Requests 7 ngày</h3><div id="ov-usage"></div></div>
           <div class="panel"><h3>Sức khỏe pool</h3><div id="ov-health"></div></div>
         </div>
         <div class="grid2">
+          <div class="panel"><h3>Hiệu năng provider <span class="faint" style="font-weight:400;font-size:12px">24 giờ qua</span></h3><div id="ov-perf"></div></div>
           <div class="panel"><h3>Top model (7 ngày)</h3><div id="ov-models"></div></div>
+        </div>
+        <div class="grid2">
           <div class="panel"><h3>Top tài khoản (7 ngày)</h3><div id="ov-accounts"></div></div>
+          <div class="panel"><h3>Phân bố tải theo IP <span class="faint" style="font-weight:400;font-size:12px">nhiều account chung IP dễ dính checkpoint</span></h3><div id="ov-proxyload"></div></div>
         </div>
       </section>
 
@@ -126,7 +131,7 @@
           <div class="track"><i id="runbar-fill"></i></div>
           <span class="meta" id="runbar-meta"></span>
         </div>
-        <div class="cards" id="stats-acc"></div>
+        <div class="cards c5" id="stats-acc"></div>
         <div class="panel">
           <div class="toolbar">
             <div class="search"><svg class="ic search-ic"><use href="#i-search"/></svg><input id="acc-search" placeholder="Tìm email…  (phím /)" title="Tìm theo email" /></div>
@@ -147,7 +152,7 @@
             <table>
               <thead><tr>
                 <th style="width:34px"><input type="checkbox" id="check-all" title="Chọn tất cả (trang này)" /></th>
-                <th>Email</th><th>Proxy</th><th>Antigravity</th><th>Antigravity CLI</th><th>Kiro</th><th class="act-h">Điều khiển</th><th></th>
+                <th>Email</th><th class="col-lo">Proxy</th><th>Antigravity</th><th class="col-mid">Antigravity CLI</th><th>Kiro</th><th class="act-h act">Điều khiển</th>
               </tr></thead>
               <tbody id="acc-body"></tbody>
             </table>
@@ -165,7 +170,7 @@
       <!-- ============ Proxy ============ -->
       <section class="view" id="view-proxies">
         <div class="page-head"><div class="ph-title"><h2>Proxy</h2><span class="ph-sub">Webshare & gán account</span></div></div>
-        <div class="cards" id="stats-proxy"></div>
+        <div class="cards c3" id="stats-proxy"></div>
         <div class="grid2">
           <div class="panel">
             <h3>Import proxy Webshare</h3>
@@ -203,7 +208,7 @@
             <a class="btn primary" href="/api/export/antigravity" download title="[{email, refresh_token}] Antigravity"><svg class="ic"><use href="#i-download"/></svg> Antigravity JSON</a>
           </div>
         </div>
-        <div class="cards" id="stats-tok"></div>
+        <div class="cards c3" id="stats-tok"></div>
         <div class="panel">
           <div class="toolbar">
             <div class="search"><svg class="ic search-ic"><use href="#i-search"/></svg><input id="tok-search" placeholder="Tìm email…" title="Tìm token theo email" /></div>
@@ -221,7 +226,7 @@
             </select>
           </div>
           <div class="tablewrap">
-            <table><thead><tr><th>Email</th><th>Loại</th><th>Health</th><th>Token / Value</th><th>Thông tin</th><th>Cập nhật</th></tr></thead>
+            <table><thead><tr><th>Email</th><th>Loại</th><th>Health</th><th>Token / Value</th><th class="col-lo">Thông tin</th><th class="col-mid">Cập nhật</th></tr></thead>
             <tbody id="tok-body"></tbody></table>
           </div>
           <div class="pager" id="tok-pager"></div>
@@ -321,13 +326,18 @@
           </div>
         </div>
         <div class="panel">
-          <div class="row" style="justify-content:space-between;margin-bottom:2px">
+          <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:2px">
             <h3 style="margin:0">Model gọi được qua Base URL</h3>
-            <button class="sm" id="agy-check-models" title="Test thực tế từng model còn gọi được không"><svg class="ic"><use href="#i-zap"/></svg> Check live</button>
+            <span class="row" style="gap:8px">
+              <button class="sm" id="agy-goto-models" title="Xem đầy đủ danh sách model">Xem tất cả</button>
+              <button class="sm" id="agy-check-models" title="Test thực tế từng model còn gọi được không"><svg class="ic"><use href="#i-zap"/></svg> Check live</button>
+            </span>
           </div>
-          <div id="agy-models" class="chips"></div>
+          <!-- Tóm tắt thay cho danh sách đầy đủ — danh sách chi tiết đã có ở tab Models -->
+          <div id="agy-models-sum" class="model-sum"></div>
+          <div id="agy-models" class="chips" hidden></div>
         </div>
-        <div class="cards" id="stats-agy"></div>
+        <div class="cards c5" id="stats-agy"></div>
         <div class="panel">
           <div class="toolbar">
             <div class="search"><svg class="ic search-ic"><use href="#i-search"/></svg><input id="agy-search" placeholder="Tìm email…" title="Tìm theo email" /></div>
@@ -354,7 +364,7 @@
             <table>
               <thead><tr>
                 <th style="width:34px"><input type="checkbox" id="agy-check-all" title="Chọn trang này" /></th>
-                <th style="width:52px">Bật</th><th>Email</th><th>Gemini%</th><th>Claude%</th><th>Req</th><th>Tokens</th><th>Token</th><th>Live</th><th class="act-h">Chức năng</th>
+                <th style="width:52px">Bật</th><th>Email</th><th>Hạn mức</th><th>Lưu lượng</th><th>Trạng thái</th><th class="act-h act">Chức năng</th>
               </tr></thead>
               <tbody id="agy-body"></tbody>
             </table>
@@ -437,7 +447,7 @@
             <button class="sm" id="quota-refresh" title="Nạp hạn mức account đang bật"><svg class="ic"><use href="#i-refresh"/></svg> Refresh</button>
           </div>
         </div>
-        <div class="cards" id="stats-quota"></div>
+        <div class="cards c4" id="stats-quota"></div>
         <div class="panel">
           <div class="row" style="justify-content:space-between;align-items:center">
             <h3 style="margin:0" id="qh-title">Xu hướng hạn mức theo thời gian</h3>
@@ -473,14 +483,20 @@
             <a class="btn sm" id="usage-export" href="/api/gateway/usage/export.csv?range=7d" download title="Tải CSV chi tiết"><svg class="ic"><use href="#i-download"/></svg> CSV</a>
           </div>
         </div>
-        <div class="cards" id="usage-totals"></div>
-        <div class="panel">
-          <h3>Theo thời gian</h3>
-          <div id="usage-series"></div>
+        <div class="cards c4" id="usage-totals"></div>
+        <div class="grid2">
+          <div class="panel">
+            <div class="row" style="justify-content:space-between;align-items:center">
+              <h3 style="margin:0">Lưu lượng theo thời gian</h3>
+              <div class="seg sm" id="usage-metric" title="Chỉ số"><button data-m="req" class="active">Requests</button><button data-m="tok">Tokens</button></div>
+            </div>
+            <div id="usage-series"></div>
+          </div>
+          <div class="panel"><h3>Độ trễ <span class="faint" style="font-weight:400;font-size:12px">phân bố thời gian phản hồi</span></h3><div id="usage-latency"></div></div>
         </div>
         <div class="grid2">
-          <div class="panel"><h3>Top model</h3><div class="tablewrap"><table><thead><tr><th>Model</th><th>Requests</th><th>Tokens</th></tr></thead><tbody id="usage-models"></tbody></table></div></div>
-          <div class="panel"><h3>Top tài khoản</h3><div class="tablewrap"><table><thead><tr><th>Email</th><th>Requests</th><th>Tokens</th></tr></thead><tbody id="usage-accounts"></tbody></table></div><div class="pager" id="usage-acc-pager"></div></div>
+          <div class="panel"><h3>Top model</h3><div id="usage-models-bars"></div><div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Model</th><th>Requests</th><th class="col-lo">Tokens</th></tr></thead><tbody id="usage-models"></tbody></table></div></div>
+          <div class="panel"><h3>Top tài khoản</h3><div id="usage-acc-bars"></div><div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Email</th><th>Requests</th><th class="col-lo">Tokens</th></tr></thead><tbody id="usage-accounts"></tbody></table></div><div class="pager" id="usage-acc-pager"></div></div>
         </div>
       </section>
 
@@ -512,9 +528,10 @@
             <button class="sm" id="gwlog-clear" title="Xoá"><svg class="ic"><use href="#i-trash"/></svg> Xoá</button>
           </div>
         </div>
+        <div class="grid3" id="gwlog-stats"></div>
         <div class="panel">
           <div class="toolbar"><div class="search"><svg class="ic search-ic"><use href="#i-search"/></svg><input id="gwlog-search" placeholder="Lọc model/account…" title="Lọc" /></div></div>
-          <div class="gwlog" id="gwlog"></div>
+          <div class="gwlog gwlog-tall" id="gwlog"></div>
         </div>
       </section>
 
@@ -717,6 +734,7 @@
         <button class="icon ghost sm" id="log-pause" title="Tạm dừng auto-scroll"><svg class="ic"><use href="#i-pause"/></svg></button>
         <button class="icon ghost sm" id="log-download" title="Tải log"><svg class="ic"><use href="#i-download"/></svg></button>
         <button class="icon ghost sm" id="log-clear" title="Xoá log"><svg class="ic"><use href="#i-trash"/></svg></button>
+        <button class="icon ghost sm hide-mobile" id="log-collapse" title="Thu gọn panel log (nội dung chính rộng hơn)"><svg class="ic"><use href="#i-collapse"/></svg></button>
       </div>
       <div class="seg sm log-cat" id="log-cat">
         <button data-c="" class="active" title="Tất cả log">Tất cả</button>

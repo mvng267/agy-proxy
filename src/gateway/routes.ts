@@ -806,6 +806,28 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     return { queued: targets.length };
   });
 
+  /**
+   * Số liệu hiệu năng để vẽ biểu đồ: tỉ lệ thành công + p95 độ trễ mỗi provider,
+   * cộng mẫu `ms`/`ok` thô cho histogram. providerStats() vốn đã tính sẵn cho việc
+   * chấm điểm định tuyến nhưng CHƯA từng có endpoint nào expose ra UI.
+   */
+  app.get('/api/gateway/stats', async (req) => {
+    const q = (req.query ?? {}) as any;
+    const days = Math.min(90, Math.max(1, Number(q.days) || 7));
+    const since = Date.now() - days * 86400_000;
+    const rows = usageRows(since, Date.now());
+    // Chỉ giữ 2 cột cần cho histogram/tỉ lệ lỗi — tránh đẩy cả nghìn bản ghi đầy đủ.
+    const samples = rows.slice(-3000).map((r) => ({ ts: r.ts, ms: r.ms, ok: r.ok, model: r.model }));
+    return {
+      days,
+      providers: providerStats(since).map((p) => ({
+        ...p,
+        label: PROVIDERS[p.provider as ProviderId]?.label ?? p.provider,
+      })),
+      samples,
+    };
+  });
+
   app.get('/api/gateway/quota-summary', async () => {
     const withQuota = pool.list().filter((a) => a.quota);
     const gem = withQuota.map((a) => geminiPct(a) ?? 0);

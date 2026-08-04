@@ -1,7 +1,7 @@
 // ===== Antigravity Account Manager — frontend =====
 const FLOWS = [
   { key: 'agy', label: 'Antigravity', col: 'status_agy' },
-  { key: 'agycli', label: 'Antigravity CLI', col: 'status_agycli' },
+  { key: 'agycli', label: 'Antigravity CLI', col: 'status_agycli', cls: 'col-mid' },
   { key: 'kiro', label: 'Kiro', col: 'status_kiro' },
 ];
 const PIPELINE = FLOWS.map((f) => f.key);
@@ -86,10 +86,88 @@ function barRows(items, nameKey, valFn, valLabel) {
   const max = Math.max(1, ...items.map(valFn));
   return items.map((it) => `<div class="ubar-row"><span class="ubar-lbl" title="${esc(it[nameKey])}">${esc(it[nameKey])}</span><div class="ubar"><i style="width:${Math.round((valFn(it) / max) * 100)}%"></i></div><span class="ubar-val">${valLabel(it)}</span></div>`).join('');
 }
-function countUp(elId, target) {
-  const e = $(elId); if (!e) return; const t = +target || 0; if (t <= 0) { e.textContent = String(t); return; }
-  const dur = 500, t0 = performance.now();
-  const step = (now) => { const k = Math.min(1, (now - t0) / dur); e.textContent = fmtNum(Math.round(t * (0.2 + 0.8 * k) * (k < 1 ? 1 : 1) )); if (k < 1) requestAnimationFrame(step); else e.textContent = fmtNum(t); };
+/**
+ * Sparkline: đường mini nhúng trong KPI card / ô bảng. Không trục, không nhãn —
+ * chỉ để thấy XU HƯỚNG. Thang auto theo dải thật (khác svgLine: không cần ghim 0).
+ */
+function sparkline(values, opts = {}) {
+  const vs = (values || []).filter((v) => v != null && !isNaN(v));
+  if (vs.length < 2) return ''; // 1 điểm không thành xu hướng — thà không vẽ còn hơn vẽ 1 chấm
+  const w = 100, h = opts.h || 24, pad = 2;
+  const lo = Math.min(...vs), hi = Math.max(...vs);
+  const span = hi - lo || 1;
+  const x = (i) => pad + (i * (w - 2 * pad)) / (vs.length - 1);
+  const y = (v) => h - pad - ((v - lo) / span) * (h - 2 * pad);
+  const pts = vs.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const col = opts.color || 'var(--green)';
+  const area = opts.area === false ? '' : `<polygon points="${pad},${h - pad} ${pts} ${w - pad},${h - pad}" fill="${col}" opacity="0.14"/>`;
+  const last = `<circle cx="${x(vs.length - 1).toFixed(1)}" cy="${y(vs[vs.length - 1]).toFixed(1)}" r="1.8" fill="${col}"/>`;
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${area}<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>${last}</svg>`;
+}
+
+/**
+ * Biểu đồ cột. `stack: true` → mỗi item là mảng phần (vd token in/out) xếp chồng.
+ * items: [{ label, value }] hoặc [{ label, parts: [{value, color}] }]
+ */
+function svgBars(items, opts = {}) {
+  if (!items || !items.length) return '<div class="empty">Chưa có dữ liệu</div>';
+  const h = opts.h || 110, w = 300, pad = 8, gap = items.length > 20 ? 1 : 3;
+  const totalOf = (it) => (it.parts ? it.parts.reduce((s, p) => s + (p.value || 0), 0) : it.value || 0);
+  const max = Math.max(1, ...items.map(totalOf));
+  const bw = Math.max(1, (w - 2 * pad) / items.length - gap);
+  const body = items.map((it, i) => {
+    const x = pad + i * ((w - 2 * pad) / items.length);
+    const parts = it.parts || [{ value: it.value, color: opts.color || 'var(--primary)' }];
+    let acc = 0;
+    const segs = parts.map((p) => {
+      const ph = ((p.value || 0) / max) * (h - 2 * pad);
+      const y = h - pad - acc - ph;
+      acc += ph;
+      return ph <= 0 ? '' : `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${ph.toFixed(1)}" fill="${p.color}" rx="1"><title>${esc(it.label)}: ${fmtNum(p.value)}</title></rect>`;
+    }).join('');
+    return segs;
+  }).join('');
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${body}</svg>`;
+}
+
+/** Thanh ngang xếp chồng (sức khoẻ pool…). Tách từ code inline để tái dùng. */
+function hbar(segments) {
+  const total = segments.reduce((s, x) => s + (x.value || 0), 0);
+  if (!total) return '<div class="empty">Chưa có dữ liệu</div>';
+  const bar = segments.filter((s) => s.value > 0)
+    .map((s) => `<i class="hbar-seg" style="width:${(s.value / total * 100).toFixed(1)}%;background:${s.color}" title="${esc(s.label)}: ${s.value}"></i>`).join('');
+  const legend = segments.map((s) => `<span class="lg"><i style="background:${s.color}"></i>${esc(s.label)} ${s.value}</span>`).join('');
+  return `<div class="hbar">${bar}</div><div class="hbar-legend">${legend}</div>`;
+}
+
+/** Histogram phân bố (độ trễ…). Chia `bins` khoảng đều, trả kèm p50/p95. */
+function histogram(values, opts = {}) {
+  const vs = (values || []).filter((v) => v != null && !isNaN(v)).sort((a, b) => a - b);
+  if (vs.length < 2) return '<div class="empty">Chưa đủ dữ liệu</div>';
+  const bins = opts.bins || 16;
+  const lo = vs[0], hi = vs[vs.length - 1] || lo + 1;
+  const span = hi - lo || 1;
+  const buckets = Array.from({ length: bins }, () => 0);
+  for (const v of vs) buckets[Math.min(bins - 1, Math.floor(((v - lo) / span) * bins))]++;
+  const pick = (q) => vs[Math.min(vs.length - 1, Math.floor(vs.length * q))];
+  const fmt = opts.fmt || ((v) => Math.round(v) + 'ms');
+  return svgBars(buckets.map((c, i) => ({ label: fmt(lo + (i / bins) * span), value: c })), { h: opts.h || 80, color: opts.color || 'var(--purple)' })
+    + `<div class="chart-legend"><span class="cl-items"><span>p50 <b>${fmt(pick(0.5))}</b></span><span>p95 <b>${fmt(pick(0.95))}</b></span></span><span class="faint">${vs.length} mẫu · ${fmt(lo)} → ${fmt(hi)}</span></div>`;
+}
+
+/** Đếm số tăng dần khi KPI xuất hiện. Dùng easing out để dừng êm ở giá trị thật. */
+function countUp(el, target) {
+  const e = typeof el === 'string' ? $(el) : el;
+  if (!e) return;
+  const t = +target || 0;
+  if (t <= 0) { e.textContent = fmtNum(t); return; }
+  const dur = 550, t0 = performance.now();
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / dur);
+    const ease = 1 - Math.pow(1 - k, 3);
+    e.textContent = fmtNum(Math.round(t * ease));
+    if (k < 1) requestAnimationFrame(step);
+  };
   requestAnimationFrame(step);
 }
 function skeleton(elId, rows = 4) { const e = $(elId); if (e) e.innerHTML = Array.from({ length: rows }, () => '<div class="skel"></div>').join(''); }
@@ -125,7 +203,7 @@ $('nav').addEventListener('click', (e) => {
   if (t === 'agy') loadAgy();
   if (t === 'quota') loadQuota();
   if (t === 'usage') loadUsage();
-  if (t === 'gwlog') renderGwlog();
+  if (t === 'gwlog') { renderGwlog(); renderLiveStats(); }
   if (t === 'models') loadModels();
   if (t === 'combo') loadCombo();
   if (t === 'tools') loadTools();
@@ -138,13 +216,21 @@ $('btn-nav').addEventListener('click', () => { $('nav').classList.toggle('open')
 $('btn-log').addEventListener('click', () => { $('logpane').classList.toggle('open'); $('backdrop').classList.toggle('on', $('logpane').classList.contains('open')); });
 $('backdrop').addEventListener('click', closeDrawers);
 $('btn-nav-collapse').addEventListener('click', () => { const c = $('app').classList.toggle('nav-collapsed'); store_('navCollapsed', c); });
+/** Thu/mở panel log — nhớ lựa chọn để nội dung chính rộng thêm ~370px khi cần bảng to. */
+function setLogCollapsed(c) {
+  $('app').classList.toggle('log-collapsed', c);
+  const btn = $('btn-log-show'); if (btn) btn.hidden = !c;
+  store_('logCollapsed', c);
+}
+$('log-collapse')?.addEventListener('click', () => setLogCollapsed(true));
+$('btn-log-show')?.addEventListener('click', () => setLogCollapsed(false));
 $('btn-logout').addEventListener('click', async () => { if (!confirm('Đăng xuất?')) return; await api('/api/auth/logout', { method: 'POST', body: {} }); location.href = '/login'; });
 function applyTheme(t) { document.documentElement.setAttribute('data-theme', t); localStorage.setItem('theme', t); $('btn-theme').innerHTML = icon(t === 'light' ? 'sun' : 'moon'); }
 function toggleTheme() { applyTheme((localStorage.getItem('theme') || 'dark') === 'dark' ? 'light' : 'dark'); }
 $('btn-theme').addEventListener('click', toggleTheme);
 
 // ---------- summary (stats per-page + runbar + omni pill) ----------
-function mkCard(label, value, sub, cls) { return `<div class="card ${cls || ''}"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub || ''}</div></div>`; }
+function mkCard(label, value, sub, cls, valueCls) { return `<div class="card ${cls || ''}"><div class="label">${label}</div><div class="value ${valueCls || ''}">${value}</div><div class="sub">${sub || ''}</div></div>`; }
 async function loadSummary() {
   const s = await api('/api/summary');
   // nav badges
@@ -180,15 +266,18 @@ async function loadOverview() {
   skeleton('ov-kpi', 6);
   const o = await api('/api/overview');
   const agyOk = (o.accounts.counts.agy || {}).ok || 0, kiroOk = (o.accounts.counts.kiro || {}).ok || 0;
+  // Sparkline lấy từ chuỗi 7 ngày sẵn có → KPI cho thấy XU HƯỚNG chứ không chỉ 1 con số
+  const reqSeries = (o.usage.series || []).map((s) => s.requests);
+  const tokSeries = (o.usage.series || []).map((s) => s.tokIn + s.tokOut);
   const kpis = [
-    ['Tài khoản', o.accounts.total, `${o.proxies} proxy`],
-    ['Antigravity ok', agyOk, `kiro ${kiroOk}`],
-    ['Pool bật', `${o.gateway.enabled}/${o.gateway.total}`, 'đang phục vụ'],
-    ['Requests 7d', fmtNum(o.usage.totals.requests), 'gọi model'],
-    ['Tokens 7d', fmtNum(o.usage.totals.tokIn + o.usage.totals.tokOut), 'in + out'],
-    ['Cooldown / chết', `${o.gateway.cooldown} / ${o.gateway.dead}`, 'cần chú ý'],
+    ['Tài khoản', o.accounts.total, `${o.proxies} proxy`, null],
+    ['Antigravity ok', agyOk, `kiro ${kiroOk}`, null],
+    ['Pool bật', `${o.gateway.enabled}/${o.gateway.total}`, 'đang phục vụ', null],
+    ['Requests 7d', fmtNum(o.usage.totals.requests), 'gọi model', sparkline(reqSeries)],
+    ['Tokens 7d', fmtNum(o.usage.totals.tokIn + o.usage.totals.tokOut), 'in + out', sparkline(tokSeries, { color: 'var(--purple)' })],
+    ['Cooldown / chết', `${o.gateway.cooldown} / ${o.gateway.dead}`, 'cần chú ý', null],
   ];
-  $('ov-kpi').innerHTML = kpis.map(([l, v, s], i) => `<div class="card"><div class="label">${l}</div><div class="value" id="kpi-${i}">${v}</div><div class="sub">${s}</div></div>`).join('');
+  $('ov-kpi').innerHTML = kpis.map(([l, v, s, spark], i) => `<div class="card"><div class="label">${l}</div><div class="value" id="kpi-${i}">${v}</div><div class="sub">${s}</div>${spark || ''}</div>`).join('');
   // dải thống kê TÁCH THEO PROVIDER
   $('ov-providers').innerHTML = (o.providers || []).map((p) => `<div class="card provider">
     <div class="label">${esc(p.label)} <span class="chip">${esc(p.id)}/</span></div>
@@ -229,6 +318,25 @@ async function loadOverview() {
     <div class="fl" style="margin-top:8px">Harvest Kiro</div><div class="prog"><i style="width:${Math.round((kiroOk / (o.accounts.total || 1)) * 100)}%"></i></div></div>`;
   $('ov-models').innerHTML = barRows(o.usage.byModel, 'model', (m) => m.requests, (m) => `${m.requests} req · ${fmtNum(m.tokIn + m.tokOut)}`);
   $('ov-accounts').innerHTML = barRows(o.usage.byAccount, 'email', (a) => a.requests, (a) => `${a.requests} req · ${fmtNum(a.tokIn + a.tokOut)}`);
+  // Phân bố account/IP — cảnh báo checkpoint chain (docs/DECISIONS.md §5)
+  const pl = Object.entries(o.proxyLoad || {}).map(([label, n]) => ({ label, n })).sort((a, b) => b.n - a.n).slice(0, 8);
+  $('ov-proxyload').innerHTML = pl.length
+    ? barRows(pl, 'label', (x) => x.n, (x) => `${x.n} account`) +
+      (pl[0] && pl[0].label === '(direct)' && pl[0].n > 20
+        ? `<div class="chart-legend"><span class="faint" style="color:var(--amber)">⚠ ${pl[0].n} account dùng chung IP máy này — cân nhắc gán proxy</span></div>` : '')
+    : '<div class="empty">Chưa có dữ liệu</div>';
+  // Hiệu năng provider: p95 + tỉ lệ ok (providerStats đã tính sẵn nhưng chưa từng hiển thị)
+  api('/api/gateway/stats?days=1').then((st) => {
+    const box = $('ov-perf'); if (!box) return;
+    box.innerHTML = (st.providers || []).length
+      ? st.providers.map((p) => `
+          <div class="perf-row">
+            <div class="perf-head"><b>${esc(p.label)}</b><span class="faint">${p.n} lượt gọi</span></div>
+            <div class="ubar-row"><span class="ubar-lbl">tỉ lệ ok</span><div class="ubar"><i style="width:${Math.round(p.okRate * 100)}%;background:${p.okRate >= 0.95 ? 'var(--green)' : p.okRate >= 0.8 ? 'var(--amber)' : 'var(--red)'}"></i></div><span class="ubar-val">${Math.round(p.okRate * 100)}%</span></div>
+            <div class="ubar-row"><span class="ubar-lbl">p95 độ trễ</span><div class="ubar"><i style="width:${Math.min(100, p.p95 / 300)}%;background:var(--purple)"></i></div><span class="ubar-val">${(p.p95 / 1000).toFixed(1)}s</span></div>
+          </div>`).join('')
+      : '<div class="empty">Chưa có lệnh gọi nào trong 24h</div>';
+  }).catch(() => {});
 }
 $('ov-refresh').addEventListener('click', (e) => withSpin(e.currentTarget, loadOverview));
 
@@ -258,13 +366,13 @@ function renderAccounts() {
     tr.innerHTML = `
       <td><input type="checkbox" class="rowchk" data-email="${esc(a.email)}" ${selected.has(a.email) ? 'checked' : ''}></td>
       <td class="email">${esc(a.email)}</td>
-      <td><select class="sm rowproxy" data-email="${esc(a.email)}" title="Gán proxy">${proxyOpts}</select></td>
-      ${FLOWS.map((f) => `<td>${badge(a[f.col], a.email, f.key)}</td>`).join('')}
+      <td class="col-lo"><select class="sm rowproxy" data-email="${esc(a.email)}" title="Gán proxy">${proxyOpts}</select></td>
+      ${FLOWS.map((f) => `<td class="${f.cls || ''}">${badge(a[f.col], a.email, f.key)}</td>`).join('')}
       <td class="act">
         <button class="sm primary" onclick="runPipeline('${a.email}')" title="Chạy luồng đã chọn">${icon('play')} Full</button>
-        <button class="sm" onclick="showDetail('${a.email}')" title="Chi tiết + credential">${icon('info')} Chi tiết</button>
-      </td>
-      <td class="act"><button class="sm icon danger" onclick="delAccount('${a.email}')" title="Xoá account">${icon('trash')}</button></td>`;
+        <button class="sm icon" onclick="showDetail('${a.email}')" title="Chi tiết + credential">${icon('info')}</button>
+        <button class="sm icon danger" onclick="delAccount('${a.email}')" title="Xoá account">${icon('trash')}</button>
+      </td>`;
     body.appendChild(tr);
   }
   body.querySelectorAll('.rowchk').forEach((c) => c.addEventListener('change', (e) => { const em = e.target.dataset.email; if (e.target.checked) selected.add(em); else selected.delete(em); updateSel(); }));
@@ -355,7 +463,7 @@ function renderTokens() {
     tr.innerHTML = `<td class="email">${esc(c.email)}</td><td><span class="chip">${esc(c.target)}</span></td><td>${hb}</td>
       <td class="mono" style="max-width:400px"><span id="tok-${i}" data-full="${esc(token)}" data-shown="0">${esc(masked)}</span>
         ${real ? `<button class="sm icon" title="Hiện/ẩn" onclick="toggleTok(${i})">${icon('eye')}</button><button class="sm icon" title="Copy" onclick="copyTok(${i})">${icon('copy')}</button>` : ''}</td>
-      <td class="faint">${esc(info)}</td><td class="faint">${c.updated_at ? new Date(c.updated_at).toLocaleString() : ''}</td>`;
+      <td class="faint col-lo">${esc(info)}</td><td class="faint col-mid">${c.updated_at ? new Date(c.updated_at).toLocaleString() : ''}</td>`;
     body.appendChild(tr);
   });
   renderPager('tok-pager', tokSt, total, pages, () => { store_('tokSize', tokSt.size); renderTokens(); });
@@ -401,8 +509,24 @@ async function loadAgy() {
     .join('');
   $('agy-chat-account').innerHTML = '<option value="auto">auto (theo chiến lược)</option>' + agyAccounts.filter((a) => a.enabled).map((a) => `<option value="${esc(a.email)}">${esc(a.email)}</option>`).join('');
   $('tc-agy').textContent = agyAccounts.filter((a) => a.enabled).length;
-  if (!$('agy-models').dataset.checked) renderModelChips(agyModels.map((m) => ({ id: m.id, status: m.image ? 'image' : 'unknown' })));
+  renderModelSummary(); // tóm tắt thay danh sách đầy đủ (đã có ở tab Models)
   renderAgyStats(); renderAgy();
+}
+/**
+ * Tóm tắt model theo provider+bể thay cho việc lặp lại toàn bộ danh sách
+ * (danh sách đầy đủ đã có ở tab Models — trước đây bị nhân đôi, đẩy bảng account xuống sâu).
+ */
+function renderModelSummary() {
+  const box = $('agy-models-sum'); if (!box) return;
+  const groups = {};
+  const LBL = { gemini: 'Gemini Models', claude: 'Claude and GPT models' };
+  for (const m of agyModels) (groups[m.bucket ? `${m.providerLabel} · ${LBL[m.bucket] || m.bucket}` : m.providerLabel] ??= []).push(m);
+  const bs = bucketStat || {};
+  box.innerHTML = Object.entries(groups).map(([label, list]) => {
+    const bk = list[0].bucket, st = bk ? bs[bk] : null;
+    const pct = st ? `<span class="${qColor(st.pct)}">${st.pct}%</span> còn lại` : '<span class="faint">—</span>';
+    return `<div class="ms-item"><span class="ms-name">${esc(label)}</span><span class="ms-n">${list.length} model</span><span class="ms-q">${pct}</span></div>`;
+  }).join('') || '<div class="empty">Chưa có model</div>';
 }
 function renderModelChips(list) {
   const tip = { ok: 'Gọi được ✓', quota: 'Hết hạn mức tạm thời', error: 'Gọi lỗi', image: 'Model ảnh (chưa kiểm)', unknown: 'Chưa kiểm — bấm Check live' };
@@ -468,22 +592,32 @@ function renderAgy() {
     const gpct = a.geminiPct, cpct = claudePct(a);
     // Kiro: hạn mức THẬT lấy từ GetUsageLimits (nhóm 'Credits'), + kết quả dò gần nhất
     const krCredit = a.quota?.groups?.[0];
+    // 1 ô "Hạn mức" 2 dòng thay cho 2 cột riêng → bảng gọn, không phải kéo ngang.
+    const pctLine = (lbl, pct, tip) => `<span class="c-sub" title="${esc(tip)}">${lbl} ${pct == null ? '<span class="faint">—</span>' : `<span class="${qColor(pct)}">${pct}%</span>`}</span>`;
     const quotaCells = a.provider === 'kr'
       ? `<td class="qcell" title="${esc(krCredit?.desc || 'Bấm nút ⟲ để nạp hạn mức thật (không tốn credit)')}">
-           ${krCredit ? `<span class="${qColor(krCredit.pct)}">${krCredit.pct}%</span> <span class="faint">${esc(String(krCredit.desc || '').split('·')[0].trim())}</span>`
-             : '<span class="faint">chưa nạp</span>'}</td>
-         <td class="qcell">${a.liveStatus === 'ok' ? '<span class="q-hi">gọi được</span>' : a.liveStatus === 'quota' ? '<span class="q-lo">hết credit</span>' : '<span class="faint">chưa dò</span>'}</td>`
-      : `<td class="qcell" title="${esc(bucketTip(a, 'gemini'))}">${gpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(gpct)}">${gpct}%</span>`}</td>
-         <td class="qcell" title="${esc(bucketTip(a, 'claude'))}">${cpct == null ? '<span class="faint">—</span>' : `<span class="${qColor(cpct)}">${cpct}%</span>`}</td>`;
+           <div class="cell-2line">
+             <span class="c-main">${krCredit ? `<span class="${qColor(krCredit.pct)}">${krCredit.pct}%</span>` : '<span class="faint">chưa nạp</span>'}</span>
+             ${a.creditsLimit ? `<span class="c-sub">${a.creditsUsed ?? 0}/${a.creditsLimit} credit tháng</span>` : ''}
+           </div></td>`
+      : `<td class="qcell">
+           <div class="cell-2line">
+             ${pctLine('Gemini', gpct, bucketTip(a, 'gemini'))}
+             ${pctLine('Claude', cpct, bucketTip(a, 'claude'))}
+           </div></td>`;
     tr.innerHTML = `
       <td><input type="checkbox" class="agy-chk" data-email="${esc(a.email)}" ${agySelected.has(a.email) ? 'checked' : ''}></td>
       <td><label class="switch"><input type="checkbox" class="agy-tog" data-email="${esc(a.email)}" ${a.enabled ? 'checked' : ''}/><span class="track"></span></label></td>
       <td class="email">${esc(a.email)}</td>
       ${quotaCells}
-      <td>${a.requests}</td>
-      <td class="mono faint">${fmtNum(a.tokensIn)}/${fmtNum(a.tokensOut)}</td>
-      <td class="c-token">${tokenBadge(a.health)}</td>
-      <td class="c-live">${liveBadge(a.liveStatus)}</td>
+      <td><div class="cell-2line">
+        <span class="c-main">${fmtNum(a.requests)} <span class="faint" style="font-weight:400">req</span></span>
+        <span class="c-sub mono" title="token vào / ra">${fmtNum(a.tokensIn)} / ${fmtNum(a.tokensOut)} tok</span>
+      </div></td>
+      <td><div class="cell-2line">
+        <span class="c-main">${tokenBadge(a.health)}</span>
+        <span class="c-sub">${liveBadge(a.liveStatus)}${a.cooldown ? ` <span class="q-lo" title="${esc(a.lastError || '')}">nghỉ ${fmtReset(new Date(a.cooldownUntil).toISOString())}</span>` : ''}</span>
+      </div></td>
       <td class="act">
         <button class="sm icon agy-test" data-email="${esc(a.email)}" title="Check token (còn sống?)">${icon('activity')}</button>
         <button class="sm icon agy-live" data-email="${esc(a.email)}" title="Check live (gọi model được?)">${icon('zap')}</button>
@@ -527,7 +661,9 @@ $('agy-save-cfg').addEventListener('click', async () => { await api('/api/gatewa
 $('agy-strategy').addEventListener('click', async (e) => { const b = e.target.closest('button[data-s]'); if (!b) return; document.querySelectorAll('#agy-strategy button').forEach((x) => x.classList.remove('active')); b.classList.add('active'); await api('/api/gateway/config', { method: 'PATCH', body: { rotation: b.dataset.s } }); toast('Chiến lược: ' + b.textContent.trim()); });
 $('agy-all-on').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { await api('/api/gateway/accounts/bulk', { method: 'POST', body: { enabled: true } }); toast('Đã bật tất cả'); loadAgy(); }));
 $('agy-all-off').addEventListener('click', async (e) => { if (!confirmAct('Tắt tất cả account?')) return; await api('/api/gateway/accounts/bulk', { method: 'POST', body: { enabled: false } }); toast('Đã tắt tất cả'); loadAgy(); });
-$('agy-check-models').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { toast('Đang test model live…'); const r = await api('/api/gateway/models/check', { method: 'POST' }); if (r.models) { renderModelChips(r.models); $('agy-models').dataset.checked = '1'; toast(`Check live qua ${r.account.split('@')[0]}: ${r.models.filter((m) => m.status === 'ok').length}/${r.models.length} ok`); } else toast('Lỗi: ' + (r.error || '')); }));
+$('agy-goto-models')?.addEventListener('click', () => document.querySelector('[data-tab="models"]')?.click());
+// Check live: hiện danh sách chi tiết (lúc này chip mới có ý nghĩa vì đã có trạng thái thật)
+$('agy-check-models').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { toast('Đang test model live…'); const r = await api('/api/gateway/models/check', { method: 'POST' }); if (r.models) { renderModelChips(r.models); $('agy-models').dataset.checked = '1'; $('agy-models').hidden = false; toast(`Check live qua ${r.account.split('@')[0]}: ${r.models.filter((m) => m.status === 'ok').length}/${r.models.length} ok`); } else toast('Lỗi: ' + (r.error || '')); }));
 $('agy-refresh-quota').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { const r = await api('/api/gateway/quota/refresh?provider=' + agyProv, { method: 'POST', body: {} }); toast(`Đang nạp hạn mức ${r.queued} account ${agyProv} (nền)…`); }));
 
 // tab provider ở trang Pool
@@ -641,12 +777,13 @@ function renderQuotaStats() {
   const gem = withQ.map((a) => a.geminiPct ?? 0), cl = withQ.map((a) => claudePct(a) ?? 0);
   const avg = (arr) => (arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : null);
   const tiers = {}; withQ.forEach((a) => { if (a.quota.tier) tiers[a.quota.tier] = (tiers[a.quota.tier] || 0) + 1; });
-  const tierStr = Object.entries(tiers).map(([k, v]) => `${k}:${v}`).join(' · ') || '—';
+  // Bỏ tiền tố "Antigravity " lặp lại + dùng cỡ chữ nhỏ → không tràn 3 dòng như trước
+  const tierStr = Object.entries(tiers).map(([k, v]) => `${k.replace(/^Antigravity\s+/, '')} × ${v}`).join(' · ') || '—';
   const g = avg(gem), c = avg(cl);
   $('stats-quota').innerHTML = mkCard('Đã nạp hạn mức', `${withQ.length}/${agyAccounts.length}`, withQ.length < agyAccounts.length ? 'đang tự nạp…' : 'account có dữ liệu') +
     `<div class="card"><div class="label">Gemini TB</div><div class="value">${g == null ? '—' : g + '%'}</div><div class="sub">${qbar(g)}</div></div>` +
     `<div class="card"><div class="label">Claude/GPT TB</div><div class="value">${c == null ? '—' : c + '%'}</div><div class="sub">${qbar(c)}</div></div>` +
-    mkCard('Tier', tierStr, 'gói account');
+    mkCard('Tier', tierStr, 'gói account', '', 'sm');
 }
 // tự nạp quota cho account trên trang đang xem (nền, giãn nhịp, mỗi account 1 lần)
 async function autoFetchQuota(rows) {
@@ -691,17 +828,43 @@ function modelCols() {
   }
   return [...set].sort();
 }
+/**
+ * Bảng hạn mức 5 cột cố định. Trước đây sinh 1 cột cho MỖI model (20 model = 25 cột)
+ * → luôn phải kéo ngang, và càng thêm model càng tệ. Chi tiết per-model chuyển
+ * xuống dòng mở rộng khi bấm ▸.
+ */
 function quotaTable(rows) {
-  const cols = modelCols();
-  const head = `<tr><th>Email</th><th>Tier</th><th>Gemini</th><th>Claude/GPT</th>${cols.map((c) => `<th title="${esc(c)}">${esc(c.replace(/^gemini-|^claude-/, ''))}</th>`).join('')}<th>Reset</th></tr>`;
+  const head = `<tr><th style="width:26px"></th><th>Email</th><th class="col-mid">Tier</th><th>Gemini</th><th>Claude/GPT</th><th class="col-lo">Reset</th><th class="act"></th></tr>`;
   const body = rows.map((a) => {
     const q = a.quota; const cpct = claudePct(a);
-    const mmap = {}; if (q && q.models) for (const m of q.models) mmap[m.id] = m.pct;
     const reset = q && q.groups && q.groups[0] ? fmtReset(q.groups[0].resetTime) : '—';
-    const cell = (p) => p == null ? '<span class="faint">—</span>' : `<span class="${qColor(p)}">${p}%</span>`;
-    return `<tr><td class="email"><a class="qh-link" data-email="${esc(a.email)}" title="Xem lịch sử hạn mức của account này">${esc(a.email)}</a></td><td class="faint">${esc((q && q.tier) || '—')}</td><td class="qcell">${cell(a.geminiPct)}</td><td class="qcell">${cell(cpct)}</td>${cols.map((c) => `<td class="qcell">${cell(mmap[c])}</td>`).join('')}<td class="faint">${reset} <button class="sm icon q-refresh" data-email="${esc(a.email)}" title="Nạp">${icon('refresh')}</button></td></tr>`;
+    const bar = (p) => p == null ? '<span class="faint">—</span>' : qbar(p);
+    const tier = String((q && q.tier) || '—').replace(/^Antigravity\s+/, '');
+    return `<tr class="q-row" data-email="${esc(a.email)}">
+      <td><button class="sm icon q-exp" data-email="${esc(a.email)}" title="Xem chi tiết từng model">▸</button></td>
+      <td class="email"><div class="cell-2line">
+        <a class="qh-link c-main" data-email="${esc(a.email)}" title="Xem lịch sử hạn mức của account này">${esc(a.email)}</a>
+        <span class="c-sub only-narrow" title="${esc((q && q.tier) || '')}">${esc(tier)} · reset ${reset}</span>
+      </div></td>
+      <td class="faint col-mid" title="${esc((q && q.tier) || '')}">${esc(tier)}</td>
+      <td class="qcell">${bar(a.geminiPct)}</td>
+      <td class="qcell">${bar(cpct)}</td>
+      <td class="faint col-lo">${reset}</td>
+      <td class="act"><button class="sm icon q-refresh" data-email="${esc(a.email)}" title="Nạp hạn mức">${icon('refresh')}</button></td>
+    </tr>
+    <tr class="q-detail" data-for="${esc(a.email)}" hidden><td colspan="7">${quotaDetail(a)}</td></tr>`;
   }).join('');
   return `<div class="tablewrap"><table class="quota-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+/** Chi tiết 1 account: từng bể + chip % mỗi model (thay cho N cột trong bảng). */
+function quotaDetail(a) {
+  const q = a.quota;
+  if (!q) return '<div class="empty">Chưa nạp hạn mức — bấm ⟳</div>';
+  const groups = (q.groups || []).map((g) => `<div class="qc-group"><div class="qc-grow"><span>${esc(g.name)}</span><span class="faint">reset ${fmtReset(g.resetTime)}</span></div>${qbar(g.pct)}</div>`).join('');
+  const models = (q.models || []).filter((m) => !/^(chat|tab)[-_]/i.test(m.id))
+    .sort((x, y) => x.pct - y.pct)
+    .map((m) => `<span class="chip"><span class="${qColor(m.pct)}">${m.pct}%</span> ${esc(m.id)}</span>`).join('');
+  return `<div class="qd">${groups}<div class="qc-models chips">${models || '<span class="faint">Không có dữ liệu model</span>'}</div></div>`;
 }
 function quotaCard(a) {
   const q = a.quota;
@@ -713,6 +876,14 @@ function quotaCard(a) {
 function wireQuotaRefresh() {
   document.querySelectorAll('#quota-body .qh-link').forEach((a) => a.addEventListener('click', (e) => {
     e.preventDefault(); showQuotaHistory(a.dataset.email);
+  }));
+  // Mở/đóng dòng chi tiết per-model (thay cho việc nhồi 20 cột vào bảng)
+  document.querySelectorAll('#quota-body .q-exp').forEach((b) => b.addEventListener('click', () => {
+    const row = document.querySelector(`#quota-body .q-detail[data-for="${CSS.escape(b.dataset.email)}"]`);
+    if (!row) return;
+    row.hidden = !row.hidden;
+    b.textContent = row.hidden ? '▸' : '▾';
+    b.closest('tr')?.classList.toggle('sel', !row.hidden);
   }));
   document.querySelectorAll('#quota-body .q-refresh').forEach((b) => b.addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
     const r = await api('/api/gateway/quota/' + encodeURIComponent(b.dataset.email) + '?provider=' + agyProv, { method: 'POST' });
@@ -734,10 +905,39 @@ async function loadUsage() {
   const d = await api(`/api/gateway/usage?range=${range}&groupBy=${group}`); usageData = d;
   const t = d.totals;
   $('usage-totals').innerHTML = mkCard('Requests', fmtNum(t.requests), 'trong khoảng') + mkCard('Tokens in', fmtNum(t.tokIn), '') + mkCard('Tokens out', fmtNum(t.tokOut), '') + mkCard('Account hoạt động', t.accounts, '');
-  const maxR = Math.max(1, ...d.series.map((s) => s.requests));
-  $('usage-series').innerHTML = d.series.length ? d.series.map((s) => `<div class="ubar-row"><span class="ubar-lbl">${esc(s.bucket)}</span><div class="ubar"><i style="width:${Math.round((s.requests / maxR) * 100)}%"></i></div><span class="ubar-val">${s.requests} req · ${fmtNum(s.tokIn + s.tokOut)} tok</span></div>`).join('') : '<div class="empty">Chưa có dữ liệu sử dụng</div>';
-  $('usage-models').innerHTML = d.byModel.length ? d.byModel.map((m) => `<tr><td>${esc(m.model)}</td><td>${m.requests}</td><td class="faint">${fmtNum(m.tokIn + m.tokOut)}</td></tr>`).join('') : `<tr><td colspan="3"><div class="empty">—</div></td></tr>`;
+  renderUsageSeries();
+  // Top model/account: bar ngang (barRows đã dùng ở Tổng quan cho CHÍNH dữ liệu này)
+  $('usage-models-bars').innerHTML = barRows(d.byModel.slice(0, 8), 'model', (m) => m.requests, (m) => `${m.requests} req`);
+  $('usage-acc-bars').innerHTML = barRows(d.byAccount.slice(0, 8), 'email', (a) => a.requests, (a) => `${a.requests} req`);
+  $('usage-models').innerHTML = d.byModel.length ? d.byModel.map((m) => `<tr><td>${esc(m.model)}</td><td>${m.requests}</td><td class="faint col-lo">${fmtNum(m.tokIn + m.tokOut)}</td></tr>`).join('') : `<tr><td colspan="3"><div class="empty">—</div></td></tr>`;
   renderUsageAccounts();
+  // Histogram độ trễ từ usageRows.ms — trước đây chỉ chảy vào file CSV
+  api(`/api/gateway/stats?days=${parseInt(range) || 7}`).then((st) => {
+    const box = $('usage-latency'); if (!box) return;
+    const ms = (st.samples || []).map((s) => s.ms).filter((v) => v != null);
+    const errs = (st.samples || []).filter((s) => !s.ok).length;
+    box.innerHTML = histogram(ms, { h: 92 }) +
+      (st.providers?.length
+        ? `<div style="margin-top:10px">${st.providers.map((p) => `<div class="ubar-row"><span class="ubar-lbl">${esc(p.label)}</span><div class="ubar"><i style="width:${Math.round(p.okRate * 100)}%"></i></div><span class="ubar-val">${Math.round(p.okRate * 100)}% ok · p95 ${(p.p95 / 1000).toFixed(1)}s</span></div>`).join('')}</div>` : '') +
+      (errs ? `<div class="chart-legend"><span class="faint">${errs} lượt lỗi / ${st.samples.length} mẫu</span></div>` : '');
+  }).catch(() => {});
+}
+/** Vẽ lưu lượng: requests (đường) hoặc token in/out (cột xếp chồng). */
+function renderUsageSeries() {
+  const d = usageData; if (!d) return;
+  const box = $('usage-series'); if (!box) return;
+  const metric = document.querySelector('#usage-metric button.active')?.dataset.m || 'req';
+  if (!d.series.length) { box.innerHTML = '<div class="empty">Chưa có dữ liệu sử dụng</div>'; return; }
+  const labels = d.series.map((s) => s.bucket);
+  if (metric === 'tok') {
+    box.innerHTML = svgBars(d.series.map((s) => ({
+      label: s.bucket,
+      parts: [{ value: s.tokIn, color: 'var(--purple)' }, { value: s.tokOut, color: 'var(--green)' }],
+    })), { h: 130 }) + chartLegend([{ label: 'Token vào', color: 'var(--purple)' }, { label: 'Token ra', color: 'var(--green)' }], labels[0], labels[labels.length - 1]);
+  } else {
+    box.innerHTML = svgLine(d.series.map((s) => s.requests), { h: 130, color: 'var(--green)' })
+      + chartLegend([{ label: 'Requests', color: 'var(--green)' }], labels[0], labels[labels.length - 1]);
+  }
 }
 function renderUsageAccounts() {
   if (!usageData) return;
@@ -747,6 +947,8 @@ function renderUsageAccounts() {
 }
 $('usage-range').addEventListener('change', loadUsage);
 $('usage-group').addEventListener('click', (e) => { const b = e.target.closest('button[data-g]'); if (!b) return; document.querySelectorAll('#usage-group button').forEach((x) => x.classList.toggle('active', x === b)); loadUsage(); });
+// Đổi chỉ số chỉ cần vẽ lại (dữ liệu đã có sẵn) — không gọi lại API
+$('usage-metric')?.addEventListener('click', (e) => { const b = e.target.closest('button[data-m]'); if (!b) return; document.querySelectorAll('#usage-metric button').forEach((x) => x.classList.toggle('active', x === b)); renderUsageSeries(); });
 
 // ---------- add ----------
 $('add-seg').addEventListener('click', (e) => { const b = e.target.closest('button[data-m]'); if (!b) return; document.querySelectorAll('#add-seg button').forEach((x) => x.classList.remove('active')); b.classList.add('active'); ['single', 'bulk', 'gen', 'file'].forEach((m) => $('add-' + m).style.display = m === b.dataset.m ? 'block' : 'none'); });
@@ -1304,6 +1506,44 @@ let gwPaused = false;
 $('gwlog-pause').addEventListener('click', () => { gwPaused = !gwPaused; $('gwlog-pause').innerHTML = icon(gwPaused ? 'play' : 'pause') + (gwPaused ? ' Resume' : ' Pause'); });
 $('gwlog-clear').addEventListener('click', () => { logLines = logLines.filter((l) => l.flow !== 'gateway'); renderGwlog(); });
 $('gwlog-search').addEventListener('input', debounce(() => renderGwlog(), 150));
+/**
+ * Bộ đệm số liệu realtime cho tab Live call log (giữ trong RAM, không persist).
+ * Nguồn: SSE — mỗi event res/err mang sẵn ms/tokens/status.
+ */
+const liveStats = { events: [], max: 600 };
+function pushLiveStat(e) {
+  if (e.kind === 'req') return; // chỉ tính lượt có kết quả
+  liveStats.events.push({ ts: e.ts || Date.now(), ms: e.ms, status: e.status, tokens: e.tokens, ok: e.kind === 'res' });
+  if (liveStats.events.length > liveStats.max) liveStats.events.shift();
+  if (document.querySelector('.view.active')?.id === 'view-gwlog') renderLiveStats();
+}
+/** 3 chart realtime: throughput theo phút · phân bố độ trễ · mã trạng thái. */
+function renderLiveStats() {
+  const box = $('gwlog-stats'); if (!box) return;
+  const ev = liveStats.events;
+  if (!ev.length) { box.innerHTML = ''; return; }
+  const now = Date.now();
+  // throughput 15 phút gần nhất
+  const mins = 15, perMin = Array.from({ length: mins }, () => 0);
+  for (const x of ev) {
+    const idx = mins - 1 - Math.floor((now - x.ts) / 60000);
+    if (idx >= 0 && idx < mins) perMin[idx]++;
+  }
+  const okCount = ev.filter((x) => x.ok).length;
+  const byStatus = {};
+  for (const x of ev) { const k = x.ok ? (x.status || 200) : (x.status || 'lỗi'); byStatus[k] = (byStatus[k] || 0) + 1; }
+  const statusColor = (k) => (String(k).startsWith('2') ? 'var(--green)' : String(k) === '429' ? 'var(--amber)' : 'var(--red)');
+  const latencies = ev.map((x) => x.ms).filter((v) => v != null && !isNaN(v));
+  box.innerHTML = `
+    <div class="panel"><h3>Lưu lượng <span class="faint">${mins} phút gần đây</span></h3>
+      ${svgBars(perMin.map((v, i) => ({ label: `${mins - i} phút trước`, value: v })), { h: 72, color: 'var(--green)' })}
+      <div class="chart-legend"><span class="cl-items"><span><b>${ev.length}</b> lượt gọi</span></span><span class="faint">${(ev.length / mins).toFixed(1)} lượt/phút</span></div></div>
+    <div class="panel"><h3>Độ trễ</h3>${histogram(latencies, { h: 72 })}</div>
+    <div class="panel"><h3>Kết quả</h3>
+      ${hbar(Object.entries(byStatus).map(([k, v]) => ({ label: String(k), value: v, color: statusColor(k) })))}
+      <div class="chart-legend"><span class="cl-items"><span>thành công <b>${Math.round(okCount / ev.length * 100)}%</b></span></span></div></div>`;
+}
+
 function renderGwlog(incremental) {
   const box = $('gwlog'); if (!box) return;
   const q = ($('gwlog-search').value || '').toLowerCase();
@@ -1316,8 +1556,11 @@ function connectSSE() {
   es.onmessage = (ev) => {
     const e = JSON.parse(ev.data);
     if (e.type === 'log') {
-      addLog({ level: e.level, msg: e.msg + (e.screenshot ? ` 📷${e.screenshot}` : ''), email: e.email, flow: e.flow, kind: e.kind, model: e.model, account: e.account });
+      // GIỮ ms/tokens/status/endpoint: gateway đã gửi kèm nhưng trước đây bị bỏ ngay
+      // tại đây → không vẽ được latency/throughput realtime.
+      addLog({ level: e.level, msg: e.msg + (e.screenshot ? ` 📷${e.screenshot}` : ''), email: e.email, flow: e.flow, kind: e.kind, model: e.model, account: e.account, ms: e.ms, tokens: e.tokens, status: e.status, endpoint: e.endpoint, ts: e.ts });
       if (e.kind === 'check' && e.check && e.account) applyCheckEvent(e.account, e.check);
+      if (e.kind === 'req' || e.kind === 'res' || e.kind === 'err') pushLiveStat(e);
     }
     else if (e.type === 'run') {
       addLog({ level: e.status === 'failed' ? 'error' : e.status === 'paused_needs_human' ? 'challenge' : 'info', msg: `» ${e.status}${e.detail ? ': ' + e.detail : ''}`, email: e.email, flow: e.flow });
@@ -1344,6 +1587,7 @@ document.addEventListener('keydown', (e) => { if (e.key === '/' && !/input|texta
 async function init() {
   applyTheme(localStorage.getItem('theme') || 'dark');
   if (remember('navCollapsed', false)) $('app').classList.add('nav-collapsed');
+  if (remember('logCollapsed', false)) setLogCollapsed(true);
   reqNotify();
   await loadProxies(); await loadAccounts(); await loadSummary(); await loadHuman(); await loadTokens();
   api('/api/gateway/accounts').then((r) => { $('tc-agy').textContent = (r.accounts || []).filter((a) => a.enabled).length; }).catch(() => {});
