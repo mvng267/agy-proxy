@@ -1557,7 +1557,11 @@ function pushLiveStat(e) {
 function renderLiveStats() {
   const box = $('gwlog-stats'); if (!box) return;
   const ev = liveStats.events;
-  if (!ev.length) { box.innerHTML = ''; return; }
+  // Trạng thái rỗng tử tế — trước đây để trắng cả vùng, trông như hỏng
+  if (!ev.length) {
+    box.innerHTML = `<div class="panel" style="grid-column:1/-1"><div class="empty">Chưa có lệnh gọi nào — biểu đồ lưu lượng / độ trễ / mã trạng thái sẽ hiện ngay khi có request đầu tiên qua Base URL hoặc Chat thử.</div></div>`;
+    return;
+  }
   const now = Date.now();
   // throughput 15 phút gần nhất
   const mins = 15, perMin = Array.from({ length: mins }, () => 0);
