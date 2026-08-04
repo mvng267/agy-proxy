@@ -32,15 +32,43 @@ export interface ModelInfo {
   id: string;
   label: string;
   image: boolean;
+  /**
+   * Trần ngữ cảnh (token) — ĐO THẬT qua gateway, không lấy theo tài liệu:
+   * Gemini nhận 384k OK / đứt trước 448k; claude-* qua Antigravity nhận tới 768k OK
+   * (rộng hơn hẳn 200k của Anthropic gốc — upstream Vertex nới trần).
+   * Lấy mốc an toàn thấp hơn điểm đứt để gợi ý model thay thế cho chuẩn.
+   */
+  maxInput?: number;
 }
 export interface Usage {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
 }
+/**
+ * 1 lần model gọi tool. `id`: Gemini 3 CÓ trả id riêng, nhưng không phải lúc nào cũng có
+ * → thiếu thì gateway tự sinh (Anthropic bắt buộc phải có id).
+ *
+ * `signature` = thoughtSignature của Gemini 3, nằm ở cấp PART (ngang hàng functionCall).
+ * BẮT BUỘC gửi lại nguyên văn ở lượt sau, nếu không upstream trả 400
+ * "Function call is missing a thought_signature" → hỏng ngay vòng 2 của tool-use.
+ */
+export interface ToolCall {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+  signature?: string;
+}
+/** Khai báo tool gửi lên model (JSON Schema — dạng chung của Anthropic/OpenAI/Gemini). */
+export interface ToolDef {
+  name: string;
+  description?: string;
+  parameters?: Record<string, unknown>;
+}
 export interface GenResult {
   text: string;
   images: string[]; // data URL (base64) cho model ảnh
+  toolCalls: ToolCall[];
   usage: Usage;
   finishReason: string;
   model: string;
@@ -49,8 +77,13 @@ export type OAContent =
   | string
   | Array<{ type: string; text?: string; image_url?: { url: string } }>;
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant' | string;
+  role: 'system' | 'user' | 'assistant' | 'tool' | string;
   content: OAContent;
+  /** role assistant: model đã gọi tool ở lượt này. */
+  toolCalls?: ToolCall[];
+  /** role tool: kết quả trả về cho toolCallId tương ứng. */
+  toolCallId?: string;
+  toolName?: string;
 }
 export interface CallOpts {
   accessToken: string;
@@ -58,6 +91,7 @@ export interface CallOpts {
   model: string;
   messages: ChatMessage[];
   generationConfig?: Record<string, unknown>;
+  tools?: ToolDef[];
   dispatcher?: Dispatcher;
   signal?: AbortSignal;
 }
@@ -69,16 +103,16 @@ export interface CallOpts {
  * (model "pro" tier chạy được, giống cách Antigravity Manager/AIClient2API xử lý).
  */
 export const MODELS: ModelInfo[] = [
-  { id: 'gemini-3-pro-high', label: 'Gemini 3 Pro (High)', image: false },
-  { id: 'gemini-3-pro-low', label: 'Gemini 3 Pro (Low)', image: false },
-  { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)', image: false },
-  { id: 'gemini-3-flash', label: 'Gemini 3 Flash', image: false },
-  { id: 'gemini-3.5-flash-low', label: 'Gemini 3.5 Flash', image: false },
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', image: false },
-  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', image: false },
+  { id: 'gemini-3-pro-high', label: 'Gemini 3 Pro (High)', image: false, maxInput: 384_000 },
+  { id: 'gemini-3-pro-low', label: 'Gemini 3 Pro (Low)', image: false, maxInput: 384_000 },
+  { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)', image: false, maxInput: 384_000 },
+  { id: 'gemini-3-flash', label: 'Gemini 3 Flash', image: false, maxInput: 384_000 },
+  { id: 'gemini-3.5-flash-low', label: 'Gemini 3.5 Flash', image: false, maxInput: 384_000 },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', image: false, maxInput: 384_000 },
+  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', image: false, maxInput: 384_000 },
   { id: 'gemini-3.1-flash-image', label: 'Gemini 3.1 Flash Image 🖼', image: true },
-  { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', image: false },
-  { id: 'claude-opus-4-6-thinking', label: 'Claude Opus 4.6 (Thinking)', image: false },
+  { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', image: false, maxInput: 768_000 },
+  { id: 'claude-opus-4-6-thinking', label: 'Claude Opus 4.6 (Thinking)', image: false, maxInput: 768_000 },
 ];
 
 /** Map model client → tên upstream cloudcode-pa (chỉ khi khác). */
@@ -227,7 +261,11 @@ export async function discoverProject(
 }
 
 // ---------- convert OpenAI → Antigravity ----------
-type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+type GeminiPart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } }
+  | { functionCall: { name: string; args: Record<string, unknown>; id?: string }; thoughtSignature?: string }
+  | { functionResponse: { name: string; response: Record<string, unknown>; id?: string } };
 
 function dataUrlToInline(url: string): GeminiPart | null {
   const m = /^data:([^;]+);base64,(.*)$/.exec(url);
@@ -248,11 +286,55 @@ function contentToParts(content: OAContent): GeminiPart[] {
   return parts.length ? parts : [{ text: '' }];
 }
 
+/**
+ * JSON Schema → schema Gemini chấp nhận. Gemini v1internal từ chối các khoá phụ của
+ * JSON Schema ($schema, additionalProperties…) → lọc trắng, giữ đúng phần nó hiểu.
+ */
+export function toGeminiSchema(s: unknown): Record<string, unknown> | undefined {
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return undefined;
+  const src = s as Record<string, any>;
+  const out: Record<string, unknown> = {};
+  if (typeof src.type === 'string') out.type = src.type.toUpperCase();
+  if (typeof src.description === 'string') out.description = src.description;
+  if (Array.isArray(src.enum)) out.enum = src.enum.map(String);
+  if (Array.isArray(src.required) && src.required.length) out.required = src.required.map(String);
+  if (src.properties && typeof src.properties === 'object') {
+    const props: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(src.properties as Record<string, unknown>)) {
+      const sub = toGeminiSchema(v);
+      if (sub) props[k] = sub;
+    }
+    if (Object.keys(props).length) out.properties = props;
+  }
+  if (src.items) {
+    const it = toGeminiSchema(src.items);
+    if (it) out.items = it;
+  }
+  // Không có type mà có properties → mặc định OBJECT (Claude Code hay bỏ trống).
+  if (!out.type && out.properties) out.type = 'OBJECT';
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** ToolDef[] → tools.functionDeclarations của Gemini. */
+export function toolsToGemini(tools?: ToolDef[]): Array<{ functionDeclarations: unknown[] }> | undefined {
+  const decls = (tools ?? [])
+    .filter((t) => t && typeof t.name === 'string' && t.name)
+    .map((t) => {
+      const d: Record<string, unknown> = { name: t.name };
+      if (t.description) d.description = t.description;
+      const params = toGeminiSchema(t.parameters);
+      // Gemini đòi OBJECT rỗng chứ không nhận thiếu parameters với tool không tham số.
+      d.parameters = params ?? { type: 'OBJECT', properties: {} };
+      return d;
+    });
+  return decls.length ? [{ functionDeclarations: decls }] : undefined;
+}
+
 /** OpenAI messages → body Antigravity generateContent. */
 export function openaiToAntigravity(
   model: string,
   messages: ChatMessage[],
-  opts: { projectId: string; generationConfig?: Record<string, unknown> },
+  opts: { projectId: string; generationConfig?: Record<string, unknown>; tools?: ToolDef[] },
 ): Record<string, unknown> {
   const isImg = isImageModel(model);
   const contents: Array<{ role: string; parts: GeminiPart[] }> = [];
@@ -266,7 +348,42 @@ export function openaiToAntigravity(
         : { parts };
       continue;
     }
-    contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: contentToParts(m.content) });
+    // Kết quả tool → functionResponse (role user theo quy ước Gemini).
+    if (m.role === 'tool') {
+      const text = typeof m.content === 'string'
+        ? m.content
+        : contentToParts(m.content).map((p) => ('text' in p ? p.text : '')).join('');
+      contents.push({
+        role: 'user',
+        parts: [{
+          functionResponse: {
+            name: m.toolName || m.toolCallId || 'tool',
+            // Upstream Anthropic khớp theo id; Gemini khớp theo tên. Gửi cả hai.
+            ...(m.toolCallId ? { id: m.toolCallId } : {}),
+            response: { result: text },
+          },
+        }],
+      });
+      continue;
+    }
+    const parts = m.role === 'assistant' && m.toolCalls?.length ? [] : contentToParts(m.content);
+    // Lượt assistant có tool_use → kèm functionCall để model thấy lại việc nó đã gọi.
+    if (m.role === 'assistant' && m.toolCalls?.length) {
+      const txt = typeof m.content === 'string' ? m.content : '';
+      if (txt) parts.push({ text: txt });
+      for (const c of m.toolCalls) {
+        // thoughtSignature nằm CÙNG CẤP với functionCall (không lồng bên trong).
+        // Thiếu nó → Gemini 3 trả 400 "Function call is missing a thought_signature".
+        // `id` phải gửi lại nguyên văn: model Claude qua Antigravity (upstream Anthropic)
+        // bắt buộc có, thiếu thì 400 "tool_use.id: Field required". Gemini bỏ qua id lạ
+        // nên gửi kèm là an toàn cho cả hai.
+        parts.push({
+          ...(c.signature ? { thoughtSignature: c.signature } : {}),
+          functionCall: { name: c.name, args: c.input ?? {}, ...(c.id ? { id: c.id } : {}) },
+        });
+      }
+    }
+    contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: parts.length ? parts : [{ text: '' }] });
   }
   if (!contents.length) contents.push({ role: 'user', parts: [{ text: '' }] });
 
@@ -278,6 +395,9 @@ export function openaiToAntigravity(
   if (opts.generationConfig && Object.keys(opts.generationConfig).length) {
     request.generationConfig = opts.generationConfig;
   }
+  // Model ảnh không có function calling → bỏ qua tools.
+  const gtools = isImg ? undefined : toolsToGemini(opts.tools);
+  if (gtools) request.tools = gtools;
 
   return {
     model: resolveUpstreamModel(model),
@@ -298,9 +418,28 @@ function partsOf(node: any): any[] {
   return node?.candidates?.[0]?.content?.parts ?? [];
 }
 
-function collect(node: any, into: { text: string; images: string[] }): void {
+/** Gemini KHÔNG trả id cho functionCall, Anthropic thì bắt buộc → gateway tự sinh. */
+export function newToolCallId(): string {
+  return 'toolu_' + randomUUID().replace(/-/g, '').slice(0, 24);
+}
+
+/** Bóc 1 part functionCall → ToolCall (dùng chung cho non-stream và stream). */
+function toolCallOfPart(p: any): ToolCall {
+  const sig = p?.thoughtSignature ?? p?.thought_signature;
+  return {
+    // Gemini 3 có trả id riêng; thiếu thì tự sinh (Anthropic bắt buộc có id).
+    id: String(p.functionCall.id || '') || newToolCallId(),
+    name: String(p.functionCall.name),
+    input: (p.functionCall.args ?? {}) as Record<string, unknown>,
+    ...(typeof sig === 'string' && sig ? { signature: sig } : {}),
+  };
+}
+
+function collect(node: any, into: { text: string; images: string[]; toolCalls: ToolCall[] }): void {
   for (const p of partsOf(node)) {
-    if (typeof p?.text === 'string') into.text += p.text;
+    if (p?.functionCall?.name) {
+      into.toolCalls.push(toolCallOfPart(p));
+    } else if (typeof p?.text === 'string') into.text += p.text;
     else if (p?.inlineData?.data) {
       const mime = p.inlineData.mimeType || 'image/png';
       into.images.push(`data:${mime};base64,${p.inlineData.data}`);
@@ -318,13 +457,16 @@ function usageOf(node: any): Usage {
 /** Response non-stream (đã JSON) → GenResult. */
 export function antigravityToResult(data: any, model: string): GenResult {
   const node = extractNode(data);
-  const acc = { text: '', images: [] as string[] };
+  const acc = { text: '', images: [] as string[], toolCalls: [] as ToolCall[] };
   collect(node, acc);
+  const finish = node?.candidates?.[0]?.finishReason ?? 'stop';
   return {
     text: acc.text,
     images: acc.images,
+    toolCalls: acc.toolCalls,
     usage: usageOf(node),
-    finishReason: node?.candidates?.[0]?.finishReason ?? 'stop',
+    // Có tool call → phải báo tool_use, kể cả khi upstream ghi STOP.
+    finishReason: acc.toolCalls.length ? 'tool_use' : finish,
     model,
   };
 }
@@ -335,6 +477,7 @@ export async function generate(opts: CallOpts): Promise<GenResult> {
   const body = openaiToAntigravity(opts.model, opts.messages, {
     projectId: opts.projectId,
     generationConfig: opts.generationConfig,
+    tools: opts.tools,
   });
   const data = await apiCall(opts.accessToken, 'generateContent', body, {
     dispatcher: opts.dispatcher,
@@ -346,10 +489,11 @@ export async function generate(opts: CallOpts): Promise<GenResult> {
 /** Stream: async generator phát text delta (+ usage cuối). */
 export async function* generateStream(
   opts: CallOpts,
-): AsyncGenerator<{ delta?: string; image?: string; usage?: Usage; done?: boolean }> {
+): AsyncGenerator<{ delta?: string; image?: string; toolCall?: ToolCall; usage?: Usage; done?: boolean }> {
   const body = openaiToAntigravity(opts.model, opts.messages, {
     projectId: opts.projectId,
     generationConfig: opts.generationConfig,
+    tools: opts.tools,
   });
   let res: Response | null = null;
   let lastErr: unknown;
@@ -365,12 +509,20 @@ export async function* generateStream(
           authorization: `Bearer ${opts.accessToken}`,
         },
         body: JSON.stringify(body),
-        signal: opts.signal,
+        // Không có timeout thì stream hỏng giữa chừng sẽ treo request vĩnh viễn
+        // (routes.ts không tạo AbortController nên opts.signal thường undefined).
+        // Rộng hơn non-stream vì stream dài hơi là bình thường.
+        signal: opts.signal ?? AbortSignal.timeout(300_000),
         ...(opts.dispatcher ? { dispatcher: opts.dispatcher } : {}),
       } as RequestInit);
       if (res.ok && res.body) break;
       if (res.status === 429 || res.status >= 500) {
-        lastErr = new Error(`stream ${res.status}`);
+        // PHẢI gắn status: pool đọc e.status để biết account hết hạn mức mà cooldown
+        // + đổi account. Thiếu nó thì stream 429 chỉ báo lỗi thẳng cho client, trong
+        // khi non-stream cùng tình huống lại xoay account bình thường.
+        const e = new Error(`stream ${res.status}`) as Error & { status?: number };
+        e.status = res.status;
+        lastErr = e;
         res = null;
         continue;
       }
@@ -408,7 +560,10 @@ export async function* generateStream(
       }
       const node = extractNode(data);
       for (const p of partsOf(node)) {
-        if (typeof p?.text === 'string' && p.text) yield { delta: p.text };
+        // functionCall đến nguyên khối trong 1 chunk (Gemini không cắt nhỏ args).
+        if (p?.functionCall?.name) {
+          yield { toolCall: toolCallOfPart(p) };
+        } else if (typeof p?.text === 'string' && p.text) yield { delta: p.text };
         else if (p?.inlineData?.data) {
           const mime = p.inlineData.mimeType || 'image/png';
           yield { image: `data:${mime};base64,${p.inlineData.data}` };

@@ -35,17 +35,19 @@ export const KIRO_Q_URL = 'https://q.us-east-1.amazonaws.com/';
  */
 export interface KiroModel extends ProviderModel {
   credit: number;
+  /** Trần ngữ cảnh — ĐO THẬT: sonnet-4 nhận 256k OK, 512k trả
+   *  CONTENT_LENGTH_EXCEEDS_THRESHOLD. Rộng hơn 200k mà tài liệu công bố. */
   maxInput: number;
 }
 export const KIRO_MODELS: KiroModel[] = [
-  { id: 'auto', label: 'Auto (Kiro tự chọn)', image: true, credit: 1, maxInput: 1_000_000 },
-  { id: 'claude-sonnet-4.5', label: 'Claude Sonnet 4.5', image: true, credit: 1.3, maxInput: 200_000 },
-  { id: 'claude-sonnet-4', label: 'Claude Sonnet 4', image: true, credit: 1.3, maxInput: 200_000 },
-  { id: 'claude-haiku-4.5', label: 'Claude Haiku 4.5', image: true, credit: 0.4, maxInput: 200_000 },
+  { id: 'auto', label: 'Auto (Kiro tự chọn)', image: true, credit: 1, maxInput: 256_000 },
+  { id: 'claude-sonnet-4.5', label: 'Claude Sonnet 4.5', image: true, credit: 1.3, maxInput: 256_000 },
+  { id: 'claude-sonnet-4', label: 'Claude Sonnet 4', image: true, credit: 1.3, maxInput: 256_000 },
+  { id: 'claude-haiku-4.5', label: 'Claude Haiku 4.5', image: true, credit: 0.4, maxInput: 256_000 },
   { id: 'deepseek-3.2', label: 'DeepSeek v3.2', image: true, credit: 0.25, maxInput: 164_000 },
   { id: 'minimax-m2.5', label: 'MiniMax M2.5', image: false, credit: 0.25, maxInput: 196_000 },
   { id: 'minimax-m2.1', label: 'MiniMax M2.1', image: true, credit: 0.15, maxInput: 196_000 },
-  { id: 'glm-5', label: 'GLM 5', image: false, credit: 0.5, maxInput: 200_000 },
+  { id: 'glm-5', label: 'GLM 5', image: false, credit: 0.5, maxInput: 256_000 },
   { id: 'qwen3-coder-next', label: 'Qwen3 Coder Next', image: true, credit: 0.05, maxInput: 256_000 },
 ];
 
@@ -331,6 +333,7 @@ export async function kiroGenerate(args: {
   return {
     text,
     images: [],
+    toolCalls: [], // Kiro/CodeWhisperer không có function calling native — xem providers/kiro.ts
     usage: {
       promptTokens: estimateTokens('x'.repeat(promptChars)),
       completionTokens: estimateTokens(text),

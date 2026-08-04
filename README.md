@@ -107,7 +107,14 @@ Kiro **không có API hạn mức**; hết hạn mức tháng trả `402 MONTHLY
 | OpenAI | `http://host:7788/proxy/v1` | Codex, Hermes, Cline, Aider, opencode… |
 | **Anthropic** | `http://host:7788` (**không** kèm `/v1`) | **Claude Code** (tự gọi `/v1/messages`) |
 
-> Claude Code v1: gọi + stream text OK, **chưa hỗ trợ tool-use** (chưa sửa file/chạy lệnh được).
+> **Tool-use (Claude Code sửa file / chạy lệnh): CHẠY ĐƯỢC** với model `agy/` — dịch đủ
+> `tools` → Gemini `functionDeclarations`, `tool_use`/`tool_result` cả stream lẫn non-stream,
+> **nhiều vòng** (gọi tool → nhận kết quả → gọi tiếp). Đã kiểm chứng thật trên
+> `agy/gemini-3-flash`, `agy/gemini-3-pro-low`, `agy/gemini-2.5-flash`,
+> `agy/claude-sonnet-4-6`, `agy/claude-opus-4-6-thinking`.
+> Model `kr/` (Kiro/CodeWhisperer) **không có function calling native** → gửi kèm tool sẽ bị
+> từ chối bằng `400` kèm hướng dẫn, thay vì im lặng trả text (làm Claude Code treo).
+> Combo/auto tự bỏ qua bước `kr/` khi request có tool.
 
 ## Cắm tool coding (1 chạm)
 Trang **CLI Tools** trong dashboard, hoặc terminal:

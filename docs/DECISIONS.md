@@ -50,6 +50,47 @@ Theo yêu cầu backup/portable. `node:sqlite` built-in chỉ giữ state runtim
 Chỉ 1 browser active tại một thời điểm, giãn nhịp ngẫu nhiên 3–10 phút giữa các account,
 cap login mới/24h. Fail 1 lần → dừng, không retry mù (retry làm điểm rủi ro tăng vọt).
 
+## 8. Tool-use: native theo provider, KHÔNG giả lập bằng prompt
+Claude Code chỉ dùng được nếu gateway dịch đủ `tools`/`tool_use`/`tool_result`.
+- `agy/` (Gemini): map thẳng sang `tools.functionDeclarations` + part `functionCall`/
+  `functionResponse`. JSON Schema phải **lọc trắng** (`toGeminiSchema`) — Gemini v1internal
+  từ chối `$schema`/`additionalProperties` mà Claude Code luôn gửi kèm.
+- `kr/` (Kiro/CodeWhisperer): `userInputMessageContext` rỗng, chỉ nhận text → KHÔNG có
+  function calling. Chọn **báo lỗi 400 kèm hướng dẫn** thay vì giả lập bằng prompt:
+  giả lập phải parse JSON model tự chế, sai lệch âm thầm còn tệ hơn lỗi rõ ràng
+  (Claude Code sẽ treo chờ `tool_use` không bao giờ tới). Combo/auto tự lọc bỏ bước `kr/`
+  khi request có tool, để không đốt phí 1 trong 3 bước fallback.
+
+Ghi chú khớp cặp: Gemini khớp `functionResponse` theo **TÊN tool**, còn Anthropic theo
+`tool_use_id` → `anthropicToMessages` giữ map id→tên để dựng lại đúng cặp. Gemini không trả
+id cho `functionCall` nên gateway tự sinh (`toolu_…`).
+
+Sự kiện SSE: mỗi content block phải mở/đóng **đúng một lần**, index tăng dần. Block text mở
+lazy (lượt chỉ gọi tool thì không có block text rỗng); block `tool_use` tự đóng ngay sau
+`input_json_delta`. Sai một bước là Claude Code treo hoặc bỏ qua tool.
+
+### Tool-use NHIỀU VÒNG: phải giữ `thoughtSignature` và `id`
+Vòng 1 (gọi tool) chạy được không có nghĩa là xong — gửi `tool_result` về mới lộ 2 lỗi, mỗi
+upstream một kiểu, **đều làm Claude Code đứt ngay sau tool đầu tiên**:
+- **Gemini 3**: trả `thoughtSignature` ở **cấp part** (ngang hàng `functionCall`, không lồng
+  bên trong). Không gửi lại nguyên văn ở lượt sau → 400 *"Function call is missing a
+  thought_signature"*.
+- **Model `claude-*` qua Antigravity** (upstream là Anthropic thật, `req_vrtx_…`): bắt buộc
+  có `id` trong `functionCall`/`functionResponse` → thiếu thì 400 *"tool_use.id: Field
+  required"*. Model này **không** trả `thoughtSignature`.
+
+Vì vậy `ToolCall` giữ cả `id` (ưu tiên id upstream, thiếu mới tự sinh) lẫn `signature`, và
+gửi kèm cả hai — Gemini bỏ qua `id` lạ nên an toàn cho cả hai phía. Chữ ký đi khứ hồi qua
+client bằng field `_signature` gắn trên block `tool_use` (Anthropic) / `tool_calls` (OpenAI),
+vì client gửi trả nguyên văn thứ nó nhận được.
+
+## 9. Env rỗng phải coi như CHƯA ĐẶT
+`.env.example` liệt kê sẵn nhiều khoá để trống (`AGY_CLIENT_ID=`, `KIRO_REDIRECT_URI=`,
+`HOST=`…). dotenv nạp thành **chuỗi rỗng**, mà `??` chỉ rơi xuống mặc định khi `undefined` →
+mặc định bị vô hiệu. Hậu quả thật: copy `.env.example` thành `.env` là refresh token chết với
+*"Could not determine client ID from request"*, toàn bộ provider `agy` ngừng hoạt động.
+Dùng helper `S()`/`E()` trong [config.ts](../src/config.ts) trả `undefined` khi rỗng.
+
 ## Ghi chú vận hành
 - Proxy Webshare hiện là **datacenter** (UK) → rủi ro checkpoint cao hơn residential/mobile. Cân nhắc.
 - Link download list Webshare có token xoay vòng; nếu 400 "Invalid download token", lấy link mới

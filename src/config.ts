@@ -36,25 +36,32 @@ function bool(v: string | undefined, def: boolean): boolean {
 })();
 
 const saved = allSettings();
-const S = (key: string): string | undefined => saved[key];
+/**
+ * Giá trị RỖNG coi như CHƯA ĐẶT (trả undefined) để `??` rơi xuống mặc định.
+ * Cần thiết vì .env.example liệt kê sẵn nhiều khoá để trống (`AGY_CLIENT_ID=`,
+ * `KIRO_REDIRECT_URI=`, `HOST=`…); dotenv nạp thành chuỗi rỗng và nếu giữ nguyên
+ * thì mặc định bị vô hiệu — refresh token chết, host thành rỗng.
+ */
+const S = (key: string): string | undefined => saved[key] || undefined;
+const E = (key: string): string | undefined => process.env[key] || undefined;
 
 export const config = {
   // ---- server (cần khởi động lại khi đổi) ----
   port: num(S('port') ?? process.env.PORT, 7788),
-  host: S('host') ?? process.env.HOST ?? '127.0.0.1',
+  host: S('host') ?? E('HOST') ?? '127.0.0.1',
   // Giới hạn body request (MB). Fastify mặc định 1 MB — quá nhỏ cho tool coding.
   maxBodyMb: num(S('maxBodyMb') ?? process.env.MAX_BODY_MB, 32),
   // ---- đăng nhập dashboard ----
-  dashboardPassword: S('dashboardPassword') ?? process.env.DASHBOARD_PASSWORD ?? '123456',
-  dashboardUser: S('dashboardUser') ?? process.env.DASHBOARD_USER ?? '',
+  dashboardPassword: S('dashboardPassword') ?? E('DASHBOARD_PASSWORD') ?? '123456',
+  dashboardUser: S('dashboardUser') ?? E('DASHBOARD_USER') ?? '',
   sessionSecret: S('sessionSecret') ?? '',
   // chống brute-force
   loginMaxFail: num(S('loginMaxFail'), 5),
   loginLockMin: num(S('loginLockMin'), 15),
   // ---- OmniRoute ----
   omniroute: {
-    url: (S('omnirouteUrl') ?? process.env.OMNIROUTE_URL ?? 'http://localhost:20128').replace(/\/+$/, ''),
-    password: S('omniroutePassword') ?? process.env.OMNIROUTE_PASSWORD ?? '',
+    url: (S('omnirouteUrl') ?? E('OMNIROUTE_URL') ?? 'http://localhost:20128').replace(/\/+$/, ''),
+    password: S('omniroutePassword') ?? E('OMNIROUTE_PASSWORD') ?? '',
   },
   // ---- harvest ----
   pacing: {
@@ -66,19 +73,19 @@ export const config = {
   headless: bool(S('headless') ?? process.env.HEADLESS, false),
   fingerprint: bool(S('fingerprint') ?? process.env.FINGERPRINT, true),
   chromeMajor: num(S('chromeMajor') ?? process.env.CHROME_MAJOR, 150),
-  browserChannel: S('browserChannel') ?? process.env.BROWSER_CHANNEL ?? 'chrome',
+  browserChannel: S('browserChannel') ?? E('BROWSER_CHANNEL') ?? 'chrome',
   chromeNoSandbox: bool(S('chromeNoSandbox') ?? process.env.CHROME_NO_SANDBOX, false),
   tokenHealthHours: num(S('tokenHealthHours') ?? process.env.TOKEN_HEALTH_HOURS, 6),
-  kiroRedirectUri: S('kiroRedirectUri') ?? process.env.KIRO_REDIRECT_URI ?? 'http://localhost:49153/oauth/callback',
+  kiroRedirectUri: S('kiroRedirectUri') ?? E('KIRO_REDIRECT_URI') ?? 'http://localhost:49153/oauth/callback',
   // ---- gateway ----
   gateway: {
     enabled: bool(S('gatewayEnabled') ?? process.env.GATEWAY_ENABLED, true),
-    apiKey: S('gatewayApiKey') ?? process.env.GATEWAY_API_KEY ?? '',
-    rotation: S('gatewayRotation') ?? process.env.GATEWAY_ROTATION ?? 'round-robin',
+    apiKey: S('gatewayApiKey') ?? E('GATEWAY_API_KEY') ?? '',
+    rotation: S('gatewayRotation') ?? E('GATEWAY_ROTATION') ?? 'round-robin',
     // Trả model id TRẦN (không prefix) — dùng khi cắm vào gateway khác (OmniRoute) vì
     // nơi đó tự thêm prefix provider, để nguyên sẽ thành agy/agy/gemini-…
     bareModels: bool(S('gatewayBareModels'), false),
-    outboundProxy: S('gatewayProxy') ?? process.env.GATEWAY_PROXY ?? '',
+    outboundProxy: S('gatewayProxy') ?? E('GATEWAY_PROXY') ?? '',
     cooldownSec: num(S('gatewayCooldownSec') ?? process.env.GATEWAY_COOLDOWN_SEC, 900),
     quota: {
       autoRefresh: bool(S('quotaAutoRefresh') ?? process.env.GATEWAY_QUOTA_AUTO, false),
@@ -213,7 +220,10 @@ if (!config.sessionSecret) {
  * mọi bản cài). KHÔNG phải credential riêng. Literal tách chuỗi để không dính secret-scanning.
  */
 export const AGY_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+// Dùng `||` chứ KHÔNG phải `??`: .env.example có sẵn `AGY_CLIENT_ID=` để trống, mà
+// dotenv nạp thành chuỗi rỗng → `??` giữ nguyên rỗng → refresh token chết với
+// "Could not determine client ID from request". Rỗng phải coi như chưa đặt.
 export const AGY_CLIENT_ID =
-  process.env.AGY_CLIENT_ID ?? '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
+  process.env.AGY_CLIENT_ID || '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
 export const AGY_CLIENT_SECRET =
-  process.env.AGY_CLIENT_SECRET ?? ['GOCSPX', 'K58FWR486LdLJ1mLB8sXC4z6qDAf'].join('-');
+  process.env.AGY_CLIENT_SECRET || ['GOCSPX', 'K58FWR486LdLJ1mLB8sXC4z6qDAf'].join('-');

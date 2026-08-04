@@ -18,7 +18,7 @@ import {
   type Combo, type ComboStrategy, type ComboTarget, type PoolSnapshot,
 } from './combo.js';
 import {
-  anthropicToMessages, anthropicGenerationConfig, resultToAnthropic, sseFrame,
+  anthropicToMessages, anthropicGenerationConfig, anthropicToolDefs, resultToAnthropic, sseFrame,
   anthropicErrorBody, resolveAnthropicModel, type AnthropicRequest,
 } from './anthropic.js';
 import {
@@ -42,6 +42,8 @@ import {
   isImageModel,
   type ChatMessage,
   type GenResult,
+  type ToolCall,
+  type ToolDef,
 } from './antigravity.js';
 
 /**
@@ -106,12 +108,19 @@ function afterCall(account: PoolAccount, model: string, r: { ok: boolean; prompt
  */
 function contextHint(e: unknown, model: string): string | undefined {
   if (!isContextTooLong(e)) return undefined;
-  // LƯU Ý: model Claude (kể cả qua Antigravity) chỉ ~200k token — chỉ GEMINI mới 1M.
-  return (
-    `Prompt quá dài với ${model}. Mọi model Claude (cả agy/claude-* lẫn kr/claude-*) giới hạn ~200k token; ` +
-    'chỉ Gemini mới nhận tới 1M → dùng agy/gemini-3-pro-low hoặc agy/gemini-3-flash. ' +
-    'Hoặc dùng combo/auto để tự chuyển, hoặc rút bớt nội dung gửi lên.'
-  );
+  // Gợi ý theo maxInput THẬT của từng model thay vì chuỗi cứng: lấy các model có
+  // trần lớn hơn model đang dùng, sắp giảm dần, đề xuất vài cái đầu.
+  const cur = allModels().find((m) => m.prefixed === model)?.maxInput ?? 0;
+  const bigger = allModels()
+    .filter((m) => !m.image && (m.maxInput ?? 0) > cur)
+    .sort((a, b) => (b.maxInput ?? 0) - (a.maxInput ?? 0));
+  const tokens = (n?: number) => (n ? `${Math.round(n / 1000)}k` : '?');
+  const head = `Prompt quá dài với ${model}${cur ? ` (trần ~${tokens(cur)} token)` : ''}.`;
+  if (!bigger.length) {
+    return `${head} Đây đã là model có ngữ cảnh lớn nhất — cần rút bớt nội dung gửi lên.`;
+  }
+  const list = bigger.slice(0, 3).map((m) => `${m.prefixed} (~${tokens(m.maxInput)})`).join(', ');
+  return `${head} Model nhận nhiều hơn: ${list}. Hoặc dùng combo/auto để tự chuyển, hoặc rút bớt nội dung.`;
 }
 
 function proxyLabelOf(account: PoolAccount, override?: string): string {
@@ -164,21 +173,74 @@ async function pickReady(
 }
 
 function toMessages(body: any): ChatMessage[] {
-  if (Array.isArray(body?.messages)) return body.messages as ChatMessage[];
+  if (Array.isArray(body?.messages)) {
+    // Chuẩn hoá tool_calls (OpenAI: arguments là CHUỖI JSON) → ToolCall nội bộ.
+    return (body.messages as any[]).map((m): ChatMessage => {
+      if (m?.role === 'tool') {
+        return {
+          role: 'tool',
+          content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content ?? ''),
+          toolCallId: m.tool_call_id,
+          toolName: m.name,
+        };
+      }
+      if (m?.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length) {
+        const toolCalls: ToolCall[] = m.tool_calls.map((c: any) => {
+          let input: Record<string, unknown> = {};
+          const raw = c?.function?.arguments;
+          if (typeof raw === 'string') { try { input = JSON.parse(raw); } catch { input = {}; } }
+          else if (raw && typeof raw === 'object') input = raw;
+          const sig = typeof c?._signature === 'string' ? c._signature : undefined;
+          return { id: String(c?.id ?? ''), name: String(c?.function?.name ?? ''), input, ...(sig ? { signature: sig } : {}) };
+        });
+        return { role: 'assistant', content: m.content ?? '', toolCalls };
+      }
+      return m as ChatMessage;
+    });
+  }
   if (typeof body?.content === 'string') return [{ role: 'user', content: body.content }];
   if (typeof body?.prompt === 'string') return [{ role: 'user', content: body.prompt }];
   return [{ role: 'user', content: '' }];
 }
 
+/** tools OpenAI ([{type:'function', function:{name,description,parameters}}]) → ToolDef. */
+function toToolDefs(body: any): ToolDef[] {
+  const raw = Array.isArray(body?.tools) ? body.tools : [];
+  const out: ToolDef[] = [];
+  for (const t of raw) {
+    const f = t?.type === 'function' ? t.function : t;
+    if (f && typeof f.name === 'string' && f.name) {
+      out.push({ name: f.name, description: f.description, parameters: f.parameters });
+    }
+  }
+  // API cũ: functions[] (deprecated nhưng vẫn có tool dùng)
+  if (!out.length && Array.isArray(body?.functions)) {
+    for (const f of body.functions) {
+      if (f && typeof f.name === 'string' && f.name) out.push({ name: f.name, description: f.description, parameters: f.parameters });
+    }
+  }
+  return out;
+}
+
 function openaiCompletion(model: string, r: GenResult) {
   let content = r.text;
   for (const img of r.images) content += (content ? '\n\n' : '') + `![image](${img})`;
+  const calls = r.toolCalls ?? [];
+  const message: Record<string, unknown> = { role: 'assistant', content: content || (calls.length ? null : '') };
+  if (calls.length) {
+    message.tool_calls = calls.map((c, i) => ({
+      index: i, id: c.id, type: 'function',
+      function: { name: c.name, arguments: JSON.stringify(c.input ?? {}) },
+      // Chữ ký Gemini (xem ToolCall.signature) — client trả lại thì vòng 2 mới chạy.
+      ...(c.signature ? { _signature: c.signature } : {}),
+    }));
+  }
   return {
     id: 'chatcmpl-' + randomUUID(),
     object: 'chat.completion',
     created: Math.floor(Date.now() / 1000),
     model,
-    choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: r.finishReason || 'stop' }],
+    choices: [{ index: 0, message, finish_reason: calls.length ? 'tool_calls' : r.finishReason || 'stop' }],
     usage: {
       prompt_tokens: r.usage.promptTokens,
       completion_tokens: r.usage.completionTokens,
@@ -263,6 +325,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     parsed: ParsedModel,
     o: {
       messages: ChatMessage[];
+      tools?: ToolDef[];
       stream: boolean;
       reply: FastifyReply;
       runProviderCall: (opts: any) => Promise<{ done: true } | { result: GenResult }>;
@@ -284,6 +347,20 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     }
     if (!plan.length) return o.reply.code(503).send({ error: `${comboName}: không có model nào khả dụng` });
 
+    // Có tools → bỏ các bước trỏ tới provider không có function calling (bước đó
+    // chắc chắn 400, trượt qua luôn cho đỡ tốn 1 lượt trong 3 bước).
+    if (o.tools?.length) {
+      plan = plan.filter((t) => {
+        try {
+          const p = parseModelId(t.model);
+          return p.kind !== 'provider' || !!PROVIDERS[p.provider!]?.supportsTools;
+        } catch { return true; }
+      });
+      if (!plan.length) {
+        return o.reply.code(400).send({ error: `${comboName}: không có bước nào hỗ trợ tool-use — thêm model agy/ vào combo.` });
+      }
+    }
+
     const maxSteps = Math.min(plan.length, 3);
     let lastErr: any;
     for (let step = 0; step < maxSteps; step++) {
@@ -301,7 +378,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         if (o.stream && step === 0) sseInit(o.reply);
         const out = await o.runProviderCall({
           provider: p.provider!, bare: p.model!, labelModel: p.prefixed,
-          messages: o.messages, stream: o.stream, reply: o.reply, endpoint: comboName,
+          messages: o.messages, tools: o.tools, stream: o.stream, reply: o.reply, endpoint: comboName,
         });
         recordComboRun({ combo: comboName, step, model: p.prefixed, ok: true, ms: Date.now() - t0 });
         if ('done' in out) return o.reply;
@@ -366,9 +443,22 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     endpoint?: string;
     onStreamDelta?: (t: string) => void;
     sseWriter?: (delta: string) => void;
+    generationConfig?: Record<string, unknown>;
+    tools?: ToolDef[];
+    /** Stream: model gọi tool (chỉ provider supportsTools mới phát). */
+    onToolCall?: (c: ToolCall) => void;
   }): Promise<{ done: true } | { result: GenResult }> {
     const { provider, bare, labelModel, messages, stream, reply } = opts;
     const p = PROVIDERS[provider];
+    // Provider không có function calling native → KHÔNG im lặng bỏ tools (model sẽ
+    // trả text mô tả việc cần làm, Claude Code treo chờ tool_use không bao giờ tới).
+    if (opts.tools?.length && !p.supportsTools) {
+      throw Object.assign(
+        new Error(`${p.label} (${provider}/) không hỗ trợ tool-use — dùng model agy/ cho Claude Code, hoặc tắt tool.`),
+        { status: 400 },
+      );
+    }
+    const genArgs = { generationConfig: opts.generationConfig, tools: opts.tools };
     const avail = pool.candidates(Date.now(), provider).length;
     // Lỗi thật (5xx/mạng) chỉ thử 3 account. Nhưng account HẾT HẠN MỨC thì bị cooldown
     // ngay khi report → bỏ qua rất rẻ, nên không tính vào hạn thử (tối đa 12 lần bỏ qua).
@@ -398,16 +488,31 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         if (stream) {
           const id = 'chatcmpl-' + randomUUID();
           let pt = 0, ct = 0;
-          for await (const ev of p.generateStream({ session: ctx.session, model: bare, messages, dispatcher: ctx.dispatcher })) {
+          // Client OpenAI gộp tool_calls THEO index → mỗi tool phải có index riêng,
+          // dùng chung index 0 sẽ làm tool sau đè lên tool trước.
+          let toolIndex = 0;
+          let sawToolCall = false;
+          for await (const ev of p.generateStream({ session: ctx.session, model: bare, messages, ...genArgs, dispatcher: ctx.dispatcher })) {
             if (ev.delta) {
               if (opts.sseWriter) opts.sseWriter(ev.delta);
               else sseChunk(reply, labelModel, id, { content: ev.delta }, null);
+            }
+            if (ev.toolCall) {
+              sawToolCall = true;
+              if (opts.onToolCall) opts.onToolCall(ev.toolCall);
+              else sseChunk(reply, labelModel, id, {
+                tool_calls: [{
+                  index: toolIndex++, id: ev.toolCall.id, type: 'function',
+                  function: { name: ev.toolCall.name, arguments: JSON.stringify(ev.toolCall.input ?? {}) },
+                  ...(ev.toolCall.signature ? { _signature: ev.toolCall.signature } : {}),
+                }],
+              }, null);
             }
             if (ev.image && !opts.sseWriter) sseChunk(reply, labelModel, id, { content: `\n![image](${ev.image})` }, null);
             if (ev.usage) { pt = ev.usage.promptTokens; ct = ev.usage.completionTokens; }
           }
           if (!opts.sseWriter) {
-            sseChunk(reply, labelModel, id, {}, 'stop');
+            sseChunk(reply, labelModel, id, {}, sawToolCall ? 'tool_calls' : 'stop');
             reply.raw.write('data: [DONE]\n\n');
             reply.raw.end();
           }
@@ -418,7 +523,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
           emitGw({ kind: 'res', account: ctx.account.email, model: labelModel, ms, tokens: pt + ct, status: 200, msg: `← 200 · stream · ${pt + ct} tok · ${ms}ms` });
           return { done: true };
         }
-        const r = await p.generate({ session: ctx.session, model: bare, messages, dispatcher: ctx.dispatcher });
+        const r = await p.generate({ session: ctx.session, model: bare, messages, ...genArgs, dispatcher: ctx.dispatcher });
         const ms = Date.now() - t0;
         pool.report(ctx.account, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens });
         afterCall(ctx.account, labelModel, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, ms });
@@ -460,6 +565,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     if (!config.gateway.enabled) return reply.code(503).send({ error: 'gateway disabled' });
     const body = req.body as any;
     const messages = toMessages(body);
+    const tools = toToolDefs(body);
     const stream = !!body?.stream;
     syncFromStore();
 
@@ -473,12 +579,12 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     try {
       // combo / auto → engine combo tự lo fallback
       if (parsed.kind !== 'provider') {
-        return await runComboRequest(parsed, { messages, stream, reply, runProviderCall });
+        return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall });
       }
       if (stream) sseInit(reply);
       const out = await runProviderCall({
         provider: parsed.provider!, bare: parsed.model!, labelModel: parsed.prefixed,
-        messages, stream, reply,
+        messages, tools, stream, reply,
       });
       if ('done' in out) return reply;
       return reply.send(openaiCompletion(parsed.prefixed, out.result));
@@ -1014,19 +1120,26 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
 
       const messages = anthropicToMessages(b);
       const generationConfig = anthropicGenerationConfig(b);
+      const tools = anthropicToolDefs(b);
       const stream = !!b.stream;
       const echoModel = b.model || parsed.prefixed;
       const msgId = 'msg_' + randomUUID().replace(/-/g, '');
 
       /** Gọi 1 model; nếu là combo/auto thì thử lần lượt theo kế hoạch (fallback). */
-      const call = async (target: ParsedModel, streamWriter?: (t: string) => void) => {
+      const call = async (
+        target: ParsedModel,
+        streamWriter?: (t: string) => void,
+        onToolCall?: (c: ToolCall) => void,
+      ) => {
         const one = (p: ParsedModel, label?: string) =>
           runProviderCall({
             provider: p.provider!, bare: p.model!, labelModel: p.prefixed,
             messages, stream: !!streamWriter, reply, endpoint: label ?? '/v1/messages',
             sseWriter: streamWriter,
             generationConfig,
-          } as any);
+            tools,
+            onToolCall,
+          });
 
         if (target.kind === 'provider') return one(target);
 
@@ -1034,12 +1147,24 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         const res = resolveComboPlan(target);
         if ('error' in res) throw Object.assign(new Error(res.error), { status: res.status });
         if (!res.plan.length) throw Object.assign(new Error(`${res.name}: không có model khả dụng`), { status: 503 });
+        // Claude Code luôn gửi tools → bỏ bước không hỗ trợ tool-use (xem runComboRequest).
+        const steps = tools.length
+          ? res.plan.filter((t) => {
+              try {
+                const p = parseModelId(t.model);
+                return p.kind !== 'provider' || !!PROVIDERS[p.provider!]?.supportsTools;
+              } catch { return true; }
+            })
+          : res.plan;
+        if (!steps.length) {
+          throw Object.assign(new Error(`${res.name}: không có bước nào hỗ trợ tool-use — thêm model agy/ vào combo.`), { status: 400 });
+        }
         let lastErr: any;
-        for (let step = 0; step < Math.min(res.plan.length, 3); step++) {
+        for (let step = 0; step < Math.min(steps.length, 3); step++) {
           const t0 = Date.now();
           let p: ParsedModel;
           try {
-            p = parseModelId(res.plan[step]!.model);
+            p = parseModelId(steps[step]!.model);
           } catch (e) { lastErr = e; continue; }
           if (p.kind !== 'provider') continue;
           try {
@@ -1070,16 +1195,61 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
           type: 'message_start',
           message: { id: msgId, type: 'message', role: 'assistant', model: echoModel, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 0, output_tokens: 0 } },
         }));
-        reply.raw.write(sseFrame('content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }));
         const ping = setInterval(() => reply.raw.write(sseFrame('ping', { type: 'ping' })), 15_000);
         let outChars = 0;
+        let sawTool = false;
+        // Mỗi block phải mở/đóng ĐÚNG MỘT LẦN theo index tăng dần. Block text mở LAZY:
+        // lượt chỉ gọi tool thì không phát block text rỗng thừa. `textOpen` là block
+        // DUY NHẤT có thể còn mở khi tới tool kế (block tool tự đóng ngay sau khi ghi).
+        let index = -1;
+        let textOpen = false;
+        const openText = () => {
+          if (textOpen) return;
+          index++;
+          textOpen = true;
+          reply.raw.write(sseFrame('content_block_start', { type: 'content_block_start', index, content_block: { type: 'text', text: '' } }));
+        };
+        const closeText = () => {
+          if (!textOpen) return;
+          reply.raw.write(sseFrame('content_block_stop', { type: 'content_block_stop', index }));
+          textOpen = false;
+        };
         try {
-          await call(parsed, (t) => {
-            outChars += t.length;
-            reply.raw.write(sseFrame('content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: t } }));
-          });
-          reply.raw.write(sseFrame('content_block_stop', { type: 'content_block_stop', index: 0 }));
-          reply.raw.write(sseFrame('message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: Math.ceil(outChars / 4) } }));
+          await call(
+            parsed,
+            (t) => {
+              openText();
+              outChars += t.length;
+              reply.raw.write(sseFrame('content_block_delta', { type: 'content_block_delta', index, delta: { type: 'text_delta', text: t } }));
+            },
+            (c) => {
+              sawTool = true;
+              closeText(); // chỉ block text mới cần đóng ở đây
+              index++;
+              const args = JSON.stringify(c.input ?? {});
+              outChars += args.length;
+              reply.raw.write(sseFrame('content_block_start', {
+                type: 'content_block_start', index,
+                content_block: {
+                  type: 'tool_use', id: c.id, name: c.name, input: {},
+                  // Chữ ký Gemini đi kèm để client trả lại ở lượt sau.
+                  ...(c.signature ? { _signature: c.signature } : {}),
+                },
+              }));
+              // Gemini trả args nguyên khối → phát 1 delta duy nhất rồi đóng ngay.
+              reply.raw.write(sseFrame('content_block_delta', {
+                type: 'content_block_delta', index,
+                delta: { type: 'input_json_delta', partial_json: args },
+              }));
+              reply.raw.write(sseFrame('content_block_stop', { type: 'content_block_stop', index }));
+            },
+          );
+          closeText();
+          if (index < 0) { // không có byte nào → vẫn phải có 1 block hợp lệ
+            openText();
+            closeText();
+          }
+          reply.raw.write(sseFrame('message_delta', { type: 'message_delta', delta: { stop_reason: sawTool ? 'tool_use' : 'end_turn', stop_sequence: null }, usage: { output_tokens: Math.ceil(outChars / 4) } }));
           reply.raw.write(sseFrame('message_stop', { type: 'message_stop' }));
         } finally {
           clearInterval(ping);

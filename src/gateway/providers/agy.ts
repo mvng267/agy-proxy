@@ -25,6 +25,7 @@ export const agyProvider: Provider = {
   credentialTarget: 'agy',
   models: MODELS,
   defaultModel: 'gemini-3-pro-low',
+  supportsTools: true, // Gemini functionDeclarations/functionCall
 
   accepts(value) {
     return typeof value === 'string' && value.startsWith('1//');
@@ -60,6 +61,7 @@ export const agyProvider: Provider = {
       model: args.model,
       messages: args.messages,
       generationConfig: args.generationConfig,
+      tools: args.tools,
       dispatcher: args.dispatcher,
       signal: args.signal,
     });
@@ -72,6 +74,7 @@ export const agyProvider: Provider = {
       model: args.model,
       messages: args.messages,
       generationConfig: args.generationConfig,
+      tools: args.tools,
       dispatcher: args.dispatcher,
       signal: args.signal,
     });

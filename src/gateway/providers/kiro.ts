@@ -35,6 +35,9 @@ export const kiroProvider: Provider = {
   credentialTarget: 'kiro',
   models: KIRO_MODELS,
   defaultModel: 'claude-sonnet-4.5',
+  // CodeWhisperer chỉ nhận text thuần (userInputMessageContext rỗng) → không có
+  // function calling native. Có tools thì route báo lỗi rõ thay vì im lặng bỏ qua.
+  supportsTools: false,
 
   /** claude-haiku-4-5 → claude-haiku-4.5 (id thật dùng dấu chấm). */
   normalizeModel(id) {

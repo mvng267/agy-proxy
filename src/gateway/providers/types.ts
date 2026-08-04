@@ -1,5 +1,5 @@
 import type { Dispatcher } from 'undici';
-import type { ChatMessage, GenResult, QuotaInfo, TokenInfo, Usage } from '../antigravity.js';
+import type { ChatMessage, GenResult, QuotaInfo, TokenInfo, ToolCall, ToolDef, Usage } from '../antigravity.js';
 
 /**
  * Trừu tượng provider: gateway phục vụ nhiều nguồn model (Antigravity, Kiro…).
@@ -35,6 +35,8 @@ export interface ProviderModel {
   id: string; // id trần, chưa prefix
   label: string;
   image: boolean;
+  /** Trần ngữ cảnh (token). Dùng để gợi ý model thay thế khi prompt quá dài. */
+  maxInput?: number;
 }
 
 export interface GenArgs {
@@ -42,11 +44,13 @@ export interface GenArgs {
   model: string; // id TRẦN (đã bỏ prefix)
   messages: ChatMessage[];
   generationConfig?: Record<string, unknown>;
+  /** Provider có `supportsTools` mới dùng; provider khác bỏ qua an toàn. */
+  tools?: ToolDef[];
   dispatcher?: Dispatcher;
   signal?: AbortSignal;
 }
 
-export type StreamEvent = { delta?: string; image?: string; usage?: Usage; done?: boolean };
+export type StreamEvent = { delta?: string; image?: string; toolCall?: ToolCall; usage?: Usage; done?: boolean };
 
 export interface LiveResult {
   status: 'ok' | 'quota' | 'error';
@@ -61,6 +65,8 @@ export interface Provider {
   readonly credentialTarget: string;
   readonly models: ProviderModel[];
   readonly defaultModel: string;
+  /** Có function calling native không. false → GenArgs.tools bị bỏ qua (Kiro). */
+  readonly supportsTools: boolean;
 
   /** Chuẩn hoá id model của người dùng về id thật (bí danh → id chính thức). */
   normalizeModel?(id: string): string;
@@ -89,4 +95,4 @@ export interface Provider {
   quota?(a: ProviderAccount, s: ProviderSession, d?: Dispatcher): Promise<QuotaInfo | undefined>;
 }
 
-export type { ChatMessage, GenResult, QuotaInfo, TokenInfo, Usage };
+export type { ChatMessage, GenResult, QuotaInfo, TokenInfo, ToolCall, ToolDef, Usage };

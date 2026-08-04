@@ -158,9 +158,12 @@ test('anthropicToMessages: ảnh base64 → data URL đúng shape sẵn có', ()
   assert.equal(parts[1].image_url.url, 'data:image/png;base64,AAA');
 });
 
-test('anthropicToMessages: tool_result/tool_use phẳng hoá thành text (v1)', () => {
-  const m = anthropicToMessages({ model: 'x', messages: [{ role: 'user', content: [{ type: 'tool_result', content: 'ket qua' }] }] });
-  assert.match(String(m[0]!.content), /tool_result.*ket qua/);
+test('anthropicToMessages: tool_result → message role tool (KHÔNG phẳng hoá nữa)', () => {
+  const m = anthropicToMessages({ model: 'x', messages: [{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu_1', content: 'ket qua' }] }] });
+  assert.equal(m.length, 1);
+  assert.equal(m[0]!.role, 'tool');
+  assert.equal(m[0]!.content, 'ket qua');
+  assert.equal(m[0]!.toolCallId, 'tu_1');
 });
 
 test('resultToAnthropic + toStopReason', () => {

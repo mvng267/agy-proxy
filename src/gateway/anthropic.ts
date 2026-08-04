@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import type { ChatMessage, GenResult } from './antigravity.js';
+import type { ChatMessage, GenResult, ToolCall, ToolDef } from './antigravity.js';
 
 /**
  * Dịch Anthropic Messages API ↔ nội bộ (THUẦN, không mạng).
  * Cần vì Claude Code KHÔNG nói OpenAI API — nó gọi <base>/v1/messages.
  *
- * Giới hạn v1: chưa dịch tools/tool_use → Claude Code kết nối + stream text được
- * nhưng CHƯA sửa file/chạy lệnh được. Nói rõ trên UI.
+ * v2: dịch đủ tools/tool_use/tool_result → Claude Code sửa file/chạy lệnh được
+ * (chỉ với provider có function calling native — hiện là agy/, xem Provider.supportsTools).
  */
 
 export interface AnthropicBlock {
@@ -16,6 +16,22 @@ export interface AnthropicBlock {
   content?: unknown;
   name?: string;
   input?: unknown;
+  id?: string;
+  tool_use_id?: string;
+  is_error?: boolean;
+  /**
+   * Chữ ký thoughtSignature của Gemini, gắn kèm block tool_use để đi khứ hồi qua
+   * client. Claude Code gửi trả nguyên văn block nó nhận được, nên chữ ký quay về
+   * đủ để dựng lại request hợp lệ cho lượt sau. Không phải field chuẩn Anthropic —
+   * dùng tiền tố _ để không đụng khoá thật của Anthropic về sau.
+   */
+  _signature?: string;
+}
+
+export interface AnthropicTool {
+  name: string;
+  description?: string;
+  input_schema?: Record<string, unknown>;
 }
 
 export interface AnthropicRequest {
@@ -28,7 +44,26 @@ export interface AnthropicRequest {
   top_p?: number;
   top_k?: number;
   stop_sequences?: string[];
-  tools?: unknown[];
+  tools?: AnthropicTool[];
+  tool_choice?: { type?: string; name?: string };
+}
+
+/** Nội dung 1 block tool_result → text thuần (Anthropic cho phép string | mảng block). */
+export function toolResultText(c: unknown): string {
+  if (typeof c === 'string') return c;
+  if (Array.isArray(c)) {
+    return c
+      .map((x: any) => {
+        if (typeof x === 'string') return x;
+        if (x?.type === 'text') return x.text ?? '';
+        // block ảnh trong tool_result: Gemini functionResponse không nhận ảnh → ghi chú.
+        if (x?.type === 'image') return '[image]';
+        return x?.text ?? '';
+      })
+      .join('');
+  }
+  if (c == null) return '';
+  return JSON.stringify(c);
 }
 
 function blocksToOA(blocks: AnthropicBlock[]): ChatMessage['content'] {
@@ -46,16 +81,8 @@ function blocksToOA(blocks: AnthropicBlock[]): ChatMessage['content'] {
         }
         break;
       }
-      case 'tool_result': {
-        // v1: phẳng hoá thành text (chưa hỗ trợ tool-use thật)
-        const c = b.content;
-        const t = typeof c === 'string' ? c : Array.isArray(c) ? c.map((x: any) => x?.text ?? '').join('') : JSON.stringify(c ?? '');
-        if (t) parts.push({ type: 'text', text: `[tool_result] ${t}` });
-        break;
-      }
-      case 'tool_use':
-        parts.push({ type: 'text', text: `[tool_use ${b.name ?? ''}] ${JSON.stringify(b.input ?? {})}` });
-        break;
+      // tool_use/tool_result KHÔNG xử lý ở đây — anthropicToMessages tách thành
+      // message riêng để giữ đúng ngữ nghĩa function call.
       // 'thinking' → bỏ
     }
   }
@@ -63,17 +90,69 @@ function blocksToOA(blocks: AnthropicBlock[]): ChatMessage['content'] {
   return parts.length ? parts : '';
 }
 
-/** THUẦN: request Anthropic → messages nội bộ (system thành 1 message role system). */
+/**
+ * THUẦN: request Anthropic → messages nội bộ (system thành 1 message role system).
+ * 1 message Anthropic có thể sinh NHIỀU message nội bộ: mỗi tool_result là 1 message
+ * role 'tool' riêng (Claude Code gộp nhiều tool_result vào 1 message user).
+ */
 export function anthropicToMessages(b: AnthropicRequest): ChatMessage[] {
   const out: ChatMessage[] = [];
   if (b.system) {
     const sys = typeof b.system === 'string' ? b.system : b.system.map((x) => x.text ?? '').join('\n');
     if (sys.trim()) out.push({ role: 'system', content: sys });
   }
+  // tool_use_id → tên tool: functionResponse của Gemini khớp theo TÊN, không theo id.
+  const nameById = new Map<string, string>();
+
   for (const m of b.messages || []) {
-    out.push({ role: m.role, content: typeof m.content === 'string' ? m.content : blocksToOA(m.content) });
+    if (typeof m.content === 'string') {
+      out.push({ role: m.role, content: m.content });
+      continue;
+    }
+    const blocks = Array.isArray(m.content) ? m.content : [];
+    const toolUses = blocks.filter((x) => x?.type === 'tool_use');
+    const toolResults = blocks.filter((x) => x?.type === 'tool_result');
+
+    if (m.role === 'assistant' && toolUses.length) {
+      const calls: ToolCall[] = toolUses.map((t) => {
+        const id = String(t.id ?? '');
+        const name = String(t.name ?? '');
+        if (id && name) nameById.set(id, name);
+        const sig = typeof t._signature === 'string' ? t._signature : undefined;
+        return { id, name, input: (t.input ?? {}) as Record<string, unknown>, ...(sig ? { signature: sig } : {}) };
+      });
+      const text = blocks.filter((x) => x?.type === 'text').map((x) => x.text ?? '').join('');
+      out.push({ role: 'assistant', content: text, toolCalls: calls });
+      continue;
+    }
+
+    if (toolResults.length) {
+      // Phần text đi kèm (nếu có) giữ lại thành message user riêng SAU kết quả tool.
+      const rest = blocksToOA(blocks);
+      for (const r of toolResults) {
+        const id = String(r.tool_use_id ?? '');
+        const body = toolResultText(r.content);
+        out.push({
+          role: 'tool',
+          content: r.is_error ? `[error] ${body}` : body,
+          toolCallId: id,
+          toolName: nameById.get(id) ?? 'tool',
+        });
+      }
+      if (rest && !(typeof rest === 'string' && !rest.trim())) out.push({ role: 'user', content: rest });
+      continue;
+    }
+
+    out.push({ role: m.role, content: blocksToOA(blocks) });
   }
   return out;
+}
+
+/** THUẦN: tools Anthropic → ToolDef nội bộ. */
+export function anthropicToolDefs(b: AnthropicRequest): ToolDef[] {
+  return (b.tools ?? [])
+    .filter((t) => t && typeof t.name === 'string' && t.name)
+    .map((t) => ({ name: t.name, description: t.description, parameters: t.input_schema }));
 }
 
 export function anthropicGenerationConfig(b: AnthropicRequest): Record<string, unknown> {
@@ -86,8 +165,9 @@ export function anthropicGenerationConfig(b: AnthropicRequest): Record<string, u
   return g;
 }
 
-export function toStopReason(finish: string): 'end_turn' | 'max_tokens' | 'stop_sequence' {
+export function toStopReason(finish: string): 'end_turn' | 'max_tokens' | 'stop_sequence' | 'tool_use' {
   const f = String(finish || '').toUpperCase();
+  if (f === 'TOOL_USE') return 'tool_use';
   if (f.includes('MAX_TOKEN') || f === 'LENGTH') return 'max_tokens';
   if (f.includes('STOP_SEQUENCE')) return 'stop_sequence';
   return 'end_turn';
@@ -97,13 +177,27 @@ export function toStopReason(finish: string): 'end_turn' | 'max_tokens' | 'stop_
 export function resultToAnthropic(model: string, r: GenResult, id?: string) {
   let text = r.text;
   for (const img of r.images) text += (text ? '\n\n' : '') + `![image](${img})`;
+  const calls = r.toolCalls ?? [];
+  const content: Array<Record<string, unknown>> = [];
+  // Claude Code chấp nhận content rỗng phần text, nhưng KHÔNG chấp nhận mảng rỗng.
+  if (text || !calls.length) content.push({ type: 'text', text });
+  for (const c of calls) {
+    content.push({
+      type: 'tool_use',
+      id: c.id || 'toolu_' + randomUUID().replace(/-/g, '').slice(0, 24),
+      name: c.name,
+      input: c.input ?? {},
+      // Gửi kèm để client trả lại ở lượt sau (xem AnthropicBlock._signature).
+      ...(c.signature ? { _signature: c.signature } : {}),
+    });
+  }
   return {
     id: id ?? 'msg_' + randomUUID().replace(/-/g, ''),
     type: 'message',
     role: 'assistant',
     model,
-    content: [{ type: 'text', text }],
-    stop_reason: toStopReason(r.finishReason),
+    content,
+    stop_reason: calls.length ? 'tool_use' : toStopReason(r.finishReason),
     stop_sequence: null,
     usage: { input_tokens: r.usage.promptTokens, output_tokens: r.usage.completionTokens },
   };
