@@ -411,6 +411,20 @@ tbody tr.q-row:hover { background: var(--card-2); }
 .ms-n { color: var(--muted); white-space: nowrap; }
 .ms-q { white-space: nowrap; font-weight: 600; }
 
+.prog.prog-stack { display: flex; }
+.prog.prog-stack > i { border-radius: 0; transition: width .4s; }
+
+/* Xếp hạng auto (Combo) — 4 chiều chấm điểm hiện bằng thanh thay vì bảng số */
+.rank-list { display: grid; gap: var(--space-2); }
+.rank-item { padding: 10px 12px; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.rank-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: 8px; font-size: 13px; }
+.rank-no { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--primary); color: var(--primary-fg); font-size: 11px; font-weight: 700; }
+.rank-score { margin-left: auto; font-weight: 600; color: var(--muted); }
+.rank-dims { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px 14px; }
+.rank-dim { display: flex; align-items: center; gap: 8px; font-size: 11.5px; }
+.rank-dim-lbl { width: 62px; flex: none; color: var(--faint); }
+.rank-dim .ubar { flex: 1; }
+
 /* Hiệu năng provider (Tổng quan) */
 .perf-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
 .perf-row:last-child { border-bottom: none; }

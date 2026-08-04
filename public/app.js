@@ -238,9 +238,13 @@ async function loadSummary() {
   // stats Tài khoản
   const accEl = $('stats-acc'); let html = mkCard('Tổng tài khoản', s.totalAccounts, `${s.totalProxies} proxy`);
   for (const f of PIPELINE) {
-    const c = s.counts[f] || {}; const done = c.ok || 0; const pct = Math.round((done / (s.totalAccounts || 1)) * 100);
+    const c = s.counts[f] || {}; const done = c.ok || 0;
     const label = FLOWS.find((x) => x.key === f).label;
-    html += `<div class="card provider"><div class="label">${label}</div><div class="value">${done}<span class="faint" style="font-size:14px">/${s.totalAccounts}</span></div><div class="sub">${c.failed ? `❌ ${c.failed}` : ''} ${c.needs_human ? `⏸ ${c.needs_human}` : ''} ${c.running ? `● ${c.running}` : ''}</div><div class="prog"><i style="width:${pct}%"></i></div></div>`;
+    // Thanh XẾP CHỒNG đủ 4 trạng thái — trước chỉ vẽ `ok`, còn failed/needs_human/running
+    // chỉ là emoji trong dòng phụ dù dữ liệu có sẵn.
+    const seg = (n, col, title) => (n > 0 ? `<i style="width:${(n / (s.totalAccounts || 1) * 100).toFixed(1)}%;background:${col}" title="${title}: ${n}"></i>` : '');
+    html += `<div class="card provider"><div class="label">${label}</div><div class="value">${done}<span class="faint" style="font-size:14px">/${s.totalAccounts}</span></div><div class="sub">${c.failed ? `❌ ${c.failed}` : ''} ${c.needs_human ? `⏸ ${c.needs_human}` : ''} ${c.running ? `● ${c.running}` : ''}</div>` +
+      `<div class="prog prog-stack">${seg(done, 'var(--green)', 'xong')}${seg(c.running || 0, 'var(--primary)', 'đang chạy')}${seg(c.needs_human || 0, 'var(--amber)', 'cần xử lý tay')}${seg(c.failed || 0, 'var(--red)', 'lỗi')}</div></div>`;
   }
   const nh = PIPELINE.reduce((n, f) => n + ((s.counts[f] || {}).needs_human || 0), 0);
   html += mkCard('Cần xử lý tay', nh, nh ? 'chờ challenge' : 'không có');
@@ -248,6 +252,15 @@ async function loadSummary() {
   // stats Proxy
   const crowded = s.maxPerProxy > 10;
   $('stats-proxy').innerHTML = mkCard('Tổng proxy', s.totalProxies, '') + mkCard('Tải / IP tối đa', s.maxPerProxy, crowded ? '<span style="color:var(--red)">⚠ dồn nhiều acc/1 IP</span>' : 'acc trên 1 IP') + mkCard('Direct (no proxy)', (s.proxyLoad && (s.proxyLoad['(direct)'] || s.proxyLoad['direct'])) || 0, 'account chạy IP máy');
+  // Phân bố account/IP — trước đây chỉ lấy 1 key '(direct)', phần còn lại bỏ phí
+  const plc = $('proxy-load-chart');
+  if (plc) {
+    const rows = Object.entries(s.proxyLoad || {}).map(([label, n]) => ({ label, n })).sort((a, b) => b.n - a.n).slice(0, 12);
+    plc.innerHTML = rows.length
+      ? barRows(rows, 'label', (x) => x.n, (x) => `${x.n} account`) +
+        (crowded ? `<div class="chart-legend"><span class="faint" style="color:var(--amber)">⚠ ${s.maxPerProxy} account chung 1 IP — cân nhắc thêm proxy để giảm rủi ro checkpoint chain</span></div>` : '')
+      : '<div class="empty">Chưa có account nào</div>';
+  }
   // runbar
   const rb = $('runbar');
   if (s.sched.running && s.sched.batchTotal > 0) {
@@ -445,6 +458,21 @@ function renderTokenStats() {
   const stat = (t) => { const l = credsCache.filter((c) => c.target === t); return { alive: l.filter((c) => c.health === 'alive').length, dead: l.filter((c) => c.health === 'dead').length, tot: l.length }; };
   const a = stat('agy'), k = stat('kiro');
   $('stats-tok').innerHTML = mkCard('Antigravity token', a.tot, `🟢 ${a.alive} · 🔴 ${a.dead}`) + mkCard('Kiro token', k.tot, `🟢 ${k.alive} · 🔴 ${k.dead}`) + mkCard('Tổng credential', credsCache.length, '');
+  // Sức khoẻ tổng: alive/dead/chưa rõ — trước đây chỉ là con số trên thẻ
+  const alive = credsCache.filter((c) => c.health === 'alive').length;
+  const dead = credsCache.filter((c) => c.health === 'dead').length;
+  const unknown = credsCache.length - alive - dead;
+  const hc = $('tok-health-chart');
+  if (hc) hc.innerHTML = credsCache.length
+    ? hbar([{ label: 'alive', value: alive, color: 'var(--green)' }, { label: 'dead', value: dead, color: 'var(--red)' }, { label: 'chưa rõ', value: unknown, color: 'var(--faint)' }])
+    : '<div class="empty">Chưa có credential</div>';
+  // Phân bố theo loại (agy / kiro / gweb…)
+  const byType = {};
+  for (const c of credsCache) byType[c.target] = (byType[c.target] || 0) + 1;
+  const tc = $('tok-type-chart');
+  if (tc) tc.innerHTML = Object.keys(byType).length
+    ? barRows(Object.entries(byType).map(([target, n]) => ({ target, n })).sort((x, y) => y.n - x.n), 'target', (x) => x.n, (x) => `${x.n}`)
+    : '<div class="empty">Chưa có credential</div>';
 }
 function renderTokens() {
   renderTokenStats();
@@ -1151,13 +1179,21 @@ $('cb-save').addEventListener('click', (e) => withSpin(e.currentTarget, async ()
 }));
 $('auto-preview').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
   const r = await api('/api/combos/auto/preview?variant=' + $('auto-variant').value);
+  // 4 chiều chấm điểm hiện bằng thanh — bảng toàn số % rất khó so sánh bằng mắt
+  const DIMS = [['health', 'sức khoẻ', 'var(--green)'], ['quota', 'hạn mức', 'var(--primary)'], ['latency', 'độ trễ', 'var(--purple)'], ['success', 'tỉ lệ ok', 'var(--amber)']];
   $('auto-rank').innerHTML = `
-    <div class="tablewrap"><table><thead><tr><th>#</th><th>Model</th><th>Điểm</th><th>Sức khoẻ</th><th>Quota</th><th>Độ trễ</th><th>Tỉ lệ OK</th></tr></thead><tbody>
-    ${(r.ranking || []).map((s, i) => `<tr><td>${i + 1}</td><td class="mono">${esc(s.model)}</td><td><b>${s.score.toFixed(3)}</b></td>
-      <td>${(s.detail.health * 100).toFixed(0)}%</td><td>${(s.detail.quota * 100).toFixed(0)}%</td>
-      <td>${(s.detail.latency * 100).toFixed(0)}%</td><td>${(s.detail.success * 100).toFixed(0)}%</td></tr>`).join('')}
-    </tbody></table></div>
-    <div class="faint" style="margin-top:6px">Thứ tự sẽ thử: ${(r.plan || []).map((t) => `<span class="chip">${esc(t.model)}</span>`).join(' → ')}</div>`;
+    <div class="rank-list">
+    ${(r.ranking || []).slice(0, 8).map((s, i) => `
+      <div class="rank-item">
+        <div class="rank-head"><span class="rank-no">${i + 1}</span><b class="mono">${esc(s.model)}</b><span class="rank-score">${(s.score * 100).toFixed(0)} điểm</span></div>
+        <div class="rank-dims">${DIMS.map(([k, lbl, col]) => `
+          <div class="rank-dim" title="${lbl}: ${(s.detail[k] * 100).toFixed(0)}%">
+            <span class="rank-dim-lbl">${lbl}</span>
+            <div class="ubar"><i style="width:${(s.detail[k] * 100).toFixed(0)}%;background:${col}"></i></div>
+          </div>`).join('')}</div>
+      </div>`).join('') || '<div class="empty">Chưa có dữ liệu xếp hạng</div>'}
+    </div>
+    <div class="faint" style="margin-top:10px">Thứ tự sẽ thử: ${(r.plan || []).map((t) => `<span class="chip">${esc(t.model)}</span>`).join(' → ')}</div>`;
 }));
 
 // ---------- CLI Tools ----------
