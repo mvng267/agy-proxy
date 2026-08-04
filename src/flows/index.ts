@@ -15,17 +15,22 @@ export const FLOWS: Record<FlowKey, FlowFn> = {
 };
 
 /**
- * Thứ tự pipeline cho 1 account — HIỆN TẠI 3 LUỒNG: antigravity + antigravity-cli + kiro.
- * Cả ba tự đăng nhập Google NGAY trong link OAuth (không cần flow google/gweb
+ * Thứ tự pipeline cho 1 account — 2 LUỒNG: antigravity + kiro.
+ * Cả hai tự đăng nhập Google NGAY trong link OAuth (không cần flow google/gweb
  * riêng, không dính cap login/24h của flow google). google & gweb để làm sau
  * (flow vẫn còn trong FLOWS, chạy tay được nếu cần).
  *
- * agycli đăng ký vào provider "Antigravity CLI" RIÊNG trong OmniRoute (slug "agy",
- * khác "antigravity") — OmniRoute tự cảnh báo provider này "không dành cho dùng
- * proxy/router, dùng nhiều dễ bị hạn chế/ban account". Bật theo yêu cầu, cân nhắc
- * theo dõi health/ban rate trước khi chạy đại trà.
+ * ĐÃ BỎ agycli khỏi pipeline — ĐO ĐƯỢC là nó KHÔNG thêm hạn mức:
+ *  - agy và agycli của CÙNG account trỏ về CÙNG projectId, cùng %, cùng giờ reset
+ *    (quota Antigravity gắn theo account/project, KHÔNG theo token);
+ *  - account khác nhau mới có project + quota khác nhau;
+ *  - pool gateway chỉ nạp credential target 'agy' (providers/agy.ts credentialTarget)
+ *    nên token agycli không hề tham gia xoay vòng.
+ * Đổi lại, chạy nó tốn GẤP ĐÔI lượt đăng nhập Google mỗi account → tăng rủi ro
+ * checkpoint, trong khi OmniRoute còn cảnh báo provider này "dùng nhiều dễ bị ban".
+ * Vẫn giữ trong FLOWS để chạy tay khi cần connection bên OmniRoute.
  */
-export const PIPELINE: FlowKey[] = ['agy', 'agycli', 'kiro'];
+export const PIPELINE: FlowKey[] = ['agy', 'kiro'];
 
 export async function runSingle(email: string, flow: FlowKey, opts?: { noProxy?: boolean }) {
   return runFlow(email, flow, FLOWS[flow], opts);
