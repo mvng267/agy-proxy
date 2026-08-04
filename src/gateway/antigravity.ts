@@ -103,6 +103,7 @@ export interface CallOpts {
  * (model "pro" tier chạy được, giống cách Antigravity Manager/AIClient2API xử lý).
  */
 export const MODELS: ModelInfo[] = [
+  // --- danh sách gốc (giữ nguyên id để không phá cấu hình/combo đã có) ---
   { id: 'gemini-3-pro-high', label: 'Gemini 3 Pro (High)', image: false, maxInput: 384_000 },
   { id: 'gemini-3-pro-low', label: 'Gemini 3 Pro (Low)', image: false, maxInput: 384_000 },
   { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)', image: false, maxInput: 384_000 },
@@ -113,6 +114,20 @@ export const MODELS: ModelInfo[] = [
   { id: 'gemini-3.1-flash-image', label: 'Gemini 3.1 Flash Image 🖼', image: true },
   { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', image: false, maxInput: 768_000 },
   { id: 'claude-opus-4-6-thinking', label: 'Claude Opus 4.6 (Thinking)', image: false, maxInput: 768_000 },
+  // --- bổ sung từ danh mục Antigravity CLI (ListModels của OmniRoute) ---
+  // Antigravity IDE và Antigravity CLI dùng CHUNG upstream cloudcode-pa và CHUNG
+  // 15 model, chỉ khác đường đăng nhập → gọi thẳng bằng account agy/ sẵn có.
+  // Đã gọi thử live: tất cả trả kết quả (trừ gpt-oss-120b-medium hết hạn mức account thử).
+  { id: 'gemini-3.6-flash-high', label: 'Gemini 3.6 Flash (High)', image: false, maxInput: 384_000 },
+  { id: 'gemini-3.6-flash-medium', label: 'Gemini 3.6 Flash (Medium)', image: false, maxInput: 384_000 },
+  { id: 'gemini-3.6-flash-low', label: 'Gemini 3.6 Flash (Low)', image: false, maxInput: 384_000 },
+  { id: 'gemini-3.1-pro-low', label: 'Gemini 3.1 Pro (Low)', image: false, maxInput: 384_000 },
+  { id: 'gemini-3.5-flash-high', label: 'Gemini 3.5 Flash (High)', image: false, maxInput: 384_000 },
+  { id: 'gemini-3.5-flash-extra-low', label: 'Gemini 3.5 Flash (Low)', image: false, maxInput: 384_000 },
+  { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite', image: false, maxInput: 384_000 },
+  { id: 'gemini-2.5-flash-thinking', label: 'Gemini 2.5 Flash Thinking', image: false, maxInput: 384_000 },
+  { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite', image: false, maxInput: 384_000 },
+  { id: 'gpt-oss-120b-medium', label: 'GPT-OSS 120B (Medium)', image: false, maxInput: 128_000 },
 ];
 
 /** Map model client → tên upstream cloudcode-pa (chỉ khi khác). */
@@ -121,7 +136,9 @@ const CLIENT_TO_UPSTREAM: Record<string, string> = {
   'gemini-3-pro-low': 'gemini-pro-agent',
   'gemini-3.1-pro-high': 'gemini-pro-agent',
   'gemini-3.1-pro-preview': 'gemini-pro-agent',
-  'gemini-3.5-flash-high': 'gemini-3.5-flash-low',
+  // Antigravity CLI gọi "Gemini 3.5 Flash (High)" bằng upstream gemini-3-flash-agent
+  // (đã gọi thử live OK). Trước đây map nhầm sang gemini-3.5-flash-low = bản Medium.
+  'gemini-3.5-flash-high': 'gemini-3-flash-agent',
 };
 
 export function resolveUpstreamModel(model: string): string {

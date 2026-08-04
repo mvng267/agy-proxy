@@ -94,7 +94,7 @@ Model **bắt buộc có prefix** (gọi id trần → 400 kèm gợi ý đúng)
 
 | Prefix | Nguồn | Model |
 |---|---|---|
-| `agy/` | Antigravity (188 account) | gemini-3-pro-high/low, gemini-3.1-pro-preview, gemini-3-flash, gemini-3.5-flash-low, gemini-2.5-flash/pro, gemini-3.1-flash-image, claude-sonnet-4-6, claude-opus-4-6-thinking |
+| `agy/` | Antigravity (188 account) | **20 model** — gemini-3-pro-high/low, gemini-3.1-pro-preview/low, gemini-3-flash, gemini-3.6-flash-high/medium/low, gemini-3.5-flash-high/low/extra-low, gemini-3.1-flash-lite, gemini-2.5-flash/pro/flash-thinking/flash-lite, gemini-3.1-flash-image, claude-sonnet-4-6, claude-opus-4-6-thinking, gpt-oss-120b-medium |
 | `kr/` | Kiro / AWS CodeWhisperer (147 account) | claude-sonnet-4, claude-3-7-sonnet, claude-haiku-4-5 |
 | `combo/<tên>` | Chuỗi model tự fallback | tạo ở trang **Combo** |
 | `auto`, `auto/fast\|quota\|stable` | Tự chấm điểm chọn đường mỗi request | không cần tạo |

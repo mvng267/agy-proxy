@@ -51,7 +51,9 @@ test('resolveUpstreamModel: map gemini-3-pro-* → gemini-pro-agent', () => {
   assert.equal(resolveUpstreamModel('gemini-3-pro-high'), 'gemini-pro-agent');
   assert.equal(resolveUpstreamModel('gemini-3-pro-low'), 'gemini-pro-agent');
   assert.equal(resolveUpstreamModel('gemini-3.1-pro-preview'), 'gemini-pro-agent');
-  assert.equal(resolveUpstreamModel('gemini-3.5-flash-high'), 'gemini-3.5-flash-low');
+  // Theo danh mục Antigravity CLI: "Gemini 3.5 Flash (High)" = upstream gemini-3-flash-agent.
+  // Trước đây map sang gemini-3.5-flash-low, nhưng đó là bản Medium → High bị hạ cấp âm thầm.
+  assert.equal(resolveUpstreamModel('gemini-3.5-flash-high'), 'gemini-3-flash-agent');
   assert.equal(resolveUpstreamModel('gemini-2.5-flash'), 'gemini-2.5-flash'); // không map
 });
 
