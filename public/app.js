@@ -30,7 +30,8 @@ function qbar(pct, label) { const p = pct == null ? 0 : pct; return `<div class=
 const remember = (k, def) => { try { const v = localStorage.getItem('vs_' + k); return v !== null ? JSON.parse(v) : def; } catch { return def; } };
 const store_ = (k, v) => { try { localStorage.setItem('vs_' + k, JSON.stringify(v)); } catch {} };
 async function withSpin(btn, fn) { if (!btn) return fn(); const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spin"></span>'; try { return await fn(); } finally { btn.disabled = false; btn.innerHTML = old; } }
-function confirmAct(msg) { return confirm(msg); }
+/** Thay confirm() native (phá dark theme) bằng dialog nội bộ. Trả Promise<boolean>. */
+function confirmAct(msg, opts = {}) { return askDialog({ title: opts.title || 'Xác nhận', message: msg, okText: opts.okText || 'Đồng ý', danger: opts.danger !== false }); }
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 function paginate(list, st) { const total = list.length; const pages = Math.max(1, Math.ceil(total / st.size)); if (st.page > pages) st.page = pages; if (st.page < 1) st.page = 1; const start = (st.page - 1) * st.size; return { rows: list.slice(start, start + st.size), total, pages }; }
 // ---- biểu đồ SVG thuần (responsive viewBox, theme-aware) ----
@@ -223,7 +224,7 @@ function setLogCollapsed(c) {
 }
 $('log-collapse')?.addEventListener('click', () => setLogCollapsed(true));
 $('btn-log-show')?.addEventListener('click', () => setLogCollapsed(false));
-$('btn-logout').addEventListener('click', async () => { if (!confirm('Đăng xuất?')) return; await api('/api/auth/logout', { method: 'POST', body: {} }); location.href = '/login'; });
+$('btn-logout').addEventListener('click', async () => { if (!await confirmAct('Đăng xuất khỏi dashboard?', { okText: 'Đăng xuất' })) return; await api('/api/auth/logout', { method: 'POST', body: {} }); location.href = '/login'; });
 function applyTheme(t) { document.documentElement.setAttribute('data-theme', t); localStorage.setItem('theme', t); $('btn-theme').innerHTML = icon(t === 'light' ? 'sun' : 'moon'); }
 function toggleTheme() { applyTheme((localStorage.getItem('theme') || 'dark') === 'dark' ? 'light' : 'dark'); }
 $('btn-theme').addEventListener('click', toggleTheme);
@@ -415,10 +416,10 @@ $('acc-filter').addEventListener('change', () => { accSt.page = 1; renderAccount
 async function runFlow(email, flow) { await api('/api/run', { method: 'POST', body: { email, flow, noProxy: noProxy() } }); toast(`Đã xếp ${flow} · ${email.split('@')[0]}`); }
 async function runPipeline(email) { const flows = selectedFlows(); if (!flows.length) return toast('Chọn ít nhất 1 luồng'); for (const f of flows) await api('/api/run', { method: 'POST', body: { email, flow: f, noProxy: noProxy() } }); toast(`Đã xếp ${flows.join('+')} · ${email.split('@')[0]}`); }
 async function setProxy(email, proxy) { await api('/api/accounts/' + encodeURIComponent(email) + '/proxy', { method: 'POST', body: { proxy } }); }
-async function delAccount(email) { if (!confirmAct('Xoá ' + email + '?')) return; await api('/api/accounts/' + encodeURIComponent(email), { method: 'DELETE' }); selected.delete(email); loadAccounts(); loadSummary(); }
+async function delAccount(email) { if (!await confirmAct('Xoá ' + email + '?')) return; await api('/api/accounts/' + encodeURIComponent(email), { method: 'DELETE' }); selected.delete(email); loadAccounts(); loadSummary(); }
 $('bulk-run').addEventListener('click', async () => { const flows = selectedFlows(); if (!flows.length) return toast('Chọn ít nhất 1 luồng'); for (const em of selected) for (const f of flows) await api('/api/run', { method: 'POST', body: { email: em, flow: f, noProxy: noProxy() } }); toast(`Đã xếp ${flows.join('+')} cho ${selected.size} account`); });
-$('bulk-del').addEventListener('click', async () => { if (!confirmAct(`Xoá ${selected.size} account?`)) return; for (const em of selected) await api('/api/accounts/' + encodeURIComponent(em), { method: 'DELETE' }); selected.clear(); loadAccounts(); loadSummary(); });
-$('bulk-proxy').addEventListener('click', async () => { const p = prompt('Label proxy gán cho account đã chọn (trống = bỏ gán):', proxyLabels[0] || ''); if (p === null) return; for (const em of selected) await setProxy(em, p); loadAccounts(); toast('Đã gán proxy'); });
+$('bulk-del').addEventListener('click', async () => { if (!await confirmAct(`Xoá ${selected.size} account?`)) return; for (const em of selected) await api('/api/accounts/' + encodeURIComponent(em), { method: 'DELETE' }); selected.clear(); loadAccounts(); loadSummary(); });
+$('bulk-proxy').addEventListener('click', async () => { const p = await askDialog({ title: 'Gán proxy hàng loạt', message: `Gán proxy cho ${selected.size} account đã chọn (để trống = bỏ gán)`, value: proxyLabels[0] || '', placeholder: 'ip:port:user:pass', okText: 'Gán' }); if (p === null) return; for (const em of selected) await setProxy(em, p); loadAccounts(); toast('Đã gán proxy'); });
 $('btn-retry').addEventListener('click', async () => { const flows = selectedFlows(); const r = await api('/api/retry-failed', { method: 'POST', body: { flows, noProxy: noProxy() } }); toast(`Chạy lại: xếp ${r.queued} job failed/cần-tay`); });
 $('btn-auto').addEventListener('click', async () => { reqNotify(); const flows = selectedFlows(); if (!flows.length) return toast('Chọn ít nhất 1 luồng'); const r = await api('/api/auto-run', { method: 'POST', body: { flows, noProxy: noProxy() } }); toast(`Auto Run (${flows.join('+')}): xếp ${r.queued} job`); });
 $('btn-stop').addEventListener('click', async () => { await api('/api/stop', { method: 'POST' }); toast('Đã dừng scheduler'); });
@@ -698,7 +699,7 @@ $('agy-regen-key').addEventListener('click', async () => { const r = await api('
 $('agy-save-cfg').addEventListener('click', async () => { await api('/api/gateway/config', { method: 'PATCH', body: { apiKey: $('agy-apikey').value.trim(), outboundProxy: $('agy-proxy').value.trim() } }); toast('Đã lưu cấu hình gateway'); });
 $('agy-strategy').addEventListener('click', async (e) => { const b = e.target.closest('button[data-s]'); if (!b) return; document.querySelectorAll('#agy-strategy button').forEach((x) => x.classList.remove('active')); b.classList.add('active'); await api('/api/gateway/config', { method: 'PATCH', body: { rotation: b.dataset.s } }); toast('Chiến lược: ' + b.textContent.trim()); });
 $('agy-all-on').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { await api('/api/gateway/accounts/bulk', { method: 'POST', body: { enabled: true } }); toast('Đã bật tất cả'); loadAgy(); }));
-$('agy-all-off').addEventListener('click', async (e) => { if (!confirmAct('Tắt tất cả account?')) return; await api('/api/gateway/accounts/bulk', { method: 'POST', body: { enabled: false } }); toast('Đã tắt tất cả'); loadAgy(); });
+$('agy-all-off').addEventListener('click', async (e) => { if (!await confirmAct('Tắt tất cả account?')) return; await api('/api/gateway/accounts/bulk', { method: 'POST', body: { enabled: false } }); toast('Đã tắt tất cả'); loadAgy(); });
 $('agy-goto-models')?.addEventListener('click', () => document.querySelector('[data-tab="models"]')?.click());
 // Check live: hiện danh sách chi tiết (lúc này chip mới có ý nghĩa vì đã có trạng thái thật)
 $('agy-check-models').addEventListener('click', (e) => withSpin(e.currentTarget, async () => { toast('Đang test model live…'); const r = await api('/api/gateway/models/check', { method: 'POST' }); if (r.models) { renderModelChips(r.models); $('agy-models').dataset.checked = '1'; $('agy-models').hidden = false; toast(`Check live qua ${r.account.split('@')[0]}: ${r.models.filter((m) => m.status === 'ok').length}/${r.models.length} ok`); } else toast('Lỗi: ' + (r.error || '')); }));
@@ -1128,7 +1129,7 @@ async function loadCombo() {
   }));
   document.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openComboModal(r.combos.find((c) => c.id === b.dataset.edit))));
   document.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
-    if (!confirmAct(`Xoá combo/${b.dataset.del}?`)) return;
+    if (!await confirmAct(`Xoá combo/${b.dataset.del}?`)) return;
     await api('/api/combos/' + b.dataset.del, { method: 'DELETE' });
     toast('Đã xoá'); loadCombo();
   }));
@@ -1270,7 +1271,7 @@ async function loadTools() {
     if (!list.length) {
       list = (r.tools || []).filter((t) => t.installed && !t.unsupported);
       if (!list.length) return toast('Không thấy tool nào đã cài');
-      if (!confirmAct(`Chưa tool nào bật. Bật ${list.length} tool đã cài (${list.map((t) => t.label).join(', ')}) với model ${model}?`)) return;
+      if (!await confirmAct(`Chưa tool nào bật. Bật ${list.length} tool đã cài (${list.map((t) => t.label).join(', ')}) với model ${model}?`)) return;
     }
     let ok = 0;
     const fail = [];
@@ -1285,7 +1286,7 @@ async function loadTools() {
   $('tools-bulk-off').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
     const list = (r.tools || []).filter((t) => t.configured || t.hasBackup);
     if (!list.length) return toast('Không có tool nào đang bật');
-    if (!confirmAct(`Tắt ${list.length} tool và trả mọi file cấu hình về như cũ?`)) return;
+    if (!await confirmAct(`Tắt ${list.length} tool và trả mọi file cấu hình về như cũ?`)) return;
     let ok = 0;
     for (const t of list) {
       const r2 = await api(`/api/tools/${t.id}/undo`, { method: 'POST', body: {} });
@@ -1325,7 +1326,7 @@ async function loadTools() {
     loadTools();
   })));
   document.querySelectorAll('[data-undo]').forEach((b) => b.addEventListener('click', async () => {
-    if (!confirmAct('Tắt và trả file cấu hình về như cũ?')) return;
+    if (!await confirmAct('Tắt và trả file cấu hình về như cũ?')) return;
     const r2 = await api(`/api/tools/${b.dataset.undo}/undo`, { method: 'POST', body: {} });
     toast(r2.detail || (r2.ok ? 'Đã tắt, trả về như cũ' : 'Không tắt được'));
     loadTools();
@@ -1390,7 +1391,7 @@ document.querySelectorAll('#view-settings [data-save]').forEach((b) =>
   b.addEventListener('click', (e) => withSpin(e.currentTarget, () => saveSettingsPane(e.currentTarget))),
 );
 $('s-restart').addEventListener('click', async (e) => {
-  if (!confirmAct('Khởi động lại tiến trình? Dashboard sẽ mất kết nối vài giây.')) return;
+  if (!await confirmAct('Khởi động lại tiến trình? Dashboard sẽ mất kết nối vài giây.')) return;
   await api('/api/system/restart', { method: 'POST', body: {} }).catch(() => {});
   toast('Đang khởi động lại…');
   setTimeout(() => location.reload(), 4000);
@@ -1431,7 +1432,7 @@ async function loadSessions() {
   }));
 }
 $('sess-revoke-others').addEventListener('click', async () => {
-  if (!confirmAct('Đăng xuất tất cả thiết bị khác?')) return;
+  if (!await confirmAct('Đăng xuất tất cả thiết bị khác?')) return;
   const r = await api('/api/auth/sessions/revoke', { method: 'POST', body: { others: true } });
   toast(`Đã đăng xuất ${r.revoked} phiên khác`); loadSessions();
 });
@@ -1484,16 +1485,76 @@ $('bk-file').addEventListener('change', (e) => {
 $('bk-import').addEventListener('click', (e) => withSpin(e.currentTarget, async () => {
   if (!backupData) return toast('Chọn file backup trước');
   const mode = $('bk-mode').value;
-  if (!confirmAct(`Phục hồi (${mode === 'replace' ? 'THAY THẾ toàn bộ' : 'gộp'})? Dữ liệu hiện tại sẽ bị ghi đè.`)) return;
+  if (!await confirmAct(`Phục hồi (${mode === 'replace' ? 'THAY THẾ toàn bộ' : 'gộp'})? Dữ liệu hiện tại sẽ bị ghi đè.`)) return;
   const r = await api('/api/backup/import', { method: 'POST', body: { data: backupData, mode } });
   if (r.ok) { toast(`Đã phục hồi: ${r.restored.accounts} account · ${r.restored.proxies} proxy · ${r.restored.credentials} token`); loadProxies(); loadAccounts(); loadSummary(); loadTokens(); $('bk-import-row').style.display = 'none'; $('bk-preview').innerHTML = ''; $('bk-file').value = ''; }
   else toast('Lỗi phục hồi: ' + (r.error || ''));
 }));
 
 // ---------- account detail ----------
-function openModal(id) { $(id).classList.add('open'); }
-function closeModal(id) { $(id).classList.remove('open'); }
-document.querySelectorAll('.modal-bg').forEach((m) => m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('open'); }));
+/** Dialog: giữ focus bên trong, trả focus về chỗ cũ khi đóng, ESC để thoát. */
+let lastFocused = null;
+function openModal(id) {
+  const m = $(id); if (!m) return;
+  lastFocused = document.activeElement;
+  m.classList.add('open');
+  m.setAttribute('role', 'dialog');
+  m.setAttribute('aria-modal', 'true');
+  // focus phần tử đầu tiên bên trong để bàn phím dùng được ngay
+  setTimeout(() => m.querySelector('input,select,textarea,button')?.focus(), 30);
+}
+function closeModal(id) {
+  const m = $(id); if (!m) return;
+  m.classList.remove('open');
+  m.removeAttribute('aria-modal');
+  lastFocused?.focus?.();
+  lastFocused = null;
+}
+document.querySelectorAll('.modal-bg').forEach((m) => m.addEventListener('click', (e) => { if (e.target === m) closeModal(m.id); }));
+document.addEventListener('keydown', (e) => {
+  const open = document.querySelector('.modal-bg.open');
+  if (!open) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeModal(open.id); return; }
+  if (e.key !== 'Tab') return;
+  // Focus trap: Tab ở phần tử cuối quay về đầu và ngược lại
+  const f = [...open.querySelectorAll('a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex="-1"])')].filter((x) => x.offsetParent);
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
+
+/**
+ * Hộp thoại xác nhận / nhập liệu thay cho confirm()/prompt() native —
+ * native widget dùng giao diện OS nên phá hoàn toàn dark theme.
+ */
+function askDialog({ title, message, value, placeholder, okText = 'Đồng ý', danger = false }) {
+  return new Promise((resolve) => {
+    const isPrompt = value !== undefined;
+    const bg = el('div'); bg.className = 'modal-bg open'; bg.setAttribute('role', 'dialog'); bg.setAttribute('aria-modal', 'true');
+    bg.innerHTML = `<div class="modal" style="max-width:420px">
+      <div class="head"><h3>${esc(title || 'Xác nhận')}</h3></div>
+      <div class="body">
+        ${message ? `<p style="margin:0 0 12px">${esc(message)}</p>` : ''}
+        ${isPrompt ? `<input id="__ask-input" value="${esc(value)}" placeholder="${esc(placeholder || '')}" />` : ''}
+      </div>
+      <div class="foot">
+        <button class="ghost" data-x>Huỷ</button>
+        <button class="${danger ? 'danger' : 'primary'}" data-ok>${esc(okText)}</button>
+      </div></div>`;
+    document.body.appendChild(bg);
+    const prev = document.activeElement;
+    const done = (v) => { bg.remove(); prev?.focus?.(); resolve(v); };
+    bg.querySelector('[data-x]').onclick = () => done(isPrompt ? null : false);
+    bg.querySelector('[data-ok]').onclick = () => done(isPrompt ? bg.querySelector('#__ask-input').value : true);
+    bg.onclick = (e) => { if (e.target === bg) done(isPrompt ? null : false); };
+    bg.onkeydown = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); done(isPrompt ? null : false); }
+      if (e.key === 'Enter' && isPrompt) { e.preventDefault(); done(bg.querySelector('#__ask-input').value); }
+    };
+    setTimeout(() => (bg.querySelector('#__ask-input') || bg.querySelector('[data-ok]')).focus(), 30);
+  });
+}
 async function showDetail(email) {
   const a = accounts.find((x) => x.email === email); const cr = await api('/api/credentials'); const creds = cr.credentials.filter((c) => c.email === email);
   $('detail-title').textContent = email;
