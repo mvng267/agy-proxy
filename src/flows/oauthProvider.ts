@@ -88,9 +88,9 @@ async function getAuthUrl(
     const msg = e instanceof Error ? e.message : String(e);
     // gcli (gemini-cli) dùng client/scope KHÁC hẳn → không tự dựng thay được.
     if (target === 'gcli') throw new Error(`OmniRoute không sẵn sàng (${msg}) — gemini-cli bắt buộc cần OmniRoute`);
-    // agy và agycli DÙNG CHUNG client_id + endpoint Google, chỉ khác slug provider
-    // phía OmniRoute (nơi đăng ký connection). Nên thiếu OmniRoute vẫn lấy được
-    // refresh_token thật — đã kiểm chứng: refresh + discoverProject + gọi model đều OK.
+    // agy dùng chung client_id + endpoint Google với Antigravity CLI, nên thiếu
+    // OmniRoute vẫn lấy được refresh_token thật — đã kiểm chứng: refresh +
+    // discoverProject + gọi model đều OK.
     ctx.log(`OmniRoute lỗi (${msg}) → tự dựng authUrl, vẫn lấy refresh_token`, 'warn');
     return { ...localAuthUrl(), viaOmni: false };
   }
@@ -158,7 +158,7 @@ export async function pickAccountAndConsent(ctx: RunContext, page: Page): Promis
   }
 }
 
-export function makeOAuthFlow(provider: string, target: 'agy' | 'agycli' | 'gcli') {
+export function makeOAuthFlow(provider: string, target: 'agy' | 'gcli') {
   return async function oauthFlow(ctx: RunContext): Promise<void> {
     const { page, account } = ctx;
 
@@ -266,40 +266,6 @@ export function makeOAuthFlow(provider: string, target: 'agy' | 'agycli' | 'gcli
       return;
     }
 
-    if (target === 'agycli') {
-      // "Antigravity CLI" — provider OmniRoute RIÊNG (slug "agy", khác "antigravity" ở trên),
-      // dùng chung client_id Google nhưng đăng ký connection dưới profile Harness/CLI.
-      // Chỉ đăng ký OmniRoute (round 1), KHÔNG lấy thêm raw refresh_token như agy IDE.
-      // Không có OmniRoute → tự exchange lấy refresh_token THẬT (agycli dùng chung
-      // client_id + endpoint Google với agy), thay vì bỏ cuộc.
-      if (!auth.viaOmni) {
-        const refreshToken = await exchangeAntigravityToken(capturedCode, auth.redirectUri);
-        store.upsertCredential({
-          email: account.email, target: 'agycli', value: refreshToken,
-          expires_at: '', omniroute_connection_id: '', updated_at: '',
-        });
-        ctx.log(`Đã lưu refresh_token Antigravity CLI cho ${account.email} (${refreshToken.slice(0, 8)}…) — chưa đăng ký OmniRoute`);
-        return;
-      }
-      ctx.log('Đăng ký vào OmniRoute (Antigravity CLI)');
-      await omniroute.oauthExchange(provider, {
-        code: capturedCode,
-        state: capturedState ?? auth.state,
-        codeVerifier: auth.codeVerifier,
-        redirectUri: auth.redirectUri,
-      });
-      const conn = await omniroute.findConnection(provider, account.email).catch(() => undefined);
-      store.upsertCredential({
-        email: account.email,
-        target: 'agycli',
-        value: 'stored_in_omniroute',
-        expires_at: '',
-        omniroute_connection_id: conn?.id ?? '',
-        updated_at: '',
-      });
-      ctx.log(`Đã đăng ký Antigravity CLI cho ${account.email}${conn?.id ? ' (' + conn.id.slice(0, 8) + ')' : ''}`);
-      return;
-    }
 
     ctx.log('Đã bắt được code — gọi OmniRoute exchange');
     const state = capturedState ?? auth.state;
@@ -324,5 +290,4 @@ export function makeOAuthFlow(provider: string, target: 'agy' | 'agycli' | 'gcli
 }
 
 export const antigravityFlow = makeOAuthFlow('antigravity', 'agy');
-export const antigravityCliFlow = makeOAuthFlow('agy', 'agycli');
 export const geminiCliFlow = makeOAuthFlow('gemini-cli', 'gcli');

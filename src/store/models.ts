@@ -1,12 +1,11 @@
-export type FlowKey = 'google' | 'gweb' | 'agy' | 'agycli' | 'gcli' | 'kiro';
+export type FlowKey = 'google' | 'gweb' | 'agy' | 'gcli' | 'kiro';
 
-export const FLOW_KEYS: FlowKey[] = ['google', 'gweb', 'agy', 'agycli', 'gcli', 'kiro'];
+export const FLOW_KEYS: FlowKey[] = ['google', 'gweb', 'agy', 'gcli', 'kiro'];
 
 export const FLOW_LABEL: Record<FlowKey, string> = {
   google: 'Google Login',
   gweb: 'Gemini Web',
   agy: 'Antigravity',
-  agycli: 'Antigravity CLI',
   gcli: 'Gemini CLI',
   kiro: 'Kiro',
 };
@@ -25,6 +24,8 @@ export interface Account {
   status_google: TargetStatus;
   status_gweb: TargetStatus;
   status_agy: TargetStatus;
+  /** DI SẢN: luồng agycli đã bỏ (không thêm hạn mức — xem flows/index.ts).
+   *  Giữ cột để accounts.csv cũ đọc không vỡ; luôn 'new', không còn ghi vào. */
   status_agycli: TargetStatus;
   status_gcli: TargetStatus;
   status_kiro: TargetStatus;

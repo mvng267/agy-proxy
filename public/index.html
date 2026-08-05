@@ -117,7 +117,6 @@
           <div class="ph-actions">
             <span class="flowpick" title="Chọn luồng khi Full / Auto Run">
               <label title="Luồng Antigravity"><input type="checkbox" class="fp" value="agy" checked /> Antigravity</label>
-              <label title="Luồng Antigravity CLI — KHÔNG thêm hạn mức (chung quota với Antigravity), chỉ bật khi cần connection bên OmniRoute"><input type="checkbox" class="fp" value="agycli" /> Antigravity CLI</label>
               <label title="Luồng Kiro"><input type="checkbox" class="fp" value="kiro" checked /> Kiro</label>
             </span>
             <label class="switch" title="Chạy KHÔNG proxy (IP hiện tại)"><input type="checkbox" id="no-proxy" /><span class="track"></span> Không proxy</label>
@@ -137,9 +136,8 @@
             <div class="search"><svg class="ic search-ic"><use href="#i-search"/></svg><input id="acc-search" placeholder="Tìm email…  (phím /)" title="Tìm theo email" /></div>
             <select id="acc-filter" class="w-auto" title="Lọc theo trạng thái">
               <option value="">Tất cả trạng thái</option>
-              <option value="both-ok">✓ Đủ cả 3 (agy + agycli + kiro)</option>
+              <option value="both-ok">✓ Đủ cả 2 (agy + kiro)</option>
               <option value="miss-agy">Thiếu Antigravity</option>
-              <option value="miss-agycli">Thiếu Antigravity CLI</option>
               <option value="miss-kiro">Thiếu Kiro</option>
               <option value="new">Còn "new"</option>
               <option value="failed">Có failed</option>
@@ -150,9 +148,9 @@
           </div>
           <div class="tablewrap">
             <table>
-              <thead><tr>
+              <thead><tr id="acc-head">
                 <th style="width:34px"><input type="checkbox" id="check-all" title="Chọn tất cả (trang này)" /></th>
-                <th>Email</th><th class="col-lo">Proxy</th><th>Antigravity</th><th class="col-mid">Antigravity CLI</th><th>Kiro</th><th class="act-h act">Điều khiển</th>
+                <th>Email</th><th class="col-lo">Proxy</th><!-- cột flow sinh động từ FLOWS (app.js) --><th class="act-h act">Điều khiển</th>
               </tr></thead>
               <tbody id="acc-body"></tbody>
             </table>

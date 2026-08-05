@@ -6,7 +6,7 @@ import { loginsLast24h, loginsLast24hByProxy } from '../store/db.js';
 import { emitRun } from '../events.js';
 import { rand, sleep } from '../browser/human.js';
 
-const LOGIN_FLOWS: FlowKey[] = ['google', 'agy', 'agycli', 'kiro'];
+const LOGIN_FLOWS: FlowKey[] = ['google', 'agy', 'kiro'];
 
 /**
  * Scheduler: đảm bảo CHỈ 1 browser chạy tại một thời điểm (tuần tự tuyệt đối),

@@ -2,14 +2,13 @@ import type { FlowKey } from '../store/models.js';
 import { runFlow, type FlowFn } from './runner.js';
 import { googleLoginFlow } from './googleLogin.js';
 import { geminiWebFlow } from './geminiWeb.js';
-import { antigravityFlow, antigravityCliFlow, geminiCliFlow } from './oauthProvider.js';
+import { antigravityFlow, geminiCliFlow } from './oauthProvider.js';
 import { kiroFlow } from './kiro.js';
 
 export const FLOWS: Record<FlowKey, FlowFn> = {
   google: googleLoginFlow,
   gweb: geminiWebFlow,
   agy: antigravityFlow,
-  agycli: antigravityCliFlow,
   gcli: geminiCliFlow,
   kiro: kiroFlow,
 };
