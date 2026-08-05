@@ -891,9 +891,28 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       store.setCredentialHealth(a.email, 'agy', 'alive');
       return { alive: true, ms: Date.now() - t0 };
     } catch (e: any) {
-      a.health = 'dead';
-      store.setCredentialHealth(a.email, 'agy', 'dead');
-      return { alive: false, ms: Date.now() - t0, detail: String(e?.message ?? e).slice(0, 120) };
+      /**
+       * `dead` LOẠI ACCOUNT VĨNH VIỄN khỏi pool (xem pool.candidates) và không có đường tự
+       * phục hồi — chỉ người dùng test lại thủ công mới gỡ được. Trước đây MỌI lỗi refresh
+       * đều đánh dead, nên một đợt mạng chập/429 thoáng qua là mất sạch pool: đo thật thấy
+       * 180/201 account bị dead mà test lại thì 5/5 sống, refresh chỉ mất 64-207ms.
+       *
+       * Chỉ dead khi Google nói rõ token KHÔNG còn dùng được (invalid_grant / revoked /
+       * 400-401). Lỗi tạm thời (429, 5xx, timeout, mạng) → cooldown ngắn rồi thử lại.
+       */
+      // refreshAccessToken ném Error dạng `refresh token failed (400): {...}` — KHÔNG gắn
+      // e.status, nên phải đọc mã từ chính message.
+      const msg = String(e?.message ?? e);
+      const code = Number(/refresh token failed \((\d+)\)/.exec(msg)?.[1] ?? 0);
+      const permanent = /invalid_grant|invalid_client|unauthorized_client|revoked|token has been expired/i.test(msg)
+        || code === 400 || code === 401;
+      if (permanent) {
+        a.health = 'dead';
+        store.setCredentialHealth(a.email, 'agy', 'dead');
+      } else {
+        a.cooldownUntil = Date.now() + 60_000;
+      }
+      return { alive: false, ms: Date.now() - t0, detail: msg.slice(0, 120) };
     }
   }
 
