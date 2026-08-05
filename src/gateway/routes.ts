@@ -521,10 +521,15 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       }
       const t0 = Date.now();
       const plabel = proxyLabelOf(ctx.account);
+      // Kích thước prompt + số tool đi kèm mọi dòng req: khi 429 hàng loạt, đây là thứ
+      // duy nhất phân biệt được request của client thật với request thử nghiệm — không có
+      // nó thì log chỉ nói "đổi account" mà không cho biết request nào gây ra.
+      const promptKB = Math.round(JSON.stringify(messages).length / 1024);
+      const nTools = opts.tools?.length ?? 0;
       emitGw({
         kind: 'req', account: ctx.account.email, model: labelModel, proxy: plabel,
         endpoint: opts.endpoint ?? '/proxy/v1', attempt: attempt + 1,
-        msg: `→ ${labelModel} · ${ctx.account.email}${stream ? ' (stream)' : ''} · proxy:${plabel}`,
+        msg: `→ ${labelModel} · ${ctx.account.email}${stream ? ' (stream)' : ''} · ${promptKB}KB/${nTools}tool · proxy:${plabel}`,
       });
       try {
         if (stream) {
