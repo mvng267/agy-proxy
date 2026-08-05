@@ -353,7 +353,11 @@ td.email { font-weight: 500; }
 td.mono { font-family: var(--mono); font-size: var(--text-xs); color: var(--muted); }
 /* action cell: nút inline thẳng hàng, không kéo dãn chiều cao dòng */
 /* Ghim cột hành động bên phải — trước đây nút bị cắt mất ở mép, phải cuộn ngang mới bấm được */
-td.act { white-space: nowrap; position: sticky; right: 0; background: var(--card); box-shadow: -8px 0 12px -8px var(--overlay); }
+td.act { white-space: nowrap; position: sticky; right: 0; background: var(--card); box-shadow: -8px 0 12px -8px var(--overlay); z-index: 1; }
+/* `position:sticky` tạo stacking context riêng cho MỖI ô → menu của dòng trên bị dòng
+   dưới che dù z-index cao. Nâng cả ô (và dòng) khi menu đang mở. */
+td.act:has(.dd.open) { z-index: 40; }
+tbody tr:has(.dd.open) { position: relative; z-index: 40; }
 thead th.act { position: sticky; right: 0; background: var(--card-2); z-index: 2; }
 td.act button { vertical-align: middle; }
 td.act button + button { margin-left: 6px; }

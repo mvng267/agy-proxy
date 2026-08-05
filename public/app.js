@@ -1089,10 +1089,12 @@ $('models-check').addEventListener('click', (e) => withSpin(e.currentTarget, asy
   const st = {};
   for (const m of r.models || []) st[m.id] = m;
   modelsCache = modelsCache.map((m) => ({ ...m, ...(st[m.id] || {}) }));
-  const byProv = {};
-  for (const m of modelsCache) (byProv[m.provider] ??= []).push(m);
-  for (const [pid, list] of Object.entries(byProv)) {
-    const el2 = $('mg-' + pid);
+  // Nhóm giờ gom theo provider + BỂ (id dạng `mg-agy-gemini`), không còn chỉ provider
+  // → phải dựng lại đúng khoá, nếu không chỉ nhóm Kiro khớp và 20 chip agy/ không cập nhật.
+  const groups = {};
+  for (const m of modelsCache) (groups[m.bucket ? `${m.provider}-${m.bucket}` : m.provider] ??= []).push(m);
+  for (const [key, list] of Object.entries(groups)) {
+    const el2 = $('mg-' + key);
     if (el2) el2.innerHTML = list.map(modelChip).join('');
   }
   wireModelChips();
