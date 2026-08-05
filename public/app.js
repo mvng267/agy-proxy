@@ -394,8 +394,12 @@ function renderAccounts() {
       ${FLOWS.map((f) => `<td class="${f.cls || ''}">${badge(a[f.col], a.email, f.key)}</td>`).join('')}
       <td class="act">
         <button class="sm primary" onclick="runPipeline('${a.email}')" title="Chạy luồng đã chọn">${icon('play')} Full</button>
-        <button class="sm icon" onclick="showDetail('${a.email}')" title="Chi tiết + credential">${icon('info')}</button>
-        <button class="sm icon danger" onclick="delAccount('${a.email}')" title="Xoá account">${icon('trash')}</button>
+        <span class="dd"><button class="sm icon" data-dd title="Thao tác khác">${icon('more')}</button>
+          <div class="dd-menu">
+            <button class="dd-item" onclick="showDetail('${a.email}')">${icon('info')} Chi tiết + credential</button>
+            <div class="dd-sep"></div>
+            <button class="dd-item danger" onclick="delAccount('${a.email}')">${icon('trash')} Xoá account</button>
+          </div></span>
       </td>`;
     body.appendChild(tr);
   }
@@ -1492,6 +1496,25 @@ $('bk-import').addEventListener('click', (e) => withSpin(e.currentTarget, async 
 }));
 
 // ---------- account detail ----------
+/**
+ * Dropdown menu: `<span class="dd"><button data-dd>…</button><div class="dd-menu">…</div></span>`
+ * Đóng khi bấm ra ngoài / ESC / chọn 1 mục. Ủy quyền sự kiện nên hoạt động cả với
+ * nội dung render động (bảng vẽ lại liên tục).
+ */
+document.addEventListener('click', (e) => {
+  const trigger = e.target.closest('[data-dd]');
+  const inMenu = e.target.closest('.dd-menu');
+  document.querySelectorAll('.dd.open').forEach((d) => {
+    if (trigger && d.contains(trigger)) return;      // đang bấm chính nút của nó
+    if (inMenu && d.contains(inMenu)) { d.classList.remove('open'); return; } // chọn xong thì đóng
+    d.classList.remove('open');
+  });
+  if (trigger) { e.preventDefault(); trigger.closest('.dd')?.classList.toggle('open'); }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.querySelectorAll('.dd.open').forEach((d) => d.classList.remove('open'));
+});
+
 /** Dialog: giữ focus bên trong, trả focus về chỗ cũ khi đóng, ESC để thoát. */
 let lastFocused = null;
 function openModal(id) {
