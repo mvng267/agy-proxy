@@ -468,10 +468,16 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     const genArgs = { generationConfig: opts.generationConfig, tools: opts.tools };
     const avail = pool.candidates(Date.now(), provider).length;
     // Lỗi thật (5xx/mạng) chỉ thử 3 account. Nhưng account HẾT HẠN MỨC thì bị cooldown
-    // ngay khi report → bỏ qua rất rẻ, nên không tính vào hạn thử (tối đa 12 lần bỏ qua).
+    // ngay khi report → bỏ qua rất rẻ, nên không tính vào hạn thử.
     // Cần thiết vì pool Kiro có ~40% account đã cạn hạn mức tháng.
+    //
+    // Ngân sách skip cũ là 12: khi Google chặn tốc độ DIỆN RỘNG, hàng chục account liên
+    // tiếp cùng trả `stream 429` → cạn ngân sách rồi ném lỗi ra client DÙ pool còn ~190
+    // account khoẻ. Đo thực tế: 18 request stream song song → 1 lần rò 429 ra ngoài.
+    // Mỗi lần bỏ qua chỉ tốn 1 vòng pick (account bị cooldown ngay, không gọi mạng lại),
+    // nên nới lên 32 vẫn rẻ mà nuốt được đợt 429 dài hơn nhiều.
     const maxTry = Math.min(3, Math.max(1, avail));
-    const maxSkip = Math.min(12, avail);
+    const maxSkip = Math.min(32, avail);
     let lastErr: any;
     let tries = 0;
     let skips = 0;
