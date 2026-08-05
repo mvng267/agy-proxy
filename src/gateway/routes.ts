@@ -883,12 +883,20 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   // ---------------- Test lẻ (còn sống?) ----------------
   async function testAccount(a: PoolAccount): Promise<{ alive: boolean; ms: number; detail?: string }> {
     const t0 = Date.now();
+    // Target phải theo ĐÚNG provider của account. Hard-code 'agy' khiến test một account
+    // Kiro ghi health vào credential 'agy' cùng email (nếu có) — sai account, và bản thân
+    // account Kiro thì không bao giờ được cập nhật.
+    const target = PROVIDERS[a.provider].credentialTarget;
     try {
       const dispatcher = dispatcherFor(a);
-      const tok = await refreshAccessToken(a.refreshToken, dispatcher);
-      a.token = tok;
+      // Kiro không dùng OAuth Google — ensureReady() của provider mới là đường đúng.
+      if (a.provider === 'agy') {
+        a.token = await refreshAccessToken(a.refreshToken, dispatcher);
+      } else {
+        await ensureReady(a, dispatcher);
+      }
       a.health = 'alive';
-      store.setCredentialHealth(a.email, 'agy', 'alive');
+      store.setCredentialHealth(a.email, target, 'alive');
       return { alive: true, ms: Date.now() - t0 };
     } catch (e: any) {
       /**
@@ -908,7 +916,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         || code === 400 || code === 401;
       if (permanent) {
         a.health = 'dead';
-        store.setCredentialHealth(a.email, 'agy', 'dead');
+        store.setCredentialHealth(a.email, target, 'dead');
       } else {
         a.cooldownUntil = Date.now() + 60_000;
       }
@@ -977,7 +985,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         if (m === 'token' || m === 'both') {
           const r = await testAccount(a);
           emitCheck(a.email, 'token', r.alive ? 'alive' : 'dead', r.alive ? 'info' : 'warn', i, total);
-          if (!r.alive) { await new Promise((r) => setTimeout(r, 250)); continue; } // token chết thì khỏi check live
+          if (!r.alive) { await new Promise((r) => setTimeout(r, 1200)); continue; } // token chết thì khỏi check live
         }
         if (m === 'live' || m === 'both') {
           const r = await checkLiveAccount(a);
@@ -986,7 +994,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         } else if (m === 'token') {
           okc += a.health === 'alive' ? 1 : 0;
         }
-        await new Promise((r) => setTimeout(r, 300));
+        await new Promise((r) => setTimeout(r, 1200)); // xem ghi chú nhịp ở test-bulk
       }
       savePersist();
       log('', 'info', `Check ${m} xong: ${okc}/${total} ok`);
@@ -1006,9 +1014,13 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         i++;
         const r = await testAccount(a);
         emitCheck(a.email, 'token', r.alive ? 'alive' : 'dead', r.alive ? 'info' : 'warn', i, total);
-        await new Promise((r) => setTimeout(r, 300));
+        // 300ms × 400 account = Google chặn tốc độ endpoint refresh, gần như mọi account
+        // sau vài chục cái đầu đều fail → bulk test tự tay giết pool. Đo thật: chạy bulk
+        // không gỡ được cái nào, trong khi test lẻ (giãn ~1.2s) thì 100% hồi sinh.
+        await new Promise((r) => setTimeout(r, 1200));
       }
       savePersist();
+      log('', 'info', `Test token xong: ${total} account`);
     })().catch(() => {});
     return { queued: total };
   });
