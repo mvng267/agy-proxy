@@ -90,6 +90,8 @@ export interface ReportInfo {
   completionTokens?: number;
   status?: number; // HTTP status khi lỗi
   err?: string;
+  /** Google bảo chờ bao lâu (RetryInfo.retryDelay / Retry-After). Có thì cooldown đúng bằng đó. */
+  retryAfterMs?: number;
 }
 
 export class NoAccountError extends Error {
@@ -242,7 +244,15 @@ export class Pool {
       const quota = monthly || info.status === 429 || /quota|exhaust|resource_exhausted/i.test(info.err ?? '');
       if (quota) {
         // hết hạn mức tháng → nghỉ dài (mặc định 12h) thay vì cooldown ngắn
-        acc.cooldownUntil = now + (monthly ? 12 * 3600 : config.gateway.cooldownSec) * 1000;
+        let ms = (monthly ? 12 * 3600 : config.gateway.cooldownSec) * 1000;
+        // Google nói rõ chờ bao lâu thì NGHE THEO — chặn tốc độ theo phút thường chỉ
+        // vài chục giây, cooldown cứng (mặc định 180s) parked account lâu hơn cần thiết
+        // và làm pool co lại vô ích. Chỉ áp cho rate-limit, KHÔNG áp cho hết hạn mức tháng.
+        // Kẹp [5s, cooldownSec] để giá trị lạ từ upstream không phá logic xoay account.
+        if (!monthly && info.retryAfterMs != null && info.retryAfterMs > 0) {
+          ms = Math.min(Math.max(info.retryAfterMs, 5_000), ms);
+        }
+        acc.cooldownUntil = now + ms;
         acc.liveStatus = 'quota';
       }
     }

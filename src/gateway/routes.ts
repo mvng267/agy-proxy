@@ -546,7 +546,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       } catch (e: any) {
         lastErr = e;
         const ms = Date.now() - t0;
-        pool.report(ctx.account, { ok: false, status: e?.status, err: e?.message });
+        pool.report(ctx.account, { ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs });
         afterCall(ctx.account, labelModel, { ok: false, ms });
         const outOfQuota = e?.status === 402 || e?.status === 429 || /MONTHLY_REQUEST_COUNT|quota|exhaust/i.test(String(e?.message ?? ''));
         // Prompt quá dài KHÔNG phụ thuộc account — thử account khác chỉ tốn thời gian
@@ -764,7 +764,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       };
     } catch (e: any) {
       const ms = Date.now() - t0;
-      pool.report(ctx.account.email, { ok: false, status: e?.status, err: e?.message });
+      pool.report(ctx.account.email, { ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs });
       afterCall(ctx.account, model, { ok: false, ms });
       emitGw({ kind: 'err', account: ctx.account.email, model, ms, status: e?.status, msg: `← ✗ ${e?.status ?? ''} ${String(e?.message ?? e).slice(0, 100)}` });
       return reply.code(502).send({ ok: false, account: ctx.account.email, error: e?.message ?? String(e) });

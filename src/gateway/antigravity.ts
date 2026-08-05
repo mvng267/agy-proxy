@@ -16,6 +16,20 @@ const CONTROL_UA = 'antigravity/1.104.0 google-api-nodejs-client/10.3.0';
 const GOOG_API_CLIENT = 'gl-node/22.21.1';
 const API_VERSION = 'v1internal';
 
+/**
+ * Rút thời gian chờ Google yêu cầu từ 429/5xx.
+ * Nguồn: header `Retry-After`, hoặc `RetryInfo.retryDelay` trong body ("34s", "1m30s").
+ * Antigravity thường KHÔNG gửi Retry-After → trả undefined, nơi gọi tự cooldown mặc định.
+ */
+export function parseRetryAfterMs(headerVal: string | null, body: string): number | undefined {
+  const raw = (headerVal || body.match(/"retryDelay"\s*:\s*"([^"]+)"/)?.[1] || '').trim();
+  if (!raw) return undefined;
+  if (/^\d+$/.test(raw)) return Number(raw) * 1000; // Retry-After dạng số giây
+  const m = /^(?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?$/.exec(raw);
+  if (!m || !(m[1] || m[2] || m[3])) return undefined;
+  return (Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0)) * 1000;
+}
+
 /** Base host thử lần lượt khi lỗi mạng/429. */
 export const BASE_HOSTS = [
   'https://cloudcode-pa.googleapis.com',
@@ -227,9 +241,10 @@ async function apiCall(accessToken: string, method: string, body: unknown, o: Ap
       const text = await res.text();
       if (!res.ok) {
         const err = new Error(`${method} ${res.status}: ${text.slice(0, 300)}`) as Error & {
-          status?: number;
+          status?: number; retryAfterMs?: number;
         };
         err.status = res.status;
+        err.retryAfterMs = parseRetryAfterMs(res.headers.get('retry-after'), text);
         // 429/5xx → thử host kế; 4xx khác → ném ngay
         if (res.status === 429 || res.status >= 500) {
           lastErr = err;
@@ -550,8 +565,22 @@ export async function* generateStream(
         // PHẢI gắn status: pool đọc e.status để biết account hết hạn mức mà cooldown
         // + đổi account. Thiếu nó thì stream 429 chỉ báo lỗi thẳng cho client, trong
         // khi non-stream cùng tình huống lại xoay account bình thường.
-        const e = new Error(`stream ${res.status}`) as Error & { status?: number };
+        //
+        // Đọc body: trước đây vứt hết nên log chỉ có "stream 429", không phân biệt được
+        // hết hạn mức NGÀY với chặn tốc độ THEO PHÚT (hai thứ khác hẳn nhau về cách xử lý).
+        // Google trả RESOURCE_EXHAUSTED kèm quotaId/quotaMetric trong body; riêng
+        // Antigravity thường KHÔNG có header Retry-After nên vẫn phải tự cooldown.
+        const raw = await res.text().catch(() => '');
+        const retryAfterMs = parseRetryAfterMs(res.headers.get('retry-after'), raw);
+        const quotaId = raw.match(/"quotaId"\s*:\s*"([^"]+)"/)?.[1] ?? '';
+        const detail = [quotaId, retryAfterMs && `retry sau ${Math.round(retryAfterMs / 1000)}s`]
+          .filter(Boolean).join(' · ');
+        const e = new Error(`stream ${res.status}${detail ? ` (${detail})` : ''}`) as Error & {
+          status?: number; retryAfterMs?: number; quotaId?: string;
+        };
         e.status = res.status;
+        e.quotaId = quotaId || undefined;
+        e.retryAfterMs = retryAfterMs;
         lastErr = e;
         res = null;
         continue;
