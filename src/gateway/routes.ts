@@ -270,6 +270,9 @@ function sseInit(reply: FastifyReply) {
 }
 
 function sseChunk(reply: FastifyReply, model: string, id: string, delta: any, finish: string | null) {
+  // Tự mở stream nếu chưa: combo hoãn sseInit() để còn trượt bước khi bước đầu lỗi,
+  // nên byte đầu tiên có thể tới đây lúc header chưa gửi.
+  if (!reply.raw.headersSent) sseInit(reply);
   const chunk = {
     id,
     object: 'chat.completion.chunk',
@@ -386,7 +389,9 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       }
       if (p.kind !== 'provider') continue; // combo không được trỏ tới combo
       try {
-        if (o.stream && step === 0) sseInit(o.reply);
+        // KHÔNG sseInit() ngay ở bước 0: gửi header rồi thì headersSent=true, và bước 1
+        // lỗi 429 sẽ rơi vào nhánh "đã gửi byte → hết cứu" bên dưới → combo mất hẳn tác
+        // dụng khi stream. Hoãn tới byte dữ liệu THẬT đầu tiên, lúc đó mới hết đường lùi.
         const out = await o.runProviderCall({
           provider: p.provider!, bare: p.model!, labelModel: p.prefixed,
           messages: o.messages, tools: o.tools, stream: o.stream, reply: o.reply, endpoint: comboName,
@@ -1247,12 +1252,22 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         }
 
         // ----- streaming theo đúng thứ tự sự kiện Anthropic -----
-        sseInit(reply);
-        reply.raw.write(sseFrame('message_start', {
-          type: 'message_start',
-          message: { id: msgId, type: 'message', role: 'assistant', model: echoModel, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 0, output_tokens: 0 } },
-        }));
-        const ping = setInterval(() => reply.raw.write(sseFrame('ping', { type: 'ping' })), 15_000);
+        // Mở stream LƯỜI: gửi header + message_start ngay từ đây thì headersSent=true
+        // TRƯỚC KHI gọi model, nên bước 1 của combo lỗi 429 sẽ rơi vào nhánh "đã gửi byte
+        // → không cứu được" và combo mất hẳn tác dụng khi stream (đo thật: 1/20 request
+        // rò 429 ra client dù còn 3 bước dự phòng chưa dùng). Hoãn tới byte THẬT đầu tiên
+        // ⇒ mọi lỗi xảy ra trước đó vẫn trượt bước được, và vẫn trả JSON lỗi sạch.
+        let started = false;
+        const startStream = () => {
+          if (started) return;
+          started = true;
+          sseInit(reply);
+          reply.raw.write(sseFrame('message_start', {
+            type: 'message_start',
+            message: { id: msgId, type: 'message', role: 'assistant', model: echoModel, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 0, output_tokens: 0 } },
+          }));
+        };
+        const ping = setInterval(() => { if (started) reply.raw.write(sseFrame('ping', { type: 'ping' })); }, 15_000);
         let outChars = 0;
         let sawTool = false;
         // Mỗi block phải mở/đóng ĐÚNG MỘT LẦN theo index tăng dần. Block text mở LAZY:
@@ -1262,6 +1277,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         let textOpen = false;
         const openText = () => {
           if (textOpen) return;
+          startStream();
           index++;
           textOpen = true;
           reply.raw.write(sseFrame('content_block_start', { type: 'content_block_start', index, content_block: { type: 'text', text: '' } }));
@@ -1281,6 +1297,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
             },
             (c) => {
               sawTool = true;
+              startStream();
               closeText(); // chỉ block text mới cần đóng ở đây
               index++;
               const args = JSON.stringify(c.input ?? {});
@@ -1306,6 +1323,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
             openText();
             closeText();
           }
+          startStream(); // model im lặng hoàn toàn: vẫn phải mở stream trước khi đóng
           reply.raw.write(sseFrame('message_delta', { type: 'message_delta', delta: { stop_reason: sawTool ? 'tool_use' : 'end_turn', stop_sequence: null }, usage: { output_tokens: Math.ceil(outChars / 4) } }));
           reply.raw.write(sseFrame('message_stop', { type: 'message_stop' }));
         } finally {

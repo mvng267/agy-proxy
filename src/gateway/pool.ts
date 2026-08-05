@@ -245,12 +245,18 @@ export class Pool {
       if (quota) {
         // hết hạn mức tháng → nghỉ dài (mặc định 12h) thay vì cooldown ngắn
         let ms = (monthly ? 12 * 3600 : config.gateway.cooldownSec) * 1000;
-        // Google nói rõ chờ bao lâu thì NGHE THEO — chặn tốc độ theo phút thường chỉ
-        // vài chục giây, cooldown cứng (mặc định 180s) parked account lâu hơn cần thiết
-        // và làm pool co lại vô ích. Chỉ áp cho rate-limit, KHÔNG áp cho hết hạn mức tháng.
-        // Kẹp [5s, cooldownSec] để giá trị lạ từ upstream không phá logic xoay account.
-        if (!monthly && info.retryAfterMs != null && info.retryAfterMs > 0) {
-          ms = Math.min(Math.max(info.retryAfterMs, 5_000), ms);
+        const ra = info.retryAfterMs;
+        if (!monthly && ra != null && ra > 0) {
+          // Google nói rõ chờ bao lâu thì NGHE THEO. Nhưng đo thực tế trên Antigravity:
+          // retryDelay có khi là 518324s (~6 NGÀY) — đó KHÔNG phải chặn tốc độ thoáng qua
+          // mà là account đã cạn hạn mức. Kẹp xuống cooldownSec ở đây là sai: cứ 180s lại
+          // thử lại một account chắc chắn hỏng, đốt lượt skip và làm 429 rò ra client.
+          //
+          // Nên chia hai ngưỡng: chờ ngắn → tin nguyên giá trị (sàn 5s tránh quay vòng
+          // nóng); chờ rất dài → coi như hết hạn mức, nghỉ 1h rồi thử lại (không nghỉ
+          // nguyên 6 ngày, phòng khi Google trả số vô lý hoặc hạn mức được cấp lại sớm).
+          const LONG = 3600_000; // >1h ⇒ hết hạn mức, không phải rate-limit
+          ms = ra > LONG ? LONG : Math.min(Math.max(ra, 5_000), ms);
         }
         acc.cooldownUntil = now + ms;
         acc.liveStatus = 'quota';

@@ -62,13 +62,23 @@ test('report: 429 không có retryDelay → giữ cooldown mặc định', () =>
   assert.equal(acc.cooldownUntil, now + config.gateway.cooldownSec * 1000);
 });
 
-test('report: retryDelay KHÔNG kéo dài quá cooldown mặc định', () => {
+test('report: retryDelay vừa phải bị kẹp trần bằng cooldown mặc định', () => {
   const p = mkPool();
   const acc = p.list('agy')[0];
   const now = 1_000_000;
-  // Google bảo chờ 1 giờ, nhưng ta chỉ parked tối đa bằng cooldownSec rồi thử lại.
-  p.report(acc, { ok: false, status: 429, err: 'stream 429', retryAfterMs: 3_600_000 }, now);
+  // 10 phút: vẫn là rate-limit (≤1h) nên kẹp trần xuống cooldownSec rồi thử lại.
+  p.report(acc, { ok: false, status: 429, err: 'stream 429', retryAfterMs: 600_000 }, now);
   assert.equal(acc.cooldownUntil, now + config.gateway.cooldownSec * 1000);
+});
+
+test('report: retryDelay RẤT dài ⇒ hết hạn mức, nghỉ 1h thay vì lặp lại mỗi 180s', () => {
+  const p = mkPool();
+  const acc = p.list('agy')[0];
+  const now = 1_000_000;
+  // Đo thật trên Antigravity: 518324s (~6 ngày). Không nghỉ nguyên 6 ngày, nhưng
+  // cũng không kẹp xuống 180s — nếu không sẽ thử lại account cạn hạn mức liên tục.
+  p.report(acc, { ok: false, status: 429, err: 'stream 429', retryAfterMs: 518_324_000 }, now);
+  assert.equal(acc.cooldownUntil, now + 3_600_000);
 });
 
 test('report: retryDelay quá nhỏ bị nâng lên sàn 5s (tránh quay vòng nóng)', () => {
