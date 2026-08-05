@@ -87,6 +87,9 @@ function emitGw(e: {
   });
 }
 
+/** Số bước tối đa combo/auto sẽ thử trước khi bỏ cuộc (dùng chung cho cả 2 nhánh). */
+const COMBO_MAX_STEPS = 6;
+
 /** Ghi usage + (tuỳ chọn) cập nhật quota kèm mỗi lần gọi. */
 function afterCall(account: PoolAccount, model: string, r: { ok: boolean; promptTokens?: number; completionTokens?: number; ms: number }) {
   recordGatewayUsage({
@@ -375,7 +378,10 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       }
     }
 
-    const maxSteps = Math.min(plan.length, 3);
+    // Chặn cứng 3 bước khiến combo dài hơn 3 có bước không bao giờ chạy — người dùng
+    // cấu hình 6 bước dự phòng mà thực tế chỉ 3 bước đầu có tác dụng. Nới lên 6: mỗi bước
+    // lỗi đã tự xoay tối đa 32 account trước khi trượt, nên tới bước 6 là đã thử rất nhiều.
+    const maxSteps = Math.min(plan.length, COMBO_MAX_STEPS);
     let lastErr: any;
     for (let step = 0; step < maxSteps; step++) {
       const t = plan[step]!;
@@ -1222,7 +1228,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
           throw Object.assign(new Error(`${res.name}: không có bước nào hỗ trợ tool-use — thêm model agy/ vào combo.`), { status: 400 });
         }
         let lastErr: any;
-        for (let step = 0; step < Math.min(steps.length, 3); step++) {
+        for (let step = 0; step < Math.min(steps.length, COMBO_MAX_STEPS); step++) {
           const t0 = Date.now();
           let p: ParsedModel;
           try {
