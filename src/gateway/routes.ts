@@ -19,6 +19,7 @@ import {
 } from './combo.js';
 import {
   anthropicToMessages, anthropicGenerationConfig, anthropicToolDefs, resultToAnthropic, sseFrame,
+  MAX_OUTPUT_TOKENS_CAP,
   anthropicErrorBody, resolveAnthropicModel, type AnthropicRequest,
 } from './anthropic.js';
 import {
@@ -1113,7 +1114,10 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     if (!messages.some((m) => m.role !== 'system')) messages.push({ role: 'user', content: '' });
 
     const generationConfig: Record<string, unknown> = {};
-    if (typeof b.max_output_tokens === 'number') generationConfig.maxOutputTokens = b.max_output_tokens;
+    // Cùng trần với nhánh Anthropic — vượt 64K thì Google trả 429 trần, xem MAX_OUTPUT_TOKENS_CAP.
+    if (typeof b.max_output_tokens === 'number') {
+      generationConfig.maxOutputTokens = Math.min(b.max_output_tokens, MAX_OUTPUT_TOKENS_CAP);
+    }
     if (typeof b.temperature === 'number') generationConfig.temperature = b.temperature;
     if (typeof b.top_p === 'number') generationConfig.topP = b.top_p;
 

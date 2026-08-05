@@ -155,9 +155,22 @@ export function anthropicToolDefs(b: AnthropicRequest): ToolDef[] {
     .map((t) => ({ name: t.name, description: t.description, parameters: t.input_schema }));
 }
 
+/**
+ * Trần `maxOutputTokens` Antigravity thực sự nhận.
+ *
+ * Đo nhị phân trên upstream thật: 64000 → 200, 65536 → 429. Google KHÔNG trả 400
+ * "invalid argument" mà trả `429 RESOURCE_EXHAUSTED` trần (không retryDelay, không
+ * quotaId), nên vượt trần trông y hệt hết hạn mức. Hậu quả: proxy tưởng account cạn,
+ * cooldown rồi xoay sang account kế — cả 200 account đều 429 vì lỗi nằm ở REQUEST,
+ * không ở account. Đây là gốc của chuỗi "429 → đổi account" chạy vô tận.
+ *
+ * Client agent hay đặt max_tokens rất lớn (Hermes gửi 128000) nên dính ngay.
+ */
+export const MAX_OUTPUT_TOKENS_CAP = 64000;
+
 export function anthropicGenerationConfig(b: AnthropicRequest): Record<string, unknown> {
   const g: Record<string, unknown> = {};
-  if (b.max_tokens) g.maxOutputTokens = b.max_tokens;
+  if (b.max_tokens) g.maxOutputTokens = Math.min(b.max_tokens, MAX_OUTPUT_TOKENS_CAP);
   if (b.temperature != null) g.temperature = b.temperature;
   if (b.top_p != null) g.topP = b.top_p;
   if (b.top_k != null) g.topK = b.top_k;

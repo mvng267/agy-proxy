@@ -571,6 +571,17 @@ export async function* generateStream(
         // Google trả RESOURCE_EXHAUSTED kèm quotaId/quotaMetric trong body; riêng
         // Antigravity thường KHÔNG có header Retry-After nên vẫn phải tự cooldown.
         const raw = await res.text().catch(() => '');
+        // Chẩn đoán 429 không tái hiện được: ghi ĐÚNG body đã gửi + phản hồi Google, để
+        // so request của client thật với request thử nghiệm. Bật bằng AGY_DUMP_429=<thư mục>.
+        if (process.env.AGY_DUMP_429) {
+          try {
+            const { writeFileSync } = await import('node:fs');
+            writeFileSync(
+              `${process.env.AGY_DUMP_429}/429-${Date.now()}-${Math.round(JSON.stringify(body).length / 1024)}KB.json`,
+              JSON.stringify({ sent: body, status: res.status, respBody: raw.slice(0, 4000) }, null, 1),
+            );
+          } catch { /* chẩn đoán, không được làm hỏng request */ }
+        }
         const retryAfterMs = parseRetryAfterMs(res.headers.get('retry-after'), raw);
         const quotaId = raw.match(/"quotaId"\s*:\s*"([^"]+)"/)?.[1] ?? '';
         const detail = [quotaId, retryAfterMs && `retry sau ${Math.round(retryAfterMs / 1000)}s`]

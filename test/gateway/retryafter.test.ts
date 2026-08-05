@@ -96,3 +96,24 @@ test('report: hết hạn mức THÁNG (402) bỏ qua retryDelay, vẫn nghỉ d
   p.report(acc, { ok: false, status: 402, err: 'MONTHLY_REQUEST_COUNT', retryAfterMs: 5_000 }, now);
   assert.equal(acc.cooldownUntil, now + 12 * 3600 * 1000);
 });
+
+/**
+ * Vượt trần maxOutputTokens → Google trả 429 RESOURCE_EXHAUSTED TRẦN (không retryDelay,
+ * không quotaId) y hệt hết hạn mức. Proxy tưởng account cạn nên cooldown rồi xoay account,
+ * và vì lỗi nằm ở REQUEST chứ không ở account, cả pool đều 429. Đo nhị phân trên upstream
+ * thật: 64000 → 200, 65536 → 429.
+ */
+test('anthropicGenerationConfig: kẹp max_tokens xuống trần 64K', async () => {
+  const { anthropicGenerationConfig, MAX_OUTPUT_TOKENS_CAP } = await import('../../src/gateway/anthropic.js');
+  assert.equal(MAX_OUTPUT_TOKENS_CAP, 64000);
+  // Hermes gửi 128000 — đây chính là request làm cháy cả pool.
+  assert.equal(anthropicGenerationConfig({ max_tokens: 128000 } as any).maxOutputTokens, 64000);
+  assert.equal(anthropicGenerationConfig({ max_tokens: 65536 } as any).maxOutputTokens, 64000);
+});
+
+test('anthropicGenerationConfig: giá trị dưới trần giữ nguyên', async () => {
+  const { anthropicGenerationConfig } = await import('../../src/gateway/anthropic.js');
+  assert.equal(anthropicGenerationConfig({ max_tokens: 64000 } as any).maxOutputTokens, 64000);
+  assert.equal(anthropicGenerationConfig({ max_tokens: 1024 } as any).maxOutputTokens, 1024);
+  assert.equal(anthropicGenerationConfig({} as any).maxOutputTokens, undefined);
+});
