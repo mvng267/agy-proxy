@@ -137,7 +137,11 @@ function authOk(req: FastifyRequest): boolean {
   const key = config.gateway.apiKey;
   if (!key) return true;
   const h = (req.headers['authorization'] || '') as string;
-  return h === `Bearer ${key}` || h === key;
+  // Nhận cả `x-api-key`: client Anthropic (Hermes…) trỏ base_url vào /proxy/v1 chỉ gửi
+  // header này. Thiếu nó thì GET /proxy/v1/models trả 401 → client tưởng proxy KHÔNG có
+  // Models API nên bỏ qua bước xác minh và chấp nhận bừa mọi tên model, kể cả model hỏng.
+  const xk = (req.headers['x-api-key'] || '') as string;
+  return h === `Bearer ${key}` || h === key || xk === key;
 }
 
 /** Lấy account theo email + provider từ query (mặc định agy → URL cũ vẫn đúng). */
@@ -431,6 +435,20 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     // combo do người dùng tạo + combo ảo auto
     for (const c of listCombos()) data.push({ id: `combo/${c.id}`, object: 'model', owned_by: 'combo' });
     for (const v of AUTO_VARIANT_IDS) data.push({ id: v, object: 'model', owned_by: 'combo' });
+    /**
+     * Client Anthropic (Hermes…) trỏ base_url vào /proxy/v1 sẽ gọi ĐÚNG route này để xác
+     * minh model, nhưng chờ schema Anthropic (`type`/`display_name`) chứ không phải OpenAI
+     * (`object`/`owned_by`). Nhận diện qua header đặc trưng rồi trả đúng schema — nếu không
+     * client coi như không xác minh được và chấp nhận bừa mọi tên model.
+     */
+    if (req.headers['x-api-key'] || req.headers['anthropic-version']) {
+      const items = data.map((m) => ({
+        type: 'model', id: m.id,
+        display_name: all.find((x) => x.prefixed === m.id || x.id === m.id)?.label ?? m.id,
+        created_at: new Date(0).toISOString(),
+      }));
+      return { data: items, has_more: false, first_id: items[0]?.id ?? null, last_id: items[items.length - 1]?.id ?? null };
+    }
     return { object: 'list', data };
   });
 
