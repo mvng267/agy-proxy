@@ -707,6 +707,30 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     return { updated: n };
   });
 
+  /**
+   * Gỡ cooldown hàng loạt. Cần khi một sự cố phía upstream (vd đợt 429 diện rộng, hoặc
+   * request sai tham số làm cháy cả pool) parked hàng trăm account: chờ hết cooldown thì
+   * lâu, mà lỗi đã sửa xong rồi. KHÔNG đụng tới `health`/`enabled` — chỉ xoá thời gian nghỉ.
+   */
+  app.post('/api/gateway/accounts/wake', async (req) => {
+    const { emails, provider } = (req.body as { emails?: string[]; provider?: ProviderId }) ?? {};
+    syncFromStore();
+    const now = Date.now();
+    const list = emails?.length
+      ? emails.map((e) => (e.includes(':') ? pool.getByKey(e) : pool.get(e, provider ?? 'agy')))
+      : pool.list(provider && PROVIDERS[provider] ? provider : undefined);
+    let woken = 0;
+    for (const a of list) {
+      if (a && (a.cooldownUntil || 0) > now) {
+        a.cooldownUntil = 0;
+        if (a.liveStatus === 'quota') a.liveStatus = undefined;
+        woken++;
+      }
+    }
+    savePersist();
+    return { woken };
+  });
+
   app.get('/api/gateway/config', async () => ({
     enabled: config.gateway.enabled,
     rotation: config.gateway.rotation,

@@ -12,7 +12,7 @@
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, openSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, openSync, statSync, readdirSync } from 'node:fs';
 import { homedir, networkInterfaces } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { randomBytes } from 'node:crypto';
@@ -91,6 +91,23 @@ function dashCreds() {
     } catch {}
   }
   return { user, pass: pass || '123456' };
+}
+
+/** Như postJson nhưng dùng PATCH — các endpoint đổi cấu hình đều là PATCH. */
+async function patchJson(url, body) {
+  const { user, pass } = dashCreds();
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'user-agent': 'agyproxy-cli', accept: 'application/json', 'content-type': 'application/json',
+      authorization: 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64'),
+    },
+    body: JSON.stringify(body ?? {}),
+    signal: AbortSignal.timeout(30000),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+  return j;
 }
 
 async function postJson(url, body) {
@@ -396,8 +413,152 @@ function help() {
      ${c.d('thêm --dry-run để xem trước, --undo để gỡ')}
   ${c.b('agyproxy version')}       phiên bản
 
+  ${c.b('── backup ──')}
+  ${c.b('agyproxy backup')}         xuất backup  ${c.d('[--keep 10] · gồm account, credential, settings, combo')}
+  ${c.b('agyproxy backup list')}    liệt kê bản đã lưu
+  ${c.b('agyproxy backup restore')} khôi phục  ${c.d('[file|latest] [--mode merge|replace]')}
+  ${c.b('agyproxy backup schedule')} tự backup hằng ngày  ${c.d('[on|off|status] [--hour 3] [--keep 10]')}
+
+  ${c.b('── bật/tắt nhanh ──')}
+  ${c.b('agyproxy off')} / ${c.b('on')}      tắt/bật gateway ${c.d('(server vẫn chạy)')}
+  ${c.b('agyproxy model')}          xem cấu hình  ${c.d('· --big combo/agyproxy --small agy/gemini-2.5-flash')}
+  ${c.b('agyproxy accounts')}       trạng thái pool  ${c.d('[on|off|wake] [--provider agy|kr]')}
+     ${c.d('wake = gỡ cooldown hàng loạt sau sự cố upstream')}
+
   Dashboard: http://localhost:${PORT}   ·   Gateway: /proxy/v1
   Dữ liệu:   ${HOME}   (đổi bằng env AGY_HOME)`);
+}
+
+// ---------- backup ----------
+const BACKUP_DIR = resolve(HOME, 'backups');
+
+/**
+ * Xuất backup ra file. Nội dung gồm CẢ SECRET (apiKey gateway, hash mật khẩu dashboard,
+ * sessionSecret, refresh token của mọi account) để khôi phục máy mới là chạy được ngay
+ * → file này nhạy cảm như chính DB, ghi quyền 600.
+ */
+async function backupRun(keep) {
+  mkdirSync(BACKUP_DIR, { recursive: true });
+  const data = await httpJson(`http://127.0.0.1:${PORT}/api/backup/export`);
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const file = resolve(BACKUP_DIR, `backup_${stamp}.json`);
+  writeFileSync(file, JSON.stringify(data), { mode: 0o600 });
+  const kb = Math.round(statSync(file).size / 1024);
+  const n = data.counts ?? {};
+  console.log(c.g(`✓ ${file}`));
+  console.log(c.d(`  ${kb}KB · ${n.accounts ?? '?'} account · ${n.credentials ?? '?'} credential · ${(data.combos ?? []).length} combo`));
+
+  // Dọn bản cũ, giữ N gần nhất (mặc định 10).
+  const all = readdirSync(BACKUP_DIR).filter((f) => /^backup_.*\.json$/.test(f)).sort();
+  const drop = all.slice(0, Math.max(0, all.length - keep));
+  for (const f of drop) unlinkSync(resolve(BACKUP_DIR, f));
+  if (drop.length) console.log(c.d(`  đã xoá ${drop.length} bản cũ (giữ ${keep})`));
+}
+
+function backupList() {
+  if (!existsSync(BACKUP_DIR)) return console.log(c.y('Chưa có backup nào.'));
+  const all = readdirSync(BACKUP_DIR).filter((f) => /^backup_.*\.json$/.test(f)).sort().reverse();
+  if (!all.length) return console.log(c.y('Chưa có backup nào.'));
+  for (const f of all) {
+    const s = statSync(resolve(BACKUP_DIR, f));
+    console.log(`  ${c.b(f)}  ${c.d(Math.round(s.size / 1024) + 'KB · ' + s.mtime.toLocaleString())}`);
+  }
+  console.log(c.d(`\n  ${BACKUP_DIR}`));
+}
+
+/** Khôi phục. mode=merge (mặc định, gộp) hoặc replace (thay sạch). */
+async function backupRestore(fileArg, mode) {
+  let file = fileArg;
+  if (!file || file === 'latest') {
+    const all = existsSync(BACKUP_DIR) ? readdirSync(BACKUP_DIR).filter((f) => /^backup_.*\.json$/.test(f)).sort() : [];
+    if (!all.length) { console.log(c.r('Không có backup nào để khôi phục.')); process.exit(1); }
+    file = resolve(BACKUP_DIR, all[all.length - 1]);
+  }
+  if (!existsSync(file)) { console.log(c.r(`Không thấy file: ${file}`)); process.exit(1); }
+  const data = JSON.parse(readFileSync(file, 'utf8'));
+  const r = await postJson(`http://127.0.0.1:${PORT}/api/backup/import`, { data, mode: mode === 'replace' ? 'replace' : 'merge' });
+  console.log(c.g(`✓ Đã khôi phục (${mode === 'replace' ? 'replace' : 'merge'}) từ ${file}`));
+  console.log(c.d('  ' + JSON.stringify(r)));
+}
+
+const CRON_TAG = '# agyproxy-backup';
+
+/** Bật/tắt backup tự động qua crontab. Mặc định 3:00 sáng mỗi ngày, giữ 10 bản. */
+function backupSchedule(action, hour, keep) {
+  const read = () => { try { return execFileSync('crontab', ['-l'], { encoding: 'utf8' }); } catch { return ''; } };
+  const write = (txt) => execFileSync('crontab', ['-'], { input: txt.endsWith('\n') ? txt : txt + '\n' });
+  const strip = (txt) => txt.split('\n').filter((l) => !l.includes(CRON_TAG)).join('\n').replace(/\n+$/, '');
+
+  if (action === 'off') {
+    const cur = read();
+    if (!cur.includes(CRON_TAG)) return console.log(c.y('Chưa bật backup tự động.'));
+    write(strip(cur));
+    return console.log(c.g('✓ Đã tắt backup tự động'));
+  }
+  if (action === 'status') {
+    const line = read().split('\n').find((l) => l.includes(CRON_TAG));
+    return console.log(line ? c.g('✓ đang bật:') + '\n  ' + c.d(line) : c.y('Chưa bật backup tự động.'));
+  }
+  // bật (mặc định)
+  const h = Number(hour ?? 3);
+  const k = Number(keep ?? 10);
+  // Dùng đường dẫn tuyệt đối: cron chạy với PATH rất tối giản, `node`/`agyproxy` thường không có.
+  const line = `0 ${h} * * * ${process.execPath} ${resolve(__dirname, 'agyproxy.mjs')} backup --keep ${k} >> ${resolve(HOME, 'backup.log')} 2>&1 ${CRON_TAG}`;
+  const cur = strip(read());
+  write((cur ? cur + '\n' : '') + line);
+  console.log(c.g(`✓ Backup tự động: ${h}:00 mỗi ngày, giữ ${k} bản`));
+  console.log(c.d(`  log: ${resolve(HOME, 'backup.log')}`));
+}
+
+// ---------- bật/tắt nhanh ----------
+async function gatewayToggle(on) {
+  await patchJson(`http://127.0.0.1:${PORT}/api/gateway/config`, { enabled: on });
+  console.log(on ? c.g('✓ Gateway BẬT') : c.y('✓ Gateway TẮT — mọi request suy luận bị chặn (server vẫn chạy)'));
+}
+
+/** Đổi model mặc định cho Claude Code (big/small). Không truyền gì → chỉ xem. */
+async function modelCmd(big, small) {
+  if (!big && !small) {
+    const g = await httpJson(`http://127.0.0.1:${PORT}/api/gateway/config`);
+    console.log(`  rotation    ${c.b(g.rotation)}`);
+    console.log(`  cooldownSec ${c.b(g.cooldownSec)}`);
+    console.log(`  gateway     ${g.enabled ? c.g('BẬT') : c.y('TẮT')}`);
+    console.log(c.d('\n  đổi model: agyproxy model --big combo/agyproxy --small agy/gemini-2.5-flash'));
+    return;
+  }
+  const patch = {};
+  if (big) patch.anthropicBigModel = big;
+  if (small) patch.anthropicSmallModel = small;
+  const r = await patchJson(`http://127.0.0.1:${PORT}/api/settings`, patch);
+  console.log(c.g(`✓ Đã đổi: ${(r.changed ?? Object.keys(patch)).join(', ')}`));
+  if (big) console.log(c.d(`  big   = ${big}`));
+  if (small) console.log(c.d(`  small = ${small}`));
+}
+
+/** Bật/tắt account theo provider, hoặc gỡ cooldown hàng loạt. */
+async function accountsCmd(action, provider) {
+  const p = provider || 'agy';
+  if (action === 'wake') {
+    const r = await postJson(`http://127.0.0.1:${PORT}/api/gateway/accounts/wake`, { provider: p });
+    console.log(r.woken ? c.g(`✓ Đã gỡ cooldown ${r.woken} account ${p}`) : c.g(`Không có account ${p} nào đang cooldown.`));
+    return;
+  }
+  if (action === 'on' || action === 'off') {
+    const j = await httpJson(`http://127.0.0.1:${PORT}/api/gateway/accounts?provider=${p}`);
+    const keys = (j.accounts ?? []).map((a) => a.key ?? a.email);
+    const r = await postJson(`http://127.0.0.1:${PORT}/api/gateway/accounts/bulk`, { emails: keys, enabled: action === 'on' });
+    console.log(c.g(`✓ Đã ${action === 'on' ? 'BẬT' : 'TẮT'} ${r.updated ?? keys.length} account ${p}`));
+    return;
+  }
+  // mặc định: xem trạng thái
+  const j = await httpJson(`http://127.0.0.1:${PORT}/api/gateway/accounts?provider=${p}`);
+  const now = Date.now();
+  const a = j.accounts ?? [];
+  const dead = a.filter((x) => x.health === 'dead').length;
+  const cd = a.filter((x) => (x.cooldownUntil ?? 0) > now).length;
+  const off = a.filter((x) => !x.enabled).length;
+  console.log(`  ${c.b(p)}: ${a.length} account`);
+  console.log(`    khả dụng ${c.g(a.length - dead - cd - off)}  ·  cooldown ${c.y(cd)}  ·  tắt ${off}  ·  dead ${dead ? c.r(dead) : 0}`);
 }
 
 // ---------- main ----------
@@ -422,6 +583,18 @@ switch (cmd) {
     });
     break;
   }
+  case 'backup': {
+    const sub = rest[0];
+    if (sub === 'list' || sub === 'ls') backupList();
+    else if (sub === 'restore') await backupRestore(rest[1], flagVal('--mode'));
+    else if (sub === 'schedule' || sub === 'auto') backupSchedule(rest[1] ?? 'on', flagVal('--hour'), flagVal('--keep'));
+    else await backupRun(Number(flagVal('--keep') ?? 10));
+    break;
+  }
+  case 'on': await gatewayToggle(true); break;
+  case 'off': await gatewayToggle(false); break;
+  case 'model': await modelCmd(flagVal('--big'), flagVal('--small')); break;
+  case 'accounts': case 'acc': await accountsCmd(rest[0], flagVal('--provider')); break;
   case 'version': case '-v': case '--version': console.log(PKG.version); break;
   case 'help': case '-h': case '--help': case undefined: help(); break;
   default: console.log(c.r(`Lệnh không hợp lệ: ${cmd}`)); help(); process.exit(1);
