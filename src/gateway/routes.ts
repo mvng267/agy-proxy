@@ -1117,7 +1117,9 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
 
   // ---------------- Anthropic Messages API (cho Claude Code) ----------------
   // Claude Code cấu hình ANTHROPIC_BASE_URL=http://host:port (KHÔNG kèm /v1) rồi tự gọi /v1/messages.
-  const anthropicPaths = ['/v1/messages', '/anthropic/v1/messages'];
+  // Thêm /proxy/v1/messages: client (Hermes…) trỏ base_url vào /proxy/v1 nhưng nói Anthropic
+  // Messages API — nó nối '/messages' vào base nên rơi ra ngoài 2 path trên.
+  const anthropicPaths = ['/v1/messages', '/anthropic/v1/messages', '/proxy/v1/messages'];
 
   /** Kiểm key kiểu Anthropic: x-api-key hoặc Authorization: Bearer. */
   function anthropicAuthOk(req: FastifyRequest): boolean {
@@ -1310,7 +1312,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     });
   }
 
-  for (const path of ['/v1/messages/count_tokens', '/anthropic/v1/messages/count_tokens']) {
+  for (const path of ['/v1/messages/count_tokens', '/anthropic/v1/messages/count_tokens', '/proxy/v1/messages/count_tokens']) {
     app.post(path, async (req) => {
       const b = (req.body ?? {}) as AnthropicRequest;
       const chars = JSON.stringify(b.messages ?? []).length + JSON.stringify(b.system ?? '').length;
