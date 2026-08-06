@@ -46,6 +46,8 @@ export interface PoolAccount extends ProviderAccount {
   inflight: number; // số request đang chạy trên account này (concurrency-aware rotation)
   quota?: QuotaInfo; // hạn mức Antigravity (cache)
   liveStatus?: 'ok' | 'quota' | 'error'; // kết quả check live gần nhất
+  /** Account hết hạn mức THÁNG — skip đến epoch ms này (đầu tháng kế). 0 = bình thường. */
+  monthlyExhaustedUntil: number;
   token?: TokenInfo;
   projectId?: string;
   ready?: Promise<ProviderSession>; // dedupe refresh khi nhiều call đồng thời
@@ -120,13 +122,15 @@ function blankAccount(i: UpsertInput): PoolAccount {
     lastError: '',
     cooldownUntil: 0,
     inflight: 0,
+    monthlyExhaustedUntil: 0,
     quota: undefined,
   };
 }
 
 export class Pool {
   accounts = new Map<string, PoolAccount>(); // khoá = `${provider}:${email}`
-  private rrCursor = new Map<ProviderId, number>(); // cursor RIÊNG mỗi provider
+  /** @deprecated — giữ lại để không break import cũ; pick() không dùng nữa. */
+  private rrCursor = new Map<ProviderId, number>(); // legacy — replaced by lastUsed-based rotation
 
   /** Thêm/cập nhật account (giữ nguyên state cũ nếu đã tồn tại). */
   upsert(i: UpsertInput): PoolAccount {
@@ -166,7 +170,9 @@ export class Pool {
   /** Account đủ điều kiện phục vụ tại thời điểm now (lọc theo provider nếu có). */
   candidates(now = Date.now(), provider?: ProviderId): PoolAccount[] {
     return this.list(provider).filter(
-      (a) => a.enabled && a.health !== 'dead' && (a.cooldownUntil || 0) <= now,
+      (a) => a.enabled && a.health !== 'dead'
+        && (a.cooldownUntil || 0) <= now
+        && (a.monthlyExhaustedUntil || 0) <= now,
     );
   }
 
@@ -191,11 +197,11 @@ export class Pool {
     let chosen: PoolAccount;
     switch (strategy) {
       case 'round-robin': {
-        // cursor RIÊNG mỗi provider — cursor chung sẽ làm xoay lệch/đói account
-        const ck = provider ?? 'agy';
-        const cur = this.rrCursor.get(ck) ?? 0;
-        chosen = c[cur % c.length]!;
-        this.rrCursor.set(ck, (cur + 1) % Math.max(1, c.length));
+        // LRU: chọn account lâu nhất chưa được dùng — đảm bảo TOÀN BỘ pool
+        // đều được xoay đều, kể cả khi candidates thay đổi liên tục do cooldown.
+        // (Trước đây dùng index cursor: khi array co/giãn thì cursor nhảy, bỏ qua
+        //  account — đo thực tế có 160/402 account chưa được dùng lần nào.)
+        chosen = c.reduce((oldest, a) => (a.lastUsed || 0) < (oldest.lastUsed || 0) ? a : oldest, c[0]!);
         break;
       }
       case 'highest-first': {
@@ -243,23 +249,25 @@ export class Pool {
       const monthly = info.status === 402 || /MONTHLY_REQUEST_COUNT/i.test(info.err ?? '');
       const quota = monthly || info.status === 429 || /quota|exhaust|resource_exhausted/i.test(info.err ?? '');
       if (quota) {
-        // hết hạn mức tháng → nghỉ dài (mặc định 12h) thay vì cooldown ngắn
-        let ms = (monthly ? 12 * 3600 : config.gateway.cooldownSec) * 1000;
-        const ra = info.retryAfterMs;
-        if (!monthly && ra != null && ra > 0) {
-          // Google nói rõ chờ bao lâu thì NGHE THEO. Nhưng đo thực tế trên Antigravity:
-          // retryDelay có khi là 518324s (~6 NGÀY) — đó KHÔNG phải chặn tốc độ thoáng qua
-          // mà là account đã cạn hạn mức. Kẹp xuống cooldownSec ở đây là sai: cứ 180s lại
-          // thử lại một account chắc chắn hỏng, đốt lượt skip và làm 429 rò ra client.
-          //
-          // Nên chia hai ngưỡng: chờ ngắn → tin nguyên giá trị (sàn 5s tránh quay vòng
-          // nóng); chờ rất dài → coi như hết hạn mức, nghỉ 1h rồi thử lại (không nghỉ
-          // nguyên 6 ngày, phòng khi Google trả số vô lý hoặc hạn mức được cấp lại sớm).
-          const LONG = 3600_000; // >1h ⇒ hết hạn mức, không phải rate-limit
-          ms = ra > LONG ? LONG : Math.min(Math.max(ra, 5_000), ms);
+        if (monthly) {
+          // Hết hạn mức THÁNG → sleep đến đầu tháng kế (thay vì 12h rồi lặp lại vô ích).
+          // Tính ngày 1 tháng sau, 00:00 UTC+7 (Việt Nam).
+          const d = new Date(now);
+          const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+          // Thêm 1h buffer phòng server reset chậm
+          acc.monthlyExhaustedUntil = nextMonth.getTime() + 3600_000;
+          acc.cooldownUntil = acc.monthlyExhaustedUntil;
+          acc.liveStatus = 'quota';
+        } else {
+          let ms = config.gateway.cooldownSec * 1000;
+          const ra = info.retryAfterMs;
+          if (ra != null && ra > 0) {
+            const LONG = 3600_000; // >1h ⇒ hết hạn mức, không phải rate-limit
+            ms = ra > LONG ? LONG : Math.min(Math.max(ra, 5_000), ms);
+          }
+          acc.cooldownUntil = now + ms;
+          acc.liveStatus = 'quota';
         }
-        acc.cooldownUntil = now + ms;
-        acc.liveStatus = 'quota';
       }
     }
   }
@@ -279,6 +287,7 @@ export class Pool {
         // Giữ cooldown + kết quả dò qua restart: account Kiro cạn hạn mức THÁNG nghỉ 12h,
         // nếu quên thì mỗi lần khởi động lại sẽ thử lại và đốt thêm 1 request thật.
         cooldownUntil: a.cooldownUntil || 0,
+        monthlyExhaustedUntil: a.monthlyExhaustedUntil || 0,
         liveStatus: a.liveStatus,
       };
     }
@@ -300,6 +309,7 @@ export class Pool {
       if (s.projectId && !a.projectId) a.projectId = s.projectId; // bỏ discoverProject sau restart
       // chỉ khôi phục cooldown còn hiệu lực (đã qua thì bỏ)
       if (s.cooldownUntil && s.cooldownUntil > Date.now()) a.cooldownUntil = s.cooldownUntil;
+      if (s.monthlyExhaustedUntil && s.monthlyExhaustedUntil > Date.now()) a.monthlyExhaustedUntil = s.monthlyExhaustedUntil;
       if (s.liveStatus && !a.liveStatus) a.liveStatus = s.liveStatus;
     }
   }
@@ -380,12 +390,18 @@ export function flushPersist(): void {
 }
 
 let saveTimer: NodeJS.Timeout | null = null;
-/** Gộp nhiều lần ghi trong ~2s thành 1 (trước đây ghi cả file mỗi request). */
+let persistDirty = false;
+
+/** Đánh dấu cần ghi persist (dirty flag). Gộp nhiều lần ghi trong ~2s thành 1. */
 export function savePersist(): void {
+  persistDirty = true;
   if (saveTimer) return;
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    flushPersist();
+    if (persistDirty) {
+      persistDirty = false;
+      flushPersist();
+    }
   }, 2000);
   saveTimer.unref?.();
 }

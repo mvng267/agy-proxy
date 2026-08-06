@@ -673,6 +673,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         lastUsed: a.lastUsed,
         cooldown: (a.cooldownUntil || 0) > now,
         cooldownUntil: a.cooldownUntil,
+        monthlyExhaustedUntil: a.monthlyExhaustedUntil || 0,
         lastError: a.lastError,
         quota: a.quota ?? null,
         geminiPct: geminiPct(a),
@@ -723,6 +724,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     for (const a of list) {
       if (a && (a.cooldownUntil || 0) > now) {
         a.cooldownUntil = 0;
+        a.monthlyExhaustedUntil = 0;
         if (a.liveStatus === 'quota') a.liveStatus = undefined;
         woken++;
       }

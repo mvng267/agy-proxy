@@ -19,10 +19,17 @@ const get = (p: Pool, e: string) => p.get(e, 'agy')!;
 // pick + release (mô phỏng request xong ngay) để test rotation thuần.
 const pr = (p: Pool, s: any) => { const a = p.pick(s); p.release(a); return a.email; };
 
-test('round-robin luân phiên đều', () => {
+test('round-robin luân phiên đều (LRU: chọn account lâu nhất chưa dùng)', () => {
   const p = mk();
-  const seq = [pr(p, 'round-robin'), pr(p, 'round-robin'), pr(p, 'round-robin'), pr(p, 'round-robin')];
-  assert.deepEqual(seq, ['a@x', 'b@x', 'c@x', 'a@x']);
+  // Tất cả lastUsed=0 → chọn đầu tiên trong Map (a@x)
+  const a1 = p.pick('round-robin'); p.release(a1);
+  p.report(a1, { ok: true }, 1000); // a@x lastUsed=1000
+  const a2 = p.pick('round-robin'); p.release(a2);
+  p.report(a2, { ok: true }, 2000); // b@x lastUsed=2000
+  const a3 = p.pick('round-robin'); p.release(a3);
+  p.report(a3, { ok: true }, 3000); // c@x lastUsed=3000
+  const a4 = p.pick('round-robin'); p.release(a4); // quay lại a@x (lastUsed nhỏ nhất)
+  assert.deepEqual([a1.email, a2.email, a3.email, a4.email], ['a@x', 'b@x', 'c@x', 'a@x']);
 });
 
 test('full-first & failover luôn account đầu khả dụng (khi rảnh)', () => {
@@ -136,12 +143,18 @@ test('hết account 1 provider → NoAccountError dù provider kia còn', () => 
   assert.doesNotThrow(() => p.pick('round-robin', Date.now(), 'agy'));
 });
 
-test('round-robin có cursor RIÊNG mỗi provider (không lệch nhau)', () => {
+test('round-robin LRU: pick theo provider tách biệt nhờ lastUsed', () => {
   const p = mk2();
-  const agy = [pr(p, 'round-robin')];
+  // Pick agy lần 1
+  const a1 = p.pick('round-robin', Date.now(), 'agy'); p.release(a1);
+  p.report(a1, { ok: true }, 1000);
+  // Pick kr lần 1 — không ảnh hưởng agy vì tách provider
   const k1 = p.pick('round-robin', Date.now(), 'kr'); p.release(k1);
-  const agy2 = [pr(p, 'round-robin')];
-  assert.deepEqual([...agy, ...agy2], ['a@x', 'b@x'], 'cursor agy không bị Kiro làm nhảy');
+  p.report(k1, { ok: true }, 2000);
+  // Pick agy lần 2 — phải chọn account agy khác (không bị kr làm lệch)
+  const a2 = p.pick('round-robin', Date.now(), 'agy'); p.release(a2);
+  assert.notEqual(a1.email, a2.email, 'agy pick lần 2 phải khác lần 1 (LRU)');
+  assert.equal(a2.provider, 'agy', 'vẫn là account agy');
 });
 
 test('persist khoá cũ (chỉ email) migrate thành agy:', () => {
@@ -159,13 +172,21 @@ test('toPersist dùng khoá ghép', () => {
   assert.ok(keys.includes('agy:a@x') && keys.includes('kr:a@x'));
 });
 
-test('report: 402 MONTHLY_REQUEST_COUNT → cooldown DÀI (hết hạn mức tháng)', () => {
+test('report: 402 MONTHLY_REQUEST_COUNT → monthlyExhaustedUntil đến đầu tháng kế', () => {
   const p = mk2();
-  const now = 3_000_000;
+  // Dùng ngày giữa tháng hiện tại làm "now"
+  const now = Date.now();
   const a = p.get('a@x', 'kr')!;
   p.report(a, { ok: false, status: 402, err: 'MONTHLY_REQUEST_COUNT' }, now);
-  assert.ok(a.cooldownUntil >= now + 11 * 3600 * 1000, 'hết hạn mức tháng phải nghỉ dài, không phải cooldown ngắn');
+  // Phải sleep tới đầu tháng kế (local time) + 1h buffer
+  const d = new Date(now);
+  const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
+  assert.ok(a.monthlyExhaustedUntil >= nextMonth, 'monthlyExhaustedUntil phải >= đầu tháng kế');
+  assert.ok(a.monthlyExhaustedUntil <= nextMonth + 2 * 3600_000, 'không quá xa đầu tháng kế');
+  assert.ok(a.cooldownUntil === a.monthlyExhaustedUntil, 'cooldownUntil phải khớp monthlyExhaustedUntil');
   assert.equal(a.liveStatus, 'quota');
+  // Phải bị loại khỏi candidates
+  assert.ok(!p.candidates(now, 'kr').some((x) => x.email === 'a@x'), 'không được chọn lại account hết quota tháng');
 });
 
 test('persist GIỮ cooldown + liveStatus qua restart (không đốt lại quota Kiro)', () => {

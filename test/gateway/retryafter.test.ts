@@ -89,12 +89,16 @@ test('report: retryDelay quá nhỏ bị nâng lên sàn 5s (tránh quay vòng n
   assert.equal(acc.cooldownUntil, now + 5_000);
 });
 
-test('report: hết hạn mức THÁNG (402) bỏ qua retryDelay, vẫn nghỉ dài 12h', () => {
+test('report: hết hạn mức THÁNG (402) → monthlyExhaustedUntil đến đầu tháng kế', () => {
   const p = mkPool();
   const acc = p.list('agy')[0];
-  const now = 1_000_000;
+  const now = Date.now();
   p.report(acc, { ok: false, status: 402, err: 'MONTHLY_REQUEST_COUNT', retryAfterMs: 5_000 }, now);
-  assert.equal(acc.cooldownUntil, now + 12 * 3600 * 1000);
+  // monthlyExhaustedUntil phải >= đầu tháng kế (local time)
+  const d = new Date(now);
+  const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
+  assert.ok(acc.monthlyExhaustedUntil >= nextMonth, 'phải sleep đến đầu tháng kế');
+  assert.equal(acc.cooldownUntil, acc.monthlyExhaustedUntil, 'cooldownUntil đồng bộ');
 });
 
 /**
