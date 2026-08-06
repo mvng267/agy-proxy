@@ -685,6 +685,22 @@ switch (cmd) {
   case 'off': await gatewayToggle(false); break;
   case 'model': await modelCmd(flagVal('--big'), flagVal('--small')); break;
   case 'accounts': case 'acc': await accountsCmd(rest[0], flagVal('--provider')); break;
+  case 'claude': {
+    // agyproxy claude <type> [args...] — mở Claude Code qua agy-proxy với model/combo theo task
+    // type: code | fast | research | agent | vision | combo/<id> | <provider>/<model>
+    const type = rest[0] || 'agent';
+    const apiKey = (readFileSync(resolve(ROOT, '.env'), 'utf8').match(/^GATEWAY_API_KEY=(.*)$/m)?.[1] || '').trim();
+    const env = { ...process.env, ANTHROPIC_BASE_URL: `http://localhost:${PORT}`, ANTHROPIC_API_KEY: apiKey };
+    let model;
+    if (type.startsWith('combo/') || type.includes('/')) model = type;
+    else model = `combo/${type}`;
+    // Bỏ type khỏi args (đã dùng làm model), giữ phần còn lại cho claude
+    const claudeArgs = rest.slice(1);
+    console.log(c.b(`🚀 Claude Code via agy-proxy · model: ${model}`));
+    const cp = spawn('claude', ['--model', model, ...claudeArgs], { stdio: 'inherit', env });
+    cp.on('exit', (code) => process.exit(code ?? 0));
+    break;
+  }
   case 'version': case '-v': case '--version': console.log(PKG.version); break;
   case 'help': case '-h': case '--help': help(); break;
   default: console.log(c.r(`Lệnh không hợp lệ: ${cmd}`)); help(); process.exit(1);
