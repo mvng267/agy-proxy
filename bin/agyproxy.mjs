@@ -173,8 +173,28 @@ async function httpJson(url, opts = {}) {
   return r.json();
 }
 
+// ---------- auto-setup .env ----------
+function autoSetupEnv() {
+  const envPath = resolve(ROOT, '.env');
+  const examplePath = resolve(ROOT, '.env.example');
+  if (existsSync(envPath)) return;
+  if (!existsSync(examplePath)) return;
+  let content = readFileSync(examplePath, 'utf8');
+  const apiKey = 'agy-' + randomBytes(16).toString('hex');
+  const dashPass = randomBytes(12).toString('base64url');
+  content = content.replace(/^GATEWAY_API_KEY=.*$/m, `GATEWAY_API_KEY=${apiKey}`);
+  content = content.replace(/^DASHBOARD_PASSWORD=.*$/m, `DASHBOARD_PASSWORD=${dashPass}`);
+  writeFileSync(envPath, content);
+  console.log(c.g('✓ Tự tạo .env từ .env.example'));
+  console.log(`  Dashboard password : ${c.b(dashPass)}`);
+  console.log(`  Gateway API key    : ${c.b(apiKey)}`);
+  console.log(c.y('⚠ Lưu lại mật khẩu dashboard và API key ở trên!'));
+  console.log();
+}
+
 // ---------- commands ----------
 function start(detached) {
+  autoSetupEnv();
   const running = readPid();
   if (running) { console.log(c.y(`Đang chạy sẵn (PID ${running}) · http://localhost:${PORT}`)); return; }
   if (!detached) {
@@ -561,9 +581,79 @@ async function accountsCmd(action, provider) {
   console.log(`    khả dụng ${c.g(a.length - dead - cd - off)}  ·  cooldown ${c.y(cd)}  ·  tắt ${off}  ·  dead ${dead ? c.r(dead) : 0}`);
 }
 
+// ---------- interactive menu ----------
+const MENU_ITEMS = [
+  { label: '🚀 Chạy (foreground)',        action: () => start(false) },
+  { label: '🚀 Chạy nền (daemon)',        action: () => start(true) },
+  { label: '⏹  Dừng',                     action: () => stop() },
+  { label: '🔄 Khởi động lại',            action: () => { stop(); setTimeout(() => start(true), 600); } },
+  { label: '📊 Trạng thái',               action: () => status() },
+  { label: '📋 Xem log',                  action: () => logs(false) },
+  { label: '🔄 Cập nhật',                 action: () => update(false) },
+  { label: '💾 Backup',                   action: () => backupRun(10) },
+  { label: '⚙️  Cài service tự chạy',     action: () => svcInstall() },
+  { label: '❓ Trợ giúp',                 action: () => help() },
+];
+
+function interactiveMenu() {
+  return new Promise((resolve) => {
+    let selected = 0;
+    const total = MENU_ITEMS.length;
+
+    const render = () => {
+      // Move cursor up to overwrite previous render (except first time)
+      if (render._drawn) process.stdout.write(`\x1b[${total + 2}A`);
+      render._drawn = true;
+
+      console.log(c.b(`agyproxy v${PKG.version}`) + c.d(' — chọn lệnh (↑↓ di chuyển, Enter chọn, q/Esc thoát)\n'));
+      for (let i = 0; i < total; i++) {
+        if (i === selected) {
+          process.stdout.write(`  \x1b[7m ${MENU_ITEMS[i].label} \x1b[0m\n`);
+        } else {
+          process.stdout.write(`   ${MENU_ITEMS[i].label}\n`);
+        }
+      }
+    };
+
+    render();
+
+    const { stdin } = process;
+    if (!stdin.isTTY) { resolve(null); return; }
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.setEncoding('utf8');
+
+    const cleanup = () => {
+      stdin.setRawMode(false);
+      stdin.pause();
+      stdin.removeListener('data', onKey);
+    };
+
+    const onKey = (key) => {
+      // Ctrl+C
+      if (key === '\x03') { cleanup(); process.exit(0); }
+      // q or Esc
+      if (key === 'q' || (key === '\x1b' && key.length === 1)) { cleanup(); console.log(); resolve(null); return; }
+      // Escape sequences for arrow keys: \x1b[A (up), \x1b[B (down)
+      if (key === '\x1b[A') { selected = (selected - 1 + total) % total; render(); return; }
+      if (key === '\x1b[B') { selected = (selected + 1) % total; render(); return; }
+      // Enter
+      if (key === '\r' || key === '\n') { cleanup(); console.log(); resolve(MENU_ITEMS[selected]); return; }
+    };
+
+    stdin.on('data', onKey);
+  });
+}
+
 // ---------- main ----------
 const [cmd, ...rest] = process.argv.slice(2);
 const has = (f) => rest.includes(f);
+
+if (cmd === undefined) {
+  // Không có argument → hiện menu interactive
+  const choice = await interactiveMenu();
+  if (choice) await choice.action();
+} else {
 switch (cmd) {
   case 'start': start(has('-d') || has('--detach') || has('--daemon')); break;
   case 'stop': stop(); break;
@@ -596,6 +686,7 @@ switch (cmd) {
   case 'model': await modelCmd(flagVal('--big'), flagVal('--small')); break;
   case 'accounts': case 'acc': await accountsCmd(rest[0], flagVal('--provider')); break;
   case 'version': case '-v': case '--version': console.log(PKG.version); break;
-  case 'help': case '-h': case '--help': case undefined: help(); break;
+  case 'help': case '-h': case '--help': help(); break;
   default: console.log(c.r(`Lệnh không hợp lệ: ${cmd}`)); help(); process.exit(1);
+}
 }
