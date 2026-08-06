@@ -594,6 +594,11 @@ export async function* generateStream(
         e.retryAfterMs = retryAfterMs;
         lastErr = e;
         res = null;
+        // Backoff trước khi thử host kế: giảm xác suất bị 429 liên tục khi
+        // nhiều request song song cùng đập vào cùng lúc.
+        const hostIdx = BASE_HOSTS.indexOf(host);
+        const backoffMs = [1000, 3000, 5000][hostIdx] ?? 5000;
+        await new Promise((r) => setTimeout(r, backoffMs));
         continue;
       }
       const t = await res.text().catch(() => '');

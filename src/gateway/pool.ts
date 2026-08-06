@@ -478,3 +478,37 @@ export async function refreshQuota(account: PoolAccount, force = false): Promise
   savePersist();
   return account.quota;
 }
+
+// ---------------------------------------------------------------------------
+// Concurrency limiter cho stream requests — giảm 429 khi nhiều request song song
+// ---------------------------------------------------------------------------
+
+export class ConcurrencyLimiter {
+  private running = 0;
+  private queue: Array<() => void> = [];
+
+  constructor(private max: number = 6) {}
+
+  /** Chờ slot trống rồi chiếm. Trả về hàm release() phải gọi khi xong. */
+  acquire(): Promise<() => void> {
+    const release = () => {
+      this.running--;
+      const next = this.queue.shift();
+      if (next) {
+        this.running++;
+        next();
+      }
+    };
+    if (this.running < this.max) {
+      this.running++;
+      return Promise.resolve(release);
+    }
+    return new Promise<() => void>((resolve) => {
+      this.queue.push(() => resolve(release));
+    });
+  }
+}
+
+export const streamLimiter = new ConcurrencyLimiter(
+  Number(process.env.AGY_STREAM_CONCURRENCY) || 6,
+);

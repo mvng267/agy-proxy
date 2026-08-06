@@ -32,6 +32,7 @@ import {
   geminiPct,
   claudePct,
   NoAccountError,
+  streamLimiter,
   type PoolAccount,
   type Strategy,
 } from './pool.js';
@@ -384,6 +385,9 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     // lỗi đã tự xoay tối đa 32 account trước khi trượt, nên tới bước 6 là đã thử rất nhiều.
     const maxSteps = Math.min(plan.length, COMBO_MAX_STEPS);
     let lastErr: any;
+    // Chia sẻ danh sách account đã lỗi qua các combo steps — tránh pick lại
+    // account vừa 429/5xx ở bước trước.
+    const skipKeys = new Set<string>();
     for (let step = 0; step < maxSteps; step++) {
       const t = plan[step]!;
       const t0 = Date.now();
@@ -402,6 +406,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         const out = await o.runProviderCall({
           provider: p.provider!, bare: p.model!, labelModel: p.prefixed,
           messages: o.messages, tools: o.tools, stream: o.stream, reply: o.reply, endpoint: comboName,
+          skipKeys,
         });
         recordComboRun({ combo: comboName, step, model: p.prefixed, ok: true, ms: Date.now() - t0 });
         if ('done' in out) return o.reply;
@@ -484,6 +489,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     tools?: ToolDef[];
     /** Stream: model gọi tool (chỉ provider supportsTools mới phát). */
     onToolCall?: (c: ToolCall) => void;
+    /** Account keys đã lỗi trong request này — bỏ qua khi pick. */
+    skipKeys?: Set<string>;
   }): Promise<{ done: true } | { result: GenResult }> {
     const { provider, bare, labelModel, messages, stream, reply } = opts;
     const p = PROVIDERS[provider];
@@ -515,11 +522,23 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     for (let attempt = 0; tries < maxTry && skips <= maxSkip; attempt++) {
       let ctx: Awaited<ReturnType<typeof pickReady>>;
       try {
+        // skipKeys: bỏ qua account đã lỗi trong cùng request này (chỉ áp dụng khi
+        // không ép forcedEmail). pool.pick() chọn từ candidates() — ta lọc SAU pick
+        // rồi release ngay nếu trúng, rẻ hơn clone candidates rồi filter.
         ctx = await pickReady(provider, opts.forcedEmail, opts.proxyOverride, bucketOf(provider, bare));
+        if (opts.skipKeys?.has(ctx.account.key)) {
+          pool.release(ctx.account);
+          skips++;
+          continue;
+        }
       } catch (e) {
         lastErr = e;
         break;
       }
+      // Stream: giới hạn số request song song qua streamLimiter để giảm 429 hàng loạt.
+      // Non-stream không cần vì ít bị rate-limit và response nhanh.
+      let releaseLimiter: (() => void) | undefined;
+      if (stream) releaseLimiter = await streamLimiter.acquire();
       const t0 = Date.now();
       const plabel = proxyLabelOf(ctx.account);
       // Kích thước prompt + số tool đi kèm mọi dòng req: khi 429 hàng loạt, đây là thứ
@@ -596,12 +615,15 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         }
         if (outOfQuota) skips++;
         else tries++;
+        // Ghi nhớ account lỗi để tránh pick lại trong cùng request
+        if (outOfQuota || e?.status >= 500) opts.skipKeys?.add(ctx.account.key);
         emitGw({
           kind: 'err', account: ctx.account.email, model: labelModel, ms, status: e?.status,
           msg: `← ✗ ${e?.status ?? ''} ${outOfQuota ? '(hết hạn mức → đổi account)' : ''} ${String(e?.message ?? e).slice(0, 90)}`,
         });
         if (stream && reply.raw.headersSent) throw e; // đã gửi byte → không cứu được
       } finally {
+        releaseLimiter?.();
         pool.release(ctx.account);
       }
     }
