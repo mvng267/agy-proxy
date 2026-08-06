@@ -735,3 +735,44 @@ td .spark { width: 84px; height: 18px; margin: 0; }
   .cards { grid-template-columns: 1fr 1fr; }
   .main { padding: 14px 12px 40px; }
 }
+
+/* ===================== Orange theme: chart overrides =====================
+   Donut charts, sparklines, pool health bars, progress bars, usage bars
+   dùng cam (--primary) thay vì xanh (--green) cho đồng bộ brand.
+   Status indicators (badge ok/alive, status pill) GIỮ NGUYÊN --green. */
+
+/* Donut chart rings */
+.donut circle[stroke] { stroke: var(--primary) !important; }
+.donut-val { fill: var(--primary) !important; }
+
+/* Pool health bar (hbar segments "ok") */
+.hbar-seg.ok { background: var(--primary); }
+.hbar-legend .lg.ok { background: var(--primary); }
+
+/* Progress bars (account card, summary cards) */
+.prog > i { background: var(--primary); }
+.usebar > i { background: var(--primary); }
+
+/* Sparkline charts in KPI cards — app.js set inline stroke="var(--green)",
+   CSS class không override được inline attr → dùng selector [stroke] + !important */
+#ov-kpi svg polyline[stroke],
+#ov-kpi svg path[stroke],
+#ov-kpi svg line[stroke] { stroke: var(--primary) !important; }
+#ov-kpi svg rect[fill],
+#ov-kpi svg polygon[fill] { fill: var(--primary) !important; opacity: 0.12; }
+
+/* Quota bars (high = cam thay vì xanh) */
+.qbar.q-hi > i { background: var(--primary); }
+.qcell .q-hi, td .q-hi, .q-hi { color: var(--primary); }
+
+/* Gateway request arrow */
+.gw-arrow.req { color: var(--primary); }
+
+/* Model chip "ok" border */
+.model-chip.ok { border-color: var(--primary); }
+.model-chip.ok .mc-dot { background: var(--primary); box-shadow: 0 0 6px var(--primary); }
+
+/* Active nav item — cam thay vì tím */
+.nav-item.active { background: rgba(249, 115, 22, 0.12); color: var(--primary); }
+.nav-item.active .ic { stroke: var(--primary); }
+.nav-item:hover { background: rgba(249, 115, 22, 0.08); }
