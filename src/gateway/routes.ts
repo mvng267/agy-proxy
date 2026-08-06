@@ -376,7 +376,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       plan = plan.filter((t) => {
         try {
           const p = parseModelId(t.model);
-          return p.kind !== 'provider' || !!PROVIDERS[p.provider!]?.supportsTools;
+          return p.kind !== 'provider' || !!PROVIDERS[p.provider!]?.supportsTools || !!PROVIDERS[p.provider!]?.bypassTools;
         } catch { return true; }
       });
       if (!plan.length) {
@@ -501,9 +501,10 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   }): Promise<{ done: true } | { result: GenResult }> {
     const { provider, bare, labelModel, messages, stream, reply } = opts;
     const p = PROVIDERS[provider];
-    // Provider không có function calling native → KHÔNG im lặng bỏ tools (model sẽ
-    // trả text mô tả việc cần làm, Claude Code treo chờ tool_use không bao giờ tới).
-    if (opts.tools?.length && !p.supportsTools) {
+    // Provider không có function calling native:
+    //  - bypassTools=true → cho qua (agy-proxy tự parse tool_calls từ text output)
+    //  - supportsTools=false & bypassTools=undefined → ném 400 rõ ràng
+    if (opts.tools?.length && !p.supportsTools && !p.bypassTools) {
       throw Object.assign(
         new Error(`${p.label} (${provider}/) không hỗ trợ tool-use — dùng model agy/ cho Claude Code, hoặc tắt tool.`),
         { status: 400 },
@@ -1310,12 +1311,12 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         const res = resolveComboPlan(target);
         if ('error' in res) throw Object.assign(new Error(res.error), { status: res.status });
         if (!res.plan.length) throw Object.assign(new Error(`${res.name}: không có model khả dụng`), { status: 503 });
-        // Claude Code luôn gửi tools → bỏ bước không hỗ trợ tool-use (xem runComboRequest).
+        // Claude Code luôn gửi tools → bỏ bước không hỗ trợ tool-use (trừ bypassTools).
         const steps = tools.length
           ? res.plan.filter((t) => {
               try {
                 const p = parseModelId(t.model);
-                return p.kind !== 'provider' || !!PROVIDERS[p.provider!]?.supportsTools;
+                return p.kind !== 'provider' || !!PROVIDERS[p.provider!]?.supportsTools || !!PROVIDERS[p.provider!]?.bypassTools;
               } catch { return true; }
             })
           : res.plan;

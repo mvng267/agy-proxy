@@ -1,7 +1,50 @@
 import { randomUUID } from 'node:crypto';
 import type { Dispatcher } from 'undici';
 import { EventStreamParser, framesToText } from './eventstream.js';
-import type { ChatMessage, GenResult, ProviderModel, StreamEvent } from './providers/types.js';
+import type { ChatMessage, GenResult, ProviderModel, StreamEvent, ToolDef } from './providers/types.js';
+
+/**
+ * Bypass tool-use cho Kiro (CodeWhisperer KHÔNG có function calling native).
+ * Chuyển ToolDef[] → text prompt dạng XML rõ ràng, model trả về <tool_call>...</tool_call>,
+ * agy-proxy parse thủ công thành tool_calls structure (OpenAI/Anthropic format).
+ */
+
+const TOOL_PROMPT_SUFFIX = `\n\n---\nBẠN CÓ THỂ GỌI CÁC TOOLS SAU. Để gọi tool, trả về DUY NHẤT một khối XML:\n\n<tool_call>\n<name>{TÊN_TOOL}</name>\n<arguments>{JSON object}</arguments>\n</tool_call>\n\nQUY TẮC:\n- Chỉ trả khối <tool_call> khi thực sự cần gọi tool.\n- arguments phải là JSON hợp lệ.\n- Nếu không cần tool, trả lời bình thường (KHÔNG dùng <tool_call>).\n- KHÔNG thêm text nào ngoài khối <tool_call> khi gọi tool.`;
+
+/** ToolDef[] → text đính vào system prompt. */
+export function toolsToPrompt(tools: ToolDef[]): string {
+  if (!tools?.length) return '';
+  const lines = tools.map((t) => {
+    const params = t.parameters && typeof t.parameters === 'object' && !Array.isArray(t.parameters)
+      ? Object.entries(t.parameters as Record<string, unknown>)
+          .map(([k, v]) => `  - ${k}: ${JSON.stringify(v ?? {})}`)
+          .join('\n')
+      : '(không có tham số)';
+    return `- ${t.name}: ${t.description ?? ''}\n${params}`;
+  });
+  return TOOL_PROMPT_SUFFIX.replace('{TÊN_TOOL}', '').replace('{JSON object}', '') +
+    '\n\nDANH SÁCH TOOLS:\n' + lines.join('\n\n');
+}
+
+/** Parse text có chứa <tool_call>...</tool_call> → ToolCall[] (rỗng nếu không có). */
+export function parseToolCalls(text: string): { name: string; args: Record<string, unknown>; id: string }[] {
+  const calls: { name: string; args: Record<string, unknown>; id: string }[] = [];
+  const re = /<tool_call>([\s\S]*?)<\/tool_call>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const block = m[1] ?? '';
+    const nameM = /<name>([\s\S]*?)<\/name>/.exec(block);
+    const argM = /<arguments>([\s\S]*?)<\/arguments>/.exec(block);
+    if (!nameM) continue;
+    let args: Record<string, unknown> = {};
+    if (argM?.[1]) {
+      try { args = JSON.parse(argM[1].trim()); }
+      catch { args = { raw: argM[1].trim() }; }
+    }
+    calls.push({ name: nameM[1]?.trim() ?? '', args, id: 'call_' + randomUUID().slice(0, 8) });
+  }
+  return calls;
+}
 
 /**
  * Client Kiro (AWS CodeWhisperer / Amazon Q Developer).
@@ -210,7 +253,7 @@ function textOf(content: ChatMessage['content']): string {
 export function messagesToCodeWhisperer(
   model: string,
   messages: ChatMessage[],
-  opts: { profileArn: string; conversationId?: string },
+  opts: { profileArn: string; conversationId?: string; tools?: ToolDef[] },
 ): Record<string, unknown> {
   const modelId = resolveKiroUpstream(model);
   const sys: string[] = [];
@@ -227,6 +270,10 @@ export function messagesToCodeWhisperer(
     if (last && last.role === role) last.text += '\n' + t; // gộp cùng vai liên tiếp
     else turns.push({ role, text: t });
   }
+
+  // gộp tool prompt (nếu có) vào system
+  const toolPrompt = opts.tools?.length ? toolsToPrompt(opts.tools) : '';
+  if (toolPrompt) sys.push(toolPrompt);
 
   // bỏ assistant đứng đầu (history phải bắt đầu bằng user)
   while (turns.length && turns[0]!.role === 'assistant') turns.shift();
@@ -287,8 +334,9 @@ async function callKiro(
   messages: ChatMessage[],
   dispatcher?: Dispatcher,
   signal?: AbortSignal,
+  tools?: ToolDef[],
 ): Promise<Response> {
-  const body = messagesToCodeWhisperer(model, messages, { profileArn: session.profileArn ?? '' });
+  const body = messagesToCodeWhisperer(model, messages, { profileArn: session.profileArn ?? '', tools });
   const res = await fetch(KIRO_CW_URL, {
     method: 'POST',
     headers: {
@@ -322,24 +370,28 @@ export async function kiroGenerate(args: {
   session: { accessToken: string; profileArn?: string };
   model: string;
   messages: ChatMessage[];
+  tools?: ToolDef[];
   dispatcher?: Dispatcher;
   signal?: AbortSignal;
 }): Promise<GenResult> {
-  const res = await callKiro(args.session, args.model, args.messages, args.dispatcher, args.signal);
+  const res = await callKiro(args.session, args.model, args.messages, args.dispatcher, args.signal, args.tools);
   const buf = new Uint8Array(await res.arrayBuffer());
   const parser = new EventStreamParser();
   const text = framesToText(parser.push(buf));
   const promptChars = (args.messages || []).map((m) => textOf(m.content)).join('').length;
+  // Parse tool_calls nếu có (bypass mode)
+  const toolCalls = args.tools?.length ? parseToolCalls(text) : [];
+  const cleanText = toolCalls.length ? text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '').trim() : text;
   return {
-    text,
+    text: cleanText,
     images: [],
-    toolCalls: [], // Kiro/CodeWhisperer không có function calling native — xem providers/kiro.ts
+    toolCalls: toolCalls.map((c) => ({ id: c.id, name: c.name, input: c.args })),
     usage: {
       promptTokens: estimateTokens('x'.repeat(promptChars)),
       completionTokens: estimateTokens(text),
       totalTokens: estimateTokens('x'.repeat(promptChars)) + estimateTokens(text),
     },
-    finishReason: 'stop',
+    finishReason: toolCalls.length ? 'tool_calls' : 'stop',
     model: args.model,
   };
 }
@@ -348,10 +400,11 @@ export async function* kiroGenerateStream(args: {
   session: { accessToken: string; profileArn?: string };
   model: string;
   messages: ChatMessage[];
+  tools?: ToolDef[];
   dispatcher?: Dispatcher;
   signal?: AbortSignal;
 }): AsyncGenerator<StreamEvent> {
-  const res = await callKiro(args.session, args.model, args.messages, args.dispatcher, args.signal);
+  const res = await callKiro(args.session, args.model, args.messages, args.dispatcher, args.signal, args.tools);
   const parser = new EventStreamParser();
   const reader = (res.body as ReadableStream<Uint8Array> | null)?.getReader();
   let out = '';
@@ -370,5 +423,10 @@ export async function* kiroGenerateStream(args: {
   const promptChars = (args.messages || []).map((m) => textOf(m.content)).join('').length;
   const pt = estimateTokens('x'.repeat(promptChars));
   const ct = estimateTokens(out);
+  // Parse tool_calls ở cuối stream (nếu có)
+  const toolCalls = args.tools?.length ? parseToolCalls(out) : [];
+  if (toolCalls.length) {
+    for (const c of toolCalls) yield { toolCall: { id: c.id, name: c.name, input: c.args } };
+  }
   yield { usage: { promptTokens: pt, completionTokens: ct, totalTokens: pt + ct }, done: true };
 }

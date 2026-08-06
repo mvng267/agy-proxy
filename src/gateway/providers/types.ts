@@ -69,6 +69,8 @@ export interface Provider {
   readonly defaultModel: string;
   /** Có function calling native không. false → GenArgs.tools bị bỏ qua (Kiro). */
   readonly supportsTools: boolean;
+  /** Provider không có tool-use native nhưng agy-proxy tự bypass qua prompt injection. */
+  readonly bypassTools?: boolean;
 
   /** Chuẩn hoá id model của người dùng về id thật (bí danh → id chính thức). */
   normalizeModel?(id: string): string;

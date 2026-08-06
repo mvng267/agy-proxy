@@ -35,9 +35,10 @@ export const kiroProvider: Provider = {
   credentialTarget: 'kiro',
   models: KIRO_MODELS,
   defaultModel: 'claude-sonnet-4.5',
-  // CodeWhisperer chỉ nhận text thuần (userInputMessageContext rỗng) → không có
-  // function calling native. Có tools thì route báo lỗi rõ thay vì im lặng bỏ qua.
-  supportsTools: false,
+  // CodeWhisperer không có function calling native → agy-proxy tự bypass:
+  // tools được chuyển thành text prompt, output parse thủ công thành tool_calls.
+  supportsTools: true,
+  bypassTools: true, // cờ báo route: không ném 400, xử lý tool qua prompt injection
 
   /** claude-haiku-4-5 → claude-haiku-4.5 (id thật dùng dấu chấm). */
   normalizeModel(id) {
@@ -72,7 +73,7 @@ export const kiroProvider: Provider = {
       // Kiro xoay refresh token: cập nhật để lần sau còn dùng được
       if (t.refreshToken && t.refreshToken !== a.refreshToken) a.refreshToken = t.refreshToken;
     }
-    return { accessToken: a.token.accessToken, profileArn: a.profileArn, region: a.region };
+    return { accessToken: a.token!.accessToken, profileArn: a.profileArn, region: a.region };
   },
 
   generate(args: GenArgs): Promise<GenResult> {
@@ -80,6 +81,7 @@ export const kiroProvider: Provider = {
       session: { accessToken: args.session.accessToken, profileArn: args.session.profileArn },
       model: args.model,
       messages: args.messages,
+      tools: args.tools,
       dispatcher: args.dispatcher,
       signal: args.signal,
     });
@@ -90,6 +92,7 @@ export const kiroProvider: Provider = {
       session: { accessToken: args.session.accessToken, profileArn: args.session.profileArn },
       model: args.model,
       messages: args.messages,
+      tools: args.tools,
       dispatcher: args.dispatcher,
       signal: args.signal,
     });
