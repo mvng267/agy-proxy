@@ -73,6 +73,18 @@ function norm(v: number | null, fallback = 0.5): number {
  * THUẦN: chấm điểm mọi model khả dụng để dựng chuỗi `auto`.
  * Điểm cao đứng trước. Provider không còn account nào → điểm 0 (vẫn liệt kê cuối).
  */
+/**
+ * Model tier: ảnh hưởng latency score — model nhẹ (flash) nhanh hơn model nặng (pro-high).
+ * Dùng trong scoreCandidates để phân biệt per-model thay vì per-provider.
+ */
+function modelTier(id: string): number {
+  if (/flash|lite|mini/i.test(id)) return 1.0;  // nhẹ → bonus latency
+  if (/pro-low|haiku/i.test(id)) return 0.8;
+  if (/pro(?!-)|\bsonnet/i.test(id)) return 0.5;
+  if (/pro-high|opus|ultra/i.test(id)) return 0.3;  // nặng → penalty latency
+  return 0.5;
+}
+
 export function scoreCandidates(snap: PoolSnapshot, weights: AutoWeights): Scored[] {
   const out: Scored[] = [];
   // p95 lớn nhất để chuẩn hoá độ trễ về 0..1
@@ -83,16 +95,19 @@ export function scoreCandidates(snap: PoolSnapshot, weights: AutoWeights): Score
     const health = s.total > 0 ? s.available / s.total : 0;
     // Kiro không có API quota → dùng 'available' làm proxy (đã phản ánh cooldown vì hết hạn mức)
     const quota = s.quotaAvg == null ? health : norm(s.quotaAvg / 100);
-    const latency = s.p95Ms == null ? 0.5 : 1 - norm(s.p95Ms / maxP95);
+    const baseLatency = s.p95Ms == null ? 0.5 : 1 - norm(s.p95Ms / maxP95);
     const success = norm(s.successRate, 0.8);
     const load = s.available > 0 ? 1 - norm(s.inflight / Math.max(1, s.available)) : 0;
-    const score =
-      weights.health * health +
-      weights.quota * quota +
-      weights.latency * latency +
-      weights.success * success +
-      weights.load * load;
     for (const m of PROVIDERS[pid].models) {
+      // Per-model latency: model nhẹ (flash) bonus, nặng (opus) penalty
+      const tier = modelTier(m.id);
+      const latency = norm(baseLatency * 0.6 + tier * 0.4);
+      const score =
+        weights.health * health +
+        weights.quota * quota +
+        weights.latency * latency +
+        weights.success * success +
+        weights.load * load;
       out.push({
         model: `${pid}/${m.id}`,
         provider: pid,
@@ -104,23 +119,26 @@ export function scoreCandidates(snap: PoolSnapshot, weights: AutoWeights): Score
   return out.sort((a, b) => b.score - a.score);
 }
 
-/** Chuỗi thử cho `auto`: mỗi provider lấy model mặc định, xếp theo điểm. */
+/** Chuỗi thử cho `auto`: top models xếp theo điểm, đa dạng provider + model tier. */
 export function planAuto(variant: string, snap: PoolSnapshot): ComboTarget[] {
   const w = AUTO_VARIANTS[variant] || AUTO_VARIANTS.default!;
   const scored = scoreCandidates(snap, w);
-  const seen = new Set<ProviderId>();
+  // Lấy tối đa 2 model mỗi provider (đa dạng tier: 1 nhanh + 1 mạnh)
+  const count = new Map<ProviderId, number>();
   const out: ComboTarget[] = [];
   for (const s of scored) {
-    if (seen.has(s.provider)) continue;
-    // model mặc định của provider đứng trước
-    const def = `${s.provider}/${PROVIDERS[s.provider].defaultModel}`;
-    out.push({ model: def });
-    seen.add(s.provider);
+    const n = count.get(s.provider) ?? 0;
+    if (n >= 2) continue;
+    out.push({ model: s.model });
+    count.set(s.provider, n + 1);
   }
   return out;
 }
 
 let rrCursor = 0;
+/** Reset/set cursor — cho phép restore từ persistent store khi boot. */
+export function setRrCursor(v: number): void { rrCursor = v; }
+export function getRrCursor(): number { return rrCursor; }
 /** THUẦN (trừ con trỏ round-robin): xếp thứ tự thử cho 1 request. */
 export function planCombo(c: Combo, snap: PoolSnapshot, now = Date.now()): ComboTarget[] {
   const targets = (c.targets || []).filter((t) => t && t.model);

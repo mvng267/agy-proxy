@@ -7,7 +7,7 @@ import {
   recordGatewayUsage, usageTotals, usageSeries, usageByModel, usageByAccount, usageRows,
   quotaSeries, quotaForAccount, quotaHistoryCount, pruneQuotaHistory,
   listComboRows, getComboRow, upsertComboRow, deleteComboRow, recordComboRun, comboStatsRows,
-  providerStats, usageByProvider, recordQuota, creditsUsedThisMonth,
+  providerStats, usageByProvider, recordQuota, creditsUsedThisMonth, getSetting, setSetting,
 } from '../store/db.js';
 import {
   PROVIDERS, PROVIDER_IDS, allModels, parseModelId, ModelIdError,
@@ -15,6 +15,7 @@ import {
 } from './providers/index.js';
 import {
   planCombo, planAuto, shouldFallback, isContextTooLong, validateTargets, AUTO_VARIANT_IDS, AUTO_VARIANTS, scoreCandidates,
+  setRrCursor, getRrCursor,
   type Combo, type ComboStrategy, type ComboTarget, type PoolSnapshot,
 } from './combo.js';
 import {
@@ -326,6 +327,9 @@ function poolSnapshot(): PoolSnapshot {
 
 export async function registerGatewayRoutes(app: FastifyInstance): Promise<void> {
   syncFromStore(true);
+  // Restore combo round-robin cursor từ DB (persist qua restart)
+  const savedCursor = getSetting('comboRrCursor');
+  if (savedCursor) setRrCursor(Number(savedCursor) || 0);
 
   /** Dựng thứ tự thử cho combo/auto (dùng chung cho cả /proxy/v1 lẫn /v1/messages). */
   function resolveComboPlan(parsed: ParsedModel): { name: string; plan: ComboTarget[] } | { error: string; status: number } {
@@ -409,6 +413,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
           skipKeys,
         });
         recordComboRun({ combo: comboName, step, model: p.prefixed, ok: true, ms: Date.now() - t0 });
+        setSetting('comboRrCursor', String(getRrCursor()));
         if ('done' in out) return o.reply;
         return o.reply.send(openaiCompletion(comboName, out.result));
       } catch (e: any) {
@@ -423,6 +428,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         if (!shouldFallback(e)) throw e;
       }
     }
+    // Persist combo round-robin cursor sau mỗi combo run
+    setSetting('comboRrCursor', String(getRrCursor()));
     throw lastErr ?? new NoAccountError(`${comboName}: mọi bước đều lỗi`);
   }
 
