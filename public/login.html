@@ -4,42 +4,115 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Đăng nhập · agyproxy</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>%E2%9A%A1</text></svg>" />
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>🔥</text></svg>" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fff7ed', 100: '#ffedd5', 200: '#fed7aa', 300: '#fdba74',
+              400: '#fb923c', 500: '#f97316', 600: '#ea580c', 700: '#c2410c',
+              800: '#9a3412', 900: '#7c2d12', 950: '#431407',
+            }
+          }
+        }
+      }
+    }
+  </script>
   <style>
-    body { display: grid; place-items: center; min-height: 100vh; overflow: auto; }
-    .login-box { width: min(380px, 92vw); background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 28px 26px; box-shadow: var(--shadow); }
-    .login-logo { width: 46px; height: 46px; border-radius: 12px; background: var(--primary); color: var(--primary-fg); display: grid; place-items: center; margin: 0 auto 14px; }
-    .login-logo svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; }
-    .login-box h1 { font-size: 19px; text-align: center; margin: 0 0 4px; }
-    .login-sub { text-align: center; color: var(--muted); font-size: 12.5px; margin-bottom: 20px; }
-    .login-box input { margin-bottom: 12px; }
-    .login-box button { width: 100%; justify-content: center; height: 38px; }
-    .login-err { color: var(--red); font-size: 12.5px; min-height: 18px; margin-top: 8px; text-align: center; }
-    .login-hint { color: var(--faint); font-size: 11.5px; text-align: center; margin-top: 14px; line-height: 1.5; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    .gradient-bg {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    }
+    .card-glow {
+      box-shadow: 0 0 60px -12px rgba(249, 115, 22, 0.15),
+                  0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+    .logo-pulse {
+      animation: pulse-brand 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse-brand {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }
+      50% { box-shadow: 0 0 0 12px rgba(249, 115, 22, 0); }
+    }
+    input:focus { outline: none; box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.3); }
   </style>
 </head>
-<body>
-  <div class="login-box">
-    <div class="login-logo"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
-    <h1>agyproxy</h1>
-    <div class="login-sub">Đăng nhập để quản lý pool Antigravity</div>
-    <form id="f" autocomplete="off">
-      <label class="fl">Tên đăng nhập <span class="faint">(bỏ trống nếu chưa đặt)</span></label>
-      <input id="user" placeholder="(tuỳ chọn)" autocomplete="username" />
-      <label class="fl">Mật khẩu</label>
-      <input id="pass" type="password" placeholder="mật khẩu" autocomplete="current-password" autofocus />
-      <button class="primary" type="submit" id="btn">Đăng nhập</button>
-    </form>
-    <div class="login-err" id="err"></div>
-    <div class="login-hint">Mật khẩu mặc định: <b>123456</b><br/>Đăng nhập xong nên đổi ở <b>Cấu hình → Bảo mật</b>.</div>
+<body class="gradient-bg min-h-screen flex items-center justify-center p-4">
+  <!-- Decorative background elements -->
+  <div class="fixed inset-0 overflow-hidden pointer-events-none">
+    <div class="absolute -top-40 -right-40 w-80 h-80 bg-brand-500/10 rounded-full blur-3xl"></div>
+    <div class="absolute -bottom-40 -left-40 w-96 h-96 bg-brand-600/5 rounded-full blur-3xl"></div>
   </div>
+
+  <div class="relative w-full max-w-md">
+    <!-- Login Card -->
+    <div class="bg-gray-900/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-8 card-glow">
+      <!-- Logo -->
+      <div class="flex flex-col items-center mb-8">
+        <div class="w-16 h-16 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl flex items-center justify-center mb-4 logo-pulse">
+          <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+        </div>
+        <h1 class="text-2xl font-bold text-white tracking-tight">agyproxy</h1>
+        <p class="text-gray-400 text-sm mt-1">Quản lý pool Antigravity</p>
+      </div>
+
+      <!-- Form -->
+      <form id="f" autocomplete="off" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">
+            Tên đăng nhập <span class="text-gray-500 normal-case">(tuỳ chọn)</span>
+          </label>
+          <input id="user" placeholder="admin"
+            autocomplete="username"
+            class="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 text-sm transition-all duration-200 hover:border-gray-600 focus:border-brand-500" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">
+            Mật khẩu
+          </label>
+          <input id="pass" type="password" placeholder="••••••••"
+            autocomplete="current-password" autofocus
+            class="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 text-sm transition-all duration-200 hover:border-gray-600 focus:border-brand-500" />
+        </div>
+        <button id="btn" type="submit"
+          class="w-full bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-brand-500/25">
+          Đăng nhập
+        </button>
+      </form>
+
+      <!-- Error -->
+      <div id="err" class="text-red-400 text-sm text-center mt-3 min-h-[20px]"></div>
+
+      <!-- Hint -->
+      <div class="mt-6 pt-5 border-t border-gray-800">
+        <p class="text-gray-500 text-xs text-center leading-relaxed">
+          Mật khẩu mặc định: <span class="text-gray-300 font-mono bg-gray-800 px-1.5 py-0.5 rounded">123456</span>
+          <br/>Đăng nhập xong nên đổi ở <span class="text-brand-400">Cấu hình → Bảo mật</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <p class="text-center text-gray-600 text-xs mt-6">
+      agyproxy v2.13.0 · OpenAI-compatible gateway
+    </p>
+  </div>
+
   <script>
     const f = document.getElementById('f'), err = document.getElementById('err'), btn = document.getElementById('btn');
-    (function () { const t = localStorage.getItem('theme') || 'dark'; document.documentElement.setAttribute('data-theme', t); })();
+    // Always dark for login
+    document.documentElement.classList.add('dark');
     f.addEventListener('submit', async (e) => {
       e.preventDefault();
       err.textContent = ''; btn.disabled = true; btn.textContent = 'Đang kiểm tra…';
+      btn.classList.add('opacity-75', 'cursor-wait');
       try {
         const r = await fetch('/api/auth/login', {
           method: 'POST', headers: { 'content-type': 'application/json' },
@@ -50,6 +123,7 @@
         err.textContent = j.error || 'Sai mật khẩu';
       } catch (e2) { err.textContent = 'Lỗi kết nối'; }
       btn.disabled = false; btn.textContent = 'Đăng nhập';
+      btn.classList.remove('opacity-75', 'cursor-wait');
     });
   </script>
 </body>
