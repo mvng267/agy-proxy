@@ -701,6 +701,31 @@ switch (cmd) {
     cp.on('exit', (code) => process.exit(code ?? 0));
     break;
   }
+  case 'combos': case 'combo': {
+    // agyproxy combos              → list
+    // agyproxy combos create <id> <model1> <model2>...  → tạo combo mới
+    const sub = rest[0];
+    if (sub === 'create' || sub === 'add') {
+      const id = rest[1];
+      const models = rest.slice(2);
+      if (!id || !models.length) {
+        console.log(c.y('Dùng: agyproxy combos create <id> <model1> <model2> ...'));
+        break;
+      }
+      const targets = models.map((m) => ({ model: m.startsWith('combo/') || m.includes('/') ? m : `combo/${m}` }));
+      await postJson(`http://127.0.0.1:${PORT}/api/combos`, { id, name: id, strategy: 'priority', targets, enabled: true });
+      console.log(c.g(`✓ Đã tạo combo/${id}:`) + ' ' + models.join(' → '));
+    } else {
+      const d = await httpJson(`http://127.0.0.1:${PORT}/api/combos`);
+      console.log(c.b('Combos:'));
+      for (const cmb of d.combos) {
+        const models = (cmb.targets || []).map((t) => t.model).join(' → ');
+        console.log(`  ${c.b(cmb.id)}: ${models} ${cmb.enabled ? '' : c.y('(tắt)')}`);
+      }
+      console.log(c.d('\nAuto variants: ' + d.autoVariants.join(', ')));
+    }
+    break;
+  }
   case 'version': case '-v': case '--version': console.log(PKG.version); break;
   case 'help': case '-h': case '--help': help(); break;
   default: console.log(c.r(`Lệnh không hợp lệ: ${cmd}`)); help(); process.exit(1);

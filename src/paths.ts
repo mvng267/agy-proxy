@@ -26,7 +26,7 @@ export const AGY_HOME = process.env.AGY_HOME
 export const DATA_DIR = resolve(AGY_HOME, 'data');
 export const PROFILES_DIR = resolve(AGY_HOME, 'profiles');
 export const SCREENSHOTS_DIR = resolve(AGY_HOME, 'screenshots');
-export const PUBLIC_DIR = resolve(ROOT, 'public'); // asset luôn nằm cùng source
+export const PUBLIC_DIR = resolve(ROOT, 'web/dist'); // React dashboard (build từ web/)
 
 for (const d of [DATA_DIR, PROFILES_DIR, SCREENSHOTS_DIR]) {
   mkdirSync(d, { recursive: true });
