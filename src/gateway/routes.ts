@@ -1445,7 +1445,11 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     });
   }
 
-  for (const path of ['/v1/models', '/anthropic/v1/models']) {
+  // `/v1/models` KHÔNG đăng ký ở đây: handler alias bên dưới đã phục vụ path đó và tự
+  // nhận diện client Anthropic (x-api-key / anthropic-version) để trả đúng schema, lại
+  // kèm cả combo. Đăng ký cả hai nơi làm Fastify ném FST_ERR_DUPLICATED_ROUTE lúc khởi
+  // động — server không lên được và toàn bộ test API fail.
+  for (const path of ['/anthropic/v1/models']) {
     app.get(path, async (req, reply) => {
       if (!anthropicAuthOk(req)) return reply.code(401).send(anthropicErrorBody(401, 'invalid x-api-key'));
       const data = allModels().map((m) => ({

@@ -23,4 +23,10 @@ ENV NODE_ENV=production \
     BROWSER_CHANNEL=bundled
 
 EXPOSE 7788
+
+# /api/health là endpoint công khai (không cần phiên đăng nhập) nên dùng được ở đây.
+# start-period rộng: lần chạy đầu còn nạp pool + mở SQLite, chưa sẵn sàng ngay.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:7788/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
 CMD ["npx", "tsx", "src/index.ts"]
