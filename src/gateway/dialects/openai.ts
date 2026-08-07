@@ -10,7 +10,7 @@ import { MAX_OUTPUT_TOKENS_CAP } from '../anthropic.js';
 import type { ChatMessage } from '../antigravity.js';
 import {
   authOk, authCtx, listCombos, resolveComboPlan, runProviderCall, runComboRequest,
-  type UsageCtx,
+  COMBO_MAX_STEPS, type UsageCtx,
 } from '../engine.js';
 import { toMessages, toToolDefs, openaiCompletion, sendOpenAIError, contextHint } from './wire.js';
 
@@ -194,11 +194,13 @@ export function registerOpenAIDialect(app: FastifyInstance): void {
     try {
       syncFromStore();
       // stream của Responses API có bộ sự kiện riêng → v1 trả nguyên khối cho chắc
+      // Account đã lỗi trong request này — chia sẻ qua các bước combo (như /chat/completions).
+      const skipKeys = new Set<string>();
       const one = (p: ParsedModel, combo?: string) =>
         runProviderCall({
           provider: p.provider!, bare: p.model!, labelModel: p.prefixed,
           messages, stream: false, reply, endpoint: '/proxy/v1/responses',
-          generationConfig,
+          generationConfig, skipKeys,
           usage: { requestId, apiKeyId: auth.keyId, endpoint: '/proxy/v1/responses', stream: false, combo },
         } as any);
 
@@ -210,7 +212,9 @@ export function registerOpenAIDialect(app: FastifyInstance): void {
         const res = resolveComboPlan(parsed);
         if ('error' in res) return reply.code(res.status).send({ error: { message: res.error } });
         let lastErr: any;
-        for (let step = 0; step < Math.min(res.plan.length, 3); step++) {
+        // Cùng trần bước với /chat/completions và /v1/messages — trước đây chặn cứng 3
+        // khiến combo dài hơn 3 có bước không bao giờ chạy trên riêng Responses API.
+        for (let step = 0; step < Math.min(res.plan.length, COMBO_MAX_STEPS); step++) {
           const t0 = Date.now();
           let p: ParsedModel;
           try { p = parseModelId(res.plan[step]!.model); } catch (e) { lastErr = e; continue; }

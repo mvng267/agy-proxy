@@ -59,6 +59,9 @@ export function registerAnthropicDialect(app: FastifyInstance): void {
       // Usage THẬT từ upstream. Trước đây message_delta trả `ceil(outChars/4)` — một con
       // số bịa, khiến client tính nhầm chi phí.
       let realUsage: { promptTokens: number; completionTokens: number } | undefined;
+      // Account đã lỗi trong request này — chia sẻ qua các bước combo như nhánh OpenAI
+      // (trước đây nhánh Anthropic bỏ sót, bước sau pick lại account vừa 5xx ở bước trước).
+      const skipKeys = new Set<string>();
 
       /** Gọi 1 model; nếu là combo/auto thì thử lần lượt theo kế hoạch (fallback). */
       const call = async (
@@ -75,6 +78,7 @@ export function registerAnthropicDialect(app: FastifyInstance): void {
             toolConfig: anthropicToolConfig(b),
             tools,
             onToolCall,
+            skipKeys,
             // `label` chỉ có giá trị khi gọi từ nhánh combo → dùng làm tên combo.
             usage: { requestId, apiKeyId: auth.keyId, endpoint: path, stream, combo: label },
             onUsage: (u) => { realUsage = u; },
