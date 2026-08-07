@@ -10,7 +10,8 @@ import { startHealthLoop } from './health/tokenHealth.js';
 import { registerAuth } from './auth.js';
 import { verifyPassword } from './security.js';
 import { setBareMode } from './gateway/providers/index.js';
-import { readFileSync } from 'node:fs';
+import { flushPersist } from './gateway/pool.js';
+import { readFileSync, writeSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 async function main() {
@@ -96,6 +97,31 @@ async function main() {
 
   // Vòng lặp tự kiểm token health định kỳ
   startHealthLoop(config.tokenHealthHours);
+}
+
+/**
+ * Service chạy dài: một promise reject lạc (fetch upstream hỏng giữa chừng, stream bị
+ * client ngắt…) mặc định làm Node THOÁT hẳn — mất cả pool đang phục vụ chỉ vì một request.
+ * Ghi log rồi chạy tiếp; lỗi thật sự chết người vẫn nổi lên qua health check.
+ */
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason instanceof Error ? reason.stack ?? reason.message : reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err?.stack ?? err);
+});
+
+// SIGTERM: docker stop / systemd restart / `agyproxy stop` đều gửi tín hiệu này.
+// savePersist() có DEBOUNCE timer nên thoát ngay sẽ mất state vừa đổi (counter, cooldown,
+// enabled…) — phải flushPersist() trước khi exit.
+for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(sig, () => {
+    // Ghi thẳng fd 1: khi stdout bị redirect ra file/pipe nó được buffer, mà process.exit()
+    // cắt ngay không flush → dòng log biến mất dù handler đã chạy.
+    try { writeSync(1, `\n  ${sig} — đang lưu state rồi dừng…\n`); } catch { /* stdout đóng */ }
+    try { flushPersist(); } catch { /* vẫn thoát dù ghi lỗi */ }
+    process.exit(0);
+  });
 }
 
 main().catch((e) => {

@@ -66,9 +66,18 @@ test('report: retryDelay vừa phải bị kẹp trần bằng cooldown mặc đ
   const p = mkPool();
   const acc = p.list('agy')[0];
   const now = 1_000_000;
-  // 10 phút: vẫn là rate-limit (≤1h) nên kẹp trần xuống cooldownSec rồi thử lại.
-  p.report(acc, { ok: false, status: 429, err: 'stream 429', retryAfterMs: 600_000 }, now);
-  assert.equal(acc.cooldownUntil, now + config.gateway.cooldownSec * 1000);
+  // `cooldownSec` là setting RUNTIME (đổi được qua dashboard/API) nên phải ghim trong lúc
+  // chạy test: để nguyên thì test đọc giá trị thật của máy, và khi ai đó đặt cooldownSec
+  // > 1h thì retryDelay 10 phút rơi sang nhánh "hết hạn mức" → test đỏ dù code vẫn đúng.
+  const saved = config.gateway.cooldownSec;
+  config.gateway.cooldownSec = 180;
+  try {
+    // 10 phút: vẫn là rate-limit (≤1h) nên kẹp trần xuống cooldownSec rồi thử lại.
+    p.report(acc, { ok: false, status: 429, err: 'stream 429', retryAfterMs: 600_000 }, now);
+    assert.equal(acc.cooldownUntil, now + 180 * 1000);
+  } finally {
+    config.gateway.cooldownSec = saved;
+  }
 });
 
 test('report: retryDelay RẤT dài ⇒ hết hạn mức, nghỉ 1h thay vì lặp lại mỗi 180s', () => {
