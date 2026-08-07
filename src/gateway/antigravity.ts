@@ -235,7 +235,7 @@ async function apiCall(accessToken: string, method: string, body: unknown, o: Ap
         method: 'POST',
         headers,
         body: JSON.stringify(body),
-        signal: signal ?? AbortSignal.timeout(60000),
+        signal: signal ?? AbortSignal.timeout(180_000),
         ...(dispatcher ? { dispatcher } : {}),
       } as RequestInit);
       const text = await res.text();
