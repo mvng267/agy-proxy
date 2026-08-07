@@ -82,6 +82,16 @@ interface AppSidebarProps {
   poolCount?: number
 }
 
+/** Xoá phiên ở server rồi về trang đăng nhập. Trước đây nút này không có handler. */
+async function handleLogout() {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' })
+  } catch {
+    /* mất mạng vẫn cho về /login — cookie phía server sẽ hết hạn */
+  }
+  window.location.href = '/login'
+}
+
 export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" className="border-r border-slate-800">
@@ -92,7 +102,7 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
           </div>
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">
             <span className="text-sm font-semibold text-slate-100">agyproxy</span>
-            <span className="text-xs text-slate-500">v2.14.0</span>
+            <span className="text-xs text-slate-500">v{__APP_VERSION__}</span>
           </div>
         </div>
       </SidebarHeader>
@@ -158,6 +168,7 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Đăng xuất"
+              onClick={handleLogout}
               className="text-slate-400 hover:text-red-400 hover:bg-red-500/10"
             >
               <LogOut />

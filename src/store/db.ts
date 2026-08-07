@@ -103,34 +103,88 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_authlog_ts ON auth_log(ts);
 `);
 
-// Migration: thêm cột proxy cho DB cũ (bỏ qua nếu đã có).
-try {
-  db.exec(`ALTER TABLE runs ADD COLUMN proxy TEXT`);
-} catch {
-  /* cột đã tồn tại */
+// ---------------------------------------------------------------------------
+// Migration có version
+// ---------------------------------------------------------------------------
+
+/** DB tối thiểu mà runner cần — nhận tham số để test được với ':memory:'. */
+type MigDb = Pick<DatabaseSync, 'exec' | 'prepare'>;
+
+/**
+ * Thêm cột nếu CHƯA có, kiểm bằng PRAGMA thay vì try/catch quanh ALTER TABLE.
+ * Cách cũ nuốt MỌI lỗi — kể cả disk full hay DB lock — nên hỏng thật cũng im lặng.
+ */
+export function addColumnIfMissing(d: MigDb, table: string, col: string, decl: string): boolean {
+  const cols = d.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (cols.some((c) => c.name === col)) return false;
+  d.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${decl}`);
+  return true;
 }
-try {
-  db.exec(`ALTER TABLE quota_history ADD COLUMN probe_ok INTEGER`);
-} catch {
-  /* cột đã tồn tại */
+
+function schemaVersion(d: MigDb): number {
+  const r = d.prepare(`SELECT value FROM settings WHERE key = 'schemaVersion'`).get() as { value?: string } | undefined;
+  return Number(r?.value ?? 0) || 0;
+}
+
+function setSchemaVersion(d: MigDb, v: number): void {
+  d.prepare(
+    `INSERT INTO settings (key,value,updated_at) VALUES (?,?,?)
+     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`,
+  ).run('schemaVersion', String(v), Date.now());
 }
 
 /**
- * Migration MỘT LẦN lúc load module: model id cũ chưa có prefix → 'agy/…'.
- * Bắt buộc vì agy có claude-sonnet-4-6 còn Kiro có claude-sonnet-4 — không prefix thì
- * báo cáo trộn 2 provider. KHÔNG dùng trigger/normalize lúc đọc (test ghi id trần sau khi load).
+ * Danh sách migration theo thứ tự version tăng dần.
+ *
+ * Mỗi `up` PHẢI idempotent: DB đang chạy chưa có khoá `schemaVersion` nên coi như v0,
+ * runner sẽ chạy lại toàn bộ — trên DB đã có sẵn cột/dữ liệu thì vẫn phải an toàn.
  */
-try {
-  const done = db.prepare(`SELECT value FROM settings WHERE key = 'migratedUsageModelPrefix'`).get() as any;
-  if (!done) {
-    db.exec(`UPDATE gateway_usage SET model = 'agy/' || model WHERE model NOT LIKE '%/%'`);
-    db.prepare(
-      `INSERT INTO settings (key,value,updated_at) VALUES (?,?,?)
-       ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
-    ).run('migratedUsageModelPrefix', '1', Date.now());
+const MIGRATIONS: Array<{ v: number; name: string; up: (d: MigDb) => void }> = [
+  {
+    v: 1,
+    name: 'cột proxy cho runs + probe_ok cho quota_history',
+    up: (d) => {
+      addColumnIfMissing(d, 'runs', 'proxy', 'TEXT');
+      addColumnIfMissing(d, 'quota_history', 'probe_ok', 'INTEGER');
+    },
+  },
+  {
+    v: 2,
+    // Bắt buộc vì agy có claude-sonnet-4-6 còn Kiro có claude-sonnet-4 — không prefix thì
+    // báo cáo trộn 2 provider. KHÔNG dùng trigger/normalize lúc đọc (test ghi id trần sau khi load).
+    name: 'thêm prefix agy/ cho model id cũ trong gateway_usage',
+    up: (d) => {
+      // Giữ cờ cũ: DB đã migrate trước khi có runner thì bỏ qua, tránh chạy lại vô ích.
+      const done = d.prepare(`SELECT value FROM settings WHERE key = 'migratedUsageModelPrefix'`).get();
+      if (done) return;
+      d.exec(`UPDATE gateway_usage SET model = 'agy/' || model WHERE model NOT LIKE '%/%'`);
+      d.prepare(
+        `INSERT INTO settings (key,value,updated_at) VALUES (?,?,?)
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+      ).run('migratedUsageModelPrefix', '1', Date.now());
+    },
+  },
+];
+
+/** Chạy mọi migration chưa áp dụng. Trả về danh sách version đã chạy. */
+export function runMigrations(d: MigDb): number[] {
+  const from = schemaVersion(d);
+  const ran: number[] = [];
+  for (const m of MIGRATIONS) {
+    if (m.v <= from) continue;
+    m.up(d);
+    setSchemaVersion(d, m.v);
+    ran.push(m.v);
   }
-} catch {
-  /* bảng chưa sẵn sàng → lần chạy sau thử lại */
+  return ran;
+}
+
+// Chạy lúc load module. Bọc try/catch: migration lỗi KHÔNG được làm server không lên được —
+// ghi lỗi ra stderr rồi để lần khởi động sau thử lại.
+try {
+  runMigrations(db);
+} catch (e) {
+  console.error('[migration] lỗi:', e instanceof Error ? e.message : e);
 }
 
 export interface RunRow {

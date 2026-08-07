@@ -42,6 +42,25 @@ async function main() {
     decorateReply: false,
   });
 
+  /**
+   * SPA fallback: dashboard React dùng client-side routing, nên F5 tại `/pool` phải trả
+   * index.html chứ không phải 404 (đo trước khi sửa: `/` → 200 nhưng `/pool` → 404).
+   *
+   * Whitelist prefix tường minh — nuốt nhầm `/api/*` hay `/v1/*` sẽ biến lỗi 404 rõ ràng
+   * thành một trang HTML mà client API không parse được, rất khó chẩn đoán.
+   */
+  const API_PREFIXES = ['/api/', '/proxy/', '/v1/', '/anthropic/', '/openai/', '/events', '/screenshots/'];
+  app.setNotFoundHandler((req, reply) => {
+    const url = req.url.split('?')[0] || '';
+    const isApi = API_PREFIXES.some((p) => url === p.replace(/\/$/, '') || url.startsWith(p));
+    const wantsHtml = (req.headers.accept || '').includes('text/html');
+    if (req.method === 'GET' && wantsHtml && !isApi) {
+      reply.type('text/html');
+      return reply.send(readFileSync(resolve(PUBLIC_DIR, 'index.html'), 'utf8'));
+    }
+    return reply.code(404).send({ error: 'not found' });
+  });
+
   // SSE realtime log/trạng thái
   app.get('/events', (req, reply) => {
     reply.raw.writeHead(200, {
