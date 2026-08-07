@@ -52,7 +52,12 @@ export interface GenArgs {
   signal?: AbortSignal;
 }
 
-export type StreamEvent = { delta?: string; image?: string; toolCall?: ToolCall; usage?: Usage; done?: boolean };
+export type StreamEvent = {
+  delta?: string; image?: string; toolCall?: ToolCall; usage?: Usage; done?: boolean;
+  /** Lý do dừng của upstream, chỉ có ở event cuối. Thiếu nó thì stream luôn báo 'stop'
+   *  kể cả khi thực sự bị cắt vì max_tokens. */
+  finishReason?: string;
+};
 
 export interface LiveResult {
   status: 'ok' | 'quota' | 'error';

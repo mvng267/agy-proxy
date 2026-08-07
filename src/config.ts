@@ -90,6 +90,10 @@ export const config = {
     // Lỗi hạ tầng (5xx/timeout/mạng) thường thoáng qua → nghỉ ngắn hơn nhiều so với
     // hết hạn mức. Trước đây loại lỗi này KHÔNG cooldown gì cả.
     cooldown5xxSec: num(S('gatewayCooldown5xxSec') ?? E('GATEWAY_COOLDOWN_5XX_SEC'), 30),
+    // Envelope lỗi ĐÚNG spec OpenAI `{error:{message,type,...}}`. Tắt để quay về shape
+    // cũ `{error:"<chuỗi>"}` nếu có client đang đọc `body.error` như chuỗi —
+    // rollback không cần deploy lại.
+    openaiStrictErrors: bool(S('openaiStrictErrors') ?? E('OPENAI_STRICT_ERRORS'), true),
     quota: {
       autoRefresh: bool(S('quotaAutoRefresh') ?? process.env.GATEWAY_QUOTA_AUTO, false),
       intervalMin: num(S('quotaIntervalMin') ?? process.env.GATEWAY_QUOTA_INTERVAL_MIN, 30),
@@ -142,6 +146,7 @@ const SETTERS: Record<string, Setter> = {
   gatewayProxy: (v) => (config.gateway.outboundProxy = v),
   gatewayCooldownSec: (v) => (config.gateway.cooldownSec = Number(v)),
   gatewayCooldown5xxSec: (v) => (config.gateway.cooldown5xxSec = Number(v)),
+  openaiStrictErrors: (v) => (config.gateway.openaiStrictErrors = v === 'true'),
   quotaAutoRefresh: (v) => (config.gateway.quota.autoRefresh = v === 'true'),
   quotaIntervalMin: (v) => (config.gateway.quota.intervalMin = Number(v)),
   quotaOnCall: (v) => (config.gateway.quota.onCall = v === 'true'),

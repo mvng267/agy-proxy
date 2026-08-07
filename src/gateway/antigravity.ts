@@ -534,7 +534,7 @@ export async function generate(opts: CallOpts): Promise<GenResult> {
 /** Stream: async generator phát text delta (+ usage cuối). */
 export async function* generateStream(
   opts: CallOpts,
-): AsyncGenerator<{ delta?: string; image?: string; toolCall?: ToolCall; usage?: Usage; done?: boolean }> {
+): AsyncGenerator<{ delta?: string; image?: string; toolCall?: ToolCall; usage?: Usage; done?: boolean; finishReason?: string }> {
   const body = openaiToAntigravity(opts.model, opts.messages, {
     projectId: opts.projectId,
     generationConfig: opts.generationConfig,
@@ -616,6 +616,7 @@ export async function* generateStream(
   const dec = new TextDecoder();
   let buf = '';
   let usage: Usage | undefined;
+  let finishReason: string | undefined;
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -645,9 +646,11 @@ export async function* generateStream(
         }
       }
       if (node?.usageMetadata) usage = usageOf(node);
+      const fr = node?.candidates?.[0]?.finishReason;
+      if (typeof fr === 'string' && fr) finishReason = fr;
     }
   }
-  yield { usage, done: true };
+  yield { usage, finishReason, done: true };
 }
 
 // ---------- models & credits (best-effort) ----------

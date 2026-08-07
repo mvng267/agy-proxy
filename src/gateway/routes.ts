@@ -5,6 +5,7 @@ import {
   authenticate, createApiKey, listPublicApiKeys, patchApiKey, removeApiKey,
   type AuthCtx,
 } from './apikeys.js';
+import { openaiGenerationConfig, toOpenAIFinish, openaiError, mapStatus, retryAfterSec } from './openai.js';
 import { emitLog } from '../events.js';
 import { store } from '../store/index.js';
 import {
@@ -293,13 +294,49 @@ function openaiCompletion(model: string, r: GenResult) {
     object: 'chat.completion',
     created: Math.floor(Date.now() / 1000),
     model,
-    choices: [{ index: 0, message, finish_reason: calls.length ? 'tool_calls' : r.finishReason || 'stop' }],
+    // Trước đây trả thẳng r.finishReason → client nhận 'STOP'/'MAX_TOKENS' của Gemini,
+    // không phải giá trị OpenAI hợp lệ.
+    choices: [{ index: 0, message, finish_reason: calls.length ? 'tool_calls' : toOpenAIFinish(r.finishReason) }],
     usage: {
       prompt_tokens: r.usage.promptTokens,
       completion_tokens: r.usage.completionTokens,
       total_tokens: r.usage.totalTokens,
     },
   };
+}
+
+/**
+ * Trả lỗi cho client OpenAI, đúng spec.
+ *
+ * Ba việc mà đường cũ làm sai:
+ *  1. `{error: "<chuỗi>"}` — SDK đọc `err.error.message` được undefined.
+ *  2. Mọi lỗi bị dồn về 400/502/503 nên 429 upstream thành 502, client không biết retry.
+ *  3. Lỗi giữa stream chỉ `reply.raw.end()` — không `[DONE]`, không frame lỗi → client TREO.
+ */
+function sendOpenAIError(reply: FastifyReply, e: any, model?: string): FastifyReply {
+  const status = mapStatus(e);
+  const hint = model ? contextHint(e, model) : undefined;
+  const msg = hint ?? e?.message ?? 'all accounts failed';
+  const ra = retryAfterSec(e);
+  if (ra != null && status === 429) reply.header('retry-after', String(ra));
+
+  // Đã gửi byte SSE → không đổi được status nữa, nhưng vẫn phải ĐÓNG stream đúng cách.
+  if (reply.raw.headersSent) {
+    const body = config.gateway.openaiStrictErrors
+      ? openaiError(status, msg, hint ? { detail: e?.message } : undefined)
+      : { error: msg };
+    try {
+      reply.raw.write(`data: ${JSON.stringify(body)}\n\n`);
+      reply.raw.write('data: [DONE]\n\n');
+    } catch { /* client đã ngắt */ }
+    reply.raw.end();
+    return reply;
+  }
+
+  if (!config.gateway.openaiStrictErrors) {
+    return reply.code(status).send({ error: msg, ...(hint ? { detail: e?.message } : {}) });
+  }
+  return reply.code(status).send(openaiError(status, msg, hint ? { detail: e?.message } : undefined));
 }
 
 function sseInit(reply: FastifyReply) {
@@ -390,6 +427,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       runProviderCall: (opts: any) => Promise<{ done: true } | { result: GenResult }>;
       /** Attribution; `combo` được điền theo tên combo thật ở từng bước. */
       usage?: UsageCtx;
+      /** Tham số sinh của client (max_tokens, temperature…) — mọi bước dùng chung. */
+      generationConfig?: Record<string, unknown>;
     },
   ): Promise<any> {
     const snap = poolSnapshot();
@@ -449,6 +488,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
           provider: p.provider!, bare: p.model!, labelModel: p.prefixed,
           messages: o.messages, tools: o.tools, stream: o.stream, reply: o.reply, endpoint: comboName,
           skipKeys,
+          generationConfig: o.generationConfig,
           // Mọi bước dùng CHUNG requestId → 1 request client = N dòng usage liên kết được.
           usage: o.usage ? { ...o.usage, combo: comboName } : undefined,
         });
@@ -475,7 +515,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
 
   // ---------------- OpenAI-compatible ----------------
   app.get('/proxy/v1/models', async (req, reply) => {
-    if (!authOk(req)) return reply.code(401).send({ error: 'unauthorized' });
+    if (!authOk(req)) return reply.code(401).send(openaiError(401, 'unauthorized'));
     const q = (req.query ?? {}) as any;
     /**
      * Gateway trung gian (OmniRoute, LiteLLM…) TỰ THÊM prefix provider của nó vào id,
@@ -540,6 +580,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     skipKeys?: Set<string>;
     /** Attribution ghi kèm usage (api key, combo, request_id…). */
     usage?: UsageCtx;
+    /** Usage THẬT từ upstream — nhánh Anthropic dùng thay vì ước lượng chars/4. */
+    onUsage?: (u: { promptTokens: number; completionTokens: number }) => void;
   }): Promise<{ done: true } | { result: GenResult }> {
     const { provider, bare, labelModel, messages, stream, reply } = opts;
     const p = PROVIDERS[provider];
@@ -622,6 +664,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
           // dùng chung index 0 sẽ làm tool sau đè lên tool trước.
           let toolIndex = 0;
           let sawToolCall = false;
+          let finishReason: string | undefined;
           for await (const ev of p.generateStream({ session: ctx.session, model: bare, messages, ...genArgs, dispatcher: ctx.dispatcher })) {
             if (ev.delta) {
               if (opts.sseWriter) opts.sseWriter(ev.delta);
@@ -639,10 +682,15 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
               }, null);
             }
             if (ev.image && !opts.sseWriter) sseChunk(reply, labelModel, id, { content: `\n![image](${ev.image})` }, null);
-            if (ev.usage) { pt = ev.usage.promptTokens; ct = ev.usage.completionTokens; }
+            if (ev.usage) {
+              pt = ev.usage.promptTokens; ct = ev.usage.completionTokens;
+              opts.onUsage?.({ promptTokens: pt, completionTokens: ct });
+            }
+            if (ev.finishReason) finishReason = ev.finishReason;
           }
           if (!opts.sseWriter) {
-            sseChunk(reply, labelModel, id, {}, sawToolCall ? 'tool_calls' : 'stop');
+            // Hardcode 'stop' sẽ NÓI DỐI khi upstream thực sự cắt vì max_tokens.
+            sseChunk(reply, labelModel, id, {}, sawToolCall ? 'tool_calls' : toOpenAIFinish(finishReason));
             reply.raw.write('data: [DONE]\n\n');
             reply.raw.end();
           }
@@ -695,8 +743,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
 
   app.post('/proxy/v1/chat/completions', async (req, reply) => {
     const auth = authCtx(req);
-    if (!auth) return reply.code(401).send({ error: 'unauthorized' });
-    if (!config.gateway.enabled) return reply.code(503).send({ error: 'gateway disabled' });
+    if (!auth) return reply.code(401).send(openaiError(401, 'unauthorized'));
+    if (!config.gateway.enabled) return reply.code(503).send(openaiError(503, 'gateway disabled'));
     const body = req.body as any;
     const messages = toMessages(body);
     const tools = toToolDefs(body);
@@ -704,35 +752,31 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     const usage: UsageCtx = {
       requestId: randomUUID(), apiKeyId: auth.keyId, endpoint: '/proxy/v1/chat/completions', stream,
     };
+    // TRƯỚC ĐÂY không dựng generationConfig → max_tokens/temperature/top_p bị bỏ hoàn toàn.
+    const generationConfig = openaiGenerationConfig(body);
     syncFromStore();
 
     let parsed: ParsedModel;
     try {
       parsed = parseModelId(body?.model);
     } catch (e: any) {
-      return reply.code(400).send({ error: { message: e.message, type: 'invalid_request_error', param: 'model', suggestion: e.suggestion } });
+      return reply.code(400).send(openaiError(400, e.message, { param: 'model', suggestion: e.suggestion }));
     }
 
     try {
       // combo / auto → engine combo tự lo fallback
       if (parsed.kind !== 'provider') {
-        return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall, usage });
+        return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall, usage, generationConfig });
       }
       if (stream) sseInit(reply);
       const out = await runProviderCall({
         provider: parsed.provider!, bare: parsed.model!, labelModel: parsed.prefixed,
-        messages, tools, stream, reply, usage,
+        messages, tools, stream, reply, usage, generationConfig,
       });
       if ('done' in out) return reply;
       return reply.send(openaiCompletion(parsed.prefixed, out.result));
     } catch (e: any) {
-      if (stream && reply.raw.headersSent) {
-        reply.raw.end();
-        return reply;
-      }
-      const code = e instanceof NoAccountError ? 503 : e?.status === 400 ? 400 : 502;
-      const hint = contextHint(e, parsed.prefixed);
-      return reply.code(code).send({ error: hint ?? e?.message ?? 'all accounts failed', ...(hint ? { detail: e?.message } : {}) });
+      return sendOpenAIError(reply, e, parsed.prefixed);
     }
   });
 
@@ -1387,6 +1431,9 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       const msgId = 'msg_' + randomUUID().replace(/-/g, '');
       // Một requestId cho CẢ request client — mọi bước combo dùng chung để nối được.
       const requestId = randomUUID();
+      // Usage THẬT từ upstream. Trước đây message_delta trả `ceil(outChars/4)` — một con
+      // số bịa, khiến client tính nhầm chi phí.
+      let realUsage: { promptTokens: number; completionTokens: number } | undefined;
 
       /** Gọi 1 model; nếu là combo/auto thì thử lần lượt theo kế hoạch (fallback). */
       const call = async (
@@ -1404,6 +1451,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
             onToolCall,
             // `label` chỉ có giá trị khi gọi từ nhánh combo → dùng làm tên combo.
             usage: { requestId, apiKeyId: auth.keyId, endpoint: path, stream, combo: label },
+            onUsage: (u) => { realUsage = u; },
           });
 
         if (target.kind === 'provider') return one(target);
@@ -1527,7 +1575,15 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
             closeText();
           }
           startStream(); // model im lặng hoàn toàn: vẫn phải mở stream trước khi đóng
-          reply.raw.write(sseFrame('message_delta', { type: 'message_delta', delta: { stop_reason: sawTool ? 'tool_use' : 'end_turn', stop_sequence: null }, usage: { output_tokens: Math.ceil(outChars / 4) } }));
+          reply.raw.write(sseFrame('message_delta', {
+            type: 'message_delta',
+            delta: { stop_reason: sawTool ? 'tool_use' : 'end_turn', stop_sequence: null },
+            // Ưu tiên số thật; chỉ ước lượng khi upstream không trả usage.
+            usage: {
+              output_tokens: realUsage?.completionTokens ?? Math.ceil(outChars / 4),
+              ...(realUsage ? { input_tokens: realUsage.promptTokens } : {}),
+            },
+          }));
           reply.raw.write(sseFrame('message_stop', { type: 'message_stop' }));
         } finally {
           clearInterval(ping);
@@ -1535,7 +1591,11 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         reply.raw.end();
         return reply;
       } catch (e: any) {
-        const status = e?.status === 400 ? 400 : e instanceof NoAccountError ? 503 : 502;
+        // Dùng chung mapStatus với dialect OpenAI: 429 upstream phải ra 429 (trước đây
+        // thành 502 nên client Anthropic không nhận rate_limit_error và không retry).
+        const status = mapStatus(e);
+        const ra = retryAfterSec(e);
+        if (ra != null && status === 429 && !reply.raw.headersSent) reply.header('retry-after', String(ra));
         if (reply.raw.headersSent) {
           reply.raw.write(sseFrame('error', anthropicErrorBody(status, String(e?.message ?? e))));
           reply.raw.end();
@@ -1578,36 +1638,34 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   for (const path of ['/v1/chat/completions', '/openai/v1/chat/completions']) {
     app.post(path, async (req, reply) => {
       const auth = authCtx(req);
-      if (!auth) return reply.code(401).send({ error: 'unauthorized' });
-      if (!config.gateway.enabled) return reply.code(503).send({ error: 'gateway disabled' });
+      if (!auth) return reply.code(401).send(openaiError(401, 'unauthorized'));
+      if (!config.gateway.enabled) return reply.code(503).send(openaiError(503, 'gateway disabled'));
       const body = req.body as any;
       const messages = toMessages(body);
       const tools = toToolDefs(body);
       const stream = !!body?.stream;
       const usage: UsageCtx = { requestId: randomUUID(), apiKeyId: auth.keyId, endpoint: path, stream };
+      const generationConfig = openaiGenerationConfig(body);
       syncFromStore();
       let parsed: ParsedModel;
       try {
         parsed = parseModelId(body?.model);
       } catch (e: any) {
-        return reply.code(400).send({ error: { message: e.message, type: 'invalid_request_error', param: 'model', suggestion: e.suggestion } });
+        return reply.code(400).send(openaiError(400, e.message, { param: 'model', suggestion: e.suggestion }));
       }
       try {
         if (parsed.kind !== 'provider') {
-          return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall, usage });
+          return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall, usage, generationConfig });
         }
         if (stream) sseInit(reply);
         const out = await runProviderCall({
           provider: parsed.provider!, bare: parsed.model!, labelModel: parsed.prefixed,
-          messages, tools, stream, reply, usage,
+          messages, tools, stream, reply, usage, generationConfig,
         });
         if ('done' in out) return reply;
         return reply.send(openaiCompletion(parsed.prefixed, out.result));
       } catch (e: any) {
-        if (stream && reply.raw.headersSent) { reply.raw.end(); return reply; }
-        const code = e instanceof NoAccountError ? 503 : e?.status === 400 ? 400 : 502;
-        const hint = contextHint(e, parsed.prefixed);
-        return reply.code(code).send({ error: hint ?? e?.message ?? 'all accounts failed', ...(hint ? { detail: e?.message } : {}) });
+        return sendOpenAIError(reply, e, parsed.prefixed);
       }
     });
   }
@@ -1618,7 +1676,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       // Trước đây KHÔNG kiểm key (đo bằng curl: `/v1/models` → 200 không cần key), trong
       // khi `/proxy/v1/models` và `/openai/v1/models` đều 401. Lỗ hổng do handler không
       // gọi hàm auth nào + auth.ts:129 miễn Basic auth cho mọi path `/v1/`.
-      if (!authOk(req)) return reply.code(401).send({ error: 'unauthorized' });
+      if (!authOk(req)) return reply.code(401).send(openaiError(401, 'unauthorized'));
       const all = allModels();
       const data: { id: string; object: string; owned_by: string }[] = all.map((m) => ({ id: m.prefixed, object: 'model', owned_by: m.provider as string }));
       for (const c of listCombos()) data.push({ id: `combo/${c.id}`, object: 'model', owned_by: 'combo' });
