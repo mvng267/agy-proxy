@@ -185,7 +185,9 @@ export function Quota() {
 
   const fetchAccounts = useCallback(async () => {
     try {
-      const res = await fetch("/api/gateway/accounts")
+      // ?withModels=1: trang này CẦN chi tiết từng model. Payload mặc định đã cắt
+      // quota.models[] vì nó chiếm 62% kích thước mà chỉ trang này dùng.
+      const res = await fetch("/api/gateway/accounts?withModels=1")
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json() as { accounts: PoolAccount[] }
       setAccounts(json.accounts ?? [])

@@ -47,10 +47,10 @@ const E = (key: string): string | undefined => process.env[key] || undefined;
 
 export const config = {
   // ---- server (cần khởi động lại khi đổi) ----
-  port: num(S('port') ?? process.env.PORT, 7788),
+  port: num(S('port') ?? E('PORT'), 7788),
   host: S('host') ?? E('HOST') ?? '127.0.0.1',
   // Giới hạn body request (MB). Fastify mặc định 1 MB — quá nhỏ cho tool coding.
-  maxBodyMb: num(S('maxBodyMb') ?? process.env.MAX_BODY_MB, 32),
+  maxBodyMb: num(S('maxBodyMb') ?? E('MAX_BODY_MB'), 32),
   // ---- đăng nhập dashboard ----
   dashboardPassword: S('dashboardPassword') ?? E('DASHBOARD_PASSWORD') ?? '123456',
   dashboardUser: S('dashboardUser') ?? E('DASHBOARD_USER') ?? '',
@@ -65,28 +65,28 @@ export const config = {
   },
   // ---- harvest ----
   pacing: {
-    minSec: num(S('pacingMinSec') ?? process.env.PACING_MIN_SEC, 180),
-    maxSec: num(S('pacingMaxSec') ?? process.env.PACING_MAX_SEC, 600),
+    minSec: num(S('pacingMinSec') ?? E('PACING_MIN_SEC'), 180),
+    maxSec: num(S('pacingMaxSec') ?? E('PACING_MAX_SEC'), 600),
   },
-  dailyLoginCap: num(S('dailyLoginCap') ?? process.env.DAILY_LOGIN_CAP, 8),
-  humanTimeoutSec: num(S('humanTimeoutSec') ?? process.env.HUMAN_TIMEOUT_SEC, 600),
-  headless: bool(S('headless') ?? process.env.HEADLESS, false),
-  fingerprint: bool(S('fingerprint') ?? process.env.FINGERPRINT, true),
-  chromeMajor: num(S('chromeMajor') ?? process.env.CHROME_MAJOR, 150),
+  dailyLoginCap: num(S('dailyLoginCap') ?? E('DAILY_LOGIN_CAP'), 8),
+  humanTimeoutSec: num(S('humanTimeoutSec') ?? E('HUMAN_TIMEOUT_SEC'), 600),
+  headless: bool(S('headless') ?? E('HEADLESS'), false),
+  fingerprint: bool(S('fingerprint') ?? E('FINGERPRINT'), true),
+  chromeMajor: num(S('chromeMajor') ?? E('CHROME_MAJOR'), 150),
   browserChannel: S('browserChannel') ?? E('BROWSER_CHANNEL') ?? 'chrome',
-  chromeNoSandbox: bool(S('chromeNoSandbox') ?? process.env.CHROME_NO_SANDBOX, false),
-  tokenHealthHours: num(S('tokenHealthHours') ?? process.env.TOKEN_HEALTH_HOURS, 6),
+  chromeNoSandbox: bool(S('chromeNoSandbox') ?? E('CHROME_NO_SANDBOX'), false),
+  tokenHealthHours: num(S('tokenHealthHours') ?? E('TOKEN_HEALTH_HOURS'), 6),
   kiroRedirectUri: S('kiroRedirectUri') ?? E('KIRO_REDIRECT_URI') ?? 'http://localhost:49153/oauth/callback',
   // ---- gateway ----
   gateway: {
-    enabled: bool(S('gatewayEnabled') ?? process.env.GATEWAY_ENABLED, true),
+    enabled: bool(S('gatewayEnabled') ?? E('GATEWAY_ENABLED'), true),
     apiKey: S('gatewayApiKey') ?? E('GATEWAY_API_KEY') ?? '',
     rotation: S('gatewayRotation') ?? E('GATEWAY_ROTATION') ?? 'round-robin',
     // Trả model id TRẦN (không prefix) — dùng khi cắm vào gateway khác (OmniRoute) vì
     // nơi đó tự thêm prefix provider, để nguyên sẽ thành agy/agy/gemini-…
     bareModels: bool(S('gatewayBareModels'), false),
     outboundProxy: S('gatewayProxy') ?? E('GATEWAY_PROXY') ?? '',
-    cooldownSec: num(S('gatewayCooldownSec') ?? process.env.GATEWAY_COOLDOWN_SEC, 900),
+    cooldownSec: num(S('gatewayCooldownSec') ?? E('GATEWAY_COOLDOWN_SEC'), 900),
     // Lỗi hạ tầng (5xx/timeout/mạng) thường thoáng qua → nghỉ ngắn hơn nhiều so với
     // hết hạn mức. Trước đây loại lỗi này KHÔNG cooldown gì cả.
     cooldown5xxSec: num(S('gatewayCooldown5xxSec') ?? E('GATEWAY_COOLDOWN_5XX_SEC'), 30),
@@ -98,10 +98,10 @@ export const config = {
     // (mỗi phút) kịp giãn nhịp qua hết số account sắp hết hạn.
     tokenRefreshAheadMin: num(S('tokenRefreshAheadMin') ?? E('TOKEN_REFRESH_AHEAD_MIN'), 15),
     quota: {
-      autoRefresh: bool(S('quotaAutoRefresh') ?? process.env.GATEWAY_QUOTA_AUTO, false),
-      intervalMin: num(S('quotaIntervalMin') ?? process.env.GATEWAY_QUOTA_INTERVAL_MIN, 30),
-      onCall: bool(S('quotaOnCall') ?? process.env.GATEWAY_QUOTA_ON_CALL, true),
-      cacheTtlMin: num(S('quotaCacheTtlMin') ?? process.env.GATEWAY_QUOTA_TTL_MIN, 10),
+      autoRefresh: bool(S('quotaAutoRefresh') ?? E('GATEWAY_QUOTA_AUTO'), false),
+      intervalMin: num(S('quotaIntervalMin') ?? E('GATEWAY_QUOTA_INTERVAL_MIN'), 30),
+      onCall: bool(S('quotaOnCall') ?? E('GATEWAY_QUOTA_ON_CALL'), true),
+      cacheTtlMin: num(S('quotaCacheTtlMin') ?? E('GATEWAY_QUOTA_TTL_MIN'), 10),
       historyDays: num(S('quotaHistoryDays'), 90),
     },
     // Endpoint Anthropic (Claude Code): id Anthropic thật sẽ map sang 2 model này
@@ -171,17 +171,93 @@ export const RESTART_KEYS = new Set(['port', 'host', 'maxBodyMb']);
 export const CONFIG_KEYS = Object.keys(SETTERS);
 
 /** Đổi cấu hình: áp vào RAM + GHI DB (sống qua restart). Trả về các key đã đổi. */
-export function setConfig(patch: Record<string, unknown>): string[] {
+/**
+ * Đặc tả giá trị hợp lệ. Chỉ liệt kê khoá CẦN chặn — khoá không có ở đây vẫn ghi được
+ * như cũ (giữ tương thích ngược, tránh chặn nhầm khoá đang dùng).
+ */
+type Spec =
+  | { type: 'int'; min?: number; max?: number }
+  | { type: 'enum'; values: readonly string[] };
+
+const SPECS: Record<string, Spec> = {
+  port: { type: 'int', min: 1, max: 65535 },
+  maxBodyMb: { type: 'int', min: 1, max: 512 },
+  // TRƯỚC ĐÂY nhận BẤT KỲ chuỗi nào, gán vào config.gateway.rotation rồi pool.pick()
+  // rơi vào nhánh `default` IM LẶNG — người dùng tưởng đã đổi chiến lược.
+  gatewayRotation: { type: 'enum', values: ['round-robin', 'full-first', 'failover', 'highest-first'] },
+  gatewayCooldownSec: { type: 'int', min: 1, max: 86_400 },
+  gatewayCooldown5xxSec: { type: 'int', min: 1, max: 3_600 },
+  tokenRefreshAheadMin: { type: 'int', min: 1, max: 240 },
+  quotaIntervalMin: { type: 'int', min: 1, max: 1_440 },
+  quotaCacheTtlMin: { type: 'int', min: 1, max: 1_440 },
+  quotaHistoryDays: { type: 'int', min: 1, max: 3_650 },
+  usageRetentionDays: { type: 'int', min: 0, max: 3_650 },
+  loginMaxFail: { type: 'int', min: 1, max: 100 },
+  loginLockMin: { type: 'int', min: 1, max: 1_440 },
+  pacingMinSec: { type: 'int', min: 0, max: 86_400 },
+  pacingMaxSec: { type: 'int', min: 0, max: 86_400 },
+  dailyLoginCap: { type: 'int', min: 0, max: 10_000 },
+  tokenHealthHours: { type: 'int', min: 0, max: 720 },
+};
+
+/** Kiểm 1 giá trị. Trả lý do từ chối, hoặc null nếu hợp lệ. */
+function rejectReason(key: string, v: string): string | null {
+  const spec = SPECS[key];
+  if (!spec) return null;
+  if (spec.type === 'enum') {
+    return spec.values.includes(v) ? null : `phải là một trong: ${spec.values.join(', ')}`;
+  }
+  const n = Number(v);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) return 'phải là số nguyên';
+  if (spec.min != null && n < spec.min) return `phải >= ${spec.min}`;
+  if (spec.max != null && n > spec.max) return `phải <= ${spec.max}`;
+  return null;
+}
+
+export interface ConfigResult {
+  changed: string[];
+  /** Khoá bị từ chối kèm lý do — trước đây bị bỏ qua IM LẶNG. */
+  rejected: Array<{ key: string; reason: string }>;
+}
+
+/**
+ * Ghi cấu hình có kiểm tra, trả CẢ danh sách bị từ chối.
+ * `setConfig()` bên dưới là wrapper trả `string[]` thuần cho code cũ — KHÔNG gắn
+ * thuộc tính phụ lên mảng, vì `deepEqual` trong test sẽ thấy và báo lệch.
+ */
+export function applyConfig(patch: Record<string, unknown>): ConfigResult {
   const changed: string[] = [];
+  const rejected: ConfigResult['rejected'] = [];
+
   for (const [k, raw] of Object.entries(patch)) {
     const set = SETTERS[k];
-    if (!set || raw === undefined || raw === null) continue;
-    const v = typeof raw === 'boolean' ? String(raw) : String(raw);
+    if (raw === undefined || raw === null) continue;
+    if (!set) {
+      rejected.push({ key: k, reason: 'khoá không tồn tại' });
+      continue;
+    }
+    const v = String(raw);
+    const bad = rejectReason(k, v);
+    if (bad) {
+      rejected.push({ key: k, reason: bad });
+      continue;
+    }
     set(v);
     setSetting(k, v);
     changed.push(k);
   }
-  return changed;
+
+  // Ràng buộc liên khoá: kiểm SAU khi đã áp, dựa trên giá trị thực tế.
+  if ((changed.includes('pacingMinSec') || changed.includes('pacingMaxSec')) && config.pacing.minSec > config.pacing.maxSec) {
+    rejected.push({ key: 'pacingMinSec', reason: 'không được lớn hơn pacingMaxSec' });
+  }
+
+  return { changed, rejected };
+}
+
+/** Tương thích ngược: trả mảng khoá đã đổi, như trước đây. */
+export function setConfig(patch: Record<string, unknown>): string[] {
+  return applyConfig(patch).changed;
 }
 
 /** Giá trị hiện tại theo key (để API settings trả về). */

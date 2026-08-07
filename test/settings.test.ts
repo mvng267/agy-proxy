@@ -75,3 +75,56 @@ test('maxBodyMb: mặc định 32MB (Fastify mặc định 1MB là quá nhỏ ch
   assert.equal(getSetting('maxBodyMb'), '16');
   setConfig({ maxBodyMb: old });
 });
+
+// ---------------------------------------------------------------------------
+// G7 — validate cấu hình. Trước đây giá trị sai bị nhận IM LẶNG.
+// ---------------------------------------------------------------------------
+
+test('applyConfig: từ chối rotation không hợp lệ, KHÔNG đổi giá trị đang dùng', async () => {
+  const { applyConfig, config } = await import('../src/config.js');
+  const old = config.gateway.rotation;
+  const r = applyConfig({ gatewayRotation: 'chien-luoc-bia' });
+  assert.equal(config.gateway.rotation, old, 'giá trị cũ phải giữ nguyên');
+  assert.deepEqual(r.changed, []);
+  assert.equal(r.rejected[0]?.key, 'gatewayRotation');
+  assert.match(r.rejected[0]!.reason, /round-robin/);
+});
+
+test('applyConfig: nhận rotation hợp lệ', async () => {
+  const { applyConfig, config } = await import('../src/config.js');
+  const old = config.gateway.rotation;
+  try {
+    const r = applyConfig({ gatewayRotation: 'highest-first' });
+    assert.deepEqual(r.changed, ['gatewayRotation']);
+    assert.equal(config.gateway.rotation, 'highest-first');
+  } finally {
+    applyConfig({ gatewayRotation: old });
+  }
+});
+
+test('applyConfig: chặn số ngoài khoảng', async () => {
+  const { applyConfig, config } = await import('../src/config.js');
+  const old = config.port;
+  assert.ok(applyConfig({ port: 0 }).rejected.length, 'port 0 phải bị chặn');
+  assert.ok(applyConfig({ port: 70000 }).rejected.length, 'port > 65535 phải bị chặn');
+  assert.equal(config.port, old, 'port không được đổi');
+});
+
+test('applyConfig: khoá lạ nay báo rõ thay vì im lặng', async () => {
+  const { applyConfig } = await import('../src/config.js');
+  const r = applyConfig({ khongTonTaiDau: 'x' });
+  assert.deepEqual(r.changed, []);
+  assert.equal(r.rejected[0]?.reason, 'khoá không tồn tại');
+});
+
+test('applyConfig: pacingMin > pacingMax bị báo lỗi ràng buộc liên khoá', async () => {
+  const { applyConfig, config } = await import('../src/config.js');
+  const min = config.pacing.minSec;
+  const max = config.pacing.maxSec;
+  try {
+    const r = applyConfig({ pacingMinSec: 900, pacingMaxSec: 60 });
+    assert.ok(r.rejected.some((x) => x.key === 'pacingMinSec'), 'phải báo min > max');
+  } finally {
+    applyConfig({ pacingMinSec: min, pacingMaxSec: max });
+  }
+});

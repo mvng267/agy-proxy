@@ -796,6 +796,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     const q = (req.query ?? {}) as any;
     const only = q.provider && PROVIDERS[q.provider as ProviderId] ? (q.provider as ProviderId) : undefined;
     const used = creditsUsedThisMonth('kr/'); // Kiro không có API usage → đếm tại chỗ
+    const withModels = String((req.query as any)?.withModels ?? '') === '1';
     const limit = config.gateway.kiroCreditLimit;
     return {
       counts: Object.fromEntries(PROVIDER_IDS.map((p) => [p, pool.list(p).length])),
@@ -814,24 +815,35 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         tokensOut: a.tokensOut,
         lastUsed: a.lastUsed,
         cooldown: (a.cooldownUntil || 0) > now,
-        cooldownUntil: a.cooldownUntil,
-        monthlyExhaustedUntil: a.monthlyExhaustedUntil || 0,
-        lastError: a.lastError,
+        // Bỏ hẳn trường mang giá trị MẶC ĐỊNH: với 700 account, chở số 0 và chuỗi rỗng
+        // qua mạng mỗi 10s là lãng phí thật. Client dùng `?? 0` / `?? ''` như bình thường.
+        ...(a.cooldownUntil ? { cooldownUntil: a.cooldownUntil } : {}),
+        ...(a.monthlyExhaustedUntil ? { monthlyExhaustedUntil: a.monthlyExhaustedUntil } : {}),
+        ...(a.lastError ? { lastError: a.lastError } : {}),
         // `inflight` có trong PoolAccount nhưng trước đây không được map ra — thiếu nó thì
         // không quan sát được account "đang bận", và cũng không kiểm chứng được rò rỉ.
-        inflight: a.inflight || 0,
-        lastAttempt: a.lastAttempt || 0,
-        consecutiveFails: a.consecutiveFails || 0,
+        ...(a.inflight ? { inflight: a.inflight } : {}),
+        ...(a.lastAttempt ? { lastAttempt: a.lastAttempt } : {}),
+        ...(a.consecutiveFails ? { consecutiveFails: a.consecutiveFails } : {}),
         // Thời điểm cập nhật quota gần nhất + có quá hạn TTL chưa — để UI hiện
         // "cập nhật X phút trước" thay vì hiển thị số cũ như thể vừa đo.
-        quotaFetchedAt: a.quota?.fetchedAt ?? 0,
-        quotaStale: a.quota ? Date.now() - (a.quota.fetchedAt ?? 0) > (config.gateway.quota?.cacheTtlMin ?? 10) * 60_000 : true,
-        bucketCooldown: a.bucketCooldown ?? null,
-        quota: a.quota ?? null,
-        geminiPct: geminiPct(a),
-        claudePct: claudePct(a),
-        liveStatus: a.liveStatus ?? null,
-        hasProxy: !!a.proxyLabel,
+        ...(a.quota?.fetchedAt ? { quotaFetchedAt: a.quota.fetchedAt } : {}),
+        ...(a.quota && Date.now() - (a.quota.fetchedAt ?? 0) > (config.gateway.quota?.cacheTtlMin ?? 10) * 60_000
+          ? { quotaStale: true }
+          : {}),
+        ...(a.bucketCooldown ? { bucketCooldown: a.bucketCooldown } : {}),
+        /**
+         * Payload mặc định KHÔNG kèm `quota` — nó chiếm phần lớn kích thước (models[] 24
+         * phần tử/account, groups[] lặp lại % đã có ở `geminiPct`/`claudePct` bên dưới).
+         * Trang Pool poll mỗi 10s nên đây là chi phí thật.
+         * Trang Quota gọi `?withModels=1` để lấy đầy đủ.
+         */
+        ...(withModels ? { quota: a.quota ?? null } : {}),
+        ...(a.quota?.tier ? { tier: a.quota.tier } : {}),
+        ...(geminiPct(a) != null ? { geminiPct: geminiPct(a) } : {}),
+        ...(claudePct(a) != null ? { claudePct: claudePct(a) } : {}),
+        ...(a.liveStatus ? { liveStatus: a.liveStatus } : {}),
+        ...(a.proxyLabel ? { hasProxy: true } : {}),
       })),
     };
   });

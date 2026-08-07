@@ -8,7 +8,7 @@ import { resumeHuman, skipHuman, pendingHumanRuns } from './flows/runner.js';
 import { recentRuns, runLogs } from './store/db.js';
 import { fetchWebshareList, parseProxyList, testProxy } from './proxy/webshare.js';
 import { omniroute } from './omniroute/client.js';
-import { config, CSV, saveSettings, setConfig, getConfigValue, CONFIG_KEYS, SECRET_KEYS, RESTART_KEYS, AGY_HOME, ROOT } from './config.js';
+import { config, CSV, saveSettings, setConfig, applyConfig, getConfigValue, CONFIG_KEYS, SECRET_KEYS, RESTART_KEYS, AGY_HOME, ROOT } from './config.js';
 import { checkAll, restartHealthLoop } from './health/tokenHealth.js';
 import { hashPassword, verifyPassword } from './security.js';
 import { registerGatewayRoutes } from './gateway/routes.js';
@@ -356,12 +356,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       if (SECRET_KEYS.has(k) && patch[k] === '••••••••') delete patch[k];
       if (k === 'dashboardPassword') delete patch[k]; // đổi mật khẩu qua endpoint riêng
     }
-    const changed = setConfig(patch);
+    const { changed, rejected } = applyConfig(patch);
     // Áp nóng những thứ cần
     if (changed.includes('omnirouteUrl') || changed.includes('omniroutePassword')) omniroute.reset();
     if (changed.includes('tokenHealthHours')) restartHealthLoop(config.tokenHealthHours);
     const needRestart = changed.filter((k) => RESTART_KEYS.has(k));
-    return { ok: true, changed, needRestart };
+    // `rejected` cho biết khoá nào bị từ chối và VÌ SAO — trước đây bỏ qua im lặng nên
+    // người dùng nhập giá trị sai vẫn nhận "ok: true" và tưởng đã lưu.
+    return { ok: true, changed, rejected, needRestart };
   });
 
   // Test/đăng nhập OmniRoute ngay trong Cấu hình
