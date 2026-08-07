@@ -1,4 +1,4 @@
-import { writeFileSync, readFileSync, renameSync, existsSync, statSync } from 'node:fs';
+import { writeFileSync, readFileSync, renameSync, existsSync, statSync, chmodSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Dispatcher } from 'undici';
 import { DATA_DIR, config } from '../config.js';
@@ -593,7 +593,10 @@ export function flushPersist(): void {
   }
   try {
     const tmp = PERSIST + '.tmp';
-    writeFileSync(tmp, JSON.stringify(pool.toPersist(), null, 2));
+    // 0600: file chứa access token của toàn bộ pool — user khác trên máy không được đọc.
+    // chmod cả tmp vì `mode` chỉ áp dụng khi tạo mới (tmp sót từ lần crash giữ mode cũ).
+    writeFileSync(tmp, JSON.stringify(pool.toPersist(), null, 2), { mode: 0o600 });
+    try { chmodSync(tmp, 0o600); } catch { /* fs không hỗ trợ chmod → bỏ qua */ }
     renameSync(tmp, PERSIST);
     persistMtime = statSync(PERSIST).mtimeMs;
   } catch {

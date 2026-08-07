@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { mkdirSync, existsSync } from 'node:fs';
+import { mkdirSync, existsSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
 
 /**
@@ -40,3 +40,13 @@ export const CSV = {
 
 export const STATE_DB = resolve(DATA_DIR, 'state.db');
 export const SETTINGS_FILE = resolve(DATA_DIR, 'settings.json'); // legacy, chỉ để migrate
+
+// Siết 0600 dữ liệu CÓ SẴN từ bản cũ (bản mới đã ghi 0600 ngay tại chỗ ghi):
+// CSV chứa mật khẩu account + refresh token + credential proxy, state.db chứa
+// sessionSecret/hash mật khẩu/API key, gateway.json chứa access token cả pool.
+for (const f of ['accounts.csv', 'proxies.csv', 'credentials.csv', 'state.db', 'gateway.json', 'settings.json']) {
+  const p = resolve(DATA_DIR, f);
+  if (existsSync(p)) {
+    try { chmodSync(p, 0o600); } catch { /* fs không hỗ trợ chmod → bỏ qua */ }
+  }
+}

@@ -29,11 +29,14 @@ export function buildBackup(): BackupData {
   const accounts = store.listAccounts();
   const proxies = store.listProxies();
   const credentials = store.listCredentials();
+  // sessionSecret KHÔNG vào backup: nó chỉ ký cookie phiên dashboard của MÁY NÀY và
+  // được tự sinh lại lúc boot nếu thiếu — mang theo chỉ giúp kẻ cầm file backup giả
+  // được cookie đăng nhập. Các secret còn lại (mật khẩu OmniRoute, API key, hash mật
+  // khẩu dashboard) vẫn giữ để khôi phục máy mới là chạy được ngay.
+  const { sessionSecret: _omit, ...settings } = allSettings();
   return {
     version: 2,
-    // TOÀN BỘ cấu hình từ DB — gồm cả secret (mật khẩu OmniRoute, API key, hash mật khẩu
-    // dashboard, sessionSecret) để khôi phục máy mới là chạy được ngay.
-    settings: allSettings(),
+    settings,
     combos: listComboRows().map((c) => ({ id: c.id, name: c.name, strategy: c.strategy, targets: JSON.parse(c.targets_json), enabled: c.enabled !== 0 })),
     exportedAt: new Date().toISOString(),
     counts: { accounts: accounts.length, proxies: proxies.length, credentials: credentials.length },
@@ -100,6 +103,9 @@ export function restoreBackup(
   // 5) settings (v2): ghi thẳng vào DB → cấu hình sống qua restart
   if (data.settings && typeof data.settings === 'object') {
     for (const [k, v] of Object.entries<any>(data.settings)) {
+      // Backup cũ (trước khi export loại sessionSecret) vẫn có thể mang key này —
+      // không nhận: secret phiên là của riêng từng máy.
+      if (k === 'sessionSecret') continue;
       if (v !== undefined && v !== null) setSetting(k, String(v));
     }
   }

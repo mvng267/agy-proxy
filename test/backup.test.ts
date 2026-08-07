@@ -30,6 +30,11 @@ test('restoreBackup: identity (replace) giữ nguyên counts (không mất data)
   assert.equal(after.counts.credentials, before.counts.credentials);
 });
 
+test('backup KHÔNG mang sessionSecret (lộ = giả được cookie phiên dashboard)', () => {
+  const b = buildBackup();
+  assert.ok(!('sessionSecret' in (b.settings ?? {})), 'sessionSecret phải bị loại khỏi export');
+});
+
 test('restoreBackup: từ chối file không hợp lệ', () => {
   assert.throws(() => restoreBackup({ version: 99 }));
   assert.throws(() => restoreBackup(null));

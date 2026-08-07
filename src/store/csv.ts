@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, renameSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, renameSync, chmodSync } from 'node:fs';
 
 /**
  * CSV tối giản, đúng RFC 4180: quote đầy đủ, escape dấu " thành "".
@@ -108,9 +108,15 @@ export function readCsvFile(path: string): { headers: string[]; rows: Record<str
   return parseCsv(readFileSync(path, 'utf8'));
 }
 
-/** Ghi CSV nguyên tử: viết file tạm rồi rename để không hỏng file khi crash giữa chừng. */
+/**
+ * Ghi CSV nguyên tử: viết file tạm rồi rename để không hỏng file khi crash giữa chừng.
+ * Mode 0600: các CSV này chứa mật khẩu account, refresh token, credential proxy —
+ * user khác trên máy không được đọc. chmod cả file tạm vì `mode` của writeFileSync
+ * chỉ áp dụng khi TẠO MỚI (file .tmp sót lại từ lần crash giữ nguyên mode cũ).
+ */
 export function writeCsvFile(path: string, headers: string[], rows: Record<string, string>[]): void {
   const tmp = path + '.tmp';
-  writeFileSync(tmp, stringifyCsv(headers, rows), 'utf8');
+  writeFileSync(tmp, stringifyCsv(headers, rows), { encoding: 'utf8', mode: 0o600 });
+  try { chmodSync(tmp, 0o600); } catch { /* fs không hỗ trợ chmod → bỏ qua */ }
   renameSync(tmp, path);
 }

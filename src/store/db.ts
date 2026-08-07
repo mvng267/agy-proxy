@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { chmodSync } from 'node:fs';
 import { STATE_DB } from '../paths.js';
 
 /**
@@ -6,6 +7,8 @@ import { STATE_DB } from '../paths.js';
  * Giữ lịch sử run + log để dashboard hiển thị và để đếm cap/ngày.
  */
 export const db = new DatabaseSync(STATE_DB);
+// Bảng settings chứa secret (sessionSecret, hash mật khẩu, API key) → chỉ chủ file đọc được.
+try { chmodSync(STATE_DB, 0o600); } catch { /* fs không hỗ trợ chmod → bỏ qua */ }
 
 // WAL + busy_timeout: cho phép nhiều tiến trình (server + CLI + test) cùng đọc/ghi
 // mà không bị "database is locked".
