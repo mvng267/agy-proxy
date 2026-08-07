@@ -15,7 +15,7 @@ import { proxyDispatcher, type TokenInfo, type QuotaInfo, type QuotaBucket } fro
  * KHOÁ GHÉP `${provider}:${email}` — bắt buộc vì 147 email Kiro trùng email Antigravity.
  */
 
-export type Strategy = 'round-robin' | 'full-first' | 'failover' | 'highest-first';
+export type Strategy = 'round-robin' | 'full-first' | 'failover' | 'highest-first' | 'smart';
 
 export function poolKey(provider: ProviderId, email: string): string {
   return `${provider}:${email}`;
@@ -42,6 +42,15 @@ export interface PoolAccount extends ProviderAccount {
   lastUsed: number; // epoch ms, 0 = chưa dùng. CHỈ cập nhật khi request THÀNH CÔNG (LRU).
   lastAttempt?: number; // epoch ms mọi lần gọi kể cả lỗi — để debug, không ảnh hưởng LRU
   consecutiveFails?: number; // số lỗi liên tiếp → cooldown tăng dần (backoff)
+  /**
+   * Bitmask 20 kết quả gần nhất (1 = lỗi) + số mẫu đã có. CHỈ RAM, không persist:
+   * sau restart mọi account bắt đầu lại từ "chưa biết", an toàn hơn là tin vào lịch sử
+   * cũ của một upstream có thể đã hồi phục.
+   */
+  recentFails?: number;
+  recentCount?: number;
+  /** Độ trễ trung bình trượt (EWMA, ms). Chỉ RAM. */
+  latencyEwmaMs?: number;
   // RAM
   lastError: string;
   cooldownUntil: number; // epoch ms — cooldown TOÀN CỤC (mọi bể)
@@ -94,6 +103,61 @@ export function claudePct(a: PoolAccount): number | null {
  * sẽ chọn nhầm account đã cạn Claude (Gemini 100% mà Claude 0% vẫn được ưu tiên).
  * Không biết bể (Kiro, hoặc chưa nạp quota) → rơi về geminiPct như cũ.
  */
+/** Tỉ lệ lỗi trong cửa sổ 20 kết quả gần nhất. null = chưa đủ mẫu để kết luận. */
+export function errRate(a: PoolAccount): number | null {
+  const n = a.recentCount ?? 0;
+  if (n < 3) return null; // 1-2 mẫu không nói lên điều gì, đừng phạt oan
+  let bits = a.recentFails ?? 0;
+  let fails = 0;
+  for (let i = 0; i < n; i++) { fails += bits & 1; bits >>>= 1; }
+  return fails / n;
+}
+
+/** Ghi 1 kết quả vào cửa sổ trượt 20 + cập nhật EWMA độ trễ. */
+export function recordOutcome(a: PoolAccount, ok: boolean, latencyMs?: number): void {
+  const WINDOW = 20;
+  a.recentFails = (((a.recentFails ?? 0) << 1) | (ok ? 0 : 1)) & ((1 << WINDOW) - 1);
+  a.recentCount = Math.min((a.recentCount ?? 0) + 1, WINDOW);
+  if (typeof latencyMs === 'number' && latencyMs > 0) {
+    const prev = a.latencyEwmaMs;
+    a.latencyEwmaMs = prev == null ? latencyMs : prev * 0.7 + latencyMs * 0.3;
+  }
+}
+
+/**
+ * Chấm điểm account cho chiến lược `smart` — càng cao càng nên chọn.
+ *
+ * 4 thành phần chuẩn hoá 0..1, trọng số theo kế hoạch đã chốt:
+ *   quota 0.45 · errRate 0.25 · latency 0.15 · load 0.15
+ *
+ * Quota nặng nhất vì đó là yêu cầu gốc: "nên chọn model có nhiều quota nhất trong
+ * danh sách tài khoản". `bucketPct` đọc ĐÚNG bể của model sắp gọi — dùng % Gemini để
+ * chọn account cho model Claude sẽ ưu tiên nhầm account đã cạn Claude.
+ *
+ * Thiếu dữ liệu thì trả về TRUNG TÍNH (0.5) chứ không phải 0: account chưa có số đo
+ * không đáng bị xếp sau account đã biết là kém — nếu không thì account mới không bao
+ * giờ được gọi, và vì thế không bao giờ có số đo. (Đúng lỗi 160/402 account chưa từng
+ * được dùng đã gặp ở chiến lược cursor cũ.)
+ */
+export const SCORE_WEIGHTS = { quota: 0.45, errRate: 0.25, latency: 0.15, load: 0.15 } as const;
+
+export function scoreAccount(a: PoolAccount, bucket?: QuotaBucket, maxInflight = 1): number {
+  const pct = bucketPct(a, bucket);
+  const qs = pct == null ? 0.5 : Math.max(0, Math.min(1, pct / 100));
+
+  const er = errRate(a);
+  const es = er == null ? 0.5 : 1 - er;
+
+  // 3s là mốc "chậm rõ rệt" cho 1 lượt gọi; trên mốc đó điểm chạm 0.
+  const lat = a.latencyEwmaMs;
+  const ls = lat == null ? 0.5 : Math.max(0, 1 - lat / 3000);
+
+  const load = maxInflight > 0 ? 1 - a.inflight / (maxInflight + 1) : 1;
+
+  const w = SCORE_WEIGHTS;
+  return qs * w.quota + es * w.errRate + ls * w.latency + Math.max(0, load) * w.load;
+}
+
 export function bucketPct(a: PoolAccount, bucket?: QuotaBucket): number | null {
   if (bucket === 'claude') return claudePct(a) ?? geminiPct(a);
   return geminiPct(a);
@@ -109,6 +173,8 @@ export interface ReportInfo {
   retryAfterMs?: number;
   /** Bể quota của model vừa gọi — 429 chỉ khoá đúng bể đó, không khoá cả account. */
   bucket?: QuotaBucket;
+  /** Thời gian gọi (ms) — nuôi EWMA độ trễ cho chiến lược `smart`. Thiếu thì bỏ qua. */
+  latencyMs?: number;
 }
 
 export class NoAccountError extends Error {
@@ -264,9 +330,36 @@ export class Pool {
         })[0]!;
         break;
       }
-      case 'full-first':
+      case 'full-first': {
+        // ĐÚNG NGHĨA "dùng cạn từng account": chọn account quota THẤP NHẤT mà còn dùng
+        // được, để dồn hết một account rồi mới sang cái kế. Trước đây nhánh này dùng
+        // chung `c[0]!` với failover — tức lấy phần tử đầu Map, không đọc quota gì cả.
+        chosen = [...c].sort((x, y) => {
+          const cx = bucketPct(x, bucket);
+          const cy = bucketPct(y, bucket);
+          // Account chưa biết quota xếp SAU: đừng dồn tải vào cái mình không đo được.
+          if (cx == null && cy == null) return (x.lastUsed || 0) - (y.lastUsed || 0);
+          if (cx == null) return 1;
+          if (cy == null) return -1;
+          if (cx !== cy) return cx - cy;
+          return (x.lastUsed || 0) - (y.lastUsed || 0);
+        })[0]!;
+        break;
+      }
+      case 'smart': {
+        // Chấm điểm tổng hợp: quota đúng bể + tỉ lệ lỗi + độ trễ + tải hiện tại.
+        const maxIn = Math.max(1, ...all.map((a) => a.inflight));
+        chosen = [...c].sort((x, y) => {
+          const d = scoreAccount(y, bucket, maxIn) - scoreAccount(x, bucket, maxIn);
+          // Hoà điểm → LRU, để account cùng hạng vẫn được xoay đều.
+          return d !== 0 ? d : (x.lastUsed || 0) - (y.lastUsed || 0);
+        })[0]!;
+        break;
+      }
       case 'failover':
       default:
+        // Bám một account tới khi nó hỏng: thứ tự Map ổn định nên cùng một account
+        // được chọn lại liên tục, chỉ đổi khi nó rơi khỏi candidates().
         chosen = c[0]!;
     }
     chosen.inflight++;
@@ -313,6 +406,7 @@ export class Pool {
     // vì round-robin là LRU theo lastUsed — nếu lỗi cũng cập nhật thì account hỏng liên tục
     // vẫn được đối xử y hệt account tốt và cứ thế quay lại đầu hàng đợi.
     acc.lastAttempt = now;
+    recordOutcome(acc, !!info.ok, info.latencyMs);
     if (info.ok) {
       acc.lastUsed = now;
       acc.lastError = '';

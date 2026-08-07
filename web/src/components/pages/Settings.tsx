@@ -70,11 +70,20 @@ function Toast({ msg, onClose }: { msg: string; onClose: () => void }) {
 
 // ── Settings Page ───────────────────────────────────────────────────────
 
+/**
+ * PHẢI khớp enum `gatewayRotation` ở src/config.ts.
+ *
+ * Trước đây danh sách này là "random / least-used / first-available" — BA giá trị
+ * backend KHÔNG hề có, chọn vào là bị SPECS từ chối; đồng thời "highest-first" (giá
+ * trị đang chạy thật) lại không có trong danh sách nên không ai chọn lại được sau khi
+ * đổi đi. Mô tả ghi rõ từng chiến lược làm gì để không phải đoán qua tên.
+ */
 const ROTATION_OPTIONS = [
-  { value: "round-robin", label: "Round Robin" },
-  { value: "random", label: "Random" },
-  { value: "least-used", label: "Least Used" },
-  { value: "first-available", label: "First Available" },
+  { value: "round-robin", label: "Round Robin", desc: "Xoay đều cả pool — account lâu chưa dùng nhất đi trước." },
+  { value: "highest-first", label: "Quota cao nhất", desc: "Ưu tiên account còn nhiều hạn mức nhất ở đúng bể của model." },
+  { value: "smart", label: "Thông minh", desc: "Chấm điểm tổng hợp: quota 45% · tỉ lệ lỗi 25% · độ trễ 15% · tải 15%." },
+  { value: "full-first", label: "Dùng cạn dần", desc: "Dồn vào account quota thấp nhất còn dùng được, cạn rồi mới sang cái kế." },
+  { value: "failover", label: "Failover", desc: "Bám một account tới khi nó hỏng mới đổi." },
 ]
 
 export function Settings() {
@@ -210,13 +219,29 @@ export function Settings() {
   }
 
   const handleRotation = async (value: string) => {
+    const prev = rotation
     setRotation(value)
-    await fetch("/api/gateway/config", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rotation: value }),
-    })
-    showToast("Chiến lược: " + value)
+    // Backend có thể TỪ CHỐI giá trị (enum không khớp). Trước đây UI báo "đã đổi" bất
+    // kể kết quả, nút sáng lên trong khi cấu hình thật không đổi.
+    try {
+      const r = await fetch("/api/gateway/config", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rotation: value }),
+      })
+      const j = await r.json().catch(() => ({}))
+      const bad = j?.rejected?.find((x: any) => x.key === "gatewayRotation")
+      if (bad) {
+        setRotation(prev)
+        showToast("Không đổi được: " + (bad.reason ?? "giá trị không hợp lệ"))
+        return
+      }
+      setRotation(j?.config?.rotation ?? value)
+      showToast("Chiến lược: " + value)
+    } catch {
+      setRotation(prev)
+      showToast("Lỗi mạng — chưa đổi được chiến lược")
+    }
   }
 
   const handleRestart = async () => {
@@ -420,6 +445,11 @@ export function Settings() {
               </button>
             ))}
           </div>
+
+          <p className="text-xs text-slate-500">
+            {ROTATION_OPTIONS.find(o => o.value === rotation)?.desc ??
+              "Chiến lược này không còn được hỗ trợ — chọn lại một trong các mục trên."}
+          </p>
 
           <Separator className="bg-slate-800" />
 

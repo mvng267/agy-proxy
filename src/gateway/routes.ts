@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
-import { config, setConfig } from '../config.js';
+import { config, setConfig, applyConfig } from '../config.js';
 import {
   authenticate, createApiKey, listPublicApiKeys, patchApiKey, removeApiKey,
   type AuthCtx,
@@ -704,7 +704,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
             reply.raw.end();
           }
           const ms = Date.now() - t0;
-          pool.report(ctx.account, { ok: true, promptTokens: pt, completionTokens: ct });
+          pool.report(ctx.account, { ok: true, promptTokens: pt, completionTokens: ct, latencyMs: ms });
           afterCall(ctx.account, labelModel, { ok: true, promptTokens: pt, completionTokens: ct, ms, status: 200 }, opts.usage);
           savePersist();
           emitGw({ kind: 'res', account: ctx.account.email, model: labelModel, ms, tokens: pt + ct, status: 200, msg: `← 200 · stream · ${pt + ct} tok · ${ms}ms` });
@@ -712,7 +712,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         }
         const r = await p.generate({ session: ctx.session, model: bare, messages, ...genArgs, dispatcher: ctx.dispatcher });
         const ms = Date.now() - t0;
-        pool.report(ctx.account, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens });
+        pool.report(ctx.account, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, latencyMs: ms });
         afterCall(ctx.account, labelModel, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, ms, status: 200 }, opts.usage);
         savePersist();
         emitGw({ kind: 'res', account: ctx.account.email, model: labelModel, ms, tokens: r.usage.totalTokens, status: 200, msg: `← 200 · ${r.usage.totalTokens} tok · ${ms}ms` });
@@ -723,7 +723,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         // `bucket` để 429 chỉ khoá đúng bể quota của model vừa gọi, không khoá cả account.
         pool.report(ctx.account, {
           ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs,
-          bucket: bucketOf(provider, bare),
+          bucket: bucketOf(provider, bare), latencyMs: ms,
         });
         afterCall(ctx.account, labelModel, { ok: false, ms, status: e?.status }, opts.usage);
         const outOfQuota = e?.status === 402 || e?.status === 429 || /MONTHLY_REQUEST_COUNT|quota|exhaust/i.test(String(e?.message ?? ''));
@@ -961,8 +961,10 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     }
     if (b.regenerateKey) patch.gatewayApiKey = 'agy-' + randomUUID().replace(/-/g, '');
     else if (typeof b.apiKey === 'string') patch.gatewayApiKey = b.apiKey;
-    setConfig(patch);
-    return { ok: true, config: { ...config.gateway } };
+    // TRƯỚC ĐÂY vứt `rejected` rồi vẫn trả ok:true — bấm nút mà không có gì đổi và
+    // không ai được báo. Nay giá trị bị từ chối đi kèm lý do để UI hiển thị.
+    const { changed, rejected } = applyConfig(patch);
+    return { ok: rejected.length === 0, changed, rejected, config: { ...config.gateway } };
   });
 
   app.get('/api/gateway/models', async () => ({

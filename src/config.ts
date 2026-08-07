@@ -116,7 +116,7 @@ export const config = {
   },
 };
 
-export type RotationStrategy = 'round-robin' | 'full-first' | 'failover' | 'highest-first';
+export type RotationStrategy = 'round-robin' | 'full-first' | 'failover' | 'highest-first' | 'smart';
 
 /** Map key cấu hình → nơi gán trong object config (dùng cho setConfig + API settings). */
 type Setter = (v: string) => void;
@@ -184,7 +184,7 @@ const SPECS: Record<string, Spec> = {
   maxBodyMb: { type: 'int', min: 1, max: 512 },
   // TRƯỚC ĐÂY nhận BẤT KỲ chuỗi nào, gán vào config.gateway.rotation rồi pool.pick()
   // rơi vào nhánh `default` IM LẶNG — người dùng tưởng đã đổi chiến lược.
-  gatewayRotation: { type: 'enum', values: ['round-robin', 'full-first', 'failover', 'highest-first'] },
+  gatewayRotation: { type: 'enum', values: ['round-robin', 'full-first', 'failover', 'highest-first', 'smart'] },
   gatewayCooldownSec: { type: 'int', min: 1, max: 86_400 },
   gatewayCooldown5xxSec: { type: 'int', min: 1, max: 3_600 },
   tokenRefreshAheadMin: { type: 'int', min: 1, max: 240 },
