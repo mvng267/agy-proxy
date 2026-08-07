@@ -213,7 +213,12 @@ export function Settings() {
 
   const handleCopyKey = async () => {
     try {
-      await navigator.clipboard.writeText(apiKey)
+      // apiKey trên màn hình đang bị CHE — phải lấy bản thật rồi mới copy, nếu không
+      // người dùng dán ra một chuỗi có dấu … và không hiểu vì sao gọi API không được.
+      const real = await fetch("/api/gateway/config?reveal=1")
+        .then(r => r.json()).then(j => j.apiKey as string).catch(() => "")
+      if (!real) { showToast("Không lấy được API key"); return }
+      await navigator.clipboard.writeText(real)
       showToast("Đã copy API key")
     } catch { showToast("Copy lỗi") }
   }
@@ -372,7 +377,16 @@ export function Settings() {
                 className="bg-slate-800 border-slate-700 text-slate-200 h-9 text-sm font-mono pr-8"
               />
               <button
-                onClick={() => setShowKey(v => !v)}
+                onClick={async () => {
+                  // Bật con mắt = hành động có chủ đích → mới nạp key thật từ server.
+                  // Mặc định API trả bản đã che, nên không bấm thì key không rời server.
+                  if (!showKey) {
+                    const real = await fetch("/api/gateway/config?reveal=1")
+                      .then(r => r.json()).then(j => j.apiKey as string).catch(() => "")
+                    if (real) setApiKey(real)
+                  }
+                  setShowKey(v => !v)
+                }}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
               >
                 {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}

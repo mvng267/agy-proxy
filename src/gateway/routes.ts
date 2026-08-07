@@ -935,10 +935,23 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
    * /anthropic/). Khác với `/api/settings` — nơi che secret vì trả về HÀNG LOẠT khoá.
    * Key mới (bảng api_keys) KHÔNG bao giờ lộ ở đây: chỉ hiện đúng một lần lúc tạo.
    */
-  app.get('/api/gateway/config', async () => ({
+  /**
+   * Che apiKey mặc định — trước đây endpoint này trả key NGUYÊN VĂN, nên key rơi vào
+   * log proxy, tab Network, ảnh chụp màn hình chia sẻ. Key thật lấy qua
+   * `?reveal=1`, một hành động có chủ đích của người dùng (nút "Hiện" ở trang Cấu hình).
+   */
+/** `agy-94d9…e86c` — đủ để nhận ra key nào, không đủ để dùng. */
+function maskKey(k: string): string {
+  if (!k) return '';
+  if (k.length <= 12) return '•'.repeat(k.length);
+  return `${k.slice(0, 8)}…${k.slice(-4)}`;
+}
+
+  app.get('/api/gateway/config', async (req) => ({
     enabled: config.gateway.enabled,
     rotation: config.gateway.rotation,
-    apiKey: config.gateway.apiKey,
+    apiKey: (req.query as any)?.reveal === '1' ? config.gateway.apiKey : maskKey(config.gateway.apiKey),
+    apiKeyMasked: (req.query as any)?.reveal !== '1',
     outboundProxy: config.gateway.outboundProxy,
     cooldownSec: config.gateway.cooldownSec,
     quota: config.gateway.quota,
@@ -964,7 +977,11 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     // TRƯỚC ĐÂY vứt `rejected` rồi vẫn trả ok:true — bấm nút mà không có gì đổi và
     // không ai được báo. Nay giá trị bị từ chối đi kèm lý do để UI hiển thị.
     const { changed, rejected } = applyConfig(patch);
-    return { ok: rejected.length === 0, changed, rejected, config: { ...config.gateway } };
+    // Key vừa sinh PHẢI trả nguyên văn — đó là lần duy nhất người dùng thấy nó. Ngoài
+    // ra thì che, cùng lý do với GET ở trên.
+    const justMadeKey = !!b.regenerateKey || typeof b.apiKey === 'string';
+    const cfg = { ...config.gateway, apiKey: justMadeKey ? config.gateway.apiKey : maskKey(config.gateway.apiKey) };
+    return { ok: rejected.length === 0, changed, rejected, config: cfg };
   });
 
   app.get('/api/gateway/models', async () => ({
