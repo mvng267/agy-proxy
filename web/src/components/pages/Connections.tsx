@@ -5,60 +5,116 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  Globe,
+  HelpCircle,
+  Trash2,
+  ToggleLeft,
+  ToggleRight,
+  Wifi,
+  WifiOff,
+  Zap,
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import { Skeleton } from "@/components/ui/skeleton"
 
 // ── Types ──────────────────────────────────────────────────────────────
-
-interface GatewayConfig {
-  enabled?: boolean
-  rotation?: string
-  cooldownSec?: number
-  omniroute?: {
-    enabled?: boolean
-    url?: string
-    key?: string
-  }
-  connections?: Connection[]
-  providers?: ProviderConn[]
-}
 
 interface Connection {
   id: string
   name: string
   url?: string
+  model?: string
+  status?: string       // "active" | "offline" | "unknown"
+  testStatus?: string   // "active" | "failed" | "unknown"
+  provider?: string
+  authType?: string
+  proxyEnabled?: boolean
+  latency?: number      // ms
+  requests?: number
   enabled?: boolean
-  status?: string
-  type?: string
+  createdAt?: string | number
 }
 
-interface ProviderConn {
-  name: string
-  enabled?: boolean
-  status?: string
-  accountCount?: number
-  activeCount?: number
+interface ConnectionsResponse {
+  ok: boolean
+  connections?: Connection[]
+  error?: string
+}
+
+type PingState = { status: "idle" | "pinging" | "ok" | "fail"; ms?: number; error?: string }
+
+// ── Helpers ────────────────────────────────────────────────────────────
+
+function fmtMs(ms: number | undefined) {
+  if (ms == null) return "—"
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
+function fmtNum(n: number | undefined) {
+  if (n == null) return "—"
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return String(n)
+}
+
+function StatusBadge({ status, enabled }: { status?: string; enabled?: boolean }) {
+  if (enabled === false) {
+    return (
+      <Badge className="bg-slate-700/60 text-slate-400 border-none text-[10px] font-normal">
+        Disabled
+      </Badge>
+    )
+  }
+  const s = (status ?? "unknown").toLowerCase()
+  if (s === "active" || s === "ok" || s === "online") {
+    return (
+      <Badge className="bg-emerald-500/15 text-emerald-400 border-none text-[10px] font-normal">
+        <CheckCircle2 className="h-2.5 w-2.5 mr-1" />
+        Online
+      </Badge>
+    )
+  }
+  if (s === "failed" || s === "offline" || s === "error") {
+    return (
+      <Badge className="bg-red-500/15 text-red-400 border-none text-[10px] font-normal">
+        <XCircle className="h-2.5 w-2.5 mr-1" />
+        Offline
+      </Badge>
+    )
+  }
+  return (
+    <Badge className="bg-slate-700/60 text-slate-400 border-none text-[10px] font-normal">
+      <HelpCircle className="h-2.5 w-2.5 mr-1" />
+      {status ?? "Unknown"}
+    </Badge>
+  )
 }
 
 // ── Connections Page ────────────────────────────────────────────────────
 
 export function Connections() {
-  const [config, setConfig] = useState<GatewayConfig | null>(null)
+  const [connections, setConnections] = useState<Connection[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState<string | null>(null)
+  const [note, setNote] = useState("")
 
-  const fetchConfig = useCallback(async () => {
+  // Per-connection ping state
+  const [pingState, setPingState] = useState<Record<string, PingState>>({})
+  // Per-connection toggling
+  const [toggling, setToggling] = useState<Set<string>>(new Set())
+  // Deleting
+  const [deleting, setDeleting] = useState<Set<string>>(new Set())
+
+  const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/gateway/config")
+      const res = await fetch("/api/omniroute/connections")
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = (await res.json()) as GatewayConfig
-      setConfig(json)
+      const json = (await res.json()) as ConnectionsResponse
+      if (!json.ok) throw new Error(json.error ?? "Unknown error")
+      setConnections(json.connections ?? [])
+      setNote(`${(json.connections ?? []).length} connection${(json.connections ?? []).length !== 1 ? "s" : ""}`)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch")
@@ -68,42 +124,97 @@ export function Connections() {
   }, [])
 
   useEffect(() => {
-    fetchConfig()
-    const interval = setInterval(fetchConfig, 30_000)
+    fetchData()
+    const interval = setInterval(fetchData, 30_000)
     return () => clearInterval(interval)
-  }, [fetchConfig])
+  }, [fetchData])
 
-  const toggleProvider = async (name: string, enabled: boolean) => {
-    setSaving(name)
+  const pingConnection = async (id: string) => {
+    setPingState((prev) => ({ ...prev, [id]: { status: "pinging" } }))
     try {
-      await fetch("/api/gateway/config", {
-        method: "PATCH",
+      const res = await fetch(`/api/omniroute/connections/${encodeURIComponent(id)}/test`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [`provider.${name}.enabled`]: enabled }),
+        body: JSON.stringify({}),
       })
-      await fetchConfig()
-    } catch {
-      // ignore
-    } finally {
-      setSaving(null)
+      const json = await res.json() as { ok?: boolean; ms?: number; error?: string; latency?: number }
+      if (json.ok) {
+        setPingState((prev) => ({
+          ...prev,
+          [id]: { status: "ok", ms: json.ms ?? json.latency },
+        }))
+      } else {
+        setPingState((prev) => ({
+          ...prev,
+          [id]: { status: "fail", error: json.error ?? "Ping failed" },
+        }))
+      }
+    } catch (err) {
+      setPingState((prev) => ({
+        ...prev,
+        [id]: { status: "fail", error: err instanceof Error ? err.message : "Error" },
+      }))
     }
   }
 
-  // ── Loading ──────────────────────────────────────────────────────────
+  const toggleConnection = async (conn: Connection) => {
+    setToggling((prev) => new Set(prev).add(conn.id))
+    try {
+      const newEnabled = conn.enabled === false ? true : false
+      await fetch(`/api/omniroute/connections/${encodeURIComponent(conn.id)}/toggle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: newEnabled }),
+      })
+      // Optimistic update
+      setConnections((prev) =>
+        prev.map((c) => (c.id === conn.id ? { ...c, enabled: newEnabled } : c))
+      )
+    } catch {
+      // ignore
+    } finally {
+      setToggling((prev) => {
+        const s = new Set(prev)
+        s.delete(conn.id)
+        return s
+      })
+    }
+  }
+
+  const deleteConnection = async (id: string) => {
+    if (!confirm(`Xóa connection "${id}"?`)) return
+    setDeleting((prev) => new Set(prev).add(id))
+    try {
+      await fetch(`/api/omniroute/connections/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      })
+      setConnections((prev) => prev.filter((c) => c.id !== id))
+      setNote((prev) => prev.replace(/^\d+/, String(connections.length - 1)))
+    } catch {
+      // ignore
+    } finally {
+      setDeleting((prev) => {
+        const s = new Set(prev)
+        s.delete(id)
+        return s
+      })
+    }
+  }
+
+  // ── Loading ────────────────────────────────────────────────────────
 
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-24 w-full bg-slate-800" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Skeleton className="h-48 w-full bg-slate-800" />
-          <Skeleton className="h-48 w-full bg-slate-800" />
-        </div>
+        <Skeleton className="h-8 w-48 bg-slate-800" />
+        {[...Array(3)].map((_, i) => (
+          <Skeleton key={i} className="h-24 w-full bg-slate-800" />
+        ))}
       </div>
     )
   }
 
-  // ── Error ────────────────────────────────────────────────────────────
+  // ── Error ──────────────────────────────────────────────────────────
 
   if (error) {
     return (
@@ -111,7 +222,7 @@ export function Connections() {
         <AlertTriangle className="h-8 w-8 text-red-500" />
         <p className="text-sm text-slate-400">Error: {error}</p>
         <button
-          onClick={fetchConfig}
+          onClick={fetchData}
           className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5"
         >
           <RefreshCw className="h-3 w-3" /> Retry
@@ -120,64 +231,11 @@ export function Connections() {
     )
   }
 
-  // ── Derive connections from config ───────────────────────────────────
+  // ── Sort by provider ───────────────────────────────────────────────
 
-  // Build provider list from config shape
-  const providers: ProviderConn[] = config?.providers ?? []
-
-  // If no explicit providers field, derive from known fields
-  const derivedProviders: ProviderConn[] =
-    providers.length > 0
-      ? providers
-      : [
-          {
-            name: "agy",
-            enabled: config?.enabled ?? true,
-            status: config?.enabled ? "active" : "disabled",
-          },
-          {
-            name: "kiro",
-            enabled: config?.enabled ?? true,
-            status: config?.enabled ? "active" : "disabled",
-          },
-        ]
-
-  const connections: Connection[] = config?.connections ?? []
-
-  // OmniRoute connection from config
-  const omniRoute = config?.omniroute
-
-  const statusBadge = (status?: string, enabled?: boolean) => {
-    if (enabled === false) {
-      return (
-        <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">
-          Disabled
-        </Badge>
-      )
-    }
-    switch (status) {
-      case "active":
-      case "ok":
-        return (
-          <Badge className="bg-emerald-500/15 text-emerald-400 border-none text-[10px]">
-            Active
-          </Badge>
-        )
-      case "error":
-      case "offline":
-        return (
-          <Badge className="bg-red-500/15 text-red-400 border-none text-[10px]">
-            Offline
-          </Badge>
-        )
-      default:
-        return (
-          <Badge className="bg-blue-500/15 text-blue-400 border-none text-[10px]">
-            {status ?? "Unknown"}
-          </Badge>
-        )
-    }
-  }
+  const sorted = [...connections].sort((a, b) =>
+    (a.provider ?? "").localeCompare(b.provider ?? "")
+  )
 
   return (
     <div className="space-y-6">
@@ -185,209 +243,235 @@ export function Connections() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Link className="h-4 w-4 text-slate-500" />
-          <h2 className="text-sm font-medium text-slate-300">
-            Connections
-          </h2>
+          <h2 className="text-sm font-medium text-slate-300">Connections OmniRoute</h2>
+          {note && (
+            <span className="text-xs text-slate-500">· {note}</span>
+          )}
         </div>
         <Button
           variant="outline"
           size="sm"
-          onClick={fetchConfig}
+          onClick={fetchData}
           className="border-slate-700 text-slate-400 hover:text-orange-400 h-7 text-xs gap-1"
         >
           <RefreshCw className="h-3 w-3" /> Refresh
         </Button>
       </div>
 
-      {/* Gateway status card */}
-      <Card className="bg-slate-900 border-slate-800">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Globe className="h-4 w-4 text-slate-500" />
-              Gateway
-            </CardTitle>
-            {config?.enabled ? (
-              <div className="flex items-center gap-1.5 text-emerald-400 text-xs">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Online
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 text-red-400 text-xs">
-                <XCircle className="h-3.5 w-3.5" />
-                Offline
-              </div>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
-            <div>
-              <p className="text-slate-500 mb-0.5">Rotation</p>
-              <p className="text-slate-200 font-medium capitalize">
-                {config?.rotation ?? "—"}
-              </p>
-            </div>
-            <div>
-              <p className="text-slate-500 mb-0.5">Cooldown</p>
-              <p className="text-slate-200 font-medium">
-                {config?.cooldownSec != null ? `${config.cooldownSec}s` : "—"}
-              </p>
-            </div>
-            <div>
-              <p className="text-slate-500 mb-0.5">Status</p>
-              <p
-                className={`font-medium ${config?.enabled ? "text-emerald-400" : "text-red-400"}`}
-              >
-                {config?.enabled ? "Enabled" : "Disabled"}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* OmniRoute */}
-      {omniRoute && (
+      {/* Summary KPIs */}
+      <div className="grid grid-cols-3 gap-3">
         <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                <Link className="h-4 w-4 text-slate-500" />
-                OmniRoute
-              </CardTitle>
-              {statusBadge(omniRoute.enabled ? "active" : "disabled", omniRoute.enabled)}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 text-xs">
-              {omniRoute.url && (
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">URL</span>
-                  <span className="text-slate-300 font-mono truncate max-w-[260px]">
-                    {omniRoute.url}
-                  </span>
-                </div>
-              )}
-              {omniRoute.key && (
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Key</span>
-                  <span className="text-slate-400 font-mono">
-                    {omniRoute.key.slice(0, 8)}••••
-                  </span>
-                </div>
-              )}
-            </div>
+          <CardContent className="pt-4">
+            <p className="text-xs text-slate-500 mb-1">Tổng connections</p>
+            <p className="text-2xl font-bold text-slate-100 tabular-nums">{connections.length}</p>
           </CardContent>
         </Card>
-      )}
-
-      {/* Providers */}
-      <Card className="bg-slate-900 border-slate-800">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-            <Link className="h-4 w-4 text-slate-500" />
-            Providers ({derivedProviders.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {derivedProviders.map((prov) => (
-              <div
-                key={prov.name}
-                className="flex items-center justify-between bg-slate-800/50 rounded-lg px-4 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`h-2 w-2 rounded-full ${
-                      prov.enabled !== false
-                        ? "bg-emerald-400"
-                        : "bg-slate-600"
-                    }`}
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-slate-200 uppercase">
-                      {prov.name}
-                    </p>
-                    {prov.accountCount != null && (
-                      <p className="text-xs text-slate-500">
-                        {prov.activeCount ?? 0}/{prov.accountCount} accounts active
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {statusBadge(prov.status, prov.enabled)}
-                  <Switch
-                    checked={prov.enabled !== false}
-                    disabled={saving === prov.name}
-                    onCheckedChange={(v) => toggleProvider(prov.name, v)}
-                    className="data-[state=checked]:bg-orange-500"
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Custom connections */}
-      {connections.length > 0 && (
         <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Link className="h-4 w-4 text-slate-500" />
-              Custom Connections ({connections.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {connections.map((conn) => (
-                <div
-                  key={conn.id}
-                  className="flex items-center justify-between bg-slate-800/50 rounded-lg px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`h-2 w-2 rounded-full ${
-                        conn.enabled !== false ? "bg-emerald-400" : "bg-slate-600"
-                      }`}
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-slate-200">
-                        {conn.name}
-                      </p>
-                      {conn.url && (
-                        <p className="text-xs text-slate-500 font-mono truncate max-w-[240px]">
-                          {conn.url}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {conn.type && (
-                      <span className="text-xs text-slate-500 uppercase">
-                        {conn.type}
-                      </span>
-                    )}
-                    {statusBadge(conn.status, conn.enabled)}
-                  </div>
-                </div>
-              ))}
-            </div>
+          <CardContent className="pt-4">
+            <p className="text-xs text-slate-500 mb-1">Active</p>
+            <p className="text-2xl font-bold text-emerald-400 tabular-nums">
+              {connections.filter((c) => {
+                const s = (c.status ?? c.testStatus ?? "").toLowerCase()
+                return s === "active" || s === "ok" || s === "online"
+              }).length}
+            </p>
           </CardContent>
         </Card>
-      )}
+        <Card className="bg-slate-900 border-slate-800">
+          <CardContent className="pt-4">
+            <p className="text-xs text-slate-500 mb-1">Offline/Lỗi</p>
+            <p className="text-2xl font-bold text-red-400 tabular-nums">
+              {connections.filter((c) => {
+                const s = (c.status ?? c.testStatus ?? "").toLowerCase()
+                return s === "failed" || s === "offline" || s === "error"
+              }).length}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Empty state */}
-      {connections.length === 0 && !omniRoute && derivedProviders.length === 0 && (
+      {/* Connection List */}
+      {sorted.length === 0 ? (
         <Card className="bg-slate-900 border-slate-800">
           <CardContent className="pt-6">
-            <div className="flex flex-col items-center justify-center py-8 gap-3">
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
               <Link className="h-8 w-8 text-slate-600" />
-              <p className="text-sm text-slate-500">Không có kết nối nào</p>
+              <p className="text-sm text-slate-500">Chưa có connection nào</p>
+              <p className="text-xs text-slate-600">Thêm connection OmniRoute từ trang Settings</p>
             </div>
           </CardContent>
         </Card>
+      ) : (
+        <div className="space-y-3">
+          {sorted.map((conn) => {
+            const ping = pingState[conn.id] ?? { status: "idle" }
+            const isPinging = ping.status === "pinging"
+            const isToggling = toggling.has(conn.id)
+            const isDeleting = deleting.has(conn.id)
+            const effectiveStatus = conn.testStatus ?? conn.status
+            const enabled = conn.enabled !== false
+
+            return (
+              <Card
+                key={conn.id}
+                className={`bg-slate-900 border-slate-800 transition-opacity ${
+                  isDeleting ? "opacity-40" : ""
+                }`}
+              >
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-start justify-between gap-4">
+                    {/* Left: info */}
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      {/* Status dot */}
+                      <div className="mt-1 flex-shrink-0">
+                        {enabled ? (
+                          <Wifi className="h-4 w-4 text-emerald-400" />
+                        ) : (
+                          <WifiOff className="h-4 w-4 text-slate-600" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        {/* Name + badges */}
+                        <div className="flex items-center flex-wrap gap-2 mb-1">
+                          <span className="text-sm font-medium text-slate-200">
+                            {conn.name}
+                          </span>
+                          {conn.provider && (
+                            <Badge className="bg-slate-700/60 text-slate-300 border-none text-[10px] font-normal">
+                              {conn.provider}
+                            </Badge>
+                          )}
+                          {conn.authType && (
+                            <Badge className="bg-slate-700/40 text-slate-400 border-none text-[10px] font-normal">
+                              {conn.authType}
+                            </Badge>
+                          )}
+                          <StatusBadge
+                            status={effectiveStatus}
+                            enabled={enabled}
+                          />
+                        </div>
+
+                        {/* URL */}
+                        {conn.url && (
+                          <p className="text-xs text-slate-500 font-mono truncate mb-1">
+                            {conn.url}
+                          </p>
+                        )}
+
+                        {/* Model badge */}
+                        {conn.model && (
+                          <p className="text-xs text-slate-400 mb-1">
+                            <span className="text-slate-600">model: </span>
+                            <span className="font-mono">{conn.model}</span>
+                          </p>
+                        )}
+
+                        {/* Stats row */}
+                        <div className="flex items-center gap-4 text-xs text-slate-500 mt-1.5">
+                          {conn.latency != null && (
+                            <span>
+                              <span className="text-slate-600">latency: </span>
+                              <span className="text-slate-300 tabular-nums">{fmtMs(conn.latency)}</span>
+                            </span>
+                          )}
+                          {conn.requests != null && (
+                            <span>
+                              <span className="text-slate-600">requests: </span>
+                              <span className="text-slate-300 tabular-nums">{fmtNum(conn.requests)}</span>
+                            </span>
+                          )}
+                          {conn.proxyEnabled && (
+                            <span className="text-blue-400">proxy ✓</span>
+                          )}
+                          {conn.createdAt && (
+                            <span>
+                              {new Date(conn.createdAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Ping result */}
+                        {ping.status === "ok" && (
+                          <p className="text-xs text-emerald-400 mt-1.5 flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Ping OK · {fmtMs(ping.ms)}
+                          </p>
+                        )}
+                        {ping.status === "fail" && (
+                          <p className="text-xs text-red-400 mt-1.5 flex items-center gap-1">
+                            <XCircle className="h-3 w-3" />
+                            {ping.error ?? "Ping failed"}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right: actions */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Ping button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isPinging}
+                        onClick={() => pingConnection(conn.id)}
+                        className="border-slate-700 text-slate-400 hover:text-blue-400 h-7 text-xs gap-1"
+                        title="Test connection"
+                      >
+                        {isPinging ? (
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Zap className="h-3 w-3" />
+                        )}
+                        Ping
+                      </Button>
+
+                      {/* Toggle enable/disable */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isToggling}
+                        onClick={() => toggleConnection(conn)}
+                        className={`border-slate-700 h-7 text-xs gap-1 ${
+                          enabled
+                            ? "text-orange-400 hover:text-orange-300"
+                            : "text-slate-400 hover:text-emerald-400"
+                        }`}
+                        title={enabled ? "Tắt connection" : "Bật connection"}
+                      >
+                        {isToggling ? (
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                        ) : enabled ? (
+                          <ToggleRight className="h-3 w-3" />
+                        ) : (
+                          <ToggleLeft className="h-3 w-3" />
+                        )}
+                        {enabled ? "Tắt" : "Bật"}
+                      </Button>
+
+                      {/* Delete */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isDeleting}
+                        onClick={() => deleteConnection(conn.id)}
+                        className="border-slate-700 text-slate-500 hover:text-red-400 hover:border-red-800 h-7 w-7 p-0"
+                        title="Xóa connection"
+                      >
+                        {isDeleting ? (
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
       )}
     </div>
   )
