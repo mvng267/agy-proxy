@@ -354,8 +354,8 @@ function sseInit(reply: FastifyReply) {
 }
 
 function sseChunk(reply: FastifyReply, model: string, id: string, delta: any, finish: string | null) {
-  // Tự mở stream nếu chưa: combo hoãn sseInit() để còn trượt bước khi bước đầu lỗi,
-  // nên byte đầu tiên có thể tới đây lúc header chưa gửi.
+  // Tự mở stream ở byte đầu tiên: MỌI đường stream (combo lẫn direct-model) đều hoãn
+  // sseInit() để còn failover (trượt bước combo / đổi account) khi chưa gửi byte nào.
   if (!reply.raw.headersSent) sseInit(reply);
   const chunk = {
     id,
@@ -782,7 +782,9 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       if (parsed.kind !== 'provider') {
         return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall, usage, generationConfig, toolConfig });
       }
-      if (stream) sseInit(reply);
+      // KHÔNG sseInit() eager: sseChunk() tự mở stream ở byte dữ liệu THẬT đầu tiên.
+      // Gửi header trước khi gọi model làm headersSent=true ngay, nên account đầu lỗi
+      // 429/5xx rơi vào nhánh "đã gửi byte → hết cứu" và direct-model mất failover khi stream.
       const out = await runProviderCall({
         provider: parsed.provider!, bare: parsed.model!, labelModel: parsed.prefixed,
         messages, tools, stream, reply, usage, generationConfig, toolConfig,
@@ -1712,7 +1714,8 @@ function maskKey(k: string): string {
         if (parsed.kind !== 'provider') {
           return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall, usage, generationConfig, toolConfig });
         }
-        if (stream) sseInit(reply);
+        // KHÔNG sseInit() eager (xem /proxy/v1/chat/completions): hoãn tới byte đầu
+        // để account đầu lỗi vẫn failover được khi stream.
         const out = await runProviderCall({
           provider: parsed.provider!, bare: parsed.model!, labelModel: parsed.prefixed,
           messages, tools, stream, reply, usage, generationConfig, toolConfig,
