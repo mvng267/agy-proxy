@@ -5,43 +5,76 @@ import type { ChatMessage, GenResult, ProviderModel, StreamEvent, ToolDef } from
 
 /**
  * Bypass tool-use cho Kiro (CodeWhisperer KHÔNG có function calling native).
- * Chuyển ToolDef[] → text prompt dạng XML rõ ràng, model trả về <tool_call>...</tool_call>,
- * agy-proxy parse thủ công thành tool_calls structure (OpenAI/Anthropic format).
+ * Chuyển ToolDef[] → text prompt (English, JSON Schema chuẩn), model trả về
+ * <tool_call>...</tool_call> hoặc JSON object — agy-proxy parse thành tool_calls
+ * structure chuẩn OpenAI/Anthropic để mọi client (Hermes, Claude CLI…) nhận được.
  */
 
-const TOOL_PROMPT_SUFFIX = `\n\n---\nBẠN CÓ THỂ GỌI CÁC TOOLS SAU. Để gọi tool, trả về DUY NHẤT một khối XML:\n\n<tool_call>\n<name>{TÊN_TOOL}</name>\n<arguments>{JSON object}</arguments>\n</tool_call>\n\nQUY TẮC:\n- Chỉ trả khối <tool_call> khi thực sự cần gọi tool.\n- arguments phải là JSON hợp lệ.\n- Nếu không cần tool, trả lời bình thường (KHÔNG dùng <tool_call>).\n- KHÔNG thêm text nào ngoài khối <tool_call> khi gọi tool.`;
+const TOOL_SYSTEM_PREFIX = `You have access to tools. To call a tool, output ONLY a valid XML block — no other text:
 
-/** ToolDef[] → text đính vào system prompt. */
+<tool_call>
+{"name": "TOOL_NAME", "arguments": {VALID_JSON}}
+</tool_call>
+
+Rules:
+- Only emit a <tool_call> block when you actually need to invoke a tool.
+- The arguments value MUST be a valid JSON object.
+- If you do not need a tool, respond normally — do NOT emit <tool_call>.
+- Do NOT include any text before or after the <tool_call> block when calling a tool.
+- You may call multiple tools by emitting multiple <tool_call> blocks in sequence.`;
+
+/** ToolDef[] → text đính vào system prompt (English, JSON Schema đầy đủ). */
 export function toolsToPrompt(tools: ToolDef[]): string {
   if (!tools?.length) return '';
-  const lines = tools.map((t) => {
-    const params = t.parameters && typeof t.parameters === 'object' && !Array.isArray(t.parameters)
-      ? Object.entries(t.parameters as Record<string, unknown>)
-          .map(([k, v]) => `  - ${k}: ${JSON.stringify(v ?? {})}`)
-          .join('\n')
-      : '(không có tham số)';
-    return `- ${t.name}: ${t.description ?? ''}\n${params}`;
-  });
-  return TOOL_PROMPT_SUFFIX.replace('{TÊN_TOOL}', '').replace('{JSON object}', '') +
-    '\n\nDANH SÁCH TOOLS:\n' + lines.join('\n\n');
+  const defs = tools.map((t) => JSON.stringify({
+    name: t.name,
+    description: t.description ?? '',
+    parameters: t.parameters ?? { type: 'object', properties: {} },
+  }, null, 2));
+  return `${TOOL_SYSTEM_PREFIX}\n\nAvailable tools:\n\`\`\`json\n[\n${defs.join(',\n')}\n]\n\`\`\``;
 }
 
-/** Parse text có chứa <tool_call>...</tool_call> → ToolCall[] (rỗng nếu không có). */
+/**
+ * Parse text có <tool_call>...</tool_call> → ToolCall[].
+ * Hỗ trợ 2 format bên trong block:
+ *   1. {"name":"...", "arguments":{...}}  (preferred)
+ *   2. <name>...</name><arguments>...</arguments>  (legacy XML)
+ */
 export function parseToolCalls(text: string): { name: string; args: Record<string, unknown>; id: string }[] {
   const calls: { name: string; args: Record<string, unknown>; id: string }[] = [];
   const re = /<tool_call>([\s\S]*?)<\/tool_call>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
-    const block = m[1] ?? '';
-    const nameM = /<name>([\s\S]*?)<\/name>/.exec(block);
-    const argM = /<arguments>([\s\S]*?)<\/arguments>/.exec(block);
-    if (!nameM) continue;
+    const block = m[1]?.trim() ?? '';
+    let name = '';
     let args: Record<string, unknown> = {};
-    if (argM?.[1]) {
-      try { args = JSON.parse(argM[1].trim()); }
-      catch { args = { raw: argM[1].trim() }; }
+
+    // Format 1: JSON object {"name": "...", "arguments": {...}}
+    if (block.startsWith('{')) {
+      try {
+        const j = JSON.parse(block) as Record<string, unknown>;
+        name = String(j.name ?? '');
+        const a = j.arguments ?? j.args ?? j.parameters ?? {};
+        args = typeof a === 'object' && a !== null && !Array.isArray(a)
+          ? (a as Record<string, unknown>)
+          : { value: a };
+      } catch { /* fall through to XML parse */ }
     }
-    calls.push({ name: nameM[1]?.trim() ?? '', args, id: 'call_' + randomUUID().slice(0, 8) });
+
+    // Format 2: legacy <name>...</name><arguments>...</arguments>
+    if (!name) {
+      const nameM = /<name>([\s\S]*?)<\/name>/.exec(block);
+      const argM = /<arguments>([\s\S]*?)<\/arguments>/.exec(block);
+      if (!nameM) continue;
+      name = nameM[1]?.trim() ?? '';
+      if (argM?.[1]) {
+        try { args = JSON.parse(argM[1].trim()); }
+        catch { args = { raw: argM[1].trim() }; }
+      }
+    }
+
+    if (!name) continue;
+    calls.push({ name, args, id: 'call_' + randomUUID().slice(0, 8) });
   }
   return calls;
 }

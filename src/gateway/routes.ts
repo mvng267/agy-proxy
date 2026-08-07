@@ -1464,6 +1464,64 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     });
   }
 
+  // ── OpenAI-compatible aliases (không có /proxy prefix) ──────────────────
+  // Claude CLI, opencode, Cursor, Aider dùng base_url=http://host:port/v1
+  // và tự nối /chat/completions → cần route này không có /proxy prefix.
+  for (const path of ['/v1/chat/completions', '/openai/v1/chat/completions']) {
+    app.post(path, async (req, reply) => {
+      if (!authOk(req)) return reply.code(401).send({ error: 'unauthorized' });
+      if (!config.gateway.enabled) return reply.code(503).send({ error: 'gateway disabled' });
+      const body = req.body as any;
+      const messages = toMessages(body);
+      const tools = toToolDefs(body);
+      const stream = !!body?.stream;
+      syncFromStore();
+      let parsed: ParsedModel;
+      try {
+        parsed = parseModelId(body?.model);
+      } catch (e: any) {
+        return reply.code(400).send({ error: { message: e.message, type: 'invalid_request_error', param: 'model', suggestion: e.suggestion } });
+      }
+      try {
+        if (parsed.kind !== 'provider') {
+          return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall });
+        }
+        if (stream) sseInit(reply);
+        const out = await runProviderCall({
+          provider: parsed.provider!, bare: parsed.model!, labelModel: parsed.prefixed,
+          messages, tools, stream, reply,
+        });
+        if ('done' in out) return reply;
+        return reply.send(openaiCompletion(parsed.prefixed, out.result));
+      } catch (e: any) {
+        if (stream && reply.raw.headersSent) { reply.raw.end(); return reply; }
+        const code = e instanceof NoAccountError ? 503 : e?.status === 400 ? 400 : 502;
+        const hint = contextHint(e, parsed.prefixed);
+        return reply.code(code).send({ error: hint ?? e?.message ?? 'all accounts failed', ...(hint ? { detail: e?.message } : {}) });
+      }
+    });
+  }
+
+  // /v1/models alias (OpenAI format, không có /proxy prefix)
+  for (const path of ['/v1/models', '/openai/v1/models']) {
+    app.get(path, async (req) => {
+      const all = allModels();
+      const data: { id: string; object: string; owned_by: string }[] = all.map((m) => ({ id: m.prefixed, object: 'model', owned_by: m.provider as string }));
+      for (const c of listCombos()) data.push({ id: `combo/${c.id}`, object: 'model', owned_by: 'combo' });
+      for (const v of AUTO_VARIANT_IDS) data.push({ id: v, object: 'model', owned_by: 'combo' });
+      // Nếu client gọi Anthropic format → trả Anthropic schema
+      if ((req.headers as any)['x-api-key'] || (req.headers as any)['anthropic-version']) {
+        const items = data.map((m) => ({
+          type: 'model', id: m.id,
+          display_name: all.find((x) => x.prefixed === m.id || x.id === m.id)?.label ?? m.id,
+          created_at: new Date(0).toISOString(),
+        }));
+        return { data: items, has_more: false, first_id: items[0]?.id ?? null, last_id: items[items.length - 1]?.id ?? null };
+      }
+      return { object: 'list', data };
+    });
+  }
+
   // ---------------- Combo CRUD ----------------
   app.get('/api/combos', async () => {
     const stats = comboStatsRows(Date.now() - 7 * 86400_000);
