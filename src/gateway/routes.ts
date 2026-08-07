@@ -5,7 +5,7 @@ import {
   authenticate, createApiKey, listPublicApiKeys, patchApiKey, removeApiKey,
   type AuthCtx,
 } from './apikeys.js';
-import { openaiGenerationConfig, toOpenAIFinish, openaiError, mapStatus, retryAfterSec } from './openai.js';
+import { openaiGenerationConfig, openaiToolConfig, toOpenAIFinish, openaiError, mapStatus, retryAfterSec } from './openai.js';
 import { emitLog } from '../events.js';
 import { store } from '../store/index.js';
 import {
@@ -25,7 +25,7 @@ import {
   type Combo, type ComboStrategy, type ComboTarget, type PoolSnapshot,
 } from './combo.js';
 import {
-  anthropicToMessages, anthropicGenerationConfig, anthropicToolDefs, resultToAnthropic, sseFrame,
+  anthropicToMessages, anthropicGenerationConfig, anthropicToolDefs, anthropicToolConfig, resultToAnthropic, sseFrame,
   MAX_OUTPUT_TOKENS_CAP,
   anthropicErrorBody, resolveAnthropicModel, type AnthropicRequest,
 } from './anthropic.js';
@@ -434,6 +434,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       usage?: UsageCtx;
       /** Tham số sinh của client (max_tokens, temperature…) — mọi bước dùng chung. */
       generationConfig?: Record<string, unknown>;
+      toolConfig?: Record<string, unknown>;
     },
   ): Promise<any> {
     const snap = poolSnapshot();
@@ -494,6 +495,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
           messages: o.messages, tools: o.tools, stream: o.stream, reply: o.reply, endpoint: comboName,
           skipKeys,
           generationConfig: o.generationConfig,
+          toolConfig: o.toolConfig,
           // Mọi bước dùng CHUNG requestId → 1 request client = N dòng usage liên kết được.
           usage: o.usage ? { ...o.usage, combo: comboName } : undefined,
         });
@@ -587,6 +589,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     usage?: UsageCtx;
     /** Usage THẬT từ upstream — nhánh Anthropic dùng thay vì ước lượng chars/4. */
     onUsage?: (u: { promptTokens: number; completionTokens: number }) => void;
+    /** Ép/cấm gọi tool — nguồn là `tool_choice` của client. */
+    toolConfig?: Record<string, unknown>;
   }): Promise<{ done: true } | { result: GenResult }> {
     const { provider, bare, labelModel, messages, stream, reply } = opts;
     const p = PROVIDERS[provider];
@@ -599,7 +603,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         { status: 400 },
       );
     }
-    const genArgs = { generationConfig: opts.generationConfig, tools: opts.tools };
+    const genArgs = { generationConfig: opts.generationConfig, tools: opts.tools, toolConfig: opts.toolConfig };
     const avail = pool.candidates(Date.now(), provider, bucketOf(provider, bare)).length;
     // Lỗi thật (5xx/mạng) chỉ thử 3 account. Nhưng account HẾT HẠN MỨC thì bị cooldown
     // ngay khi report → bỏ qua rất rẻ, nên không tính vào hạn thử.
@@ -763,6 +767,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     };
     // TRƯỚC ĐÂY không dựng generationConfig → max_tokens/temperature/top_p bị bỏ hoàn toàn.
     const generationConfig = openaiGenerationConfig(body);
+    const toolConfig = openaiToolConfig(body);
     syncFromStore();
 
     let parsed: ParsedModel;
@@ -775,12 +780,12 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     try {
       // combo / auto → engine combo tự lo fallback
       if (parsed.kind !== 'provider') {
-        return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall, usage, generationConfig });
+        return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall, usage, generationConfig, toolConfig });
       }
       if (stream) sseInit(reply);
       const out = await runProviderCall({
         provider: parsed.provider!, bare: parsed.model!, labelModel: parsed.prefixed,
-        messages, tools, stream, reply, usage, generationConfig,
+        messages, tools, stream, reply, usage, generationConfig, toolConfig,
       });
       if ('done' in out) return reply;
       return reply.send(openaiCompletion(parsed.prefixed, out.result));
@@ -1476,6 +1481,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
             messages, stream: !!streamWriter, reply, endpoint: label ?? '/v1/messages',
             sseWriter: streamWriter,
             generationConfig,
+            toolConfig: anthropicToolConfig(b),
             tools,
             onToolCall,
             // `label` chỉ có giá trị khi gọi từ nhánh combo → dùng làm tên combo.
@@ -1674,7 +1680,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       const tools = toToolDefs(body);
       const stream = !!body?.stream;
       const usage: UsageCtx = { requestId: randomUUID(), apiKeyId: auth.keyId, endpoint: path, stream };
-      const generationConfig = openaiGenerationConfig(body);
+      const generationConfig = openaiGenerationConfig(body)
+      const toolConfig = openaiToolConfig(body);
       syncFromStore();
       let parsed: ParsedModel;
       try {
@@ -1684,12 +1691,12 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       }
       try {
         if (parsed.kind !== 'provider') {
-          return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall, usage, generationConfig });
+          return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall, usage, generationConfig, toolConfig });
         }
         if (stream) sseInit(reply);
         const out = await runProviderCall({
           provider: parsed.provider!, bare: parsed.model!, labelModel: parsed.prefixed,
-          messages, tools, stream, reply, usage, generationConfig,
+          messages, tools, stream, reply, usage, generationConfig, toolConfig,
         });
         if ('done' in out) return reply;
         return reply.send(openaiCompletion(parsed.prefixed, out.result));

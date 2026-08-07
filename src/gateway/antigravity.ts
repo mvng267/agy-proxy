@@ -119,6 +119,8 @@ export interface CallOpts {
   messages: ChatMessage[];
   generationConfig?: Record<string, unknown>;
   tools?: ToolDef[];
+  /** functionCallingConfig của Gemini — nguồn là `tool_choice` của client. */
+  toolConfig?: Record<string, unknown>;
   dispatcher?: Dispatcher;
   signal?: AbortSignal;
 }
@@ -379,7 +381,7 @@ export function toolsToGemini(tools?: ToolDef[]): Array<{ functionDeclarations: 
 export function openaiToAntigravity(
   model: string,
   messages: ChatMessage[],
-  opts: { projectId: string; generationConfig?: Record<string, unknown>; tools?: ToolDef[] },
+  opts: { projectId: string; generationConfig?: Record<string, unknown>; tools?: ToolDef[]; toolConfig?: Record<string, unknown> },
 ): Record<string, unknown> {
   const isImg = isImageModel(model);
   const contents: Array<{ role: string; parts: GeminiPart[] }> = [];
@@ -443,6 +445,17 @@ export function openaiToAntigravity(
   // Model ảnh không có function calling → bỏ qua tools.
   const gtools = isImg ? undefined : toolsToGemini(opts.tools);
   if (gtools) request.tools = gtools;
+  // `toolConfig` NGANG CẤP với tools, không nằm trong generationConfig.
+  //
+  // CẢNH BÁO — đo trên upstream thật (2026-08): Antigravity **BỎ QUA** field này.
+  // Bằng chứng: gửi `mode:'NONE'` với prompt rõ ràng cần tool → model VẪN gọi tool;
+  // gửi `allowedFunctionNames:['khong_ton_tai_xyz']` → upstream trả 200 và gọi
+  // `get_weather`, trong khi Gemini API thật sẽ trả 400 INVALID_ARGUMENT.
+  //
+  // Vẫn gửi vì: (a) đúng chuẩn Gemini nên nếu Antigravity bật hỗ trợ thì tự chạy,
+  // (b) không gây hại — upstream lờ đi. KHÔNG hứa với client là `tool_choice` được
+  // tôn trọng; xem ghi chú ở anthropicToolConfig.
+  if (gtools && opts.toolConfig) request.toolConfig = opts.toolConfig;
 
   return {
     model: resolveUpstreamModel(model),

@@ -43,6 +43,23 @@ export function toOpenAIFinish(finish?: string): 'stop' | 'length' | 'content_fi
   return 'stop';
 }
 
+/**
+ * `tool_choice` (OpenAI) → `toolConfig.functionCallingConfig` (Gemini).
+ * Dạng chuỗi: 'auto' | 'none' | 'required'. Dạng object: {type:'function', function:{name}}.
+ */
+export function openaiToolConfig(b: any): Record<string, unknown> | undefined {
+  const tc = b?.tool_choice;
+  if (!tc) return undefined;
+  if (tc === 'auto') return { functionCallingConfig: { mode: 'AUTO' } };
+  if (tc === 'none') return { functionCallingConfig: { mode: 'NONE' } };
+  if (tc === 'required') return { functionCallingConfig: { mode: 'ANY' } };
+  const name = tc?.function?.name;
+  if (typeof name === 'string' && name) {
+    return { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: [name] } };
+  }
+  return undefined;
+}
+
 export type OpenAIErrorType =
   | 'authentication_error' | 'invalid_request_error' | 'rate_limit_error'
   | 'permission_error' | 'not_found_error' | 'api_error';

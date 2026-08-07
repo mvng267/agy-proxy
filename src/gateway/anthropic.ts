@@ -178,6 +178,38 @@ export function anthropicGenerationConfig(b: AnthropicRequest): Record<string, u
   return g;
 }
 
+/**
+ * `tool_choice` (Anthropic) → `toolConfig.functionCallingConfig` (Gemini).
+ *
+ * Trước đây field này có trong type AnthropicRequest nhưng KHÔNG NƠI NÀO ĐỌC — client
+ * ép model phải gọi tool mà gateway lặng lẽ bỏ qua, model trả text thay vì tool_use.
+ *
+ * Ánh xạ: auto→AUTO, any→ANY, tool→ANY + allowedFunctionNames, none→NONE.
+ *
+ * GIỚI HẠN THẬT: Antigravity hiện BỎ QUA toolConfig (đo 2026-08, xem antigravity.ts).
+ * Nghĩa là `tool_choice` đi đúng đường dây nhưng upstream chưa tôn trọng — model tự
+ * quyết gọi tool hay không. Giữ code này vì nó đúng chuẩn và sẽ tự có hiệu lực khi
+ * upstream hỗ trợ; đừng hiểu nhầm là ép được model.
+ */
+export function anthropicToolConfig(b: AnthropicRequest): Record<string, unknown> | undefined {
+  const tc = b.tool_choice;
+  if (!tc?.type) return undefined;
+  switch (tc.type) {
+    case 'auto':
+      return { functionCallingConfig: { mode: 'AUTO' } };
+    case 'any':
+      return { functionCallingConfig: { mode: 'ANY' } };
+    case 'tool':
+      return tc.name
+        ? { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: [tc.name] } }
+        : { functionCallingConfig: { mode: 'ANY' } };
+    case 'none':
+      return { functionCallingConfig: { mode: 'NONE' } };
+    default:
+      return undefined; // kiểu lạ → để upstream tự quyết, an toàn hơn đoán bừa
+  }
+}
+
 export function toStopReason(finish: string): 'end_turn' | 'max_tokens' | 'stop_sequence' | 'tool_use' {
   const f = String(finish || '').toUpperCase();
   if (f === 'TOOL_USE') return 'tool_use';

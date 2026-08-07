@@ -48,6 +48,8 @@ export interface GenArgs {
   generationConfig?: Record<string, unknown>;
   /** Provider có `supportsTools` mới dùng; provider khác bỏ qua an toàn. */
   tools?: ToolDef[];
+  /** Ép/cấm gọi tool (`tool_choice`). Provider không hỗ trợ thì bỏ qua an toàn. */
+  toolConfig?: Record<string, unknown>;
   dispatcher?: Dispatcher;
   signal?: AbortSignal;
 }
