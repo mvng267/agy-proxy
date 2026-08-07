@@ -1,6 +1,10 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { config, setConfig } from '../config.js';
+import {
+  authenticate, createApiKey, listPublicApiKeys, patchApiKey, removeApiKey,
+  type AuthCtx,
+} from './apikeys.js';
 import { emitLog } from '../events.js';
 import { store } from '../store/index.js';
 import {
@@ -93,8 +97,26 @@ function emitGw(e: {
 /** Số bước tối đa combo/auto sẽ thử trước khi bỏ cuộc (dùng chung cho cả 2 nhánh). */
 const COMBO_MAX_STEPS = 6;
 
+/**
+ * Attribution cho một request CLIENT (không phải một lần gọi upstream).
+ * `requestId` nối các bước combo lại: combo lỗi 3 bước rồi thành công tạo 4 dòng usage,
+ * trước đây không cách nào biết chúng cùng gốc.
+ */
+export interface UsageCtx {
+  requestId: string;
+  apiKeyId: string;
+  combo?: string;
+  endpoint: string;
+  stream: boolean;
+}
+
 /** Ghi usage + (tuỳ chọn) cập nhật quota kèm mỗi lần gọi. */
-function afterCall(account: PoolAccount, model: string, r: { ok: boolean; promptTokens?: number; completionTokens?: number; ms: number }) {
+function afterCall(
+  account: PoolAccount,
+  model: string,
+  r: { ok: boolean; promptTokens?: number; completionTokens?: number; ms: number; status?: number },
+  ctx?: UsageCtx,
+) {
   recordGatewayUsage({
     ts: Date.now(),
     email: account.email,
@@ -103,6 +125,12 @@ function afterCall(account: PoolAccount, model: string, r: { ok: boolean; prompt
     completionTokens: r.completionTokens ?? 0,
     ok: r.ok,
     ms: r.ms,
+    status: r.status,
+    apiKeyId: ctx?.apiKeyId,
+    combo: ctx?.combo,
+    endpoint: ctx?.endpoint,
+    requestId: ctx?.requestId,
+    stream: ctx?.stream,
   });
   if (r.ok && config.gateway.quota?.onCall) {
     refreshQuota(account).catch(() => {}); // nền, không chặn
@@ -138,16 +166,24 @@ function strategy(): Strategy {
   return (config.gateway.rotation as Strategy) || 'round-robin';
 }
 
-/** Kiểm API key nếu có cấu hình. Trả true nếu hợp lệ (hoặc không yêu cầu). */
+/**
+ * Kiểm API key. Trả true nếu hợp lệ (hoặc chưa cấu hình key nào).
+ *
+ * Nhận cả `x-api-key`: client Anthropic (Hermes…) trỏ base_url vào /proxy/v1 chỉ gửi
+ * header này. Thiếu nó thì GET /proxy/v1/models trả 401 → client tưởng proxy KHÔNG có
+ * Models API nên bỏ qua bước xác minh và chấp nhận bừa mọi tên model, kể cả model hỏng.
+ *
+ * Trước đây có HAI hàm (`authOk` cho OpenAI-path, `anthropicAuthOk` cho Anthropic-path)
+ * với logic TRÙNG HOÀN TOÀN, và cả hai so sánh bằng `===` (không timing-safe).
+ * Nay cùng gọi `authenticate()` — xem src/gateway/apikeys.ts.
+ */
 function authOk(req: FastifyRequest): boolean {
-  const key = config.gateway.apiKey;
-  if (!key) return true;
-  const h = (req.headers['authorization'] || '') as string;
-  // Nhận cả `x-api-key`: client Anthropic (Hermes…) trỏ base_url vào /proxy/v1 chỉ gửi
-  // header này. Thiếu nó thì GET /proxy/v1/models trả 401 → client tưởng proxy KHÔNG có
-  // Models API nên bỏ qua bước xác minh và chấp nhận bừa mọi tên model, kể cả model hỏng.
-  const xk = (req.headers['x-api-key'] || '') as string;
-  return h === `Bearer ${key}` || h === key || xk === key;
+  return authenticate(req) !== null;
+}
+
+/** Như authOk nhưng trả context để ghi attribution vào usage. */
+function authCtx(req: FastifyRequest): AuthCtx | null {
+  return authenticate(req);
 }
 
 /** Lấy account theo email + provider từ query (mặc định agy → URL cũ vẫn đúng). */
@@ -352,6 +388,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       stream: boolean;
       reply: FastifyReply;
       runProviderCall: (opts: any) => Promise<{ done: true } | { result: GenResult }>;
+      /** Attribution; `combo` được điền theo tên combo thật ở từng bước. */
+      usage?: UsageCtx;
     },
   ): Promise<any> {
     const snap = poolSnapshot();
@@ -411,6 +449,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
           provider: p.provider!, bare: p.model!, labelModel: p.prefixed,
           messages: o.messages, tools: o.tools, stream: o.stream, reply: o.reply, endpoint: comboName,
           skipKeys,
+          // Mọi bước dùng CHUNG requestId → 1 request client = N dòng usage liên kết được.
+          usage: o.usage ? { ...o.usage, combo: comboName } : undefined,
         });
         recordComboRun({ combo: comboName, step, model: p.prefixed, ok: true, ms: Date.now() - t0 });
         setSetting('comboRrCursor', String(getRrCursor()));
@@ -498,6 +538,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     onToolCall?: (c: ToolCall) => void;
     /** Account keys đã lỗi trong request này — bỏ qua khi pick. */
     skipKeys?: Set<string>;
+    /** Attribution ghi kèm usage (api key, combo, request_id…). */
+    usage?: UsageCtx;
   }): Promise<{ done: true } | { result: GenResult }> {
     const { provider, bare, labelModel, messages, stream, reply } = opts;
     const p = PROVIDERS[provider];
@@ -593,7 +635,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
           }
           const ms = Date.now() - t0;
           pool.report(ctx.account, { ok: true, promptTokens: pt, completionTokens: ct });
-          afterCall(ctx.account, labelModel, { ok: true, promptTokens: pt, completionTokens: ct, ms });
+          afterCall(ctx.account, labelModel, { ok: true, promptTokens: pt, completionTokens: ct, ms, status: 200 }, opts.usage);
           savePersist();
           emitGw({ kind: 'res', account: ctx.account.email, model: labelModel, ms, tokens: pt + ct, status: 200, msg: `← 200 · stream · ${pt + ct} tok · ${ms}ms` });
           return { done: true };
@@ -601,7 +643,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         const r = await p.generate({ session: ctx.session, model: bare, messages, ...genArgs, dispatcher: ctx.dispatcher });
         const ms = Date.now() - t0;
         pool.report(ctx.account, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens });
-        afterCall(ctx.account, labelModel, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, ms });
+        afterCall(ctx.account, labelModel, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, ms, status: 200 }, opts.usage);
         savePersist();
         emitGw({ kind: 'res', account: ctx.account.email, model: labelModel, ms, tokens: r.usage.totalTokens, status: 200, msg: `← 200 · ${r.usage.totalTokens} tok · ${ms}ms` });
         return { result: r };
@@ -609,7 +651,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         lastErr = e;
         const ms = Date.now() - t0;
         pool.report(ctx.account, { ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs });
-        afterCall(ctx.account, labelModel, { ok: false, ms });
+        afterCall(ctx.account, labelModel, { ok: false, ms, status: e?.status }, opts.usage);
         const outOfQuota = e?.status === 402 || e?.status === 429 || /MONTHLY_REQUEST_COUNT|quota|exhaust/i.test(String(e?.message ?? ''));
         // Prompt quá dài KHÔNG phụ thuộc account — thử account khác chỉ tốn thời gian
         // và làm bẩn log. Dừng ngay để tầng combo đổi sang MODEL khác.
@@ -639,12 +681,16 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   }
 
   app.post('/proxy/v1/chat/completions', async (req, reply) => {
-    if (!authOk(req)) return reply.code(401).send({ error: 'unauthorized' });
+    const auth = authCtx(req);
+    if (!auth) return reply.code(401).send({ error: 'unauthorized' });
     if (!config.gateway.enabled) return reply.code(503).send({ error: 'gateway disabled' });
     const body = req.body as any;
     const messages = toMessages(body);
     const tools = toToolDefs(body);
     const stream = !!body?.stream;
+    const usage: UsageCtx = {
+      requestId: randomUUID(), apiKeyId: auth.keyId, endpoint: '/proxy/v1/chat/completions', stream,
+    };
     syncFromStore();
 
     let parsed: ParsedModel;
@@ -657,12 +703,12 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     try {
       // combo / auto → engine combo tự lo fallback
       if (parsed.kind !== 'provider') {
-        return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall });
+        return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall, usage });
       }
       if (stream) sseInit(reply);
       const out = await runProviderCall({
         provider: parsed.provider!, bare: parsed.model!, labelModel: parsed.prefixed,
-        messages, tools, stream, reply,
+        messages, tools, stream, reply, usage,
       });
       if ('done' in out) return reply;
       return reply.send(openaiCompletion(parsed.prefixed, out.result));
@@ -763,6 +809,39 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     return { woken };
   });
 
+  // ---------------- API keys (nhiều key, mỗi key 1 user) ----------------
+  // Chỉ để ĐỊNH DANH cho báo cáo — mọi key dùng chung model/pool, không giới hạn hạn mức.
+  app.get('/api/gateway/keys', async () => ({ keys: listPublicApiKeys() }));
+
+  app.post('/api/gateway/keys', async (req, reply) => {
+    const b = (req.body as { name?: string; note?: string }) ?? {};
+    const name = (b.name ?? '').trim();
+    if (!name) return reply.code(400).send({ ok: false, error: 'Thiếu tên key' });
+    const c = createApiKey(name, b.note);
+    // `key` thô CHỈ trả đúng lần này — DB chỉ giữ sha256, không thể lấy lại.
+    return { ok: true, id: c.id, name: c.name, prefix: c.prefix, key: c.key };
+  });
+
+  app.patch('/api/gateway/keys/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const b = (req.body as { name?: string; note?: string; enabled?: boolean }) ?? {};
+    if (!patchApiKey(id, b)) return reply.code(404).send({ ok: false, error: 'Không tìm thấy key' });
+    return { ok: true };
+  });
+
+  app.delete('/api/gateway/keys/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    // Usage cũ giữ api_key_id mồ côi CÓ CHỦ ĐÍCH — báo cáo lịch sử không được biến mất.
+    if (!removeApiKey(id)) return reply.code(404).send({ ok: false, error: 'Không tìm thấy key' });
+    return { ok: true };
+  });
+
+  /**
+   * `apiKey` trả NGUYÊN VĂN có chủ đích: trang Cấu hình hiển thị + cho copy key legacy,
+   * và endpoint này nằm sau xác thực dashboard (auth.ts chỉ miễn cho /proxy/v1, /v1/,
+   * /anthropic/). Khác với `/api/settings` — nơi che secret vì trả về HÀNG LOẠT khoá.
+   * Key mới (bảng api_keys) KHÔNG bao giờ lộ ở đây: chỉ hiện đúng một lần lúc tạo.
+   */
   app.get('/api/gateway/config', async () => ({
     enabled: config.gateway.enabled,
     rotation: config.gateway.rotation,
@@ -1141,9 +1220,11 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
    * Không có nó thì báo: `404 Route POST:/proxy/v1/responses not found`.
    */
   app.post('/proxy/v1/responses', async (req, reply) => {
-    if (!authOk(req)) return reply.code(401).send({ error: { message: 'unauthorized', type: 'authentication_error' } });
+    const auth = authCtx(req);
+    if (!auth) return reply.code(401).send({ error: { message: 'unauthorized', type: 'authentication_error' } });
     if (!config.gateway.enabled) return reply.code(503).send({ error: { message: 'gateway disabled' } });
     const b = (req.body ?? {}) as any;
+    const requestId = randomUUID();
 
     let parsed: ParsedModel;
     try {
@@ -1180,11 +1261,12 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     try {
       syncFromStore();
       // stream của Responses API có bộ sự kiện riêng → v1 trả nguyên khối cho chắc
-      const one = (p: ParsedModel) =>
+      const one = (p: ParsedModel, combo?: string) =>
         runProviderCall({
           provider: p.provider!, bare: p.model!, labelModel: p.prefixed,
           messages, stream: false, reply, endpoint: '/proxy/v1/responses',
           generationConfig,
+          usage: { requestId, apiKeyId: auth.keyId, endpoint: '/proxy/v1/responses', stream: false, combo },
         } as any);
 
       let out: any;
@@ -1201,7 +1283,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
           try { p = parseModelId(res.plan[step]!.model); } catch (e) { lastErr = e; continue; }
           if (p.kind !== 'provider') continue;
           try {
-            out = await one(p);
+            out = await one(p, res.name);
             usedModel = res.name;
             recordComboRun({ combo: res.name, step, model: p.prefixed, ok: true, ms: Date.now() - t0 });
             break;
@@ -1252,18 +1334,13 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   // Messages API — nó nối '/messages' vào base nên rơi ra ngoài 2 path trên.
   const anthropicPaths = ['/v1/messages', '/anthropic/v1/messages', '/proxy/v1/messages'];
 
-  /** Kiểm key kiểu Anthropic: x-api-key hoặc Authorization: Bearer. */
-  function anthropicAuthOk(req: FastifyRequest): boolean {
-    const key = config.gateway.apiKey;
-    if (!key) return true;
-    const xk = (req.headers['x-api-key'] || '') as string;
-    const h = (req.headers['authorization'] || '') as string;
-    return xk === key || h === `Bearer ${key}` || h === key;
-  }
+  /** Kiểm key kiểu Anthropic. Dùng chung `authenticate()` với OpenAI-path (xem authOk). */
+  const anthropicAuthOk = authOk;
 
   for (const path of anthropicPaths) {
     app.post(path, async (req, reply) => {
-      if (!anthropicAuthOk(req)) return reply.code(401).send(anthropicErrorBody(401, 'invalid x-api-key'));
+      const auth = authCtx(req);
+      if (!auth) return reply.code(401).send(anthropicErrorBody(401, 'invalid x-api-key'));
       if (!config.gateway.enabled) return reply.code(503).send(anthropicErrorBody(503, 'gateway disabled'));
       const b = (req.body ?? {}) as AnthropicRequest;
       if (!Array.isArray(b.messages) || !b.messages.length) {
@@ -1288,6 +1365,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       const stream = !!b.stream;
       const echoModel = b.model || parsed.prefixed;
       const msgId = 'msg_' + randomUUID().replace(/-/g, '');
+      // Một requestId cho CẢ request client — mọi bước combo dùng chung để nối được.
+      const requestId = randomUUID();
 
       /** Gọi 1 model; nếu là combo/auto thì thử lần lượt theo kế hoạch (fallback). */
       const call = async (
@@ -1303,6 +1382,8 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
             generationConfig,
             tools,
             onToolCall,
+            // `label` chỉ có giá trị khi gọi từ nhánh combo → dùng làm tên combo.
+            usage: { requestId, apiKeyId: auth.keyId, endpoint: path, stream, combo: label },
           });
 
         if (target.kind === 'provider') return one(target);
@@ -1461,7 +1542,10 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   }
 
   for (const path of ['/v1/messages/count_tokens', '/anthropic/v1/messages/count_tokens', '/proxy/v1/messages/count_tokens']) {
-    app.post(path, async (req) => {
+    app.post(path, async (req, reply) => {
+      // Trước đây KHÔNG kiểm key (đo bằng curl: 200 không cần key), và auth.ts:129 cũng
+      // miễn Basic auth cho mọi path `/v1/` → endpoint mở hoàn toàn.
+      if (!anthropicAuthOk(req)) return reply.code(401).send(anthropicErrorBody(401, 'invalid x-api-key'));
       const b = (req.body ?? {}) as AnthropicRequest;
       const chars = JSON.stringify(b.messages ?? []).length + JSON.stringify(b.system ?? '').length;
       return { input_tokens: Math.ceil(chars / 4) };
@@ -1473,12 +1557,14 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
   // và tự nối /chat/completions → cần route này không có /proxy prefix.
   for (const path of ['/v1/chat/completions', '/openai/v1/chat/completions']) {
     app.post(path, async (req, reply) => {
-      if (!authOk(req)) return reply.code(401).send({ error: 'unauthorized' });
+      const auth = authCtx(req);
+      if (!auth) return reply.code(401).send({ error: 'unauthorized' });
       if (!config.gateway.enabled) return reply.code(503).send({ error: 'gateway disabled' });
       const body = req.body as any;
       const messages = toMessages(body);
       const tools = toToolDefs(body);
       const stream = !!body?.stream;
+      const usage: UsageCtx = { requestId: randomUUID(), apiKeyId: auth.keyId, endpoint: path, stream };
       syncFromStore();
       let parsed: ParsedModel;
       try {
@@ -1488,12 +1574,12 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       }
       try {
         if (parsed.kind !== 'provider') {
-          return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall });
+          return await runComboRequest(parsed, { messages, tools, stream, reply, runProviderCall, usage });
         }
         if (stream) sseInit(reply);
         const out = await runProviderCall({
           provider: parsed.provider!, bare: parsed.model!, labelModel: parsed.prefixed,
-          messages, tools, stream, reply,
+          messages, tools, stream, reply, usage,
         });
         if ('done' in out) return reply;
         return reply.send(openaiCompletion(parsed.prefixed, out.result));
@@ -1508,7 +1594,11 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
 
   // /v1/models alias (OpenAI format, không có /proxy prefix)
   for (const path of ['/v1/models', '/openai/v1/models']) {
-    app.get(path, async (req) => {
+    app.get(path, async (req, reply) => {
+      // Trước đây KHÔNG kiểm key (đo bằng curl: `/v1/models` → 200 không cần key), trong
+      // khi `/proxy/v1/models` và `/openai/v1/models` đều 401. Lỗ hổng do handler không
+      // gọi hàm auth nào + auth.ts:129 miễn Basic auth cho mọi path `/v1/`.
+      if (!authOk(req)) return reply.code(401).send({ error: 'unauthorized' });
       const all = allModels();
       const data: { id: string; object: string; owned_by: string }[] = all.map((m) => ({ id: m.prefixed, object: 'model', owned_by: m.provider as string }));
       for (const c of listCombos()) data.push({ id: `combo/${c.id}`, object: 'model', owned_by: 'combo' });

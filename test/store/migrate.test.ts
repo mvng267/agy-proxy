@@ -9,14 +9,26 @@ import { runMigrations, addColumnIfMissing } from '../../src/store/db.js';
  * Test dùng ':memory:' để không đụng DB thật.
  */
 
-/** Dựng DB tối thiểu đủ cho các migration hiện có chạy. */
+/**
+ * Dựng DB tối thiểu đủ cho các migration chạy. Cột phải khớp schema thật ở
+ * src/store/db.ts — migration v3 tạo index trên (api_key_id, ts) nên `ts` là bắt buộc.
+ */
 function mkDb() {
   const d = new DatabaseSync(':memory:');
   d.exec(`
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE runs (id INTEGER PRIMARY KEY, email TEXT);
     CREATE TABLE quota_history (id INTEGER PRIMARY KEY, ts INTEGER);
-    CREATE TABLE gateway_usage (id INTEGER PRIMARY KEY, model TEXT NOT NULL);
+    CREATE TABLE gateway_usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts INTEGER NOT NULL DEFAULT 0,
+      email TEXT NOT NULL DEFAULT '',
+      model TEXT NOT NULL,
+      prompt_tokens INTEGER NOT NULL DEFAULT 0,
+      completion_tokens INTEGER NOT NULL DEFAULT 0,
+      ok INTEGER NOT NULL DEFAULT 1,
+      ms INTEGER NOT NULL DEFAULT 0
+    );
   `);
   return d;
 }
@@ -68,6 +80,26 @@ test('migration prefix model: KHÔNG chạy lại khi cờ cũ đã có (DB migr
   runMigrations(d);
   const m = (d.prepare(`SELECT model FROM gateway_usage`).get() as any).model;
   assert.equal(m, 'bare-model', 'cờ cũ phải chặn migration chạy lại');
+  d.close();
+});
+
+test('v3: tạo bảng api_keys + cột attribution, dữ liệu usage cũ vẫn hợp lệ', () => {
+  const d = mkDb();
+  // Dòng usage "cũ" ghi TRƯỚC migration — sau migration phải còn nguyên, cột mới = NULL.
+  d.prepare(`INSERT INTO gateway_usage (ts, email, model) VALUES (?,?,?)`).run(1000, 'a@x', 'agy/x');
+  runMigrations(d);
+
+  const usageCols = (d.prepare(`PRAGMA table_info(gateway_usage)`).all() as any[]).map((c) => c.name);
+  for (const c of ['api_key_id', 'combo', 'endpoint', 'status', 'request_id', 'stream']) {
+    assert.ok(usageCols.includes(c), `thiếu cột ${c}`);
+  }
+
+  const keyCols = (d.prepare(`PRAGMA table_info(api_keys)`).all() as any[]).map((c) => c.name);
+  assert.deepEqual(keyCols.sort(), ['created_at', 'enabled', 'hash', 'id', 'last_used', 'name', 'note', 'prefix']);
+
+  const old = d.prepare(`SELECT * FROM gateway_usage WHERE ts = 1000`).get() as any;
+  assert.equal(old.model, 'agy/x', 'dòng cũ phải còn nguyên');
+  assert.equal(old.api_key_id, null, 'cột mới phải NULL, không phá dữ liệu cũ');
   d.close();
 });
 

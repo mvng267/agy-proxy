@@ -164,6 +164,45 @@ const MIGRATIONS: Array<{ v: number; name: string; up: (d: MigDb) => void }> = [
       ).run('migratedUsageModelPrefix', '1', Date.now());
     },
   },
+  {
+    v: 3,
+    name: 'bảng api_keys + cột attribution cho gateway_usage',
+    up: (d) => {
+      // Nhiều API key có nhãn, mỗi key một user. Chỉ để ĐỊNH DANH cho báo cáo —
+      // không giới hạn hạn mức, không phân quyền model.
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS api_keys (
+          id         TEXT PRIMARY KEY,
+          name       TEXT NOT NULL,
+          prefix     TEXT NOT NULL,
+          hash       TEXT NOT NULL,
+          enabled    INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL,
+          last_used  INTEGER,
+          note       TEXT
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_apikeys_prefix ON api_keys(prefix);
+      `);
+
+      // Mọi cột NULL-able → 7746 dòng usage cũ vẫn hợp lệ, không cần backfill.
+      // request_id nối các bước combo của CÙNG một request client (combo lỗi 3 bước
+      // rồi thành công tạo 4 dòng — trước đây không cách nào biết chúng cùng gốc).
+      addColumnIfMissing(d, 'gateway_usage', 'api_key_id', 'TEXT');
+      addColumnIfMissing(d, 'gateway_usage', 'combo', 'TEXT');
+      addColumnIfMissing(d, 'gateway_usage', 'endpoint', 'TEXT');
+      addColumnIfMissing(d, 'gateway_usage', 'status', 'INTEGER');
+      addColumnIfMissing(d, 'gateway_usage', 'request_id', 'TEXT');
+      addColumnIfMissing(d, 'gateway_usage', 'stream', 'INTEGER');
+
+      // Chỉ index cột thực sự dùng để lọc. KHÔNG index endpoint/status:
+      // chọn lọc kém, chỉ tốn chi phí ghi.
+      d.exec(`
+        CREATE INDEX IF NOT EXISTS idx_usage_key_ts   ON gateway_usage(api_key_id, ts);
+        CREATE INDEX IF NOT EXISTS idx_usage_combo_ts ON gateway_usage(combo, ts);
+        CREATE INDEX IF NOT EXISTS idx_usage_req      ON gateway_usage(request_id);
+      `);
+    },
+  },
 ];
 
 /** Chạy mọi migration chưa áp dụng. Trả về danh sách version đã chạy. */
@@ -271,44 +310,188 @@ export interface UsageRow {
   completionTokens: number;
   ok: boolean;
   ms: number;
+  /** Attribution (từ schema v3) — optional để mọi call-site cũ vẫn hợp lệ. */
+  apiKeyId?: string;
+  /** Tên combo nếu request đi qua combo/auto (`combo/x`, `auto/fast`…). */
+  combo?: string;
+  endpoint?: string;
+  status?: number;
+  /** Nối các bước combo của CÙNG một request client. */
+  requestId?: string;
+  stream?: boolean;
 }
 export function recordGatewayUsage(r: UsageRow): void {
   db.prepare(
-    `INSERT INTO gateway_usage (ts, email, model, prompt_tokens, completion_tokens, ok, ms) VALUES (?,?,?,?,?,?,?)`,
-  ).run(r.ts, r.email, r.model, r.promptTokens | 0, r.completionTokens | 0, r.ok ? 1 : 0, r.ms | 0);
+    `INSERT INTO gateway_usage
+       (ts, email, model, prompt_tokens, completion_tokens, ok, ms,
+        api_key_id, combo, endpoint, status, request_id, stream)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  ).run(
+    r.ts, r.email, r.model, r.promptTokens | 0, r.completionTokens | 0, r.ok ? 1 : 0, r.ms | 0,
+    r.apiKeyId ?? null, r.combo ?? null, r.endpoint ?? null,
+    r.status ?? null, r.requestId ?? null, r.stream == null ? null : r.stream ? 1 : 0,
+  );
 }
 
 const AGG = `COUNT(*) AS requests, COALESCE(SUM(prompt_tokens),0) AS tokIn, COALESCE(SUM(completion_tokens),0) AS tokOut`;
 
-export function usageTotals(from: number, to: number): { requests: number; tokIn: number; tokOut: number; accounts: number } {
+/** Bộ lọc báo cáo. Trường bỏ trống = không lọc theo tiêu chí đó. */
+export interface UsageFilter {
+  apiKeyId?: string;
+  combo?: string;
+}
+
+/** Dựng mệnh đề WHERE động — dùng chung cho mọi hàm tổng hợp. */
+function usageWhere(f?: UsageFilter): { sql: string; args: unknown[] } {
+  const args: unknown[] = [];
+  let sql = '';
+  if (f?.apiKeyId) {
+    sql += ' AND api_key_id = ?';
+    args.push(f.apiKeyId);
+  }
+  if (f?.combo) {
+    sql += ' AND combo = ?';
+    args.push(f.combo);
+  }
+  return { sql, args };
+}
+
+export function usageTotals(from: number, to: number, f?: UsageFilter): { requests: number; tokIn: number; tokOut: number; accounts: number } {
+  const w = usageWhere(f);
   const row = db
-    .prepare(`SELECT ${AGG}, COUNT(DISTINCT email) AS accounts FROM gateway_usage WHERE ts >= ? AND ts < ?`)
-    .get(from, to) as any;
+    .prepare(`SELECT ${AGG}, COUNT(DISTINCT email) AS accounts FROM gateway_usage WHERE ts >= ? AND ts < ?${w.sql}`)
+    .get(from, to, ...(w.args as any[])) as any;
   return { requests: row.requests, tokIn: row.tokIn, tokOut: row.tokOut, accounts: row.accounts };
 }
 
 /** Chuỗi thời gian theo ngày hoặc tuần (mốc YYYY-MM-DD hoặc YYYY-Www). */
-export function usageSeries(from: number, to: number, groupBy: 'day' | 'week'): { bucket: string; requests: number; tokIn: number; tokOut: number }[] {
+export function usageSeries(from: number, to: number, groupBy: 'day' | 'week', f?: UsageFilter): { bucket: string; requests: number; tokIn: number; tokOut: number }[] {
   // ts epoch ms → chuỗi ngày/tuần theo local: dùng strftime với ts/1000 (unixepoch).
   const fmt = groupBy === 'week' ? "%Y-W%W" : "%Y-%m-%d";
+  const w = usageWhere(f);
   return db
     .prepare(
       `SELECT strftime('${fmt}', ts/1000, 'unixepoch', 'localtime') AS bucket, ${AGG}
-       FROM gateway_usage WHERE ts >= ? AND ts < ? GROUP BY bucket ORDER BY bucket ASC`,
+       FROM gateway_usage WHERE ts >= ? AND ts < ?${w.sql} GROUP BY bucket ORDER BY bucket ASC`,
     )
-    .all(from, to) as any[];
+    .all(from, to, ...(w.args as any[])) as any[];
 }
 
-export function usageByModel(from: number, to: number): { model: string; requests: number; tokIn: number; tokOut: number }[] {
+export function usageByModel(from: number, to: number, f?: UsageFilter): { model: string; requests: number; tokIn: number; tokOut: number }[] {
+  const w = usageWhere(f);
   return db
-    .prepare(`SELECT model, ${AGG} FROM gateway_usage WHERE ts >= ? AND ts < ? GROUP BY model ORDER BY requests DESC`)
-    .all(from, to) as any[];
+    .prepare(`SELECT model, ${AGG} FROM gateway_usage WHERE ts >= ? AND ts < ?${w.sql} GROUP BY model ORDER BY requests DESC`)
+    .all(from, to, ...(w.args as any[])) as any[];
 }
 
-export function usageByAccount(from: number, to: number): { email: string; requests: number; tokIn: number; tokOut: number }[] {
+export function usageByAccount(from: number, to: number, f?: UsageFilter): { email: string; requests: number; tokIn: number; tokOut: number }[] {
+  const w = usageWhere(f);
   return db
-    .prepare(`SELECT email, ${AGG} FROM gateway_usage WHERE ts >= ? AND ts < ? GROUP BY email ORDER BY requests DESC`)
-    .all(from, to) as any[];
+    .prepare(`SELECT email, ${AGG} FROM gateway_usage WHERE ts >= ? AND ts < ?${w.sql} GROUP BY email ORDER BY requests DESC`)
+    .all(from, to, ...(w.args as any[])) as any[];
+}
+
+/** Thống kê theo API key — nguồn cho báo cáo "ai tiêu bao nhiêu". */
+export function usageByApiKey(from: number, to: number, f?: UsageFilter): { apiKeyId: string; requests: number; tokIn: number; tokOut: number }[] {
+  const w = usageWhere(f);
+  return db
+    .prepare(
+      `SELECT COALESCE(api_key_id,'') AS apiKeyId, ${AGG} FROM gateway_usage
+       WHERE ts >= ? AND ts < ?${w.sql} GROUP BY apiKeyId ORDER BY requests DESC`,
+    )
+    .all(from, to, ...(w.args as any[])) as any[];
+}
+
+/**
+ * Thống kê theo combo. Chỉ đếm dòng CÓ combo — dòng gọi model trực tiếp không
+ * thuộc combo nào nên đưa vào sẽ làm sai tỉ lệ.
+ */
+export function usageByCombo(from: number, to: number, f?: UsageFilter): { combo: string; requests: number; tokIn: number; tokOut: number }[] {
+  const w = usageWhere(f);
+  return db
+    .prepare(
+      `SELECT combo, ${AGG} FROM gateway_usage
+       WHERE ts >= ? AND ts < ? AND combo IS NOT NULL${w.sql} GROUP BY combo ORDER BY requests DESC`,
+    )
+    .all(from, to, ...(w.args as any[])) as any[];
+}
+
+/**
+ * Xoá usage cũ hơn `days`. Bảng này TRƯỚC ĐÂY không bao giờ được dọn — chỉ lớn dần mãi.
+ * Xoá theo lô để không khoá DB lâu khi bảng đã rất lớn.
+ */
+export function pruneUsage(days = 90): number {
+  if (days <= 0) return 0;
+  const cutoff = Date.now() - days * 86400_000;
+  let total = 0;
+  for (;;) {
+    const r = db
+      .prepare(`DELETE FROM gateway_usage WHERE id IN (SELECT id FROM gateway_usage WHERE ts < ? LIMIT 50000)`)
+      .run(cutoff);
+    const n = Number(r.changes ?? 0);
+    total += n;
+    if (n < 50000) break;
+  }
+  return total;
+}
+
+// ---------- api keys ----------
+export interface ApiKeyRow {
+  id: string;
+  name: string;
+  prefix: string;
+  hash: string;
+  enabled: number;
+  created_at: number;
+  last_used: number | null;
+  note: string | null;
+}
+
+export function listApiKeys(): ApiKeyRow[] {
+  return db.prepare(`SELECT * FROM api_keys ORDER BY created_at DESC`).all() as any[];
+}
+
+/** Tra theo prefix — index UNIQUE nên O(1) và tối đa 1 hàng, không quét cả bảng. */
+export function getApiKeyByPrefix(prefix: string): ApiKeyRow | undefined {
+  return db.prepare(`SELECT * FROM api_keys WHERE prefix = ?`).get(prefix) as any;
+}
+
+export function getApiKey(id: string): ApiKeyRow | undefined {
+  return db.prepare(`SELECT * FROM api_keys WHERE id = ?`).get(id) as any;
+}
+
+export function insertApiKey(r: Omit<ApiKeyRow, 'last_used'>): void {
+  db.prepare(
+    `INSERT INTO api_keys (id, name, prefix, hash, enabled, created_at, note) VALUES (?,?,?,?,?,?,?)`,
+  ).run(r.id, r.name, r.prefix, r.hash, r.enabled, r.created_at, r.note ?? null);
+}
+
+export function updateApiKey(id: string, p: { name?: string; note?: string; enabled?: boolean }): boolean {
+  const sets: string[] = [];
+  const args: unknown[] = [];
+  if (p.name != null) { sets.push('name = ?'); args.push(p.name); }
+  if (p.note != null) { sets.push('note = ?'); args.push(p.note); }
+  if (p.enabled != null) { sets.push('enabled = ?'); args.push(p.enabled ? 1 : 0); }
+  if (!sets.length) return false;
+  args.push(id);
+  const r = db.prepare(`UPDATE api_keys SET ${sets.join(', ')} WHERE id = ?`).run(...(args as any[]));
+  return Number(r.changes ?? 0) > 0;
+}
+
+export function deleteApiKey(id: string): boolean {
+  const r = db.prepare(`DELETE FROM api_keys WHERE id = ?`).run(id);
+  return Number(r.changes ?? 0) > 0;
+}
+
+/**
+ * Ghi thời điểm dùng gần nhất. Gọi ở đường NÓNG nên throttle 60s —
+ * không cần chính xác tới giây, và tránh ghi DB mỗi request.
+ */
+const lastUsedWrite = new Map<string, number>();
+export function touchApiKey(id: string, now = Date.now()): void {
+  if (now - (lastUsedWrite.get(id) ?? 0) < 60_000) return;
+  lastUsedWrite.set(id, now);
+  db.prepare(`UPDATE api_keys SET last_used = ? WHERE id = ?`).run(now, id);
 }
 
 // ---------- combos ----------
@@ -506,8 +689,13 @@ export function pruneQuotaHistory(days = 90): number {
   return Number(r.changes ?? 0) + Number(r2.changes ?? 0);
 }
 
-export function usageRows(from: number, to: number): UsageRow[] {
+export function usageRows(from: number, to: number, f?: UsageFilter): UsageRow[] {
+  const w = usageWhere(f);
   return db
-    .prepare(`SELECT ts, email, model, prompt_tokens AS promptTokens, completion_tokens AS completionTokens, ok, ms FROM gateway_usage WHERE ts >= ? AND ts < ? ORDER BY ts ASC`)
-    .all(from, to) as any[];
+    .prepare(
+      `SELECT ts, email, model, prompt_tokens AS promptTokens, completion_tokens AS completionTokens, ok, ms,
+              api_key_id AS apiKeyId, combo, endpoint, status, request_id AS requestId, stream
+       FROM gateway_usage WHERE ts >= ? AND ts < ?${w.sql} ORDER BY ts ASC`,
+    )
+    .all(from, to, ...(w.args as any[])) as any[];
 }

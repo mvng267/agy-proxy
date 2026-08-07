@@ -29,7 +29,8 @@ pruneSessions();
 function sign(payload: string): string {
   return createHmac('sha256', config.sessionSecret).update(payload).digest('base64url');
 }
-function safeEqStr(a: string, b: string): boolean {
+/** So sánh chuỗi timing-safe. Export để gateway dùng chung, không viết bản thứ hai. */
+export function safeEqStr(a: string, b: string): boolean {
   const x = Buffer.from(a);
   const y = Buffer.from(b);
   return x.length === y.length && timingSafeEqual(x, y);
