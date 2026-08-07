@@ -1,92 +1,471 @@
-import { useState } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import {
   UserPlus,
   AlertTriangle,
   CheckCircle2,
   Upload,
   Loader2,
+  Users,
+  Wand2,
+  FileText,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
-interface AddResult {
-  success: boolean
+type Tab = "single" | "bulk" | "generate"
+
+interface ProxyLabel {
+  label: string
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+
+function Tab3({
+  active,
+  id,
+  label,
+  icon,
+  onClick,
+}: {
+  active: boolean
+  id: Tab
+  label: string
+  icon: React.ReactNode
+  onClick: (id: Tab) => void
+}) {
+  return (
+    <button
+      onClick={() => onClick(id)}
+      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+        active
+          ? "bg-orange-500 text-white"
+          : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  )
+}
+
+function ResultBox({
+  ok,
+  message,
+}: {
+  ok: boolean
   message: string
-  added?: number
-  errors?: string[]
+}) {
+  return (
+    <div
+      className={`flex items-start gap-2 p-3 rounded-lg border text-sm ${
+        ok
+          ? "bg-emerald-950/30 border-emerald-800/50 text-emerald-300"
+          : "bg-red-950/30 border-red-800/50 text-red-300"
+      }`}
+    >
+      {ok ? (
+        <CheckCircle2 className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
+      ) : (
+        <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
+      )}
+      <span>{message}</span>
+    </div>
+  )
+}
+
+// ── Single tab ─────────────────────────────────────────────────────────
+
+function SingleForm({ proxyLabels }: { proxyLabels: string[] }) {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [totp, setTotp] = useState("")
+  const [proxy, setProxy] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  const handleSubmit = async () => {
+    if (!email.trim()) return
+    setLoading(true)
+    setResult(null)
+    try {
+      const res = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          totp_secret: totp.trim() || undefined,
+          proxy: proxy || undefined,
+        }),
+      })
+      const json = await res.json() as { added?: number; error?: string; ok?: boolean }
+      if (!res.ok || json.error) {
+        setResult({ ok: false, msg: json.error ?? `HTTP ${res.status}` })
+      } else {
+        setResult({ ok: true, msg: "Đã thêm tài khoản thành công" })
+        setEmail("")
+        setPassword("")
+        setTotp("")
+        setProxy("")
+      }
+    } catch (err) {
+      setResult({ ok: false, msg: err instanceof Error ? err.message : "Lỗi" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-xs text-slate-500">Email *</label>
+          <Input
+            type="email"
+            placeholder="user@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="bg-slate-950 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-slate-500">Password</label>
+          <Input
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="bg-slate-950 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-slate-500">TOTP Secret (tùy chọn)</label>
+          <Input
+            placeholder="JBSWY3DPEHPK3PXP"
+            value={totp}
+            onChange={(e) => setTotp(e.target.value)}
+            className="bg-slate-950 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm font-mono"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-slate-500">Proxy (tùy chọn)</label>
+          <select
+            value={proxy}
+            onChange={(e) => setProxy(e.target.value)}
+            className="w-full h-9 px-2 rounded-md bg-slate-950 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+          >
+            <option value="">(không gán)</option>
+            {proxyLabels.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <Button
+        onClick={handleSubmit}
+        disabled={loading || !email.trim()}
+        className="bg-orange-500 hover:bg-orange-600 text-white h-9 text-sm gap-2"
+      >
+        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+        {loading ? "Đang thêm…" : "Thêm tài khoản"}
+      </Button>
+
+      {result && <ResultBox ok={result.ok} message={result.msg} />}
+    </div>
+  )
+}
+
+// ── Bulk import tab ────────────────────────────────────────────────────
+
+function BulkForm() {
+  const [text, setText] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleImport = async (content: string) => {
+    if (!content.trim()) return
+    setLoading(true)
+    setResult(null)
+    try {
+      const res = await fetch("/api/accounts/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: content }),
+      })
+      const json = await res.json() as { added?: number; error?: string }
+      if (!res.ok || json.error) {
+        setResult({ ok: false, msg: json.error ?? `HTTP ${res.status}` })
+      } else {
+        setResult({ ok: true, msg: `Đã import ${json.added ?? 0} tài khoản` })
+        setText("")
+      }
+    } catch (err) {
+      setResult({ ok: false, msg: err instanceof Error ? err.message : "Lỗi" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const content = String(reader.result)
+      setText(content)
+    }
+    reader.readAsText(file)
+  }
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setText(String(reader.result))
+    reader.readAsText(file)
+    e.target.value = ""
+  }
+
+  const lineCount = text.split("\n").filter((l) => l.trim()).length
+
+  return (
+    <div className="space-y-3">
+      <div
+        className={`relative rounded-lg border-2 border-dashed transition-colors ${
+          dragging ? "border-orange-500 bg-orange-500/5" : "border-slate-700 hover:border-slate-600"
+        }`}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
+      >
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={"Paste danh sách email (mỗi dòng 1 email) hoặc kéo thả file vào đây:\n\nuser1@example.com\nuser2@example.com\n\nHoặc JSON:\n{\"email\": \"user@example.com\", \"password\": \"pass\"}"}
+          rows={10}
+          className="w-full bg-transparent px-3 py-2.5 text-sm font-mono text-slate-200 placeholder:text-slate-600 focus:outline-none resize-y"
+        />
+        {dragging && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 rounded-lg pointer-events-none">
+            <p className="text-orange-400 font-medium text-sm">Thả file vào đây</p>
+          </div>
+        )}
+      </div>
+
+      {lineCount > 0 && (
+        <p className="text-xs text-slate-500">
+          Nhận diện{" "}
+          <span className="text-orange-400 font-medium">{lineCount}</span> dòng
+        </p>
+      )}
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          onClick={() => handleImport(text)}
+          disabled={loading || !text.trim()}
+          className="bg-orange-500 hover:bg-orange-600 text-white h-9 text-sm gap-2"
+        >
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+          {loading ? "Đang import…" : "Import"}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => fileInputRef.current?.click()}
+          className="border-slate-700 text-slate-400 hover:text-slate-200 h-9 text-xs gap-1.5"
+        >
+          <FileText className="h-3.5 w-3.5" />
+          Chọn file
+        </Button>
+        {text.trim() && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setText(""); setResult(null) }}
+            className="text-slate-500 hover:text-slate-300 h-9 text-xs"
+          >
+            Xoá
+          </Button>
+        )}
+        <input ref={fileInputRef} type="file" accept=".txt,.csv,.json" className="hidden" onChange={handleFile} />
+      </div>
+
+      {result && <ResultBox ok={result.ok} message={result.msg} />}
+    </div>
+  )
+}
+
+// ── Generate range tab ─────────────────────────────────────────────────
+
+function GenerateForm() {
+  const [prefix, setPrefix] = useState("")
+  const [start, setStart] = useState(1)
+  const [count, setCount] = useState(10)
+  const [domain, setDomain] = useState("")
+  const [password, setPassword] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  // Preview: how many accounts will be created
+  const preview = count > 0 ? count : 0
+
+  // Example of first and last email
+  const exampleFirst =
+    prefix && domain
+      ? `${prefix}${String(start).padStart(String(start + count - 1).length, "0")}@${domain}`
+      : ""
+  const exampleLast =
+    prefix && domain
+      ? `${prefix}${String(start + count - 1).padStart(String(start + count - 1).length, "0")}@${domain}`
+      : ""
+
+  const handleGenerate = async () => {
+    if (!prefix.trim() || !domain.trim()) return
+    setLoading(true)
+    setResult(null)
+    try {
+      const res = await fetch("/api/accounts/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prefix: prefix.trim(),
+          start,
+          count,
+          domain: domain.trim(),
+          password,
+        }),
+      })
+      const json = await res.json() as { added?: number; error?: string }
+      if (!res.ok || json.error) {
+        setResult({ ok: false, msg: json.error ?? `HTTP ${res.status}` })
+      } else {
+        setResult({ ok: true, msg: `Đã tạo ${json.added ?? count} tài khoản` })
+      }
+    } catch (err) {
+      setResult({ ok: false, msg: err instanceof Error ? err.message : "Lỗi" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-xs text-slate-500">Prefix *</label>
+          <Input
+            placeholder="user"
+            value={prefix}
+            onChange={(e) => setPrefix(e.target.value)}
+            className="bg-slate-950 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm font-mono"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-slate-500">Domain *</label>
+          <Input
+            placeholder="gmail.com"
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            className="bg-slate-950 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm font-mono"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-slate-500">Bắt đầu từ số</label>
+          <Input
+            type="number"
+            min={1}
+            value={start}
+            onChange={(e) => setStart(Math.max(1, parseInt(e.target.value) || 1))}
+            className="bg-slate-950 border-slate-700 text-slate-200 h-9 text-sm tabular-nums"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-slate-500">Số lượng</label>
+          <Input
+            type="number"
+            min={1}
+            max={500}
+            value={count}
+            onChange={(e) => setCount(Math.max(1, Math.min(500, parseInt(e.target.value) || 1)))}
+            className="bg-slate-950 border-slate-700 text-slate-200 h-9 text-sm tabular-nums"
+          />
+        </div>
+        <div className="space-y-1 sm:col-span-2">
+          <label className="text-xs text-slate-500">Password (dùng chung)</label>
+          <Input
+            type="password"
+            placeholder="Password cho tất cả account"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="bg-slate-950 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Preview */}
+      {preview > 0 && prefix && domain && (
+        <div className="bg-slate-800/50 rounded-lg px-3 py-2.5 space-y-1">
+          <p className="text-xs text-slate-400 font-medium">Preview ({preview} account)</p>
+          <p className="text-xs font-mono text-slate-300">
+            {exampleFirst}
+            {count > 1 && (
+              <>
+                <span className="text-slate-500 mx-2">→</span>
+                {exampleLast}
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
+      <Button
+        onClick={handleGenerate}
+        disabled={loading || !prefix.trim() || !domain.trim() || count < 1}
+        className="bg-orange-500 hover:bg-orange-600 text-white h-9 text-sm gap-2"
+      >
+        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+        {loading ? "Đang tạo…" : `Tạo ${preview} tài khoản`}
+      </Button>
+
+      {result && <ResultBox ok={result.ok} message={result.msg} />}
+    </div>
+  )
 }
 
 // ── AddAccount Page ────────────────────────────────────────────────────
 
 export function AddAccount() {
-  const [provider, setProvider] = useState<"agy" | "kiro">("agy")
-  const [credential, setCredential] = useState("")
-  const [submitting, setSubmitting] = useState(false)
-  const [result, setResult] = useState<AddResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [tab, setTab] = useState<Tab>("single")
+  const [proxyLabels, setProxyLabels] = useState<string[]>([])
 
-  const handleSubmit = async () => {
-    const trimmed = credential.trim()
-    if (!trimmed) return
-
-    setSubmitting(true)
-    setResult(null)
-    setError(null)
-
+  // Fetch proxy labels for the single-account proxy dropdown
+  const fetchProxies = useCallback(async () => {
     try {
-      // Try parsing as JSON (single or array)
-      let payload: unknown
-      try {
-        payload = JSON.parse(trimmed)
-      } catch {
-        // If not valid JSON, treat each line as an email/credential
-        const lines = trimmed
-          .split("\n")
-          .map((l) => l.trim())
-          .filter(Boolean)
-        payload = { credentials: lines, provider }
-      }
-
-      // If parsed JSON is an object (not array), wrap with provider
-      if (payload && typeof payload === "object" && !Array.isArray(payload)) {
-        payload = { ...payload as Record<string, unknown>, provider }
-      } else if (Array.isArray(payload)) {
-        payload = { credentials: payload, provider }
-      }
-
-      const res = await fetch("/api/gateway/accounts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      const json = (await res.json()) as AddResult
-
-      if (!res.ok) {
-        setError(json.message ?? `HTTP ${res.status}`)
-        return
-      }
-
-      setResult(json)
-      if (json.success) {
-        setCredential("")
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit")
-    } finally {
-      setSubmitting(false)
+      const res = await fetch("/api/proxies")
+      if (!res.ok) return
+      const json = (await res.json()) as { proxies: ProxyLabel[] }
+      setProxyLabels((json.proxies ?? []).map((p) => p.label).filter(Boolean))
+    } catch {
+      // ignore — proxy list is optional
     }
-  }
+  }, [])
 
-  const lineCount = credential.split("\n").filter((l) => l.trim()).length
+  useEffect(() => {
+    fetchProxies()
+  }, [fetchProxies])
 
   return (
     <div className="space-y-4 max-w-2xl">
-      {/* Provider select */}
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
@@ -95,167 +474,37 @@ export function AddAccount() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Provider toggle */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-              Provider
-            </label>
-            <div className="flex items-center gap-2">
-              {(["agy", "kiro"] as const).map((p) => (
-                <Button
-                  key={p}
-                  variant={provider === p ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setProvider(p)}
-                  className={
-                    provider === p
-                      ? "bg-orange-500 hover:bg-orange-600 text-white h-8 text-xs"
-                      : "border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800 h-8 text-xs"
-                  }
-                >
-                  {p.toUpperCase()}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {/* Credential input */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                Credential JSON
-              </label>
-              {lineCount > 0 && (
-                <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">
-                  {lineCount} {lineCount === 1 ? "entry" : "entries"}
-                </Badge>
-              )}
-            </div>
-            <textarea
-              value={credential}
-              onChange={(e) => setCredential(e.target.value)}
-              placeholder={`Paste credential JSON tại đây...\n\nVí dụ:\n{"email": "user@example.com", "token": "..."}\n\nHoặc nhiều dòng (mỗi dòng 1 credential):\n{"email": "a@ex.com", "token": "..."}\n{"email": "b@ex.com", "token": "..."}`}
-              rows={10}
-              className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 text-sm font-mono text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 resize-y transition-colors"
+          {/* Tab switcher */}
+          <div className="flex items-center gap-1 bg-slate-800/50 rounded-lg p-1 w-fit">
+            <Tab3
+              active={tab === "single"}
+              id="single"
+              label="Thêm 1 account"
+              icon={<UserPlus className="h-3 w-3" />}
+              onClick={setTab}
+            />
+            <Tab3
+              active={tab === "bulk"}
+              id="bulk"
+              label="Import hàng loạt"
+              icon={<Users className="h-3 w-3" />}
+              onClick={setTab}
+            />
+            <Tab3
+              active={tab === "generate"}
+              id="generate"
+              label="Tạo dải"
+              icon={<Wand2 className="h-3 w-3" />}
+              onClick={setTab}
             />
           </div>
 
-          {/* Email list shortcut */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-              Hoặc paste email (mỗi dòng 1 email)
-            </label>
-            <Input
-              placeholder="user1@example.com, user2@example.com"
-              className="bg-slate-950 border-slate-800 text-slate-200 placeholder:text-slate-600 h-9 text-sm"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  const val = (e.target as HTMLInputElement).value.trim()
-                  if (val) {
-                    const emails = val
-                      .split(/[,\n]/)
-                      .map((s) => s.trim())
-                      .filter(Boolean)
-                    const asJson = emails
-                      .map((email) => JSON.stringify({ email }))
-                      .join("\n")
-                    setCredential((prev) =>
-                      prev ? prev + "\n" + asJson : asJson
-                    )
-                    ;(e.target as HTMLInputElement).value = ""
-                  }
-                }
-              }}
-            />
-          </div>
-
-          {/* Submit */}
-          <div className="flex items-center gap-3 pt-2">
-            <Button
-              onClick={handleSubmit}
-              disabled={submitting || !credential.trim()}
-              className="bg-orange-500 hover:bg-orange-600 text-white h-9 text-sm gap-2"
-            >
-              {submitting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Upload className="h-3.5 w-3.5" />
-              )}
-              {submitting ? "Đang gửi..." : "Thêm tài khoản"}
-            </Button>
-            {credential.trim() && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setCredential("")
-                  setResult(null)
-                  setError(null)
-                }}
-                className="border-slate-700 text-slate-400 hover:text-slate-200 h-9 text-xs"
-              >
-                Xoá
-              </Button>
-            )}
-          </div>
+          {/* Content */}
+          {tab === "single" && <SingleForm proxyLabels={proxyLabels} />}
+          {tab === "bulk" && <BulkForm />}
+          {tab === "generate" && <GenerateForm />}
         </CardContent>
       </Card>
-
-      {/* Result */}
-      {result && (
-        <Card
-          className={
-            result.success
-              ? "bg-emerald-950/30 border-emerald-800/50"
-              : "bg-red-950/30 border-red-800/50"
-          }
-        >
-          <CardContent className="pt-4">
-            <div className="flex items-start gap-3">
-              {result.success ? (
-                <CheckCircle2 className="h-5 w-5 text-emerald-400 mt-0.5 shrink-0" />
-              ) : (
-                <AlertTriangle className="h-5 w-5 text-red-400 mt-0.5 shrink-0" />
-              )}
-              <div className="space-y-1 flex-1">
-                <p className="text-sm text-slate-200">
-                  {result.message ?? (result.success ? "Thành công" : "Thất bại")}
-                </p>
-                {result.added != null && (
-                  <p className="text-xs text-slate-400">
-                    Đã thêm: {result.added} tài khoản
-                  </p>
-                )}
-                {result.errors && result.errors.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    <p className="text-xs text-red-400 font-medium">Lỗi:</p>
-                    {result.errors.map((err, i) => (
-                      <p
-                        key={i}
-                        className="text-xs text-red-300/80 font-mono pl-2"
-                      >
-                        • {err}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Error */}
-      {error && !result && (
-        <Card className="bg-red-950/30 border-red-800/50">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
-              <p className="text-sm text-red-300">{error}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }
