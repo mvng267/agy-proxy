@@ -35,17 +35,17 @@ import {
 interface PoolAccount {
   email: string
   provider: string
-  status: string
+  health?: string
   enabled: boolean
   cooldown: boolean
-  cooldownUntil?: string
-  health?: string
+  cooldownUntil?: number
   liveStatus?: string
   requests: number
   tokensIn: number
   tokensOut: number
   lastUsed?: number
   geminiPct?: number
+  claudePct?: number
   quota?: {
     groups?: Array<{ name: string; pct: number; resetTime?: string }>
     tier?: string
@@ -75,9 +75,9 @@ function fmtAgo(ms?: number) {
   return Math.round(d / 86400000) + "d"
 }
 
-function fmtCooldown(until?: string) {
+function fmtCooldown(until?: number) {
   if (!until) return ""
-  const d = new Date(until).getTime() - Date.now()
+  const d = until - Date.now()
   if (d <= 0) return ""
   const mins = Math.ceil(d / 60000)
   if (mins < 60) return `${mins}m`
@@ -373,9 +373,9 @@ export function Pool() {
   const statusBadge = (acc: PoolAccount) => {
     if (!acc.enabled) return <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">Off</Badge>
     if (acc.cooldown) return <Badge className="bg-orange-500/15 text-orange-400 border-none text-[10px]">Cooldown</Badge>
-    if (acc.health === "alive" || acc.status === "active") return <Badge className="bg-emerald-500/15 text-emerald-400 border-none text-[10px]">Active</Badge>
+    if (acc.health === "alive") return <Badge className="bg-emerald-500/15 text-emerald-400 border-none text-[10px]">Active</Badge>
     if (acc.health === "dead") return <Badge className="bg-red-500/15 text-red-400 border-none text-[10px]">Dead</Badge>
-    return <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">{acc.status || "—"}</Badge>
+    return <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">—</Badge>
   }
 
   const healthBadge = (h?: string) => {

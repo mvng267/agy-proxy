@@ -340,7 +340,7 @@ function GenerateForm() {
         body: JSON.stringify({
           prefix: prefix.trim(),
           start,
-          count,
+          end: start + count - 1,
           domain: domain.trim(),
           password,
         }),
