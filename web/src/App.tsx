@@ -1,27 +1,30 @@
-import { useState } from "react"
+import { useState, useEffect, lazy, Suspense } from "react"
+import { QueryClientProvider, useQueryClient } from "@tanstack/react-query"
+import { queryClient } from "@/lib/queryClient"
 import { RefreshCw } from "lucide-react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { AppSidebar } from "@/components/AppSidebar"
 import { ToastProvider } from "@/components/ui/toast"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
-import { Overview } from "@/components/Overview"
 
-// ── Pages ──────────────────────────────────────────────────────────────
-import { Accounts } from "@/components/pages/Accounts"
-import { Pool } from "@/components/pages/Pool"
-import { Models } from "@/components/pages/Models"
-import { Combo } from "@/components/pages/Combo"
-import { Tokens } from "@/components/pages/Tokens"
-import { Proxy } from "@/components/pages/Proxy"
-import { AddAccount } from "@/components/pages/AddAccount"
-import { Quota } from "@/components/pages/Quota"
-import { Connections } from "@/components/pages/Connections"
-import { Usage } from "@/components/pages/Usage"
-import { Chat } from "@/components/pages/Chat"
-import { LiveLog } from "@/components/pages/LiveLog"
-import { CLITools } from "@/components/pages/CLITools"
-import { Settings } from "@/components/pages/Settings"
+const Overview = lazy(() => import("@/components/Overview").then((m) => ({ default: m.Overview })))
+// ── Pages (lazy-load: mỗi trang một chunk riêng) ──────────────────────
+// Chunk khởi động chỉ chứa khung app; trang nào mở mới tải trang đó.
+const Accounts = lazy(() => import("@/components/pages/Accounts").then((m) => ({ default: m.Accounts })))
+const Pool = lazy(() => import("@/components/pages/Pool").then((m) => ({ default: m.Pool })))
+const Models = lazy(() => import("@/components/pages/Models").then((m) => ({ default: m.Models })))
+const Combo = lazy(() => import("@/components/pages/Combo").then((m) => ({ default: m.Combo })))
+const Tokens = lazy(() => import("@/components/pages/Tokens").then((m) => ({ default: m.Tokens })))
+const Proxy = lazy(() => import("@/components/pages/Proxy").then((m) => ({ default: m.Proxy })))
+const AddAccount = lazy(() => import("@/components/pages/AddAccount").then((m) => ({ default: m.AddAccount })))
+const Quota = lazy(() => import("@/components/pages/Quota").then((m) => ({ default: m.Quota })))
+const Connections = lazy(() => import("@/components/pages/Connections").then((m) => ({ default: m.Connections })))
+const Usage = lazy(() => import("@/components/pages/Usage").then((m) => ({ default: m.Usage })))
+const Chat = lazy(() => import("@/components/pages/Chat").then((m) => ({ default: m.Chat })))
+const LiveLog = lazy(() => import("@/components/pages/LiveLog").then((m) => ({ default: m.LiveLog })))
+const CLITools = lazy(() => import("@/components/pages/CLITools").then((m) => ({ default: m.CLITools })))
+const Settings = lazy(() => import("@/components/pages/Settings").then((m) => ({ default: m.Settings })))
 
 // ── Page title mapping ─────────────────────────────────────────────────
 
@@ -90,8 +93,31 @@ function PageContent({ tab }: { tab: string }) {
 
 // ── App ────────────────────────────────────────────────────────────────
 
-function App() {
-  const [activeTab, setActiveTab] = useState("overview")
+/**
+ * Tab hiện tại lấy từ URL thay vì useState.
+ * Trước đây F5 luôn về "overview", không share được link, không có back/forward.
+ * Dùng path đơn giản (`/pool`) — SPA fallback ở backend đã trả index.html cho mọi route.
+ */
+function useTabFromUrl(): [string, (t: string) => void] {
+  const [tab, setTab] = useState(() => window.location.pathname.slice(1) || "overview")
+
+  useEffect(() => {
+    const onPop = () => setTab(window.location.pathname.slice(1) || "overview")
+    window.addEventListener("popstate", onPop)
+    return () => window.removeEventListener("popstate", onPop)
+  }, [])
+
+  const go = (t: string) => {
+    const path = t === "overview" ? "/" : `/${t}`
+    if (window.location.pathname !== path) window.history.pushState(null, "", path)
+    setTab(t)
+  }
+  return [tab, go]
+}
+
+function AppShell() {
+  const [activeTab, setActiveTab] = useTabFromUrl()
+  const qc = useQueryClient()
 
   return (
     <ToastProvider>
@@ -113,9 +139,9 @@ function App() {
               </div>
               <div className="ml-auto flex items-center gap-2">
                 <button
-                  onClick={() => window.location.reload()}
+                  onClick={() => qc.invalidateQueries()}
                   className="p-1.5 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
-                  title="Refresh"
+                  title="Làm mới dữ liệu"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
@@ -124,12 +150,22 @@ function App() {
 
             {/* Content */}
             <main className="flex-1 p-4 lg:p-6 bg-slate-950">
-              <PageContent tab={activeTab} />
+              <Suspense fallback={<div className="flex h-64 items-center justify-center text-sm text-slate-500">Đang tải…</div>}>
+                <PageContent tab={activeTab} />
+              </Suspense>
             </main>
           </SidebarInset>
         </SidebarProvider>
       </ErrorBoundary>
     </ToastProvider>
+  )
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AppShell />
+    </QueryClientProvider>
   )
 }
 
