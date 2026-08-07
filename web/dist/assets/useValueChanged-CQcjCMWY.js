@@ -1,1 +1,0 @@
-import{_ as e,h as t}from"./dist-BLMAUYyu.js";import{T as n,i as r}from"./button-aFvXjFvz.js";var i=e(t(),1);function a(e,t){let a=i.useRef(e),o=r(t);n(()=>{a.current!==e&&o(a.current),a.current=e},[e,o])}export{a as t};

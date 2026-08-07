@@ -417,6 +417,18 @@ export function usageByCombo(from: number, to: number, f?: UsageFilter): { combo
 }
 
 /**
+ * Thời điểm sớm nhất có dữ liệu attribution (api_key_id/combo).
+ * Dòng usage ghi TRƯỚC schema v3 không có các cột này — UI cần mốc để chú thích
+ * "dữ liệu trước ngày X không có thông tin key", tránh người dùng tưởng báo cáo hỏng.
+ */
+export function attributionSince(): number | null {
+  const r = db
+    .prepare(`SELECT MIN(ts) AS ts FROM gateway_usage WHERE api_key_id IS NOT NULL`)
+    .get() as { ts?: number | null } | undefined;
+  return r?.ts ?? null;
+}
+
+/**
  * Xoá usage cũ hơn `days`. Bảng này TRƯỚC ĐÂY không bao giờ được dọn — chỉ lớn dần mãi.
  * Xoá theo lô để không khoá DB lâu khi bảng đã rất lớn.
  */

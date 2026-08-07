@@ -13,6 +13,7 @@ import {
   quotaSeries, quotaForAccount, quotaHistoryCount, pruneQuotaHistory,
   listComboRows, getComboRow, upsertComboRow, deleteComboRow, recordComboRun, comboStatsRows,
   providerStats, usageByProvider, recordQuota, creditsUsedThisMonth, getSetting, setSetting,
+  usageByApiKey, usageByCombo, attributionSince, type UsageFilter,
 } from '../store/db.js';
 import {
   PROVIDERS, PROVIDER_IDS, allModels, parseModelId, ModelIdError,
@@ -1770,22 +1771,54 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     return { from, to, groupBy };
   }
 
+  /** Bộ lọc báo cáo lấy từ query — trống nghĩa là không lọc theo tiêu chí đó. */
+  const filterOf = (req: FastifyRequest): UsageFilter => {
+    const q = (req.query ?? {}) as any;
+    return {
+      apiKeyId: typeof q.apiKeyId === 'string' && q.apiKeyId ? q.apiKeyId : undefined,
+      combo: typeof q.combo === 'string' && q.combo ? q.combo : undefined,
+    };
+  };
+
   app.get('/api/gateway/usage', async (req) => {
     const { from, to, groupBy } = rangeOf(req);
+    const f = filterOf(req);
+    // Nhãn key: usage chỉ lưu id, UI cần tên để hiển thị "Hermes" thay vì "ak_1a2b…".
+    const names = new Map(listPublicApiKeys().map((k) => [k.id, k.name]));
+    const byApiKey = usageByApiKey(from, to, f).map((r) => ({
+      ...r,
+      name: r.apiKeyId === 'legacy' ? 'Key mặc định' : r.apiKeyId ? names.get(r.apiKeyId) ?? '(đã xoá)' : '(không key)',
+    }));
     return {
-      totals: usageTotals(from, to),
-      series: usageSeries(from, to, groupBy),
-      byModel: usageByModel(from, to),
-      byAccount: usageByAccount(from, to),
+      totals: usageTotals(from, to, f),
+      series: usageSeries(from, to, groupBy, f),
+      byModel: usageByModel(from, to, f),
+      byAccount: usageByAccount(from, to, f),
+      byApiKey,
+      byCombo: usageByCombo(from, to, f),
+      /**
+       * Mốc bắt đầu ghi attribution. Dữ liệu TRƯỚC mốc này không có api_key_id/combo
+       * (cột chỉ có từ schema v3) — UI phải nói rõ, nếu không người dùng tưởng hỏng.
+       */
+      attributionSince: attributionSince(),
     };
   });
 
   app.get('/api/gateway/usage/export.csv', async (req, reply) => {
     const { from, to } = rangeOf(req);
-    const rows = usageRows(from, to);
-    const head = 'ts,datetime,email,model,prompt_tokens,completion_tokens,ok,ms\n';
+    const rows = usageRows(from, to, filterOf(req));
+    // Cột mới thêm vào CUỐI dòng — chèn giữa sẽ phá script người dùng đang parse theo vị trí.
+    const head = 'ts,datetime,email,model,prompt_tokens,completion_tokens,ok,ms,api_key_id,combo,endpoint,status,request_id,stream\n';
+    const csv = (v: unknown) => {
+      const t = v == null ? '' : String(v);
+      return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+    };
     const body = rows
-      .map((r) => `${r.ts},${new Date(r.ts).toISOString()},${r.email},${r.model},${r.promptTokens},${r.completionTokens},${r.ok ? 1 : 0},${r.ms}`)
+      .map((r) => [
+        r.ts, new Date(r.ts).toISOString(), r.email, r.model, r.promptTokens, r.completionTokens,
+        r.ok ? 1 : 0, r.ms, r.apiKeyId, r.combo, r.endpoint, r.status, r.requestId,
+        r.stream == null ? '' : r.stream ? 1 : 0,
+      ].map(csv).join(','))
       .join('\n');
     reply.header('content-type', 'text/csv; charset=utf-8');
     reply.header('content-disposition', 'attachment; filename="gateway-usage.csv"');

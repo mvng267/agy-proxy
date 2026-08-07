@@ -25,6 +25,7 @@ const Chat = lazy(() => import("@/components/pages/Chat").then((m) => ({ default
 const LiveLog = lazy(() => import("@/components/pages/LiveLog").then((m) => ({ default: m.LiveLog })))
 const CLITools = lazy(() => import("@/components/pages/CLITools").then((m) => ({ default: m.CLITools })))
 const Settings = lazy(() => import("@/components/pages/Settings").then((m) => ({ default: m.Settings })))
+const ApiKeys = lazy(() => import("@/components/pages/ApiKeys").then((m) => ({ default: m.ApiKeys })))
 
 // ── Page title mapping ─────────────────────────────────────────────────
 
@@ -44,6 +45,7 @@ const tabTitles: Record<string, string> = {
   gwlog: "Live Log",
   tools: "CLI Tools",
   settings: "Cấu hình",
+  keys: "API Keys",
 }
 
 // ── Page router ────────────────────────────────────────────────────────
@@ -80,6 +82,8 @@ function PageContent({ tab }: { tab: string }) {
       return <CLITools />
     case "settings":
       return <Settings />
+    case "keys":
+      return <ApiKeys />
     default:
       return (
         <div className="flex flex-col items-center justify-center h-64 gap-3">
