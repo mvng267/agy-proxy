@@ -1,1 +1,0 @@
-import{a as e,s as t}from"./createLucideIcon-CgERQC6d.js";import{T as n,i as r}from"./button-BT6I1SQO.js";var i=t(e(),1);function a(e,t){let a=i.useRef(e),o=r(t);n(()=>{a.current!==e&&o(a.current),a.current=e},[e,o])}export{a as t};
