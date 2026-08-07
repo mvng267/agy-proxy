@@ -375,7 +375,17 @@ export async function runProviderCall(opts: {
     );
   }
   const genArgs = { generationConfig: opts.generationConfig, tools: opts.tools, toolConfig: opts.toolConfig };
-  const avail = pool.candidates(Date.now(), provider, bucketOf(provider, bare)).length;
+  const bucket = bucketOf(provider, bare);
+  /**
+   * skipKeys chia 2 mức:
+   *  - `key` trần: account HỎNG (5xx/mạng) — tránh mọi bước sau, bất kể model.
+   *  - `key#bucket`: account CẠN HẠN MỨC của đúng bể đó — bước sau dùng model bể KHÁC
+   *    (vd combo gemini→claude cùng provider agy) vẫn được dùng account này.
+   * Trước đây quota-error cũng ghi key trần, nên combo 2 bước khác bể trên pool nhỏ
+   * chết ở bước 2 vì mọi account đều bị blacklist dù còn nguyên hạn mức bể kia.
+   */
+  const bucketSkip = (key: string) => `${key}#${bucket ?? ''}`;
+  const avail = pool.candidates(Date.now(), provider, bucket).length;
   // Lỗi thật (5xx/mạng) chỉ thử 3 account. Nhưng account HẾT HẠN MỨC thì bị cooldown
   // ngay khi report → bỏ qua rất rẻ, nên không tính vào hạn thử.
   // Cần thiết vì pool Kiro có ~40% account đã cạn hạn mức tháng.
@@ -396,7 +406,7 @@ export async function runProviderCall(opts: {
     // dụng đổi rất nhanh (cooldown hết hạn, account khác được release) nhưng ngân sách
     // vẫn tính theo số cũ. Tính lại định kỳ để bám sát thực tế.
     if (attempt > 0 && attempt % 8 === 0) {
-      const now = pool.candidates(Date.now(), provider, bucketOf(provider, bare)).length;
+      const now = pool.candidates(Date.now(), provider, bucket).length;
       maxTry = Math.min(3, Math.max(1, now));
       maxSkip = Math.min(32, Math.max(maxSkip, now));
     }
@@ -405,8 +415,8 @@ export async function runProviderCall(opts: {
       // skipKeys: bỏ qua account đã lỗi trong cùng request này (chỉ áp dụng khi
       // không ép forcedEmail). pool.pick() chọn từ candidates() — ta lọc SAU pick
       // rồi release ngay nếu trúng, rẻ hơn clone candidates rồi filter.
-      ctx = await pickReady(provider, opts.forcedEmail, opts.proxyOverride, bucketOf(provider, bare));
-      if (opts.skipKeys?.has(ctx.account.key)) {
+      ctx = await pickReady(provider, opts.forcedEmail, opts.proxyOverride, bucket);
+      if (opts.skipKeys?.has(ctx.account.key) || opts.skipKeys?.has(bucketSkip(ctx.account.key))) {
         pool.release(ctx.account);
         skips++;
         continue;
@@ -494,7 +504,7 @@ export async function runProviderCall(opts: {
       // `bucket` để 429 chỉ khoá đúng bể quota của model vừa gọi, không khoá cả account.
       pool.report(ctx.account, {
         ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs,
-        bucket: bucketOf(provider, bare), latencyMs: ms,
+        bucket, latencyMs: ms,
       });
       afterCall(ctx.account, labelModel, { ok: false, ms, status: e?.status }, opts.usage);
       const outOfQuota = e?.status === 402 || e?.status === 429 || /MONTHLY_REQUEST_COUNT|quota|exhaust/i.test(String(e?.message ?? ''));
@@ -510,8 +520,10 @@ export async function runProviderCall(opts: {
       }
       if (outOfQuota) skips++;
       else tries++;
-      // Ghi nhớ account lỗi để tránh pick lại trong cùng request
-      if (outOfQuota || e?.status >= 500) opts.skipKeys?.add(ctx.account.key);
+      // Ghi nhớ account lỗi để tránh pick lại trong cùng request: hết hạn mức chỉ chặn
+      // đúng bể (xem bucketSkip), account hỏng hạ tầng thì chặn hẳn.
+      if (outOfQuota) opts.skipKeys?.add(bucketSkip(ctx.account.key));
+      else if (e?.status >= 500) opts.skipKeys?.add(ctx.account.key);
       emitGw({
         kind: 'err', account: ctx.account.email, model: labelModel, ms, status: e?.status,
         msg: `← ✗ ${e?.status ?? ''} ${outOfQuota ? '(hết hạn mức → đổi account)' : ''} ${String(e?.message ?? e).slice(0, 90)}`,
