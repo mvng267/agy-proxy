@@ -1,12 +1,25 @@
 import { useState } from "react"
-import {
-  LayoutDashboard,
-  RefreshCw,
-} from "lucide-react"
+import { RefreshCw } from "lucide-react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { AppSidebar } from "@/components/AppSidebar"
 import { Overview } from "@/components/Overview"
+
+// ── Pages ──────────────────────────────────────────────────────────────
+import { Accounts } from "@/components/pages/Accounts"
+import { Pool } from "@/components/pages/Pool"
+import { Models } from "@/components/pages/Models"
+import { Combo } from "@/components/pages/Combo"
+import { Tokens } from "@/components/pages/Tokens"
+import { Proxy } from "@/components/pages/Proxy"
+import { AddAccount } from "@/components/pages/AddAccount"
+import { Quota } from "@/components/pages/Quota"
+import { Connections } from "@/components/pages/Connections"
+import { Usage } from "@/components/pages/Usage"
+import { Chat } from "@/components/pages/Chat"
+import { LiveLog } from "@/components/pages/LiveLog"
+import { CLITools } from "@/components/pages/CLITools"
+import { Settings } from "@/components/pages/Settings"
 
 // ── Page title mapping ─────────────────────────────────────────────────
 
@@ -28,19 +41,49 @@ const tabTitles: Record<string, string> = {
   settings: "Cấu hình",
 }
 
-// ── Placeholder page ───────────────────────────────────────────────────
+// ── Page router ────────────────────────────────────────────────────────
 
-function PlaceholderPage({ tab }: { tab: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center h-64 gap-3">
-      <div className="p-3 rounded-xl bg-slate-800/50">
-        <LayoutDashboard className="h-8 w-8 text-slate-600" />
-      </div>
-      <p className="text-sm text-slate-500">
-        {tabTitles[tab] ?? tab} — coming soon
-      </p>
-    </div>
-  )
+function PageContent({ tab }: { tab: string }) {
+  switch (tab) {
+    case "overview":
+      return <Overview />
+    case "accounts":
+      return <Accounts />
+    case "agy":
+      return <Pool />
+    case "models":
+      return <Models />
+    case "combo":
+      return <Combo />
+    case "tokens":
+      return <Tokens />
+    case "proxies":
+      return <Proxy />
+    case "add":
+      return <AddAccount />
+    case "quota":
+      return <Quota />
+    case "connections":
+      return <Connections />
+    case "usage":
+      return <Usage />
+    case "chat":
+      return <Chat />
+    case "gwlog":
+      return <LiveLog />
+    case "tools":
+      return <CLITools />
+    case "settings":
+      return <Settings />
+    default:
+      return (
+        <div className="flex flex-col items-center justify-center h-64 gap-3">
+          <p className="text-sm text-slate-500">
+            {tabTitles[tab] ?? tab} — not found
+          </p>
+        </div>
+      )
+  }
 }
 
 // ── App ────────────────────────────────────────────────────────────────
@@ -77,11 +120,7 @@ function App() {
 
         {/* Content */}
         <main className="flex-1 p-4 lg:p-6 bg-slate-950">
-          {activeTab === "overview" ? (
-            <Overview />
-          ) : (
-            <PlaceholderPage tab={activeTab} />
-          )}
+          <PageContent tab={activeTab} />
         </main>
       </SidebarInset>
     </SidebarProvider>
