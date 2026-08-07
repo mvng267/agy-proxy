@@ -133,8 +133,12 @@ function afterCall(
     requestId: ctx?.requestId,
     stream: ctx?.stream,
   });
-  if (r.ok && config.gateway.quota?.onCall) {
-    refreshQuota(account).catch(() => {}); // nền, không chặn
+  if (config.gateway.quota?.onCall) {
+    // Refresh CẢ khi lỗi quota: đó chính là lúc quota vừa đổi mạnh nhất, mà trước đây
+    // `if (r.ok && …)` lại bỏ qua đúng trường hợp đó. force=true để bỏ qua TTL cache.
+    const quotaErr = r.status === 402 || r.status === 429;
+    if (r.ok) refreshQuota(account).catch(() => {});
+    else if (quotaErr) refreshQuota(account, true).catch(() => {});
   }
 }
 
@@ -595,7 +599,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       );
     }
     const genArgs = { generationConfig: opts.generationConfig, tools: opts.tools };
-    const avail = pool.candidates(Date.now(), provider).length;
+    const avail = pool.candidates(Date.now(), provider, bucketOf(provider, bare)).length;
     // Lỗi thật (5xx/mạng) chỉ thử 3 account. Nhưng account HẾT HẠN MỨC thì bị cooldown
     // ngay khi report → bỏ qua rất rẻ, nên không tính vào hạn thử.
     // Cần thiết vì pool Kiro có ~40% account đã cạn hạn mức tháng.
@@ -616,7 +620,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       // dụng đổi rất nhanh (cooldown hết hạn, account khác được release) nhưng ngân sách
       // vẫn tính theo số cũ. Tính lại định kỳ để bám sát thực tế.
       if (attempt > 0 && attempt % 8 === 0) {
-        const now = pool.candidates(Date.now(), provider).length;
+        const now = pool.candidates(Date.now(), provider, bucketOf(provider, bare)).length;
         maxTry = Math.min(3, Math.max(1, now));
         maxSkip = Math.min(32, Math.max(maxSkip, now));
       }
@@ -711,7 +715,11 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       } catch (e: any) {
         lastErr = e;
         const ms = Date.now() - t0;
-        pool.report(ctx.account, { ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs });
+        // `bucket` để 429 chỉ khoá đúng bể quota của model vừa gọi, không khoá cả account.
+        pool.report(ctx.account, {
+          ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs,
+          bucket: bucketOf(provider, bare),
+        });
         afterCall(ctx.account, labelModel, { ok: false, ms, status: e?.status }, opts.usage);
         const outOfQuota = e?.status === 402 || e?.status === 429 || /MONTHLY_REQUEST_COUNT|quota|exhaust/i.test(String(e?.message ?? ''));
         // Prompt quá dài KHÔNG phụ thuộc account — thử account khác chỉ tốn thời gian
@@ -813,6 +821,11 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         inflight: a.inflight || 0,
         lastAttempt: a.lastAttempt || 0,
         consecutiveFails: a.consecutiveFails || 0,
+        // Thời điểm cập nhật quota gần nhất + có quá hạn TTL chưa — để UI hiện
+        // "cập nhật X phút trước" thay vì hiển thị số cũ như thể vừa đo.
+        quotaFetchedAt: a.quota?.fetchedAt ?? 0,
+        quotaStale: a.quota ? Date.now() - (a.quota.fetchedAt ?? 0) > (config.gateway.quota?.cacheTtlMin ?? 10) * 60_000 : true,
+        bucketCooldown: a.bucketCooldown ?? null,
         quota: a.quota ?? null,
         geminiPct: geminiPct(a),
         claudePct: claudePct(a),
@@ -998,7 +1011,10 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       };
     } catch (e: any) {
       const ms = Date.now() - t0;
-      pool.report(ctx.account, { ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs });
+      pool.report(ctx.account, {
+        ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs,
+        bucket: bucketOf(ctx.account.provider, parseModelId(model).model ?? model),
+      });
       afterCall(ctx.account, model, { ok: false, ms });
       emitGw({ kind: 'err', account: ctx.account.email, model, ms, status: e?.status, msg: `← ✗ ${e?.status ?? ''} ${String(e?.message ?? e).slice(0, 100)}` });
       return reply.code(502).send({ ok: false, account: ctx.account.email, error: e?.message ?? String(e) });
@@ -1789,6 +1805,19 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     return { series: quotaSeries(from, to, groupBy), groupBy, total: quotaHistoryCount() };
   });
 
+  /**
+   * Chờ tới khi pool rảnh. Công việc nền (refresh quota/token) gọi hàm này trước mỗi
+   * account để không cạnh tranh băng thông với request của client.
+   */
+  const waitWhileBusy = async (maxWaitMs = 30_000) => {
+    const until = Date.now() + maxWaitMs;
+    while (Date.now() < until) {
+      const busy = pool.list().reduce((n, a) => n + (a.inflight || 0), 0);
+      if (busy === 0) return;
+      await new Promise((r) => setTimeout(r, 1_000));
+    }
+  };
+
   // ---------------- Auto refresh quota (nền, ÁP NÓNG) ----------------
   // Timer tự lên lịch lại mỗi vòng → bật/tắt & đổi chu kỳ có hiệu lực NGAY, không cần restart.
   let quotaTimer: NodeJS.Timeout | null = null;
@@ -1798,6 +1827,7 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     quotaTimer = setTimeout(async () => {
       if (config.gateway.quota?.autoRefresh) {
         for (const a of pool.list().filter((x) => x.enabled)) {
+          await waitWhileBusy();
           await refreshQuota(a).catch(() => {});
           await new Promise((r) => setTimeout(r, 500));
         }
@@ -1807,6 +1837,60 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     quotaTimer.unref?.();
   };
   scheduleQuotaLoop();
+
+  /**
+   * Một lượt refresh quota NGAY sau boot (giãn nhịp, nền).
+   * `scheduleQuotaLoop` đợi hết `intervalMin` mới chạy lần đầu → sau mỗi restart, quota
+   * hiển thị là dữ liệu cũ từ persist. Đo thật: tuổi trung vị 558 phút.
+   */
+  if (config.gateway.quota?.autoRefresh) {
+    setTimeout(async () => {
+      for (const a of pool.list().filter((x) => x.enabled && x.health !== 'dead')) {
+        // NHƯỜNG ĐƯỜNG cho request thật: đo được 7/20 request stream thất bại khi vòng
+        // refresh (700 account) chạy song song với tải. Quota là việc nền, không được
+        // cạnh tranh với client.
+        await waitWhileBusy();
+        await refreshQuota(a).catch(() => {});
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    }, 5_000).unref?.();
+  }
+
+  // ---------------- Auto refresh TOKEN (nền) ----------------
+  /**
+   * Trước đây refresh hoàn toàn LƯỜI: token chỉ được làm mới khi có request tới và token
+   * đã hết hạn. Cộng với việc access token không được persist, mỗi lần restart là 700
+   * account cùng phải refresh khi tải ập đến — đúng kiểu 429 hàng loạt đã gặp.
+   *
+   * Nay chủ động làm mới TRƯỚC khi hết hạn, giãn nhịp để không tự tạo burst.
+   */
+  let tokenTimer: NodeJS.Timeout | null = null;
+  const scheduleTokenLoop = () => {
+    if (tokenTimer) clearTimeout(tokenTimer);
+    tokenTimer = setTimeout(async () => {
+      try {
+        const aheadMs = Math.max(1, config.gateway.tokenRefreshAheadMin) * 60_000;
+        const now = Date.now();
+        const due = pool
+          .list()
+          .filter((a) => a.enabled && a.health !== 'dead')
+          // Chỉ account ĐÃ có token và sắp hết hạn. Account chưa có token thì để
+          // request đầu tiên tự lo — refresh sẵn cả pool sẽ tự tạo burst.
+          .filter((a) => a.token && a.token.expiresAt - now < aheadMs);
+        for (const a of due) {
+          await waitWhileBusy();
+          await ensureReady(a, dispatcherFor(a)).catch(() => {});
+          await new Promise((r) => setTimeout(r, 300)); // giãn nhịp
+        }
+        if (due.length) savePersist();
+      } catch {
+        /* vòng sau thử lại */
+      }
+      scheduleTokenLoop();
+    }, 60_000); // quét mỗi phút, chỉ đụng account sắp hết hạn
+    tokenTimer.unref?.();
+  };
+  scheduleTokenLoop();
 
   // ---------------- Tự dò hạn mức Kiro (Kiro KHÔNG có API quota) ----------------
   // Mỗi vòng chỉ dò 1 LÔ NHỎ account chưa biết trạng thái → tránh đốt hạn mức thật.

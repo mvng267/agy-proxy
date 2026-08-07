@@ -364,3 +364,55 @@ test('geminiPct: ≥2 nhóm mà không có Gemini → null, không lấy bừa n
   assert.equal(geminiPct(a), null, 'lấy % bể Claude gắn nhãn gemini sẽ làm highest-first xếp sai');
   assert.equal(claudePct(a), 90, 'nhưng claudePct vẫn đọc đúng');
 });
+
+// ---------------------------------------------------------------------------
+// G4 — tách bể quota. Bug nghiêm trọng nhất: 429 một bể khoá luôn bể kia.
+// ---------------------------------------------------------------------------
+
+function twoBucket() {
+  const p = new Pool();
+  const a = p.upsert({ provider: 'agy', email: 'a@x', refreshToken: 'r', credential: 'c', proxyLabel: '', health: 'ok' });
+  a.quota = {
+    tier: 't',
+    groups: [{ name: 'Gemini Models', pct: 100, resetTime: '' }, { name: 'Claude and GPT models', pct: 0, resetTime: '' }],
+    models: [], fetchedAt: Date.now(),
+  } as any;
+  return { p, a };
+}
+
+test('429 ở bể Claude KHÔNG khoá bể Gemini (trước đây khoá cả account)', () => {
+  const { p, a } = twoBucket();
+  const now = 1_000_000;
+  p.report(a, { ok: false, status: 429, err: 'stream 429', bucket: 'claude' }, now);
+
+  assert.equal(p.candidates(now, 'agy', 'claude').length, 0, 'bể claude phải bị khoá');
+  assert.equal(p.candidates(now, 'agy', 'gemini').length, 1, 'bể gemini VẪN phục vụ được');
+  assert.equal(a.cooldownUntil, 0, 'không được đặt cooldown toàn cục');
+});
+
+test('429 khi KHÔNG biết bể (Kiro) → khoá toàn cục như cũ', () => {
+  const p = new Pool();
+  const a = p.upsert({ provider: 'kr', email: 'k@x', refreshToken: 'r', credential: 'c', proxyLabel: '', health: 'ok' });
+  const now = 1_000_000;
+  p.report(a, { ok: false, status: 429, err: 'stream 429' }, now);
+  assert.ok(a.cooldownUntil > now, 'không biết bể thì vẫn phải khoá toàn cục');
+  assert.equal(p.candidates(now, 'kr').length, 0);
+});
+
+test('pick(bucket) bỏ qua account đã cạn đúng bể đó', () => {
+  const { p, a } = twoBucket();
+  const b = p.upsert({ provider: 'agy', email: 'b@x', refreshToken: 'r', credential: 'c', proxyLabel: '', health: 'ok' });
+  const now = 1_000_000;
+  p.report(a, { ok: false, status: 429, err: 'x', bucket: 'claude' }, now);
+
+  const picked = p.pick('round-robin', now, 'agy', 'claude');
+  assert.equal(picked.email, 'b@x', 'phải chọn account chưa cạn bể claude');
+});
+
+test('cooldown bể tự hết hạn theo thời gian', () => {
+  const { p, a } = twoBucket();
+  const now = 1_000_000;
+  p.report(a, { ok: false, status: 429, err: 'x', retryAfterMs: 10_000, bucket: 'claude' }, now);
+  assert.equal(p.candidates(now + 5_000, 'agy', 'claude').length, 0, 'còn trong cooldown');
+  assert.equal(p.candidates(now + 20_000, 'agy', 'claude').length, 1, 'hết cooldown thì dùng lại được');
+});

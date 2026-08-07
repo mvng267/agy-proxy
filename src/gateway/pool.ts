@@ -44,7 +44,14 @@ export interface PoolAccount extends ProviderAccount {
   consecutiveFails?: number; // số lỗi liên tiếp → cooldown tăng dần (backoff)
   // RAM
   lastError: string;
-  cooldownUntil: number; // epoch ms
+  cooldownUntil: number; // epoch ms — cooldown TOÀN CỤC (mọi bể)
+  /**
+   * Cooldown RIÊNG từng bể quota. Antigravity chia 2 bể độc lập (đo thật: cùng account
+   * Gemini 100% mà Claude 0%), nên 429 ở bể Claude KHÔNG được khoá luôn bể Gemini.
+   * Trước đây chỉ có cooldownUntil toàn cục → account còn nguyên quota Gemini vẫn bị
+   * loại khỏi pool, làm pool co lại một nửa một cách âm thầm.
+   */
+  bucketCooldown?: Partial<Record<QuotaBucket, number>>;
   inflight: number; // số request đang chạy trên account này (concurrency-aware rotation)
   quota?: QuotaInfo; // hạn mức Antigravity (cache)
   liveStatus?: 'ok' | 'quota' | 'error'; // kết quả check live gần nhất
@@ -100,6 +107,8 @@ export interface ReportInfo {
   err?: string;
   /** Google bảo chờ bao lâu (RetryInfo.retryDelay / Retry-After). Có thì cooldown đúng bằng đó. */
   retryAfterMs?: number;
+  /** Bể quota của model vừa gọi — 429 chỉ khoá đúng bể đó, không khoá cả account. */
+  bucket?: QuotaBucket;
 }
 
 export class NoAccountError extends Error {
@@ -206,11 +215,13 @@ export class Pool {
   }
 
 /** Account đủ điều kiện phục vụ tại thời điểm now (lọc theo provider nếu có). */
-  candidates(now = Date.now(), provider?: ProviderId): PoolAccount[] {
+  candidates(now = Date.now(), provider?: ProviderId, bucket?: QuotaBucket): PoolAccount[] {
     return this.list(provider).filter(
       (a) => a.enabled && a.health !== 'dead'
         && (a.cooldownUntil || 0) <= now
-        && (a.monthlyExhaustedUntil || 0) <= now,
+        && (a.monthlyExhaustedUntil || 0) <= now
+        // Cooldown riêng bể: account cạn Claude vẫn phục vụ được model Gemini.
+        && (!bucket || (a.bucketCooldown?.[bucket] || 0) <= now),
     );
   }
 
@@ -221,7 +232,7 @@ export class Pool {
    * full-first/failover vẫn "dính" account đầu như thiết kế.
    */
   pick(strategy: Strategy, now = Date.now(), provider?: ProviderId, bucket?: QuotaBucket): PoolAccount {
-    const all = this.candidates(now, provider);
+    const all = this.candidates(now, provider, bucket);
     if (!all.length) {
       throw new NoAccountError(
         provider
@@ -338,8 +349,14 @@ export class Pool {
         const LONG = 3600_000; // >1h ⇒ hết hạn mức, không phải rate-limit
         ms = ra > LONG ? LONG : Math.min(Math.max(ra, 5_000), ms);
       }
-      acc.cooldownUntil = now + ms;
       acc.liveStatus = 'quota';
+      if (info.bucket) {
+        // Biết bể → chỉ khoá đúng bể đó. Account còn quota bể kia vẫn phục vụ được.
+        acc.bucketCooldown = { ...acc.bucketCooldown, [info.bucket]: now + ms };
+      } else {
+        // Không biết bể (Kiro không chia bể, hoặc model lạ) → khoá toàn cục như cũ.
+        acc.cooldownUntil = now + ms;
+      }
       return;
     }
 
@@ -372,6 +389,10 @@ export class Pool {
         liveStatus: a.liveStatus,
         lastAttempt: a.lastAttempt || 0,
         consecutiveFails: a.consecutiveFails || 0,
+        bucketCooldown: a.bucketCooldown,
+        // Access token: KHÔNG persist thì mỗi lần restart mất sạch token của 700 account,
+        // và tải dồn sau đó gây hàng trăm lần refresh cùng lúc — đúng kiểu 429 hàng loạt.
+        token: a.token,
       };
     }
     return out;
@@ -390,6 +411,18 @@ export class Pool {
       a.lastUsed = s.lastUsed ?? a.lastUsed;
       a.lastAttempt = s.lastAttempt ?? a.lastAttempt;
       a.consecutiveFails = s.consecutiveFails ?? a.consecutiveFails;
+      // Token chỉ khôi phục khi CÒN HẠN (trừ skew) — token hết hạn thì để ensureReady lo.
+      if (s.token?.accessToken && s.token.expiresAt - REFRESH_SKEW_MS > Date.now() && !a.token) {
+        a.token = s.token;
+      }
+      // chỉ khôi phục cooldown bể còn hiệu lực
+      if (s.bucketCooldown) {
+        const live: Record<string, number> = {};
+        for (const [k, v] of Object.entries(s.bucketCooldown as Record<string, number>)) {
+          if (v > Date.now()) live[k] = v;
+        }
+        if (Object.keys(live).length) a.bucketCooldown = live as any;
+      }
       if (s.quota && !a.quota) a.quota = s.quota; // giữ quota qua restart (TTL tự lo refresh)
       if (s.projectId && !a.projectId) a.projectId = s.projectId; // bỏ discoverProject sau restart
       // chỉ khôi phục cooldown còn hiệu lực (đã qua thì bỏ)

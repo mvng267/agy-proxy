@@ -72,10 +72,19 @@ test('TƯƠNG THÍCH NGƯỢC: GATEWAY_API_KEY cũ vẫn hợp lệ khi đã có
 });
 
 test('HÀNH VI CŨ: chưa cấu hình key nào → cho qua (không chặn deploy hiện có)', () => {
+  // DB thật có thể đang chứa key của client production → tạm ẩn để dựng đúng tình huống
+  // "cài mới, chưa cấu hình gì", rồi trả lại nguyên trạng.
+  const live = db.prepare(`SELECT id, enabled FROM api_keys WHERE enabled = 1`).all() as Array<{ id: string }>;
+  db.prepare(`UPDATE api_keys SET enabled = 0 WHERE enabled = 1`).run();
+  clearApiKeyCache();
   config.gateway.apiKey = '';
-  cleanup();
-  const ctx = resolveApiKey('');
-  assert.equal(ctx?.keyId, '', 'phải cho qua như trước đây (`if (!key) return true`)');
+  try {
+    const ctx = resolveApiKey('');
+    assert.equal(ctx?.keyId, '', 'phải cho qua như trước đây (`if (!key) return true`)');
+  } finally {
+    for (const k of live) db.prepare(`UPDATE api_keys SET enabled = 1 WHERE id = ?`).run(k.id);
+    clearApiKeyCache();
+  }
 });
 
 test('có key trong bảng → request KHÔNG kèm key bị từ chối', () => {

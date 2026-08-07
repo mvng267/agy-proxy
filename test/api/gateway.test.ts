@@ -1,4 +1,4 @@
-import { test, before } from 'node:test';
+import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import Fastify, { type FastifyInstance } from 'fastify';
 import formbody from '@fastify/formbody';
@@ -19,6 +19,20 @@ before(async () => {
   sampleEmail = pool.list('agy')[0]?.email ?? '';
 });
 
+/**
+ * Header auth cho request gateway.
+ *
+ * KHÔNG được giả định bảng api_keys rỗng: khi có key thật trong DB (vd key của client
+ * production), `resolveApiKey` chuyển sang chế độ "đã cấu hình" và request không kèm key
+ * sẽ bị 401 — test sẽ đỏ vì trạng thái DB chứ không phải vì code sai.
+ * Đảm bảo LUÔN có key legacy trong lúc chạy test.
+ */
+const TEST_KEY = 'test-legacy-key-gateway';
+const savedKey = config.gateway.apiKey;
+before(() => { config.gateway.apiKey = savedKey || TEST_KEY; });
+after(() => { config.gateway.apiKey = savedKey; });
+const authHeaders = () => ({ authorization: `Bearer ${config.gateway.apiKey}` });
+
 test('GET /api/gateway/models trả danh sách model', async () => {
   const r = await app.inject({ method: 'GET', url: '/api/gateway/models' });
   assert.equal(r.statusCode, 200);
@@ -29,7 +43,7 @@ test('GET /api/gateway/models trả danh sách model', async () => {
 
 test('GET /proxy/v1/models đúng OpenAI shape + id CÓ prefix provider', async () => {
   // gateway thật có thể đang bật API key → gửi kèm để test không phụ thuộc cấu hình máy
-  const headers = config.gateway.apiKey ? { authorization: `Bearer ${config.gateway.apiKey}` } : {};
+  const headers = authHeaders();
   const r = await app.inject({ method: 'GET', url: '/proxy/v1/models?bare=0', headers });
   assert.equal(r.statusCode, 200);
   const j = r.json();
@@ -71,6 +85,7 @@ test('toggle account đổi enabled', async (t) => {
 });
 
 test('API key: thiếu Bearer → 401, đúng Bearer → 200', async () => {
+  const prev = config.gateway.apiKey;
   config.gateway.apiKey = 'secret-key';
   try {
     const bad = await app.inject({ method: 'GET', url: '/proxy/v1/models' });
@@ -78,7 +93,10 @@ test('API key: thiếu Bearer → 401, đúng Bearer → 200', async () => {
     const ok = await app.inject({ method: 'GET', url: '/proxy/v1/models', headers: { authorization: 'Bearer secret-key' } });
     assert.equal(ok.statusCode, 200);
   } finally {
-    config.gateway.apiKey = '';
+    // Khôi phục GIÁ TRỊ CŨ, không hardcode ''. Đặt rỗng làm mọi test sau chạy ở chế độ
+    // "chưa cấu hình key" — trước đây vô hại vì rỗng = bỏ auth, nhưng khi bảng api_keys
+    // có key thật thì các test đó bị 401 vì trạng thái DB chứ không phải vì code sai.
+    config.gateway.apiKey = prev;
   }
 });
 
@@ -108,14 +126,14 @@ test('PATCH /api/gateway/config nhận quota config', async () => {
 
 test('POST /proxy/v1/responses tồn tại + validate model (OmniRoute gọi đường này)', async () => {
   // trước đây 404 "Route POST:/proxy/v1/responses not found" khi cắm vào OmniRoute
-  const r = await app.inject({ method: 'POST', url: '/proxy/v1/responses', payload: { model: 'khong-ton-tai-xyz', input: 'hi' } });
+  const r = await app.inject({ method: 'POST', url: '/proxy/v1/responses', headers: authHeaders(), payload: { model: 'khong-ton-tai-xyz', input: 'hi' } });
   assert.notEqual(r.statusCode, 404, 'endpoint phải tồn tại');
   assert.equal(r.statusCode, 400);
   assert.ok(r.json().error?.message, 'lỗi đúng shape OpenAI');
 });
 
 test('GET /proxy/v1/models?bare=1 trả id TRẦN, không trùng nhau', async () => {
-  const headers = config.gateway.apiKey ? { authorization: `Bearer ${config.gateway.apiKey}` } : {};
+  const headers = authHeaders();
   const r = await app.inject({ method: 'GET', url: '/proxy/v1/models?bare=1', headers });
   assert.equal(r.statusCode, 200);
   const ids = r.json().data.map((m: any) => m.id);
@@ -126,7 +144,7 @@ test('GET /proxy/v1/models?bare=1 trả id TRẦN, không trùng nhau', async ()
 });
 
 test('GET /proxy/v1/models/:id — retrieve model (gateway trung gian gọi để xác thực)', async () => {
-  const headers = config.gateway.apiKey ? { authorization: `Bearer ${config.gateway.apiKey}` } : {};
+  const headers = authHeaders();
   // bareMode tắt trong test → phải dùng id CÓ prefix
   const ok = await app.inject({ method: 'GET', url: '/proxy/v1/models/' + encodeURIComponent('agy/gemini-2.5-flash'), headers });
   assert.equal(ok.statusCode, 200);

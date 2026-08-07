@@ -94,6 +94,9 @@ export const config = {
     // cũ `{error:"<chuỗi>"}` nếu có client đang đọc `body.error` như chuỗi —
     // rollback không cần deploy lại.
     openaiStrictErrors: bool(S('openaiStrictErrors') ?? E('OPENAI_STRICT_ERRORS'), true),
+    // Làm mới access token trước khi hết hạn bao nhiêu phút. Đủ rộng để vòng quét
+    // (mỗi phút) kịp giãn nhịp qua hết số account sắp hết hạn.
+    tokenRefreshAheadMin: num(S('tokenRefreshAheadMin') ?? E('TOKEN_REFRESH_AHEAD_MIN'), 15),
     quota: {
       autoRefresh: bool(S('quotaAutoRefresh') ?? process.env.GATEWAY_QUOTA_AUTO, false),
       intervalMin: num(S('quotaIntervalMin') ?? process.env.GATEWAY_QUOTA_INTERVAL_MIN, 30),
@@ -147,6 +150,7 @@ const SETTERS: Record<string, Setter> = {
   gatewayCooldownSec: (v) => (config.gateway.cooldownSec = Number(v)),
   gatewayCooldown5xxSec: (v) => (config.gateway.cooldown5xxSec = Number(v)),
   openaiStrictErrors: (v) => (config.gateway.openaiStrictErrors = v === 'true'),
+  tokenRefreshAheadMin: (v) => (config.gateway.tokenRefreshAheadMin = Number(v)),
   quotaAutoRefresh: (v) => (config.gateway.quota.autoRefresh = v === 'true'),
   quotaIntervalMin: (v) => (config.gateway.quota.intervalMin = Number(v)),
   quotaOnCall: (v) => (config.gateway.quota.onCall = v === 'true'),
