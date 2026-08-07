@@ -1,0 +1,27 @@
+# Pre-commit hooks — chạy typecheck + build web trước khi commit
+# Cài: pip install pre-commit && pre-commit install
+# Hoặc chạy thủ công: pre-commit run --all-files
+
+repos:
+  - repo: local
+    hooks:
+      - id: backend-typecheck
+        name: Backend TypeScript typecheck
+        entry: npm run typecheck
+        language: system
+        pass_filenames: false
+        files: ^(src/|tsconfig\.json)
+
+      - id: web-build
+        name: Web dashboard build
+        entry: bash -c 'cd web && npm run build'
+        language: system
+        pass_filenames: false
+        files: ^(web/src/|web/package\.json|web/tsconfig\.json)
+
+      - id: no-env-commit
+        name: Block .env from being committed
+        entry: echo "Không được commit file .env"
+        language: system
+        fail_on_nonzero: true
+        files: \.env$
