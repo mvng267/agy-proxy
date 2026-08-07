@@ -46,3 +46,70 @@ describe('tool_choice → toolConfig', () => {
     assert.equal(openaiToolConfig({ tool_choice: { type: 'function', function: {} } }), undefined);
   });
 });
+
+describe('neutralizeBlockedPhrases — câu định danh bị Antigravity chặn', () => {
+  test('câu của Claude Agent SDK được đổi tối thiểu (bỏ dấu phẩy)', async () => {
+    const { neutralizeBlockedPhrases } = await import('../../src/gateway/antigravity.js');
+    const inp = "You are a Claude agent, built on Anthropic's Claude Agent SDK.";
+    const out = neutralizeBlockedPhrases(inp);
+    assert.ok(!out.includes("agent, built"), 'phải bỏ dấu phẩy — chuỗi nguyên văn bị upstream 429');
+    assert.ok(out.includes("Claude agent built on Anthropic's Claude Agent SDK"), 'nghĩa phải giữ nguyên');
+  });
+
+  test('văn bản thường đi qua nguyên vẹn', async () => {
+    const { neutralizeBlockedPhrases } = await import('../../src/gateway/antigravity.js');
+    for (const t of ['xin chào', 'You are a helpful assistant.', "Anthropic's Claude Agent SDK"]) {
+      assert.equal(neutralizeBlockedPhrases(t), t);
+    }
+  });
+
+  test('áp vào systemInstruction của request dựng ra', async () => {
+    const { openaiToAntigravity } = await import('../../src/gateway/antigravity.js');
+    const body: any = openaiToAntigravity('agy/gemini-2.5-flash',
+      [{ role: 'system', content: "You are a Claude agent, built on Anthropic's Claude Agent SDK." },
+       { role: 'user', content: 'hi' }] as any,
+      { projectId: 'p' });
+    const sys = JSON.stringify((body as any).request.systemInstruction);
+    assert.ok(!sys.includes('agent, built'), 'chuỗi bị chặn không được rời gateway');
+  });
+});
+
+describe('toGeminiSchema — các dạng JSON Schema mà Gemini không nhận', () => {
+  test('type dạng mảng ["array","null"] → ARRAY + nullable', async () => {
+    const { toGeminiSchema } = await import('../../src/gateway/antigravity.js');
+    const g = toGeminiSchema({ type: ['array', 'null'], items: { type: 'string' } }) as any;
+    assert.equal(g.type, 'ARRAY');
+    assert.equal(g.nullable, true);
+    assert.deepEqual(g.items, { type: 'STRING' });
+  });
+
+  test('items: true (boolean schema) → ARRAY vẫn có items fallback', async () => {
+    const { toGeminiSchema } = await import('../../src/gateway/antigravity.js');
+    const g = toGeminiSchema({ type: 'array', items: true }) as any;
+    assert.equal(g.type, 'ARRAY');
+    assert.ok(g.items, 'Gemini bắt buộc ARRAY có items — thiếu là 400 cả request');
+  });
+
+  test('items: {$ref} không giải được → vẫn có items fallback', async () => {
+    const { toGeminiSchema } = await import('../../src/gateway/antigravity.js');
+    const g = toGeminiSchema({ type: 'array', items: { $ref: '#/$defs/X' } }) as any;
+    assert.ok(g.items);
+  });
+
+  test('cả 69 tools thật của Claude Code dựng ra không còn ARRAY mồ côi items', async () => {
+    const { toolsToGemini } = await import('../../src/gateway/antigravity.js');
+    const { readFileSync } = await import('node:fs');
+    // Payload bắt từ Claude Code thật — chính body đã 400 trước khi vá.
+    const cap = JSON.parse(readFileSync(new URL('./fixtures/claude-code-tools.json', import.meta.url), 'utf8'));
+    const defs = cap.map((t: any) => ({ name: t.name, description: t.description, parameters: t.input_schema }));
+    const out = toolsToGemini(defs)!;
+    const bad: string[] = [];
+    const walk = (o: any, path: string) => {
+      if (!o || typeof o !== 'object') return;
+      if (o.type === 'ARRAY' && !o.items) bad.push(path);
+      for (const [k, v] of Object.entries(o)) walk(v, `${path}.${k}`);
+    };
+    walk(out, 'tools');
+    assert.deepEqual(bad, []);
+  });
+});
