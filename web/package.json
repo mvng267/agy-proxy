@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && cp src/login.html dist/login.html",
     "lint": "oxlint",
     "preview": "vite preview"
   },
