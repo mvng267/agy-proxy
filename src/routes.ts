@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { store } from './store/index.js';
-import type { Account, FlowKey, Proxy } from './store/models.js';
+import type { Account, FlowKey, Proxy, TargetStatus } from './store/models.js';
 import { FLOW_KEYS } from './store/models.js';
 import { scheduler } from './queue/scheduler.js';
 import { runSingle, PIPELINE } from './flows/index.js';
@@ -560,5 +560,35 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       }
     }
     return { queued };
+  });
+
+  // Health check: trạng thái tổng quan các provider + pool
+  app.get('/api/health', async () => {
+    const all = store.listAccounts();
+    const byProv: Record<string, { total: number; ok: number; failed: number; needsHuman: number }> = {};
+    const inc = (p: string, k: 'total' | 'ok' | 'failed' | 'needsHuman') => {
+      byProv[p] ??= { total: 0, ok: 0, failed: 0, needsHuman: 0 };
+      byProv[p][k]++;
+    };
+    for (const a of all) {
+      for (const prov of ['agy', 'kiro', 'google', 'gweb', 'gcli'] as const) {
+        const st = a[`status_${prov}` as keyof Account] as TargetStatus | undefined;
+        if (!st || st === 'new') continue;
+        const label = prov === 'agy' ? 'antigravity' : prov === 'kiro' ? 'kiro' : prov;
+        inc(label, 'total');
+        if (st === 'ok') inc(label, 'ok');
+        else if (st === 'failed') inc(label, 'failed');
+        else if (st === 'needs_human') inc(label, 'needsHuman');
+      }
+    }
+    const poolAccs = pool.list();
+    return {
+      status: 'ok',
+      uptime: Math.round(process.uptime()),
+      version: pkgVersion(),
+      accounts: all.length,
+      poolSize: poolAccs.length,
+      providers: Object.entries(byProv).map(([id, s]) => ({ id, ...s })),
+    };
   });
 }
