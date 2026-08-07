@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useToast } from "@/components/ui/toast"
 import {
   Table,
   TableBody,
@@ -166,6 +167,7 @@ export function Pool() {
   const [accounts, setAccounts] = useState<PoolAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
 
   // Provider tab
   const [provider, setProvider] = useState<"agy" | "kr">(() =>
@@ -272,21 +274,31 @@ export function Pool() {
   const handleBulkEnable = async (enabled: boolean, emails?: string[]) => {
     const body: Record<string, unknown> = { enabled }
     if (emails && emails.length > 0) body.emails = emails
-    await fetch("/api/gateway/accounts/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    fetchData()
+    try {
+      await fetch("/api/gateway/accounts/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      toast({ title: enabled ? "Đã bật tài khoản" : "Đã tắt tài khoản", variant: "success", description: emails?.length ? `${emails.length} account` : "tất cả" })
+      fetchData()
+    } catch {
+      toast({ title: "Lỗi khi cập nhật", variant: "error" })
+    }
   }
 
   const handleWake = async () => {
-    await fetch("/api/gateway/accounts/wake", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider }),
-    })
-    fetchData()
+    try {
+      await fetch("/api/gateway/accounts/wake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider }),
+      })
+      toast({ title: "Đã gửi lệnh wake", variant: "info" })
+      fetchData()
+    } catch {
+      toast({ title: "Lỗi khi wake", variant: "error" })
+    }
   }
 
   const handleBulkQuota = async () => {

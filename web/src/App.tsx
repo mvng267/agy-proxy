@@ -3,6 +3,8 @@ import { RefreshCw } from "lucide-react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { AppSidebar } from "@/components/AppSidebar"
+import { ToastProvider } from "@/components/ui/toast"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { Overview } from "@/components/Overview"
 
 // ── Pages ──────────────────────────────────────────────────────────────
@@ -92,38 +94,42 @@ function App() {
   const [activeTab, setActiveTab] = useState("overview")
 
   return (
-    <SidebarProvider>
-      <AppSidebar
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-      />
-      <SidebarInset>
-        {/* Topbar */}
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm px-4">
-          <SidebarTrigger className="-ml-1 text-slate-400 hover:text-slate-200" />
-          <Separator orientation="vertical" className="h-5 bg-slate-800" />
-          <div className="flex items-center gap-2">
-            <h1 className="text-sm font-medium text-slate-200">
-              {tabTitles[activeTab] ?? activeTab}
-            </h1>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <button
-              onClick={() => window.location.reload()}
-              className="p-1.5 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
-              title="Refresh"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </header>
+    <ToastProvider>
+      <ErrorBoundary>
+        <SidebarProvider>
+          <AppSidebar
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+          <SidebarInset>
+            {/* Topbar */}
+            <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm px-4">
+              <SidebarTrigger className="-ml-1 text-slate-400 hover:text-slate-200" />
+              <Separator orientation="vertical" className="h-5 bg-slate-800" />
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm font-medium text-slate-200">
+                  {tabTitles[activeTab] ?? activeTab}
+                </h1>
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={() => window.location.reload()}
+                  className="p-1.5 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+                  title="Refresh"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </header>
 
-        {/* Content */}
-        <main className="flex-1 p-4 lg:p-6 bg-slate-950">
-          <PageContent tab={activeTab} />
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+            {/* Content */}
+            <main className="flex-1 p-4 lg:p-6 bg-slate-950">
+              <PageContent tab={activeTab} />
+            </main>
+          </SidebarInset>
+        </SidebarProvider>
+      </ErrorBoundary>
+    </ToastProvider>
   )
 }
 
