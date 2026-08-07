@@ -3,36 +3,120 @@ import {
   Cpu,
   RefreshCw,
   AlertTriangle,
-  Search,
+  Zap,
+  Copy,
+  Check,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  Activity,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
 interface Model {
   id: string
   provider?: string
+  providerLabel?: string
   label?: string
-  object?: string
-  created?: number
-  owned_by?: string
+  bucket?: string        // "gemini" | "claude" | ...
+  status?: string        // "ok" | "quota" | "error" | "unknown" | "image"
+  detail?: string
+  ms?: number
+  image?: boolean
 }
 
 interface ModelsResponse {
   models?: Model[]
   data?: Model[]
+}
+
+interface CheckResponse {
+  models?: Model[]
+  account?: string
+  error?: string
+  queued?: number
+}
+
+type CopiedMap = Record<string, boolean>
+
+// ── Helpers ────────────────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<string, { color: string; dotColor: string; label: string; icon: React.ReactNode }> = {
+  ok:      { color: "bg-emerald-500/15 text-emerald-400", dotColor: "bg-emerald-400", label: "live",    icon: <CheckCircle2 className="h-2.5 w-2.5" /> },
+  quota:   { color: "bg-amber-500/15 text-amber-400",     dotColor: "bg-amber-400",   label: "quota",   icon: <AlertTriangle className="h-2.5 w-2.5" /> },
+  error:   { color: "bg-red-500/15 text-red-400",         dotColor: "bg-red-400",     label: "error",   icon: <XCircle className="h-2.5 w-2.5" /> },
+  image:   { color: "bg-purple-500/15 text-purple-400",   dotColor: "bg-purple-400",  label: "image",   icon: <Cpu className="h-2.5 w-2.5" /> },
+  unknown: { color: "bg-slate-700/60 text-slate-400",     dotColor: "bg-slate-600",   label: "—",       icon: <HelpCircle className="h-2.5 w-2.5" /> },
+}
+
+function statusCfg(status?: string) {
+  return STATUS_CONFIG[status ?? "unknown"] ?? STATUS_CONFIG.unknown
+}
+
+function fmtMs(ms: number | undefined) {
+  if (ms == null) return ""
+  return `${ms}ms`
+}
+
+// ── Model Chip ─────────────────────────────────────────────────────────
+
+function ModelChip({
+  model,
+  onCopy,
+  copied,
+}: {
+  model: Model
+  onCopy: (id: string) => void
+  copied: boolean
+}) {
+  const cfg = statusCfg(model.status)
+  const tip = [
+    cfg.label !== "—" ? cfg.label : "chưa kiểm",
+    model.detail ? `— ${model.detail}` : "",
+    model.ms ? fmtMs(model.ms) : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-700/50 text-xs font-mono ${cfg.color} bg-slate-800/70 group relative`}
+      title={tip}
+    >
+      {/* Status dot */}
+      <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${cfg.dotColor}`} />
+
+      {/* Image icon */}
+      {(model.image || model.status === "image") && (
+        <span className="text-[10px]">🖼</span>
+      )}
+
+      {/* Model ID */}
+      <span className="text-slate-200">{model.id}</span>
+
+      {/* Latency */}
+      {model.ms != null && (
+        <span className="text-slate-500 text-[10px]">{fmtMs(model.ms)}</span>
+      )}
+
+      {/* Copy button */}
+      <button
+        onClick={() => onCopy(model.id)}
+        className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 text-slate-500 hover:text-slate-200"
+        title="Copy model id"
+      >
+        {copied ? (
+          <Check className="h-2.5 w-2.5 text-emerald-400" />
+        ) : (
+          <Copy className="h-2.5 w-2.5" />
+        )}
+      </button>
+    </span>
+  )
 }
 
 // ── Models Page ────────────────────────────────────────────────────────
@@ -41,15 +125,19 @@ export function Models() {
   const [models, setModels] = useState<Model[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState("")
+  const [activeProvider, setActiveProvider] = useState<string>("all")
+  const [checkingAll, setCheckingAll] = useState(false)
+  const [probingKiro, setProbingKiro] = useState(false)
+  const [checkResult, setCheckResult] = useState<string | null>(null)
+  const [copied, setCopied] = useState<CopiedMap>({})
 
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch("/api/gateway/models")
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json() as ModelsResponse
-      // API may return { models: [...] } or { data: [...] }
-      setModels(json.models ?? json.data ?? [])
+      const json = (await res.json()) as ModelsResponse
+      const list = json.models ?? json.data ?? []
+      setModels(list)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch")
@@ -64,14 +152,116 @@ export function Models() {
     return () => clearInterval(interval)
   }, [fetchData])
 
+  const handleCopy = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(id)
+      setCopied((prev) => ({ ...prev, [id]: true }))
+      setTimeout(() => setCopied((prev) => ({ ...prev, [id]: false })), 1500)
+    } catch {
+      // ignore
+    }
+  }
+
+  const copyAll = async (providerModels: Model[]) => {
+    try {
+      const ids = providerModels.map((m) => m.id).join("\n")
+      await navigator.clipboard.writeText(ids)
+      setCheckResult(`Đã copy ${providerModels.length} model id`)
+      setTimeout(() => setCheckResult(null), 2000)
+    } catch {
+      // ignore
+    }
+  }
+
+  const checkAllLive = async () => {
+    setCheckingAll(true)
+    setCheckResult("Đang gọi thử từng model (1–2 phút)…")
+    try {
+      const res = await fetch("/api/gateway/models/check?provider=all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      const json = (await res.json()) as CheckResponse
+      if (json.models && json.models.length > 0) {
+        // Merge status into existing models
+        const statusMap: Record<string, Partial<Model>> = {}
+        for (const m of json.models) statusMap[m.id] = m
+        setModels((prev) =>
+          prev.map((m) => (statusMap[m.id] ? { ...m, ...statusMap[m.id] } : m))
+        )
+        const ok = json.models.filter((m) => m.status === "ok").length
+        setCheckResult(`Check live: ${ok}/${json.models.length} model gọi được · via ${json.account ?? "unknown"}`)
+      } else if (json.error) {
+        setCheckResult(`Lỗi: ${json.error}`)
+      } else {
+        setCheckResult("Check xong")
+      }
+    } catch (err) {
+      setCheckResult(`Lỗi: ${err instanceof Error ? err.message : "Unknown"}`)
+    } finally {
+      setCheckingAll(false)
+    }
+  }
+
+  const checkSingleModel = async (model: Model) => {
+    try {
+      const res = await fetch(`/api/gateway/models/check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: model.provider ?? "agy" }),
+      })
+      const json = (await res.json()) as CheckResponse
+      if (json.models) {
+        const statusMap: Record<string, Partial<Model>> = {}
+        for (const m of json.models) statusMap[m.id] = m
+        setModels((prev) =>
+          prev.map((m) => (statusMap[m.id] ? { ...m, ...statusMap[m.id] } : m))
+        )
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const probeKiro = async () => {
+    setProbingKiro(true)
+    setCheckResult("Đang dò tài khoản Kiro (nền)…")
+    try {
+      const res = await fetch("/api/gateway/probe?provider=kr&limit=10", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      const json = await res.json() as { queued?: number; error?: string }
+      if (json.error) {
+        setCheckResult(`Lỗi probe: ${json.error}`)
+      } else {
+        setCheckResult(`Đang dò ${json.queued ?? 10} account Kiro (nền — xem Live log)`)
+      }
+    } catch (err) {
+      setCheckResult(`Lỗi: ${err instanceof Error ? err.message : "Unknown"}`)
+    } finally {
+      setProbingKiro(false)
+    }
+  }
+
+  // ── Loading ────────────────────────────────────────────────────────
+
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-10 w-full bg-slate-800" />
-        <Skeleton className="h-64 w-full bg-slate-800" />
+        <div className="flex gap-2">
+          <Skeleton className="h-8 w-24 bg-slate-800" />
+          <Skeleton className="h-8 w-24 bg-slate-800" />
+        </div>
+        <Skeleton className="h-48 w-full bg-slate-800" />
+        <Skeleton className="h-48 w-full bg-slate-800" />
       </div>
     )
   }
+
+  // ── Error ──────────────────────────────────────────────────────────
 
   if (error) {
     return (
@@ -88,135 +278,260 @@ export function Models() {
     )
   }
 
-  // Extract unique providers
-  const providers = [...new Set(models.map((m) => m.provider ?? m.owned_by ?? "unknown"))]
+  // ── Group models by provider + bucket ─────────────────────────────
 
-  const filtered = models.filter((m) => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return (
-      m.id.toLowerCase().includes(q) ||
-      (m.label ?? "").toLowerCase().includes(q) ||
-      (m.provider ?? m.owned_by ?? "").toLowerCase().includes(q)
-    )
-  })
+  const BUCKET_LABEL: Record<string, string> = {
+    gemini: "Gemini Models",
+    claude: "Claude and GPT models",
+  }
+
+  type ProviderGroup = {
+    key: string
+    providerKey: string
+    title: string
+    models: Model[]
+    bucket?: string
+  }
+
+  const groupMap: Record<string, ProviderGroup> = {}
+  for (const m of models) {
+    const pid = m.provider ?? "unknown"
+    const bk = m.bucket
+    const key = bk ? `${pid}:${bk}` : pid
+    if (!groupMap[key]) {
+      const bucketLabel = bk ? BUCKET_LABEL[bk] ?? bk : null
+      const provLabel = m.providerLabel ?? pid.toUpperCase()
+      const title = bucketLabel ? `${provLabel} · ${bucketLabel}` : provLabel
+      groupMap[key] = { key, providerKey: pid, title, models: [], bucket: bk }
+    }
+    groupMap[key].models.push(m)
+  }
+
+  const groups = Object.values(groupMap)
+
+  // Extract unique providers for tabs
+  const providerKeys = [...new Set(groups.map((g) => g.providerKey))]
+
+  const filteredGroups =
+    activeProvider === "all"
+      ? groups
+      : groups.filter((g) => g.providerKey === activeProvider)
+
+  const statusCounts = {
+    ok: models.filter((m) => m.status === "ok").length,
+    quota: models.filter((m) => m.status === "quota").length,
+    error: models.filter((m) => m.status === "error").length,
+    unknown: models.filter((m) => !m.status || m.status === "unknown").length,
+  }
 
   return (
-    <div className="space-y-4">
-      {/* Summary KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="pt-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Models</p>
-                <p className="text-2xl font-bold text-slate-100 tabular-nums">{models.length}</p>
-              </div>
-              <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
-                <Cpu className="h-4 w-4" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="pt-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Providers</p>
-                <p className="text-2xl font-bold text-slate-100 tabular-nums">{providers.length}</p>
-              </div>
-              <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
-                <Cpu className="h-4 w-4" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-slate-900 border-slate-800">
-          <CardContent className="pt-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Matched</p>
-                <p className="text-2xl font-bold text-slate-100 tabular-nums">{filtered.length}</p>
-                {search && <p className="text-xs text-slate-500">of {models.length}</p>}
-              </div>
-              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
-                <Search className="h-4 w-4" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
-          <Input
-            placeholder="Tìm model..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-slate-900 border-slate-800 text-slate-200 placeholder:text-slate-600 h-9 text-sm"
-          />
+    <div className="space-y-5">
+      {/* Header + actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Cpu className="h-4 w-4 text-slate-500" />
+          <h2 className="text-sm font-medium text-slate-300">
+            Models ({models.length})
+          </h2>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchData}
-          className="border-slate-700 text-slate-400 hover:text-orange-400 h-9 text-xs gap-1"
-        >
-          <RefreshCw className="h-3 w-3" /> Refresh
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchData}
+            className="border-slate-700 text-slate-400 hover:text-orange-400 h-7 text-xs gap-1"
+          >
+            <RefreshCw className="h-3 w-3" /> Refresh
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={checkingAll}
+            onClick={checkAllLive}
+            className="border-slate-700 text-slate-400 hover:text-emerald-400 h-7 text-xs gap-1"
+            title="Gọi thử từng model (1-2 phút)"
+          >
+            {checkingAll ? (
+              <RefreshCw className="h-3 w-3 animate-spin" />
+            ) : (
+              <Activity className="h-3 w-3" />
+            )}
+            Check all live
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={probingKiro}
+            onClick={probeKiro}
+            className="border-slate-700 text-slate-400 hover:text-purple-400 h-7 text-xs gap-1"
+            title="Probe Kiro accounts để tìm model dùng được"
+          >
+            {probingKiro ? (
+              <RefreshCw className="h-3 w-3 animate-spin" />
+            ) : (
+              <Zap className="h-3 w-3" />
+            )}
+            Probe Kiro
+          </Button>
+        </div>
       </div>
 
-      {/* Table */}
-      <Card className="bg-slate-900 border-slate-800">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-            <Cpu className="h-4 w-4 text-slate-500" />
-            Models ({filtered.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="border-slate-800 hover:bg-transparent">
-                <TableHead className="text-slate-500 text-xs">#</TableHead>
-                <TableHead className="text-slate-500 text-xs">Model ID</TableHead>
-                <TableHead className="text-slate-500 text-xs">Provider</TableHead>
-                <TableHead className="text-slate-500 text-xs">Label</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow className="border-slate-800">
-                  <TableCell colSpan={4} className="text-center text-slate-600 text-xs py-8">
-                    {search ? "Không tìm thấy model" : "Không có model"}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((m, idx) => (
-                  <TableRow key={m.id} className="border-slate-800 hover:bg-slate-800/50">
-                    <TableCell className="text-xs text-slate-600 tabular-nums w-10">
-                      {idx + 1}
-                    </TableCell>
-                    <TableCell className="text-sm text-slate-200 font-mono">
-                      {m.id}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className="bg-slate-700 text-slate-300 border-none text-[10px]">
-                        {m.provider ?? m.owned_by ?? "—"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-slate-400">
-                      {m.label ?? m.id.split("/").pop() ?? "—"}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Status feedback */}
+      {checkResult && (
+        <div className="bg-slate-800/60 border border-slate-700 rounded-lg px-4 py-2.5 text-xs text-slate-300">
+          {checkResult}
+        </div>
+      )}
+
+      {/* KPI row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Live", count: statusCounts.ok, color: "text-emerald-400" },
+          { label: "Quota", count: statusCounts.quota, color: "text-amber-400" },
+          { label: "Error", count: statusCounts.error, color: "text-red-400" },
+          { label: "Chưa kiểm", count: statusCounts.unknown, color: "text-slate-400" },
+        ].map((s) => (
+          <Card key={s.label} className="bg-slate-900 border-slate-800">
+            <CardContent className="pt-3 pb-3">
+              <p className="text-xs text-slate-500 mb-0.5">{s.label}</p>
+              <p className={`text-xl font-bold tabular-nums ${s.color}`}>{s.count}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Provider tabs */}
+      {providerKeys.length > 1 && (
+        <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-lg p-1 w-fit">
+          <button
+            onClick={() => setActiveProvider("all")}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              activeProvider === "all"
+                ? "bg-slate-700 text-slate-100"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            Tất cả
+          </button>
+          {providerKeys.map((pk) => {
+            const provLabel =
+              models.find((m) => (m.provider ?? "unknown") === pk)?.providerLabel ??
+              pk.toUpperCase()
+            return (
+              <button
+                key={pk}
+                onClick={() => setActiveProvider(pk)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  activeProvider === pk
+                    ? "bg-slate-700 text-slate-100"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                {provLabel}
+                <span className="ml-1.5 text-slate-500 text-[10px]">
+                  {models.filter((m) => (m.provider ?? "unknown") === pk).length}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Groups */}
+      {filteredGroups.length === 0 ? (
+        <Card className="bg-slate-900 border-slate-800">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center py-8 gap-3">
+              <Cpu className="h-8 w-8 text-slate-600" />
+              <p className="text-sm text-slate-500">Không có model</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        filteredGroups.map((group) => {
+          const okCount = group.models.filter((m) => m.status === "ok").length
+          const quotaCount = group.models.filter((m) => m.status === "quota").length
+          const checkedCount = group.models.filter((m) => m.status && m.status !== "unknown").length
+
+          return (
+            <Card key={group.key} className="bg-slate-900 border-slate-800">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                    <Cpu className="h-4 w-4 text-slate-500" />
+                    {group.title}
+                    <span className="text-slate-500 font-normal text-xs">
+                      {group.models.length} model
+                    </span>
+                  </CardTitle>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Status summary */}
+                    {checkedCount > 0 && (
+                      <div className="flex items-center gap-1.5 text-xs">
+                        {okCount > 0 && (
+                          <span className="text-emerald-400">{okCount} live</span>
+                        )}
+                        {quotaCount > 0 && (
+                          <span className="text-amber-400">{quotaCount} quota</span>
+                        )}
+                      </div>
+                    )}
+                    {/* Check provider button */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => checkSingleModel(group.models[0])}
+                      className="h-6 text-[10px] text-slate-500 hover:text-slate-200 px-2 gap-1"
+                      title="Check provider này"
+                    >
+                      <Activity className="h-3 w-3" />
+                      Check
+                    </Button>
+                    {/* Copy all */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyAll(group.models)}
+                      className="h-6 text-[10px] text-slate-500 hover:text-slate-200 px-2 gap-1"
+                    >
+                      <Copy className="h-3 w-3" />
+                      Copy tất cả
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {group.models.map((m) => (
+                    <ModelChip
+                      key={m.id}
+                      model={m}
+                      onCopy={handleCopy}
+                      copied={!!copied[m.id]}
+                    />
+                  ))}
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-800">
+                  {Object.entries(STATUS_CONFIG)
+                    .filter(([k]) => k !== "unknown")
+                    .map(([k, cfg]) => (
+                      <span key={k} className="flex items-center gap-1 text-[10px] text-slate-500">
+                        <span className={`h-1.5 w-1.5 rounded-full ${cfg.dotColor}`} />
+                        {cfg.label}
+                      </span>
+                    ))}
+                  <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                    <span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+                    chưa kiểm
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })
+      )}
     </div>
   )
 }
