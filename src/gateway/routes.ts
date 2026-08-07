@@ -563,13 +563,21 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
     // account khoẻ. Đo thực tế: 18 request stream song song → 1 lần rò 429 ra ngoài.
     // Mỗi lần bỏ qua chỉ tốn 1 vòng pick (account bị cooldown ngay, không gọi mạng lại),
     // nên nới lên 32 vẫn rẻ mà nuốt được đợt 429 dài hơn nhiều.
-    const maxTry = Math.min(3, Math.max(1, avail));
-    const maxSkip = Math.min(32, avail);
+    let maxTry = Math.min(3, Math.max(1, avail));
+    let maxSkip = Math.min(32, avail);
     let lastErr: any;
     let tries = 0;
     let skips = 0;
 
     for (let attempt = 0; tries < maxTry && skips <= maxSkip; attempt++) {
+      // `avail` là ảnh chụp TRƯỚC vòng lặp. Trong một đợt 429 diện rộng, số account khả
+      // dụng đổi rất nhanh (cooldown hết hạn, account khác được release) nhưng ngân sách
+      // vẫn tính theo số cũ. Tính lại định kỳ để bám sát thực tế.
+      if (attempt > 0 && attempt % 8 === 0) {
+        const now = pool.candidates(Date.now(), provider).length;
+        maxTry = Math.min(3, Math.max(1, now));
+        maxSkip = Math.min(32, Math.max(maxSkip, now));
+      }
       let ctx: Awaited<ReturnType<typeof pickReady>>;
       try {
         // skipKeys: bỏ qua account đã lỗi trong cùng request này (chỉ áp dụng khi
@@ -583,7 +591,12 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         }
       } catch (e) {
         lastErr = e;
-        break;
+        // Hết account thật → dừng. Nhưng lỗi của MỘT account (vd refresh token hỏng khiến
+        // ensureReady ném) thì phải thử account kế: trước đây `break` ở đây làm cả vòng
+        // failover dừng dù pool còn nguyên hàng trăm account khoẻ.
+        if (e instanceof NoAccountError) break;
+        tries++;
+        continue;
       }
       // Stream: giới hạn số request song song qua streamLimiter để giảm 429 hàng loạt.
       // Non-stream không cần vì ít bị rate-limit và response nhanh.
@@ -751,6 +764,11 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         cooldownUntil: a.cooldownUntil,
         monthlyExhaustedUntil: a.monthlyExhaustedUntil || 0,
         lastError: a.lastError,
+        // `inflight` có trong PoolAccount nhưng trước đây không được map ra — thiếu nó thì
+        // không quan sát được account "đang bận", và cũng không kiểm chứng được rò rỉ.
+        inflight: a.inflight || 0,
+        lastAttempt: a.lastAttempt || 0,
+        consecutiveFails: a.consecutiveFails || 0,
         quota: a.quota ?? null,
         geminiPct: geminiPct(a),
         claudePct: claudePct(a),
@@ -914,7 +932,9 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
         dispatcher: ctx.dispatcher,
       });
       const ms = Date.now() - t0;
-      pool.report(ctx.account.email, {
+      // Phải truyền OBJECT: pool tra theo khoá ghép `provider:email`, đưa email trần
+      // vào thì Map.get() trượt và mọi cập nhật bị bỏ im lặng (xem Pool.report).
+      pool.report(ctx.account, {
         ok: true,
         promptTokens: r.usage.promptTokens,
         completionTokens: r.usage.completionTokens,
@@ -934,12 +954,12 @@ export async function registerGatewayRoutes(app: FastifyInstance): Promise<void>
       };
     } catch (e: any) {
       const ms = Date.now() - t0;
-      pool.report(ctx.account.email, { ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs });
+      pool.report(ctx.account, { ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs });
       afterCall(ctx.account, model, { ok: false, ms });
       emitGw({ kind: 'err', account: ctx.account.email, model, ms, status: e?.status, msg: `← ✗ ${e?.status ?? ''} ${String(e?.message ?? e).slice(0, 100)}` });
       return reply.code(502).send({ ok: false, account: ctx.account.email, error: e?.message ?? String(e) });
     } finally {
-      pool.release(ctx.account.email);
+      pool.release(ctx.account); // email trần → inflight KHÔNG giảm, rò rỉ vĩnh viễn
     }
   });
 

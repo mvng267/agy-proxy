@@ -265,3 +265,102 @@ test('chưa nạp quota → null, không đoán bừa', () => {
   assert.equal(bucketPct(a, 'claude'), null);
   assert.equal(bucketPct(a, 'gemini'), null);
 });
+
+// ---------------------------------------------------------------------------
+// G2 — bug fix. Mỗi test dưới đây chốt một bug ĐÃ ĐƯỢC KIỂM CHỨNG trước khi sửa.
+// ---------------------------------------------------------------------------
+
+function one(provider: 'agy' | 'kr' = 'agy') {
+  const p = new Pool();
+  const a = p.upsert({ provider, email: 'a@x', refreshToken: 'r', credential: 'c', proxyLabel: '', health: 'ok' });
+  return { p, a };
+}
+
+test('release: OBJECT giảm inflight; khoá ghép cũng được; email TRẦN thì không', () => {
+  const { p, a } = one();
+  a.inflight = 3;
+  p.release(a);
+  assert.equal(a.inflight, 2, 'object phải giảm');
+  p.release('agy:a@x');
+  assert.equal(a.inflight, 1, 'khoá ghép phải giảm');
+  p.release('a@x'); // email trần — pool tra theo `provider:email` nên trượt
+  assert.equal(a.inflight, 1, 'email trần KHÔNG được giảm (đây là bug đã gây rò rỉ)');
+});
+
+test('report: lỗi KHÔNG cập nhật lastUsed (giữ LRU trung thực), nhưng ghi lastAttempt', () => {
+  const { p, a } = one();
+  a.lastUsed = 1000;
+  p.report(a, { ok: false, status: 500, err: 'boom' }, 9999);
+  assert.equal(a.lastUsed, 1000, 'lỗi mà đổi lastUsed thì account hỏng được LRU ưu ái như account tốt');
+  assert.equal(a.lastAttempt, 9999);
+});
+
+test('report: thành công cập nhật lastUsed và reset chuỗi lỗi', () => {
+  const { p, a } = one();
+  a.consecutiveFails = 4;
+  p.report(a, { ok: true }, 5000);
+  assert.equal(a.lastUsed, 5000);
+  assert.equal(a.consecutiveFails, 0);
+  assert.equal(a.lastError, '');
+});
+
+test('report: lỗi 5xx nay CÓ cooldown (trước đây không có → pick lại ngay request kế)', () => {
+  const { p, a } = one();
+  const now = 1_000_000;
+  p.report(a, { ok: false, status: 503, err: 'upstream down' }, now);
+  assert.ok(a.cooldownUntil > now, 'phải có cooldown');
+  assert.equal(p.candidates(now, 'agy').length, 0, 'và bị loại khỏi candidates');
+});
+
+test('report: 5xx liên tiếp → cooldown tăng dần (backoff), có trần', () => {
+  const { p, a } = one();
+  const now = 1_000_000;
+  p.report(a, { ok: false, status: 500, err: 'x' }, now);
+  const first = a.cooldownUntil - now;
+  p.report(a, { ok: false, status: 500, err: 'x' }, now);
+  p.report(a, { ok: false, status: 500, err: 'x' }, now);
+  const third = a.cooldownUntil - now;
+  assert.ok(third > first, `lần 3 (${third}ms) phải dài hơn lần 1 (${first}ms)`);
+  assert.ok(third <= 300_000, 'nhưng không vượt trần 5 phút');
+});
+
+test('report: 401/403 hoặc invalid_grant → dead (token bị thu hồi, thử lại vô ích)', () => {
+  for (const info of [
+    { ok: false as const, status: 401, err: 'Unauthorized' },
+    { ok: false as const, status: 403, err: 'Forbidden' },
+    { ok: false as const, status: 400, err: 'invalid_grant' },
+  ]) {
+    const { p, a } = one();
+    p.report(a, info, 1000);
+    assert.equal(a.health, 'dead', `${info.status} phải đánh dead`);
+    assert.equal(p.candidates(1000, 'agy').length, 0);
+  }
+});
+
+test('report: 429 vẫn cooldown quota như cũ, KHÔNG đánh dead', () => {
+  const { p, a } = one();
+  const now = 1_000_000;
+  p.report(a, { ok: false, status: 429, err: 'stream 429' }, now);
+  assert.notEqual(a.health, 'dead', '429 là tạm thời, không được loại vĩnh viễn');
+  assert.equal(a.liveStatus, 'quota');
+  assert.ok(a.cooldownUntil > now);
+});
+
+test('nextMonthResetMs: KHÔNG phụ thuộc TZ máy chủ (Docker chạy UTC)', async () => {
+  const { nextMonthResetMs } = await import('../../src/gateway/pool.js');
+  // 2026-03-15T00:00:00Z — mốc reset phải là 2026-04-01 00:00 giờ VN = 2026-03-31T17:00Z, +1h buffer
+  const now = Date.UTC(2026, 2, 15);
+  const expected = Date.UTC(2026, 3, 1) - 7 * 3600_000 + 3600_000;
+  assert.equal(nextMonthResetMs(now), expected);
+});
+
+test('geminiPct: ≥2 nhóm mà không có Gemini → null, không lấy bừa nhóm đầu', () => {
+  const { a } = one();
+  a.quota = {
+    tier: null,
+    groups: [{ name: 'Claude and GPT models', pct: 90, resetTime: '' }, { name: 'Khác', pct: 10, resetTime: '' }],
+    models: [], fetchedAt: Date.now(),
+  } as any;
+  assert.equal(geminiPct(a), null, 'lấy % bể Claude gắn nhãn gemini sẽ làm highest-first xếp sai');
+  assert.equal(claudePct(a), 90, 'nhưng claudePct vẫn đọc đúng');
+});

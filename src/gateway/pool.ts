@@ -39,7 +39,9 @@ export interface PoolAccount extends ProviderAccount {
   requests: number;
   tokensIn: number;
   tokensOut: number;
-  lastUsed: number; // epoch ms, 0 = chưa dùng
+  lastUsed: number; // epoch ms, 0 = chưa dùng. CHỈ cập nhật khi request THÀNH CÔNG (LRU).
+  lastAttempt?: number; // epoch ms mọi lần gọi kể cả lỗi — để debug, không ảnh hưởng LRU
+  consecutiveFails?: number; // số lỗi liên tiếp → cooldown tăng dần (backoff)
   // RAM
   lastError: string;
   cooldownUntil: number; // epoch ms
@@ -58,11 +60,15 @@ const isGeminiGroup = (name: string) => /gemini/i.test(name);
 
 /** % hạn mức Gemini còn lại (dùng cho highest-first). null nếu chưa fetch. */
 export function geminiPct(a: PoolAccount): number | null {
-  const g = a.quota?.groups?.find((x) => isGeminiGroup(x.name));
+  const groups = a.quota?.groups;
+  const g = groups?.find((x) => isGeminiGroup(x.name));
   if (g) return g.pct;
-  // Provider khác (Kiro dùng nhóm 'Credits') → lấy nhóm đầu để highest-first vẫn xoay đúng
-  const first = a.quota?.groups?.[0];
-  return first ? first.pct : null;
+  // Provider KHÔNG chia bể (Kiro chỉ có nhóm 'Credits') → dùng nhóm duy nhất đó.
+  // Nhưng nếu có ≥2 nhóm mà không nhóm nào là Gemini (vd fetch quota lỗi một phần),
+  // trả null thay vì lấy bừa groups[0] — số của bể Claude gắn nhãn "gemini" sẽ làm
+  // highest-first xếp hạng sai. "Không biết" an toàn hơn số sai.
+  if (groups?.length === 1) return groups[0]!.pct;
+  return null;
 }
 
 /**
@@ -127,6 +133,38 @@ function blankAccount(i: UpsertInput): PoolAccount {
   };
 }
 
+/**
+ * Lỗi xác thực VĨNH VIỄN — token bị thu hồi/hết hiệu lực, thử lại vô ích.
+ *
+ * Phải rất thận trọng ở đây: đánh `dead` là loại account khỏi pool cho tới khi người
+ * dùng test lại thủ công. Đã có lần 180/201 account bị dead oan mà test lại thì 5/5
+ * sống (xem testAccount trong gateway/routes.ts) — nên CHỈ nhận những mã Google nói rõ
+ * là token không dùng được nữa, không gộp 5xx hay lỗi mạng vào đây.
+ */
+export function isPermanentAuthError(msg: string, status?: number): boolean {
+  if (/invalid_grant|invalid_client|unauthorized_client|revoked|token has been expired/i.test(msg)) return true;
+  return status === 401 || status === 403;
+}
+
+/** Lỗi hạ tầng thoáng qua: 5xx, timeout, đứt mạng. Cooldown ngắn rồi thử lại. */
+export function isTransientError(msg: string, status?: number): boolean {
+  if (typeof status === 'number' && status >= 500) return true;
+  return /timeout|aborted|ECONN|EPIPE|ETIMEDOUT|socket|fetch failed|network/i.test(msg);
+}
+
+/**
+ * Mốc reset hạn mức tháng: 00:00 ngày 1 tháng sau theo giờ Việt Nam (UTC+7), + 1h buffer.
+ *
+ * Trước đây dùng `new Date(y, m+1, 1)` — đó là giờ MÁY CHỦ, nên chạy trong Docker (TZ=UTC)
+ * lệch 7 tiếng so với ý định ghi trong comment. Nay tính tường minh bằng UTC.
+ */
+export const RESET_TZ_OFFSET_H = 7;
+export function nextMonthResetMs(now: number): number {
+  const d = new Date(now + RESET_TZ_OFFSET_H * 3600_000); // sang giờ VN
+  const firstOfNextMonthVN = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
+  return firstOfNextMonthVN - RESET_TZ_OFFSET_H * 3600_000 + 3600_000; // về UTC + buffer
+}
+
 export class Pool {
   accounts = new Map<string, PoolAccount>(); // khoá = `${provider}:${email}`
   /** @deprecated — giữ lại để không break import cũ; pick() không dùng nữa. */
@@ -167,7 +205,7 @@ export class Pool {
     return provider ? all.filter((a) => a.provider === provider) : all;
   }
 
-  /** Account đủ điều kiện phục vụ tại thời điểm now (lọc theo provider nếu có). */
+/** Account đủ điều kiện phục vụ tại thời điểm now (lọc theo provider nếu có). */
   candidates(now = Date.now(), provider?: ProviderId): PoolAccount[] {
     return this.list(provider).filter(
       (a) => a.enabled && a.health !== 'dead'
@@ -224,9 +262,29 @@ export class Pool {
     return chosen;
   }
 
-  /** Giải phóng account sau khi request xong (inflight--). Nhận account hoặc khoá. */
+  /**
+   * Tra account từ object hoặc KHOÁ GHÉP `provider:email`.
+   *
+   * Cảnh báo khi truyền chuỗi không tra được: trước đây `release`/`report` im lặng
+   * `return` khi Map.get() trượt, nên bug "truyền email trần" sống sót rất lâu —
+   * /api/gateway/chat rò 1 inflight VĨNH VIỄN mỗi lượt, và vì pick() ưu tiên
+   * minInflight nên account đó dần bị pool né tránh.
+   */
+  private resolve(a: PoolAccount | string, who: string): PoolAccount | undefined {
+    if (typeof a !== 'string') return a;
+    const acc = this.accounts.get(a);
+    if (!acc) {
+      console.warn(
+        `[pool] ${who}: không tìm thấy "${a}"` +
+          (a.includes(':') ? '' : ' — thiếu prefix provider, khoá phải là `provider:email`'),
+      );
+    }
+    return acc;
+  }
+
+  /** Giải phóng account sau khi request xong (inflight--). Nhận account hoặc khoá ghép. */
   release(a: PoolAccount | string): void {
-    const acc = typeof a === 'string' ? this.accounts.get(a) : a;
+    const acc = this.resolve(a, 'release');
     if (acc && acc.inflight > 0) acc.inflight--;
   }
 
@@ -235,40 +293,63 @@ export class Pool {
    * Nhận OBJECT account (email không còn định danh duy nhất khi có 2 provider).
    */
   report(a: PoolAccount | string, info: ReportInfo, now = Date.now()): void {
-    const acc = typeof a === 'string' ? this.accounts.get(a) : a;
+    const acc = this.resolve(a, 'report');
     if (!acc) return;
     acc.requests++;
     acc.tokensIn += info.promptTokens ?? 0;
     acc.tokensOut += info.completionTokens ?? 0;
-    acc.lastUsed = now;
+    // `lastAttempt` ghi MỌI lần gọi (kể cả lỗi) để debug; `lastUsed` chỉ ghi khi THÀNH CÔNG
+    // vì round-robin là LRU theo lastUsed — nếu lỗi cũng cập nhật thì account hỏng liên tục
+    // vẫn được đối xử y hệt account tốt và cứ thế quay lại đầu hàng đợi.
+    acc.lastAttempt = now;
     if (info.ok) {
+      acc.lastUsed = now;
       acc.lastError = '';
-    } else {
-      acc.lastError = info.err ?? `HTTP ${info.status ?? '?'}`;
-      // 402 = Kiro hết hạn mức THÁNG; 429 = rate limit / quota Antigravity
-      const monthly = info.status === 402 || /MONTHLY_REQUEST_COUNT/i.test(info.err ?? '');
-      const quota = monthly || info.status === 429 || /quota|exhaust|resource_exhausted/i.test(info.err ?? '');
-      if (quota) {
-        if (monthly) {
-          // Hết hạn mức THÁNG → sleep đến đầu tháng kế (thay vì 12h rồi lặp lại vô ích).
-          // Tính ngày 1 tháng sau, 00:00 UTC+7 (Việt Nam).
-          const d = new Date(now);
-          const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-          // Thêm 1h buffer phòng server reset chậm
-          acc.monthlyExhaustedUntil = nextMonth.getTime() + 3600_000;
-          acc.cooldownUntil = acc.monthlyExhaustedUntil;
-          acc.liveStatus = 'quota';
-        } else {
-          let ms = config.gateway.cooldownSec * 1000;
-          const ra = info.retryAfterMs;
-          if (ra != null && ra > 0) {
-            const LONG = 3600_000; // >1h ⇒ hết hạn mức, không phải rate-limit
-            ms = ra > LONG ? LONG : Math.min(Math.max(ra, 5_000), ms);
-          }
-          acc.cooldownUntil = now + ms;
-          acc.liveStatus = 'quota';
-        }
+      acc.consecutiveFails = 0;
+      return;
+    }
+
+    acc.lastError = info.err ?? `HTTP ${info.status ?? '?'}`;
+    acc.consecutiveFails = (acc.consecutiveFails ?? 0) + 1;
+
+    // Token bị thu hồi / hết hiệu lực → account vô dụng cho tới khi người dùng cấp lại.
+    // Trước đây 401/403 không được nhận biết nên account cứ nằm mãi trong candidates().
+    if (isPermanentAuthError(info.err ?? '', info.status)) {
+      acc.health = 'dead';
+      return;
+    }
+
+    // 402 = Kiro hết hạn mức THÁNG; 429 = rate limit / quota Antigravity
+    const monthly = info.status === 402 || /MONTHLY_REQUEST_COUNT/i.test(info.err ?? '');
+    const quota = monthly || info.status === 429 || /quota|exhaust|resource_exhausted/i.test(info.err ?? '');
+
+    if (monthly) {
+      // Hết hạn mức THÁNG → sleep đến đầu tháng kế (thay vì 12h rồi lặp lại vô ích).
+      acc.monthlyExhaustedUntil = nextMonthResetMs(now);
+      acc.cooldownUntil = acc.monthlyExhaustedUntil;
+      acc.liveStatus = 'quota';
+      return;
+    }
+
+    if (quota) {
+      let ms = config.gateway.cooldownSec * 1000;
+      const ra = info.retryAfterMs;
+      if (ra != null && ra > 0) {
+        const LONG = 3600_000; // >1h ⇒ hết hạn mức, không phải rate-limit
+        ms = ra > LONG ? LONG : Math.min(Math.max(ra, 5_000), ms);
       }
+      acc.cooldownUntil = now + ms;
+      acc.liveStatus = 'quota';
+      return;
+    }
+
+    // Lỗi hạ tầng (5xx, timeout, mạng): TRƯỚC ĐÂY không cooldown gì cả, nên account đang
+    // hỏng được pick lại ngay ở request kế — `skipKeys` chỉ chặn trong phạm vi 1 request.
+    // Cooldown ngắn hơn nhiều so với quota vì lỗi loại này thường thoáng qua.
+    if (isTransientError(info.err ?? '', info.status)) {
+      const base = config.gateway.cooldown5xxSec * 1000;
+      acc.cooldownUntil = now + Math.min(base * 2 ** Math.min(acc.consecutiveFails - 1, 4), 300_000);
+      acc.liveStatus = 'error';
     }
   }
 
@@ -289,6 +370,8 @@ export class Pool {
         cooldownUntil: a.cooldownUntil || 0,
         monthlyExhaustedUntil: a.monthlyExhaustedUntil || 0,
         liveStatus: a.liveStatus,
+        lastAttempt: a.lastAttempt || 0,
+        consecutiveFails: a.consecutiveFails || 0,
       };
     }
     return out;
@@ -305,6 +388,8 @@ export class Pool {
       a.tokensIn = s.tokensIn ?? a.tokensIn;
       a.tokensOut = s.tokensOut ?? a.tokensOut;
       a.lastUsed = s.lastUsed ?? a.lastUsed;
+      a.lastAttempt = s.lastAttempt ?? a.lastAttempt;
+      a.consecutiveFails = s.consecutiveFails ?? a.consecutiveFails;
       if (s.quota && !a.quota) a.quota = s.quota; // giữ quota qua restart (TTL tự lo refresh)
       if (s.projectId && !a.projectId) a.projectId = s.projectId; // bỏ discoverProject sau restart
       // chỉ khôi phục cooldown còn hiệu lực (đã qua thì bỏ)

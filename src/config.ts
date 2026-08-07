@@ -87,6 +87,9 @@ export const config = {
     bareModels: bool(S('gatewayBareModels'), false),
     outboundProxy: S('gatewayProxy') ?? E('GATEWAY_PROXY') ?? '',
     cooldownSec: num(S('gatewayCooldownSec') ?? process.env.GATEWAY_COOLDOWN_SEC, 900),
+    // Lỗi hạ tầng (5xx/timeout/mạng) thường thoáng qua → nghỉ ngắn hơn nhiều so với
+    // hết hạn mức. Trước đây loại lỗi này KHÔNG cooldown gì cả.
+    cooldown5xxSec: num(S('gatewayCooldown5xxSec') ?? E('GATEWAY_COOLDOWN_5XX_SEC'), 30),
     quota: {
       autoRefresh: bool(S('quotaAutoRefresh') ?? process.env.GATEWAY_QUOTA_AUTO, false),
       intervalMin: num(S('quotaIntervalMin') ?? process.env.GATEWAY_QUOTA_INTERVAL_MIN, 30),
@@ -138,6 +141,7 @@ const SETTERS: Record<string, Setter> = {
   gatewayBareModels: (v) => (config.gateway.bareModels = v === 'true'),
   gatewayProxy: (v) => (config.gateway.outboundProxy = v),
   gatewayCooldownSec: (v) => (config.gateway.cooldownSec = Number(v)),
+  gatewayCooldown5xxSec: (v) => (config.gateway.cooldown5xxSec = Number(v)),
   quotaAutoRefresh: (v) => (config.gateway.quota.autoRefresh = v === 'true'),
   quotaIntervalMin: (v) => (config.gateway.quota.intervalMin = Number(v)),
   quotaOnCall: (v) => (config.gateway.quota.onCall = v === 'true'),
