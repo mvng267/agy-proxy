@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/toast"
+import { RoutingHint } from "@/components/common/RoutingHint"
 import {
   Table,
   TableBody,
@@ -449,11 +450,14 @@ export function Pool() {
 
       {/* KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="Pool Total" value={poolTotal} subtitle="Tổng tài khoản" icon={Users} color="blue" />
-        <KpiCard title="Active" value={poolActive} subtitle={`${pctActive}% of pool`} icon={Zap} color="green" />
-        <KpiCard title="Cooldown" value={poolCooldown} subtitle={`${pctCooldown}% of pool`} icon={Snowflake} color="orange" />
-        <KpiCard title="Inactive" value={poolInactive} subtitle={poolTotal > 0 ? `${Math.round((poolInactive / poolTotal) * 100)}% of pool` : "—"} icon={AlertTriangle} color="red" />
+        <KpiCard title="Tổng tài khoản" value={poolTotal} subtitle="Trong pool" icon={Users} color="blue" />
+        <KpiCard title="Sẵn sàng" value={poolActive} subtitle={`${pctActive}% tổng`} icon={Zap} color="green" />
+        <KpiCard title="Đang nghỉ" value={poolCooldown} subtitle={`${pctCooldown}% tổng`} icon={Snowflake} color="orange" />
+        <KpiCard title="Không dùng được" value={poolInactive} subtitle={poolTotal > 0 ? `${Math.round((poolInactive / poolTotal) * 100)}% tổng` : "—"} icon={AlertTriangle} color="red" />
       </div>
+
+      {/* Gợi ý định tuyến: bể nào còn nhiều quota → nên ưu tiên model nào */}
+      <RoutingHint />
 
       {/* Donut + Health */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
