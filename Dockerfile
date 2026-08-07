@@ -29,4 +29,8 @@ EXPOSE 7788
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:7788/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["npx", "tsx", "src/index.ts"]
+# `npx tsx` làm PID 1 là `npm exec`, KHÔNG phải Node: `docker stop` gửi SIGTERM cho npm,
+# npm chết ngay và Node bị giết theo mà chưa kịp flushPersist() → mất state (counter,
+# cooldown, enabled) mỗi lần restart container. Chạy Node trực tiếp để nó là PID 1 và
+# nhận được tín hiệu.
+CMD ["node", "--import", "tsx", "src/index.ts"]
