@@ -36,9 +36,14 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────
 
+interface ComboTarget {
+  model: string
+  weight?: number
+}
+
 interface Combo {
   id: string
-  targets: string[]
+  targets: ComboTarget[]
   strategy: string
   enabled: boolean
 }
@@ -109,7 +114,7 @@ export function Combo() {
     setEditingId(combo.id)
     setForm({
       id: combo.id,
-      targets: combo.targets.join(", "),
+      targets: combo.targets.map((t) => t.model).join(", "),
       strategy: combo.strategy,
       enabled: combo.enabled,
     })
@@ -122,7 +127,7 @@ export function Combo() {
     try {
       const payload = {
         id: form.id.trim(),
-        targets: form.targets.split(",").map((t) => t.trim()).filter(Boolean),
+        targets: form.targets.split(",").map((t) => ({ model: t.trim() })).filter((t) => t.model),
         strategy: form.strategy,
         enabled: form.enabled,
       }
@@ -209,7 +214,7 @@ export function Combo() {
     const q = search.toLowerCase()
     return (
       c.id.toLowerCase().includes(q) ||
-      c.targets.some((t) => t.toLowerCase().includes(q)) ||
+      c.targets.some((t) => t.model.toLowerCase().includes(q)) ||
       c.strategy.toLowerCase().includes(q)
     )
   })
@@ -431,10 +436,10 @@ export function Combo() {
                       <div className="flex flex-wrap gap-1">
                         {combo.targets.map((t) => (
                           <Badge
-                            key={t}
+                            key={t.model}
                             className="bg-slate-700 text-slate-300 border-none text-[10px] font-mono"
                           >
-                            {t}
+                            {t.model}
                           </Badge>
                         ))}
                       </div>
