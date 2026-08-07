@@ -3,7 +3,6 @@ import {
   Users,
   KeyRound,
   Globe,
-  UserPlus,
   Zap,
   Cpu,
   Shuffle,
@@ -11,9 +10,7 @@ import {
   BarChart3,
   MessageSquare,
   ScrollText,
-  Terminal,
   Settings,
-  Link,
   LogOut,
   RefreshCw,
 } from "lucide-react"
@@ -40,12 +37,12 @@ const navGroups = [
     ],
   },
   {
+    // Tokens và "Thêm TK" đã gộp thành tab bên trong trang Tài khoản — chúng nói về
+    // cùng một tập account, tách ra bắt người dùng nhớ hai chỗ cho một thứ.
     label: "Tài khoản",
     items: [
-      { title: "Accounts", icon: Users, tab: "accounts", badge: null },
-      { title: "Tokens", icon: KeyRound, tab: "tokens", badge: null },
+      { title: "Tài khoản", icon: Users, tab: "accounts", badge: null },
       { title: "Proxy", icon: Globe, tab: "proxies", badge: null },
-      { title: "Thêm TK", icon: UserPlus, tab: "add", badge: null },
     ],
   },
   {
@@ -55,7 +52,6 @@ const navGroups = [
       { title: "Models", icon: Cpu, tab: "models", badge: null },
       { title: "Combo", icon: Shuffle, tab: "combo", badge: null },
       { title: "Hạn mức", icon: Gauge, tab: "quota", badge: null },
-      { title: "Connections", icon: Link, tab: "connections", badge: null },
     ],
   },
   {
@@ -65,12 +61,12 @@ const navGroups = [
       { title: "Báo cáo", icon: BarChart3, tab: "usage", badge: null },
       { title: "Chat thử", icon: MessageSquare, tab: "chat", badge: null },
       { title: "Live Log", icon: ScrollText, tab: "gwlog", badge: null },
-      { title: "CLI Tools", icon: Terminal, tab: "tools", badge: null },
     ],
   },
   {
     label: "Hệ thống",
     items: [
+      // Connections + CLI Tools nay la tab ben trong trang nay.
       { title: "Cấu hình", icon: Settings, tab: "settings", badge: null },
     ],
   },

@@ -11,40 +11,38 @@ import { ErrorBoundary } from "@/components/ErrorBoundary"
 const Overview = lazy(() => import("@/components/Overview").then((m) => ({ default: m.Overview })))
 // ── Pages (lazy-load: mỗi trang một chunk riêng) ──────────────────────
 // Chunk khởi động chỉ chứa khung app; trang nào mở mới tải trang đó.
-const Accounts = lazy(() => import("@/components/pages/Accounts").then((m) => ({ default: m.Accounts })))
+// Trang GỘP (kế hoạch 15 → 11): Tài khoản ← Accounts+Tokens+Thêm; Cấu hình ← Settings+Connections+CLI.
+const AccountsHub = lazy(() => import("@/components/pages/AccountsHub").then((m) => ({ default: m.AccountsHub })))
+const SettingsHub = lazy(() => import("@/components/pages/SettingsHub").then((m) => ({ default: m.SettingsHub })))
 const Pool = lazy(() => import("@/components/pages/Pool").then((m) => ({ default: m.Pool })))
 const Models = lazy(() => import("@/components/pages/Models").then((m) => ({ default: m.Models })))
 const Combo = lazy(() => import("@/components/pages/Combo").then((m) => ({ default: m.Combo })))
-const Tokens = lazy(() => import("@/components/pages/Tokens").then((m) => ({ default: m.Tokens })))
 const Proxy = lazy(() => import("@/components/pages/Proxy").then((m) => ({ default: m.Proxy })))
-const AddAccount = lazy(() => import("@/components/pages/AddAccount").then((m) => ({ default: m.AddAccount })))
 const Quota = lazy(() => import("@/components/pages/Quota").then((m) => ({ default: m.Quota })))
-const Connections = lazy(() => import("@/components/pages/Connections").then((m) => ({ default: m.Connections })))
 // Trang Usage cũ được thay bằng Reports (lọc theo key/combo). Giữ tab "usage" để link cũ vẫn chạy.
 const Reports = lazy(() => import("@/components/pages/Reports").then((m) => ({ default: m.Reports })))
 const Chat = lazy(() => import("@/components/pages/Chat").then((m) => ({ default: m.Chat })))
 const LiveLog = lazy(() => import("@/components/pages/LiveLog").then((m) => ({ default: m.LiveLog })))
-const CLITools = lazy(() => import("@/components/pages/CLITools").then((m) => ({ default: m.CLITools })))
-const Settings = lazy(() => import("@/components/pages/Settings").then((m) => ({ default: m.Settings })))
 const ApiKeys = lazy(() => import("@/components/pages/ApiKeys").then((m) => ({ default: m.ApiKeys })))
 
 // ── Page title mapping ─────────────────────────────────────────────────
 
 const tabTitles: Record<string, string> = {
   overview: "Dashboard",
-  accounts: "Accounts",
-  tokens: "Tokens",
+  accounts: "Tài khoản",
+  tokens: "Tài khoản",
   proxies: "Proxy",
-  add: "Thêm tài khoản",
+  add: "Tài khoản",
   agy: "Pool",
   models: "Models",
   combo: "Combo",
   quota: "Hạn mức",
-  connections: "Connections",
+  connections: "Cấu hình",
   usage: "Báo cáo",
+  reports: "Báo cáo",
   chat: "Chat thử",
   gwlog: "Live Log",
-  tools: "CLI Tools",
+  tools: "Cấu hình",
   settings: "Cấu hình",
   keys: "API Keys",
 }
@@ -55,24 +53,21 @@ function PageContent({ tab }: { tab: string }) {
   switch (tab) {
     case "overview":
       return <Overview />
+    // Tab cũ (tokens/add) trỏ vào hub — link đã lưu của người dùng vẫn mở được.
     case "accounts":
-      return <Accounts />
+    case "tokens":
+    case "add":
+      return <AccountsHub />
     case "agy":
       return <Pool />
     case "models":
       return <Models />
     case "combo":
       return <Combo />
-    case "tokens":
-      return <Tokens />
     case "proxies":
       return <Proxy />
-    case "add":
-      return <AddAccount />
     case "quota":
       return <Quota />
-    case "connections":
-      return <Connections />
     case "usage":
     case "reports":
       return <Reports />
@@ -81,9 +76,9 @@ function PageContent({ tab }: { tab: string }) {
     case "gwlog":
       return <LiveLog />
     case "tools":
-      return <CLITools />
+    case "connections":
     case "settings":
-      return <Settings />
+      return <SettingsHub />
     case "keys":
       return <ApiKeys />
     default:
