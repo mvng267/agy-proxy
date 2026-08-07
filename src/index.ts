@@ -8,6 +8,7 @@ import { bus, type AppEvent } from './events.js';
 import { omniroute } from './omniroute/client.js';
 import { startHealthLoop } from './health/tokenHealth.js';
 import { registerAuth } from './auth.js';
+import { verifyPassword } from './security.js';
 import { setBareMode } from './gateway/providers/index.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -67,6 +68,25 @@ async function main() {
   console.log(`\n  Dashboard:  http://localhost:${config.port}`);
   console.log(`  OmniRoute:  ${config.omniroute.url}`);
   console.log(`  Accounts:   ${store.listAccounts().length} | Proxies: ${store.listProxies().length}\n`);
+
+  /**
+   * Cảnh báo phơi nhiễm khi lắng nghe ngoài localhost.
+   * .env.example có ghi chú nhưng KHÔNG cưỡng chế được: deploy quên đặt thì dashboard
+   * (hiện token + cho export backup chứa toàn bộ refresh token) và /proxy/v1 mở cho bất
+   * kỳ ai chạm được cổng. gatewayApiKey rỗng nghĩa là bỏ qua auth hoàn toàn, không phải
+   * "chưa cấu hình" — xem `if (!key) return true` trong gateway/routes.ts.
+   */
+  const exposed = config.host === '0.0.0.0' || config.host === '::';
+  if (exposed) {
+    const weak: string[] = [];
+    if (verifyPassword('123456', config.dashboardPassword)) weak.push('DASHBOARD_PASSWORD vẫn là mặc định 123456');
+    if (!config.gateway.apiKey) weak.push('GATEWAY_API_KEY trống → /proxy/v1 KHÔNG kiểm tra key');
+    if (weak.length) {
+      console.log(`  ⚠ Đang lắng nghe ${config.host} (truy cập được từ máy khác):`);
+      for (const w of weak) console.log(`      · ${w}`);
+      console.log('    Đặt trong .env rồi khởi động lại trước khi dùng thật.\n');
+    }
+  }
 
   // Kiểm tra kết nối OmniRoute (không chặn khởi động)
   omniroute
