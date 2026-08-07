@@ -60,13 +60,34 @@ interface ComboForm {
   enabled: boolean
 }
 
-const STRATEGIES = ["round-robin", "random", "least-used", "priority"]
+// Phải khớp ComboStrategy backend (src/gateway/combo.ts) — giá trị lạ bị backend
+// âm thầm ép về "priority".
+const STRATEGIES = ["priority", "round-robin", "weighted", "highest-quota"]
 
 const emptyForm: ComboForm = {
   id: "",
   targets: "",
-  strategy: "round-robin",
+  strategy: "priority",
   enabled: true,
+}
+
+// Targets trong form là chuỗi "model" hoặc "model:weight" cách nhau dấu phẩy.
+// Model id không chứa ":" (dạng agy/… kr/…) nên suffix số sau ":" luôn là weight.
+function targetsToText(targets: ComboTarget[]): string {
+  return targets.map((t) => (t.weight != null ? `${t.model}:${t.weight}` : t.model)).join(", ")
+}
+
+function parseTargets(text: string): ComboTarget[] {
+  return text
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const m = /^(.*):(\d+(?:\.\d+)?)$/.exec(s)
+      if (m) return { model: m[1]!.trim(), weight: Number(m[2]) }
+      return { model: s }
+    })
+    .filter((t) => t.model)
 }
 
 // ── Combo Page ─────────────────────────────────────────────────────────
@@ -114,7 +135,7 @@ export function Combo() {
     setEditingId(combo.id)
     setForm({
       id: combo.id,
-      targets: combo.targets.map((t) => t.model).join(", "),
+      targets: targetsToText(combo.targets),
       strategy: combo.strategy,
       enabled: combo.enabled,
     })
@@ -127,7 +148,7 @@ export function Combo() {
     try {
       const payload = {
         id: form.id.trim(),
-        targets: form.targets.split(",").map((t) => ({ model: t.trim() })).filter((t) => t.model),
+        targets: parseTargets(form.targets),
         strategy: form.strategy,
         enabled: form.enabled,
       }
@@ -152,7 +173,7 @@ export function Combo() {
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`/api/combos?id=${encodeURIComponent(id)}`, {
+      const res = await fetch(`/api/combos/${encodeURIComponent(id)}`, {
         method: "DELETE",
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -327,12 +348,12 @@ export function Combo() {
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-slate-400">Targets (comma-separated)</label>
                   <Input
-                    placeholder="vd: claude-sonnet-4-20250514, claude-haiku"
+                    placeholder="vd: agy/gemini-3-pro, kr/claude-sonnet-4.5:2"
                     value={form.targets}
                     onChange={(e) => setForm((f) => ({ ...f, targets: e.target.value }))}
                     className="bg-slate-800 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm"
                   />
-                  <p className="text-[10px] text-slate-600">Các model ID cách nhau bằng dấu phẩy</p>
+                  <p className="text-[10px] text-slate-600">Các model ID cách nhau bằng dấu phẩy — thêm :số để đặt trọng số (strategy weighted)</p>
                 </div>
 
                 {/* Strategy */}
@@ -440,6 +461,7 @@ export function Combo() {
                             className="bg-slate-700 text-slate-300 border-none text-[10px] font-mono"
                           >
                             {t.model}
+                            {t.weight != null ? ` ×${t.weight}` : ""}
                           </Badge>
                         ))}
                       </div>
