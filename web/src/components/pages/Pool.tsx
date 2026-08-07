@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import {
   Zap,
   Users,
@@ -7,11 +7,19 @@ import {
   Activity,
   Server,
   Snowflake,
+  Search,
+  Power,
+  PowerOff,
+  FlaskConical,
+  Gauge,
+  ChevronLeft,
+  ChevronRight,
+  CheckCheck,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -28,60 +36,67 @@ interface PoolAccount {
   email: string
   provider: string
   status: string
+  enabled: boolean
+  cooldown: boolean
   cooldownUntil?: string
-  model?: string
-  requestCount?: number
+  health?: string
+  liveStatus?: string
+  requests: number
+  tokensIn: number
+  tokensOut: number
+  lastUsed?: number
+  geminiPct?: number
+  quota?: {
+    groups?: Array<{ name: string; pct: number; resetTime?: string }>
+    tier?: string
+    models?: Array<{ id: string; pct: number }>
+  }
 }
 
-interface PoolData {
-  accounts?: {
-    total?: number
-    active?: number
-    cooldown?: number
-    byProvider?: Record<string, { total: number; active: number; cooldown: number }>
-  }
-  gateway?: {
-    pool?: {
-      total?: number
-      active?: number
-      cooldown?: number
-    }
-  }
-  poolAccounts?: PoolAccount[]
+interface AccountsResponse {
+  accounts: PoolAccount[]
+  counts?: { agy?: number; kr?: number }
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────
+
+function fmtNum(n: number) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M"
+  if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "k"
+  return String(n)
+}
+
+function fmtAgo(ms?: number) {
+  if (!ms) return "—"
+  const d = Date.now() - ms
+  if (d < 60000) return Math.max(1, Math.round(d / 1000)) + "s"
+  if (d < 3600000) return Math.round(d / 60000) + "m"
+  if (d < 86400000) return Math.round(d / 3600000) + "h"
+  return Math.round(d / 86400000) + "d"
+}
+
+function fmtCooldown(until?: string) {
+  if (!until) return ""
+  const d = new Date(until).getTime() - Date.now()
+  if (d <= 0) return ""
+  const mins = Math.ceil(d / 60000)
+  if (mins < 60) return `${mins}m`
+  return `${(d / 3600000).toFixed(1)}h`
 }
 
 // ── Donut Chart ────────────────────────────────────────────────────────
 
-function DonutChart({
-  total,
-  active,
-  cooldown,
-  size = 120,
-  strokeWidth = 12,
-}: {
-  total: number
-  active: number
-  cooldown: number
-  size?: number
-  strokeWidth?: number
+function DonutChart({ total, active, cooldown, size = 120, strokeWidth = 12 }: {
+  total: number; active: number; cooldown: number; size?: number; strokeWidth?: number
 }) {
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
   const center = size / 2
-
   if (total === 0) {
     return (
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="transform -rotate-90">
-          <circle
-            cx={center}
-            cy={center}
-            r={radius}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={strokeWidth}
-            className="text-slate-700"
-          />
+          <circle cx={center} cy={center} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-slate-700" />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-lg font-bold text-slate-500">0</span>
@@ -90,63 +105,20 @@ function DonutChart({
       </div>
     )
   }
-
   const activeRatio = active / total
   const cooldownRatio = cooldown / total
   const inactiveRatio = 1 - activeRatio - cooldownRatio
-
   const activeLen = circumference * activeRatio
   const cooldownLen = circumference * cooldownRatio
   const inactiveLen = circumference * inactiveRatio
-
-  const activeOffset = 0
   const cooldownOffset = -(activeLen)
   const inactiveOffset = -(activeLen + cooldownLen)
-
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="transform -rotate-90">
-        {active > 0 && (
-          <circle
-            cx={center}
-            cy={center}
-            r={radius}
-            fill="none"
-            stroke="#22c55e"
-            strokeWidth={strokeWidth}
-            strokeDasharray={`${activeLen} ${circumference - activeLen}`}
-            strokeDashoffset={activeOffset}
-            strokeLinecap="round"
-            className="transition-all duration-700"
-          />
-        )}
-        {cooldown > 0 && (
-          <circle
-            cx={center}
-            cy={center}
-            r={radius}
-            fill="none"
-            stroke="#f97316"
-            strokeWidth={strokeWidth}
-            strokeDasharray={`${cooldownLen} ${circumference - cooldownLen}`}
-            strokeDashoffset={cooldownOffset}
-            strokeLinecap="round"
-            className="transition-all duration-700"
-          />
-        )}
-        {inactiveRatio > 0 && (
-          <circle
-            cx={center}
-            cy={center}
-            r={radius}
-            fill="none"
-            stroke="#334155"
-            strokeWidth={strokeWidth}
-            strokeDasharray={`${inactiveLen} ${circumference - inactiveLen}`}
-            strokeDashoffset={inactiveOffset}
-            className="transition-all duration-700"
-          />
-        )}
+        {active > 0 && <circle cx={center} cy={center} r={radius} fill="none" stroke="#22c55e" strokeWidth={strokeWidth} strokeDasharray={`${activeLen} ${circumference - activeLen}`} strokeDashoffset={0} strokeLinecap="round" className="transition-all duration-700" />}
+        {cooldown > 0 && <circle cx={center} cy={center} r={radius} fill="none" stroke="#f97316" strokeWidth={strokeWidth} strokeDasharray={`${cooldownLen} ${circumference - cooldownLen}`} strokeDashoffset={cooldownOffset} strokeLinecap="round" className="transition-all duration-700" />}
+        {inactiveRatio > 0 && <circle cx={center} cy={center} r={radius} fill="none" stroke="#334155" strokeWidth={strokeWidth} strokeDasharray={`${inactiveLen} ${circumference - inactiveLen}`} strokeDashoffset={inactiveOffset} className="transition-all duration-700" />}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-2xl font-bold text-slate-100">{active}</span>
@@ -158,18 +130,9 @@ function DonutChart({
 
 // ── KPI Card ───────────────────────────────────────────────────────────
 
-function KpiCard({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-  color = "orange",
-}: {
-  title: string
-  value: number | string
-  subtitle?: string
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
-  color?: "orange" | "green" | "blue" | "red"
+function KpiCard({ title, value, subtitle, icon: Icon, color = "orange" }: {
+  title: string; value: number | string; subtitle?: string
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; color?: "orange" | "green" | "blue" | "red"
 }) {
   const colorMap = {
     orange: "bg-orange-500/10 text-orange-500",
@@ -177,7 +140,6 @@ function KpiCard({
     blue: "bg-blue-500/10 text-blue-500",
     red: "bg-red-500/10 text-red-500",
   }
-
   return (
     <Card className="bg-slate-900 border-slate-800">
       <CardContent className="pt-4">
@@ -198,17 +160,43 @@ function KpiCard({
 
 // ── Pool Page ──────────────────────────────────────────────────────────
 
+const PAGE_SIZES = [25, 50, 100]
+
 export function Pool() {
-  const [data, setData] = useState<PoolData | null>(null)
+  const [accounts, setAccounts] = useState<PoolAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Provider tab
+  const [provider, setProvider] = useState<"agy" | "kr">(() =>
+    (localStorage.getItem("vs_agyProv") === "kr" ? "kr" : "agy") as "agy" | "kr"
+  )
+
+  // Filter / sort / page
+  const [search, setSearch] = useState("")
+  const [filter, setFilter] = useState("all")
+  const [sort, setSort] = useState("email")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number>(() =>
+    Number(localStorage.getItem("vs_agySize") || 50)
+  )
+
+  // Selection
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  // Per-row spinning states
+  const [spinning, setSpinning] = useState<Record<string, Record<string, boolean>>>({})
+
+  // Check progress
+  const [checkProgress, setCheckProgress] = useState<{ total: number; done: number } | null>(null)
+  const evtRef = useRef<EventSource | null>(null)
+
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/overview")
+      const res = await fetch("/api/gateway/accounts")
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json() as PoolData
-      setData(json)
+      const json = await res.json() as AccountsResponse
+      setAccounts(json.accounts ?? [])
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch")
@@ -223,26 +211,193 @@ export function Pool() {
     return () => clearInterval(interval)
   }, [fetchData])
 
-  const handleWake = async (provider: string) => {
-    try {
-      await fetch("/api/gateway/accounts/wake", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider }),
-      })
-      fetchData()
-    } catch {
-      // ignore
+  // Save provider preference
+  useEffect(() => {
+    localStorage.setItem("vs_agyProv", provider)
+    setPage(1)
+    setSelected(new Set())
+  }, [provider])
+
+  // ── Spin helper
+  const withSpin = async (email: string, key: string, fn: () => Promise<void>) => {
+    setSpinning(prev => ({ ...prev, [email]: { ...prev[email], [key]: true } }))
+    try { await fn() } finally {
+      setSpinning(prev => ({ ...prev, [email]: { ...prev[email], [key]: false } }))
     }
   }
+
+  // ── Per-account actions
+  const handleToggle = async (acc: PoolAccount, enabled: boolean) => {
+    await withSpin(acc.email, "toggle", async () => {
+      await fetch(`/api/gateway/accounts/${encodeURIComponent(acc.email)}/toggle?provider=${provider}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      })
+      setAccounts(prev => prev.map(a => a.email === acc.email ? { ...a, enabled } : a))
+    })
+  }
+
+  const handleTest = async (email: string) => {
+    await withSpin(email, "test", async () => {
+      const r = await fetch(`/api/gateway/accounts/${encodeURIComponent(email)}/test?provider=${provider}`, { method: "POST" })
+      const data = await r.json()
+      setAccounts(prev => prev.map(a => a.email === email ? { ...a, health: data.alive ? "alive" : "dead" } : a))
+    })
+  }
+
+  const handleCheckLive = async (email: string) => {
+    await withSpin(email, "live", async () => {
+      const r = await fetch(`/api/gateway/accounts/${encodeURIComponent(email)}/checklive?provider=${provider}`, { method: "POST" })
+      const data = await r.json()
+      setAccounts(prev => prev.map(a => a.email === email ? { ...a, liveStatus: data.status } : a))
+    })
+  }
+
+  const handleRefreshQuota = async (email: string) => {
+    await withSpin(email, "quota", async () => {
+      const r = await fetch(`/api/gateway/quota/${encodeURIComponent(email)}?provider=${provider}`, { method: "POST" })
+      const data = await r.json()
+      if (data.ok) {
+        setAccounts(prev => prev.map(a => {
+          if (a.email !== email) return a
+          const geminiPct = data.quota?.groups?.find((g: { name: string }) => /gemini/i.test(g.name))?.pct ?? undefined
+          return { ...a, quota: data.quota, geminiPct }
+        }))
+      }
+    })
+  }
+
+  // ── Bulk actions
+  const handleBulkEnable = async (enabled: boolean, emails?: string[]) => {
+    const body: Record<string, unknown> = { enabled }
+    if (emails && emails.length > 0) body.emails = emails
+    await fetch("/api/gateway/accounts/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    fetchData()
+  }
+
+  const handleWake = async () => {
+    await fetch("/api/gateway/accounts/wake", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider }),
+    })
+    fetchData()
+  }
+
+  const handleBulkQuota = async () => {
+    const emails = selected.size > 0 ? [...selected] : []
+    await fetch("/api/gateway/quota/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(emails.length > 0 ? { emails } : {}),
+    })
+  }
+
+  const startCheck = async (mode: "token" | "live" | "both") => {
+    const emails = selected.size > 0 ? [...selected] : []
+    const r = await fetch("/api/gateway/accounts/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emails, mode }),
+    })
+    const data = await r.json()
+    setCheckProgress({ total: data.queued, done: 0 })
+    // Subscribe to SSE for live updates
+    if (evtRef.current) evtRef.current.close()
+    const es = new EventSource("/events")
+    evtRef.current = es
+    es.addEventListener("check", (e) => {
+      const ev = JSON.parse(e.data)
+      if (ev.total) setCheckProgress({ total: ev.total, done: ev.done ?? 0 })
+      if (ev.email) {
+        setAccounts(prev => prev.map(a => {
+          if (a.email !== ev.email) return a
+          if (ev.kind === "token") return { ...a, health: ev.result }
+          if (ev.kind === "live") return { ...a, liveStatus: ev.result }
+          return a
+        }))
+      }
+      if (ev.done >= ev.total) {
+        setTimeout(() => setCheckProgress(null), 1500)
+        es.close()
+      }
+    })
+  }
+
+  // ── Filter / sort / paginate
+  const provAccounts = accounts.filter(a => (a.provider || "agy") === provider)
+
+  const filtered = provAccounts.filter(a => {
+    if (search && !a.email.toLowerCase().includes(search.toLowerCase())) return false
+    if (filter === "on") return a.enabled
+    if (filter === "off") return !a.enabled
+    if (filter === "cooldown") return a.cooldown
+    if (filter === "dead") return a.health === "dead"
+    return true
+  })
+
+  const sorted = [...filtered].sort((a, b) => {
+    if (sort === "requests") return b.requests - a.requests
+    if (sort === "quota") return (b.geminiPct ?? -1) - (a.geminiPct ?? -1)
+    return a.email.localeCompare(b.email)
+  })
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize)
+
+  const poolTotal = provAccounts.length
+  const poolActive = provAccounts.filter(a => a.enabled && !a.cooldown).length
+  const poolCooldown = provAccounts.filter(a => a.cooldown).length
+  const poolInactive = poolTotal - poolActive - poolCooldown
+  const pctActive = poolTotal > 0 ? Math.round((poolActive / poolTotal) * 100) : 0
+  const pctCooldown = poolTotal > 0 ? Math.round((poolCooldown / poolTotal) * 100) : 0
+
+  const toggleSelect = (email: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(email)) next.delete(email); else next.add(email)
+      return next
+    })
+  }
+  const toggleAll = () => {
+    if (selected.size === pageRows.length) setSelected(new Set())
+    else setSelected(new Set(pageRows.map(a => a.email)))
+  }
+
+  const statusBadge = (acc: PoolAccount) => {
+    if (!acc.enabled) return <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">Off</Badge>
+    if (acc.cooldown) return <Badge className="bg-orange-500/15 text-orange-400 border-none text-[10px]">Cooldown</Badge>
+    if (acc.health === "alive" || acc.status === "active") return <Badge className="bg-emerald-500/15 text-emerald-400 border-none text-[10px]">Active</Badge>
+    if (acc.health === "dead") return <Badge className="bg-red-500/15 text-red-400 border-none text-[10px]">Dead</Badge>
+    return <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">{acc.status || "—"}</Badge>
+  }
+
+  const healthBadge = (h?: string) => {
+    if (h === "alive") return <span className="text-emerald-400 text-xs">● alive</span>
+    if (h === "dead") return <span className="text-red-400 text-xs">● dead</span>
+    return <span className="text-slate-600 text-xs">—</span>
+  }
+
+  const liveBadge = (s?: string) => {
+    if (s === "ok") return <span className="text-emerald-400 text-xs">✓ live</span>
+    if (s === "quota") return <span className="text-amber-400 text-xs">⏳ quota</span>
+    if (s === "error") return <span className="text-red-400 text-xs">✗ error</span>
+    return <span className="text-slate-600 text-xs">—</span>
+  }
+
+  // ── Loading ──────────────────────────────────────────────────────────
 
   if (loading) {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full bg-slate-800" />
-          ))}
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full bg-slate-800" />)}
         </div>
         <Skeleton className="h-64 w-full bg-slate-800" />
       </div>
@@ -254,119 +409,74 @@ export function Pool() {
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <AlertTriangle className="h-8 w-8 text-red-500" />
         <p className="text-sm text-slate-400">Error: {error}</p>
-        <button
-          onClick={fetchData}
-          className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5"
-        >
+        <button onClick={fetchData} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5">
           <RefreshCw className="h-3 w-3" /> Retry
         </button>
       </div>
     )
   }
 
-  const pool = data?.gateway?.pool ?? { total: 0, active: 0, cooldown: 0 }
-  const poolTotal = pool.total ?? 0
-  const poolActive = pool.active ?? 0
-  const poolCooldown = pool.cooldown ?? 0
-  const poolInactive = poolTotal - poolActive - poolCooldown
-
-  const pctActive = poolTotal > 0 ? Math.round((poolActive / poolTotal) * 100) : 0
-  const pctCooldown = poolTotal > 0 ? Math.round((poolCooldown / poolTotal) * 100) : 0
-
-  const byProvider = data?.accounts?.byProvider ?? {}
-  const poolAccounts = data?.poolAccounts ?? []
-
-  const statusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-emerald-500/15 text-emerald-400 border-none text-[10px]">Active</Badge>
-      case "cooldown":
-        return <Badge className="bg-orange-500/15 text-orange-400 border-none text-[10px]">Cooldown</Badge>
-      default:
-        return <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">{status}</Badge>
-    }
-  }
-
   return (
-    <div className="space-y-6">
-      {/* KPI Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          title="Pool Total"
-          value={poolTotal}
-          subtitle="Tổng tài khoản trong pool"
-          icon={Users}
-          color="blue"
-        />
-        <KpiCard
-          title="Active"
-          value={poolActive}
-          subtitle={`${pctActive}% of pool`}
-          icon={Zap}
-          color="green"
-        />
-        <KpiCard
-          title="Cooldown"
-          value={poolCooldown}
-          subtitle={`${pctCooldown}% of pool`}
-          icon={Snowflake}
-          color="orange"
-        />
-        <KpiCard
-          title="Inactive"
-          value={poolInactive}
-          subtitle={poolTotal > 0 ? `${Math.round((poolInactive / poolTotal) * 100)}% of pool` : "—"}
-          icon={AlertTriangle}
-          color="red"
-        />
+    <div className="space-y-5">
+      {/* Provider Tabs */}
+      <div className="flex items-center gap-2">
+        {([["agy", "Antigravity"], ["kr", "Kiro"]] as const).map(([key, label]) => (
+          <Button
+            key={key}
+            size="sm"
+            onClick={() => setProvider(key)}
+            className={provider === key
+              ? "bg-orange-500 hover:bg-orange-600 text-white h-8 text-xs"
+              : "border border-slate-700 bg-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800 h-8 text-xs"}
+          >
+            {label}
+          </Button>
+        ))}
+        <Badge className="bg-slate-800 text-slate-400 border-none text-xs ml-1">{provAccounts.length} account</Badge>
       </div>
 
-      {/* Donut + Health + Provider Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Donut */}
+      {/* KPI Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard title="Pool Total" value={poolTotal} subtitle="Tổng tài khoản" icon={Users} color="blue" />
+        <KpiCard title="Active" value={poolActive} subtitle={`${pctActive}% of pool`} icon={Zap} color="green" />
+        <KpiCard title="Cooldown" value={poolCooldown} subtitle={`${pctCooldown}% of pool`} icon={Snowflake} color="orange" />
+        <KpiCard title="Inactive" value={poolInactive} subtitle={poolTotal > 0 ? `${Math.round((poolInactive / poolTotal) * 100)}% of pool` : "—"} icon={AlertTriangle} color="red" />
+      </div>
+
+      {/* Donut + Health */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="bg-slate-900 border-slate-800">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Zap className="h-4 w-4 text-slate-500" />
-              Pool Distribution
+              <Zap className="h-4 w-4 text-slate-500" /> Pool Distribution
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-6">
               <DonutChart total={poolTotal} active={poolActive} cooldown={poolCooldown} size={110} strokeWidth={10} />
               <div className="flex-1 space-y-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                    <span className="text-slate-400">Active</span>
-                  </span>
-                  <span className="font-medium text-slate-200 tabular-nums">{poolActive}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-orange-500" />
-                    <span className="text-slate-400">Cooldown</span>
-                  </span>
-                  <span className="font-medium text-slate-200 tabular-nums">{poolCooldown}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-slate-600" />
-                    <span className="text-slate-400">Inactive</span>
-                  </span>
-                  <span className="font-medium text-slate-200 tabular-nums">{poolInactive}</span>
-                </div>
+                {[
+                  { label: "Active", color: "bg-emerald-500", val: poolActive },
+                  { label: "Cooldown", color: "bg-orange-500", val: poolCooldown },
+                  { label: "Inactive", color: "bg-slate-600", val: poolInactive },
+                ].map(({ label, color, val }) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <span className={`h-2 w-2 rounded-full ${color}`} />
+                      <span className="text-slate-400">{label}</span>
+                    </span>
+                    <span className="font-medium text-slate-200 tabular-nums">{val}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Health Bars */}
         <Card className="bg-slate-900 border-slate-800">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Activity className="h-4 w-4 text-slate-500" />
-              Pool Health
+              <Activity className="h-4 w-4 text-slate-500" /> Pool Health
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -375,148 +485,292 @@ export function Pool() {
                 <span className="text-slate-400">Active</span>
                 <span className="text-emerald-400 font-medium tabular-nums">{poolActive} / {poolTotal} ({pctActive}%)</span>
               </div>
-              <Progress value={pctActive}>
-                <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-800">
-                  <div
-                    className="h-full bg-emerald-500 transition-all duration-500 rounded-full"
-                    style={{ width: `${pctActive}%` }}
-                  />
-                </div>
-              </Progress>
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-800">
+                <div className="h-full bg-emerald-500 transition-all duration-500 rounded-full" style={{ width: `${pctActive}%` }} />
+              </div>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-400">Cooldown</span>
                 <span className="text-orange-400 font-medium tabular-nums">{poolCooldown} / {poolTotal} ({pctCooldown}%)</span>
               </div>
-              <Progress value={pctCooldown}>
-                <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-800">
-                  <div
-                    className="h-full bg-orange-500 transition-all duration-500 rounded-full"
-                    style={{ width: `${pctCooldown}%` }}
-                  />
-                </div>
-              </Progress>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Provider Breakdown */}
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                <Server className="h-4 w-4 text-slate-500" />
-                Providers
-              </CardTitle>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleWake("agy")}
-                  className="border-slate-700 text-slate-400 hover:text-orange-400 h-6 text-[10px] gap-1 px-2"
-                >
-                  <Snowflake className="h-3 w-3" /> Wake AGY
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleWake("kiro")}
-                  className="border-slate-700 text-slate-400 hover:text-orange-400 h-6 text-[10px] gap-1 px-2"
-                >
-                  <Snowflake className="h-3 w-3" /> Wake Kiro
-                </Button>
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-800">
+                <div className="h-full bg-orange-500 transition-all duration-500 rounded-full" style={{ width: `${pctCooldown}%` }} />
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {Object.keys(byProvider).length === 0 ? (
-              <p className="text-xs text-slate-600 text-center py-4">Không có dữ liệu provider</p>
-            ) : (
-              Object.entries(byProvider).map(([name, stats]) => (
-                <div key={name} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-300 font-medium">{name}</span>
-                    <Badge
-                      className={
-                        stats.active > 0
-                          ? "bg-emerald-500/15 text-emerald-400 border-none text-[10px]"
-                          : "bg-slate-700 text-slate-400 border-none text-[10px]"
-                      }
-                    >
-                      {stats.active}/{stats.total}
-                    </Badge>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-emerald-500/70 transition-all duration-500"
-                      style={{ width: stats.total > 0 ? `${(stats.active / stats.total) * 100}%` : "0%" }}
-                    />
-                  </div>
-                </div>
-              ))
-            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Pool Accounts Table */}
+      {/* Check progress bar */}
+      {checkProgress && (
+        <div className="flex items-center gap-3 bg-slate-800/60 rounded-lg px-4 py-2">
+          <RefreshCw className="h-3.5 w-3.5 text-orange-400 animate-spin" />
+          <span className="text-xs text-slate-300">Đang check…</span>
+          <div className="flex-1 h-1.5 rounded-full bg-slate-700">
+            <div
+              className="h-full bg-orange-500 rounded-full transition-all"
+              style={{ width: `${checkProgress.total ? Math.round((checkProgress.done / checkProgress.total) * 100) : 0}%` }}
+            />
+          </div>
+          <span className="text-xs text-slate-400 tabular-nums">{checkProgress.done}/{checkProgress.total}</span>
+        </div>
+      )}
+
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 bg-slate-800/50 rounded-lg px-4 py-2">
+          <span className="text-xs text-slate-400 mr-1">{selected.size} đã chọn</span>
+          <Button size="sm" onClick={() => handleBulkEnable(true, [...selected])} className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-xs gap-1">
+            <Power className="h-3 w-3" /> Bật
+          </Button>
+          <Button size="sm" onClick={() => handleBulkEnable(false, [...selected])} className="bg-slate-700 hover:bg-slate-600 text-slate-200 h-7 text-xs gap-1">
+            <PowerOff className="h-3 w-3" /> Tắt
+          </Button>
+          <Button size="sm" onClick={handleBulkQuota} className="bg-slate-700 hover:bg-slate-600 text-slate-200 h-7 text-xs gap-1">
+            <Gauge className="h-3 w-3" /> Quota
+          </Button>
+          <Button size="sm" onClick={() => startCheck("token")} className="bg-slate-700 hover:bg-slate-600 text-slate-200 h-7 text-xs gap-1">
+            <FlaskConical className="h-3 w-3" /> Token
+          </Button>
+          <Button size="sm" onClick={() => startCheck("live")} className="bg-slate-700 hover:bg-slate-600 text-slate-200 h-7 text-xs gap-1">
+            <Activity className="h-3 w-3" /> Live
+          </Button>
+        </div>
+      )}
+
+      {/* Table */}
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Users className="h-4 w-4 text-slate-500" />
-              Pool Accounts ({poolAccounts.length})
+              <Server className="h-4 w-4 text-slate-500" />
+              Pool — {provider === "agy" ? "Antigravity" : "Kiro"} ({filtered.length})
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchData}
-              className="border-slate-700 text-slate-400 hover:text-orange-400 h-7 text-xs gap-1"
-            >
-              <RefreshCw className="h-3 w-3" /> Refresh
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                <Input
+                  placeholder="Tìm email…"
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setPage(1) }}
+                  className="pl-8 bg-slate-800 border-slate-700 text-slate-200 placeholder:text-slate-600 h-8 text-xs w-44"
+                />
+              </div>
+              {/* Filter */}
+              <select
+                value={filter}
+                onChange={e => { setFilter(e.target.value); setPage(1) }}
+                className="h-8 px-2 rounded-md bg-slate-800 border border-slate-700 text-slate-300 text-xs focus:outline-none"
+              >
+                <option value="all">Tất cả</option>
+                <option value="on">Bật</option>
+                <option value="off">Tắt</option>
+                <option value="cooldown">Cooldown</option>
+                <option value="dead">Dead</option>
+              </select>
+              {/* Sort */}
+              <select
+                value={sort}
+                onChange={e => { setSort(e.target.value); setPage(1) }}
+                className="h-8 px-2 rounded-md bg-slate-800 border border-slate-700 text-slate-300 text-xs focus:outline-none"
+              >
+                <option value="email">Email</option>
+                <option value="requests">Requests</option>
+                <option value="quota">Quota</option>
+              </select>
+              {/* Bulk: Enable all / Disable all / Wake / Check all / Refresh quota all */}
+              <Button size="sm" onClick={() => handleBulkEnable(true)} className="border border-slate-700 bg-transparent text-emerald-400 hover:bg-slate-800 h-8 text-xs gap-1">
+                <Power className="h-3 w-3" /> All On
+              </Button>
+              <Button size="sm" onClick={() => handleBulkEnable(false)} className="border border-slate-700 bg-transparent text-slate-400 hover:bg-slate-800 h-8 text-xs gap-1">
+                <PowerOff className="h-3 w-3" /> All Off
+              </Button>
+              <Button size="sm" onClick={handleWake} className="border border-slate-700 bg-transparent text-orange-400 hover:bg-slate-800 h-8 text-xs gap-1">
+                <Snowflake className="h-3 w-3" /> Wake
+              </Button>
+              <Button size="sm" onClick={() => startCheck("live")} className="border border-slate-700 bg-transparent text-slate-400 hover:bg-slate-800 h-8 text-xs gap-1">
+                <CheckCheck className="h-3 w-3" /> Check All
+              </Button>
+              <Button size="sm" onClick={() => handleBulkQuota()} className="border border-slate-700 bg-transparent text-slate-400 hover:bg-slate-800 h-8 text-xs gap-1">
+                <Gauge className="h-3 w-3" /> Quota All
+              </Button>
+              <Button size="sm" onClick={fetchData} className="border border-slate-700 bg-transparent text-slate-400 hover:text-orange-400 h-8 text-xs gap-1">
+                <RefreshCw className="h-3 w-3" /> Refresh
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="border-slate-800 hover:bg-transparent">
-                <TableHead className="text-slate-500 text-xs">Email</TableHead>
-                <TableHead className="text-slate-500 text-xs">Provider</TableHead>
-                <TableHead className="text-slate-500 text-xs">Status</TableHead>
-                <TableHead className="text-slate-500 text-xs">Model</TableHead>
-                <TableHead className="text-slate-500 text-xs text-right">Requests</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {poolAccounts.length === 0 ? (
-                <TableRow className="border-slate-800">
-                  <TableCell colSpan={5} className="text-center text-slate-600 text-xs py-8">
-                    Không có tài khoản trong pool
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-800 hover:bg-transparent">
+                  <TableHead className="w-8">
+                    <input
+                      type="checkbox"
+                      checked={pageRows.length > 0 && selected.size === pageRows.length}
+                      onChange={toggleAll}
+                      className="rounded border-slate-600 bg-slate-800"
+                    />
+                  </TableHead>
+                  <TableHead className="text-slate-500 text-xs">On</TableHead>
+                  <TableHead className="text-slate-500 text-xs">Email</TableHead>
+                  <TableHead className="text-slate-500 text-xs">{provider === "kr" ? "Credit" : "Quota"}</TableHead>
+                  <TableHead className="text-slate-500 text-xs">Status</TableHead>
+                  <TableHead className="text-slate-500 text-xs">Health / Live</TableHead>
+                  <TableHead className="text-slate-500 text-xs">Cooldown</TableHead>
+                  <TableHead className="text-slate-500 text-xs text-right">Requests</TableHead>
+                  <TableHead className="text-slate-500 text-xs">Last used</TableHead>
+                  <TableHead className="text-slate-500 text-xs text-right">Actions</TableHead>
                 </TableRow>
-              ) : (
-                poolAccounts.map((acc) => (
-                  <TableRow key={acc.email} className="border-slate-800 hover:bg-slate-800/50">
-                    <TableCell className="text-sm text-slate-200 font-mono">{acc.email}</TableCell>
-                    <TableCell>
-                      <Badge className="bg-slate-700 text-slate-300 border-none text-[10px]">
-                        {acc.provider}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{statusBadge(acc.status)}</TableCell>
-                    <TableCell className="text-xs text-slate-400 font-mono">
-                      {acc.model ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-slate-400 tabular-nums">
-                      {(acc.requestCount ?? 0).toLocaleString()}
+              </TableHeader>
+              <TableBody>
+                {pageRows.length === 0 ? (
+                  <TableRow className="border-slate-800">
+                    <TableCell colSpan={10} className="text-center text-slate-600 text-xs py-8">
+                      {filter !== "all" || search ? "Không có account khớp" : "Chưa có account trong pool"}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  pageRows.map(acc => {
+                    const sp = spinning[acc.email] ?? {}
+                    return (
+                      <TableRow
+                        key={acc.email}
+                        className={`border-slate-800 hover:bg-slate-800/50 ${!acc.enabled ? "opacity-50" : ""} ${acc.cooldown ? "bg-orange-500/5" : ""}`}
+                      >
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selected.has(acc.email)}
+                            onChange={() => toggleSelect(acc.email)}
+                            className="rounded border-slate-600 bg-slate-800"
+                          />
+                        </TableCell>
+                        {/* Toggle switch */}
+                        <TableCell>
+                          <button
+                            onClick={() => handleToggle(acc, !acc.enabled)}
+                            disabled={sp.toggle}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${acc.enabled ? "bg-orange-500" : "bg-slate-700"}`}
+                          >
+                            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${acc.enabled ? "translate-x-4" : "translate-x-1"}`} />
+                          </button>
+                        </TableCell>
+                        <TableCell className="text-sm text-slate-200 font-mono max-w-[220px] truncate">{acc.email}</TableCell>
+                        <TableCell className="text-xs text-slate-400 tabular-nums">
+                          {acc.geminiPct != null ? (
+                            <span className={acc.geminiPct >= 50 ? "text-emerald-400" : acc.geminiPct >= 20 ? "text-amber-400" : "text-red-400"}>
+                              {acc.geminiPct}%
+                            </span>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell>{statusBadge(acc)}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-0.5">
+                            {healthBadge(acc.health)}
+                            {liveBadge(acc.liveStatus)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-orange-400 tabular-nums">
+                          {acc.cooldown ? fmtCooldown(acc.cooldownUntil) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right text-sm text-slate-400 tabular-nums">
+                          {fmtNum(acc.requests ?? 0)}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-500">
+                          {fmtAgo(acc.lastUsed)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            {/* Test token */}
+                            <button
+                              title="Test token"
+                              onClick={() => handleTest(acc.email)}
+                              disabled={sp.test}
+                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-slate-700 text-slate-400 hover:text-emerald-400 disabled:opacity-50"
+                            >
+                              {sp.test
+                                ? <RefreshCw className="h-3 w-3 animate-spin" />
+                                : <FlaskConical className="h-3 w-3" />}
+                            </button>
+                            {/* Check live */}
+                            <button
+                              title="Check live"
+                              onClick={() => handleCheckLive(acc.email)}
+                              disabled={sp.live}
+                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-slate-700 text-slate-400 hover:text-orange-400 disabled:opacity-50"
+                            >
+                              {sp.live
+                                ? <RefreshCw className="h-3 w-3 animate-spin" />
+                                : <Zap className="h-3 w-3" />}
+                            </button>
+                            {/* Refresh quota */}
+                            <button
+                              title="Refresh quota"
+                              onClick={() => handleRefreshQuota(acc.email)}
+                              disabled={sp.quota}
+                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-slate-700 text-slate-400 hover:text-blue-400 disabled:opacity-50"
+                            >
+                              {sp.quota
+                                ? <RefreshCw className="h-3 w-3 animate-spin" />
+                                : <Gauge className="h-3 w-3" />}
+                            </button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Pager */}
+          {sorted.length > 0 && (
+            <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">Trang {safePage}/{totalPages} · {sorted.length} rows</span>
+                <select
+                  value={pageSize}
+                  onChange={e => { setPageSize(Number(e.target.value)); setPage(1); localStorage.setItem("vs_agySize", e.target.value) }}
+                  className="h-7 px-2 rounded bg-slate-800 border border-slate-700 text-slate-300 text-xs focus:outline-none"
+                >
+                  {PAGE_SIZES.map(s => <option key={s} value={s}>{s}/trang</option>)}
+                </select>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 disabled:opacity-30"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const p = Math.max(1, Math.min(totalPages - 4, safePage - 2)) + i
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-orange-500 text-white" : "text-slate-400 hover:bg-slate-800"}`}
+                    >
+                      {p}
+                    </button>
+                  )
+                })}
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 disabled:opacity-30"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
