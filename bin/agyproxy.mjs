@@ -325,9 +325,25 @@ async function update(check) {
   if (wasRunning) { console.log(c.d('  Dừng tiến trình để cập nhật…')); stop(); }
   try {
     if (gitAvailable()) {
+      // `web/dist` ĐƯỢC commit (server serve dashboard từ đó) nên chính bước build của
+      // lần cập nhật trước làm thư mục bẩn → `pull --ff-only` chết với "local changes
+      // would be overwritten". Dist là sản phẩm build, không phải code: dọn trước.
+      // Bản trên dashboard (src/updater.ts) đã làm việc này; CLI thiếu nên hai đường
+      // lệch nhau — gặp thật khi cập nhật production bằng CLI.
+      console.log(c.d('  dọn web/dist…'));
+      try { execFileSync('git', ['-C', ROOT, 'checkout', '--', 'web/dist'], { stdio: 'ignore' }); } catch {}
+      try { execFileSync('git', ['-C', ROOT, 'clean', '-fd', 'web/dist'], { stdio: 'ignore' }); } catch {}
+      try { execFileSync('git', ['-C', ROOT, 'checkout', '--', 'package-lock.json'], { stdio: 'ignore' }); } catch {}
       console.log(c.d('  git pull…'));
       execFileSync('git', ['-C', ROOT, 'pull', '--ff-only'], { stdio: 'inherit' });
       execFileSync('npm', ['install', '--omit=dev'], { cwd: ROOT, stdio: 'inherit' });
+      // Web build cần devDeps (vite, @types/node); NODE_ENV=production khiến npm bỏ chúng.
+      if (existsSync(resolve(ROOT, 'web/package.json'))) {
+        console.log(c.d('  build web…'));
+        const env = { ...process.env, NODE_ENV: 'development' };
+        execFileSync('npm', ['install', '--no-fund', '--no-audit'], { cwd: resolve(ROOT, 'web'), stdio: 'inherit', env });
+        execFileSync('npm', ['run', 'build'], { cwd: resolve(ROOT, 'web'), stdio: 'inherit', env });
+      }
     } else {
       console.log(c.d(`  npm install -g github:${REPO}…`));
       execFileSync('npm', ['install', '-g', `github:${REPO}`], { stdio: 'inherit' });

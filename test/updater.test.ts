@@ -83,3 +83,23 @@ describe('runUpdate — web/dist là sản phẩm build, không phải code', ()
     assert.match(SRC, /f !== 'package-lock\.json'/);
   });
 });
+
+describe('CLI và dashboard phải làm CÙNG một việc', () => {
+  const CLI = readFileSync(new URL('../bin/agyproxy.mjs', import.meta.url), 'utf8');
+  const SRV = readFileSync(new URL('../src/updater.ts', import.meta.url), 'utf8');
+
+  test('cả hai đều dọn web/dist trước khi pull', () => {
+    // Gặp thật: dashboard đã dọn nhưng CLI thì chưa, nên `agyproxy update` trên
+    // production chết với "local changes to web/dist/index.html would be overwritten".
+    for (const [name, src] of [['CLI', CLI], ['dashboard', SRV]] as const) {
+      assert.match(src, /checkout'.*'web\/dist'/, `${name} thiếu bước dọn web/dist`);
+      assert.match(src, /clean'.*'web\/dist'/, `${name} thiếu git clean web/dist`);
+    }
+  });
+
+  test('cả hai đều ép NODE_ENV=development khi build web', () => {
+    // systemd đặt NODE_ENV=production → npm bỏ devDeps → vite biến mất → tsc chết.
+    assert.match(CLI, /NODE_ENV: 'development'/, 'CLI thiếu ép NODE_ENV');
+    assert.match(SRV, /NODE_ENV: 'development'/, 'dashboard thiếu ép NODE_ENV');
+  });
+});
