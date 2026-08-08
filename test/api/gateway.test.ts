@@ -31,6 +31,22 @@ const TEST_KEY = 'test-legacy-key-gateway';
 const savedKey = config.gateway.apiKey;
 before(() => { config.gateway.apiKey = savedKey || TEST_KEY; });
 after(() => { config.gateway.apiKey = savedKey; });
+
+/**
+ * Ghim `gateway.enabled` — CÙNG LÝ DO với `apiKey` ở trên, chỉ khác công tắc.
+ *
+ * `config.gateway.enabled` đọc từ bảng `settings` lúc import. Máy test để `agyproxy off`
+ * theo phân vai (Mac test / Debian production), nên các route proxy chặn ở
+ * `dialects/openai.ts` "gateway disabled → 503" TRƯỚC khi kịp validate model → test
+ * khẳng định 400 sẽ nhận 503. Đây là đỏ vì trạng thái DB, không phải vì code sai.
+ *
+ * Thứ tự guard trong handler là ĐÚNG và không nên đổi: gateway tắt thì không nên tốn
+ * công parse, và phải nhất quán với /proxy/v1/chat/completions cùng dialect Anthropic.
+ * Nên cô lập ở phía test.
+ */
+const savedEnabled = config.gateway.enabled;
+before(() => { config.gateway.enabled = true; });
+after(() => { config.gateway.enabled = savedEnabled; });
 const authHeaders = () => ({ authorization: `Bearer ${config.gateway.apiKey}` });
 
 test('GET /api/gateway/models trả danh sách model', async () => {

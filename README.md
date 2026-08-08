@@ -254,9 +254,9 @@ Máy test để `off` để hai máy không cùng đốt quota của một pool 
 cơ chế điều phối giữa hai instance, cùng gọi thì dễ 429 chéo. Bật lại khi cần test
 đường gọi thật: `agyproxy on`.
 
-> **Chạy `npm test` thì phải BẬT gateway.** Vài test tích hợp gọi qua `/proxy/v1/*`
-> nên sẽ đỏ khi gateway `off` (vd "POST /proxy/v1/responses tồn tại"). Trình tự:
-> `agyproxy on && npm test && agyproxy off`.
+`npm test` chạy được ở cả hai trạng thái — các test gọi qua `/proxy/v1/*` tự ghim
+`config.gateway.enabled` trong `before()` rồi khôi phục ở `after()`, nên không cần
+`agyproxy on` trước khi test nữa.
 
 Production nhận code qua GitHub (`origin/main`), KHÔNG qua patch thủ công — patch tạo
 commit hash khác nên `git pull` sẽ xung đột và nút "Cập nhật" ngừng hoạt động.
