@@ -161,6 +161,73 @@ npm run build            # build → web/dist
 cp ../public/login.html dist/login.html   # (chỉ lần đầu, login.html đã có trong dist)
 ```
 
+## Deployment
+
+Hai script trong `scripts/`, cấu hình hoàn toàn qua biến env (không hardcode host/path):
+
+| Biến | Dùng cho | Ý nghĩa |
+|------|----------|---------|
+| `DEPLOY_HOST` | cả hai | SSH target, vd `deploy@1.2.3.4` hoặc alias trong `~/.ssh/config` |
+| `DEPLOY_WEB_PATH` | web | Thư mục `web/dist` trên server, vd `/opt/agy-proxy/web/dist` |
+| `DEPLOY_PATH` | backend | Thư mục app trên server, vd `/opt/agy-proxy` |
+| `DEPLOY_PORT` | cả hai | Cổng SSH (mặc định 22) |
+
+Tiện nhất: tạo file `.env.deploy` (đã gitignore) chứa các `export ...` rồi `source .env.deploy`.
+
+### Deploy web dashboard
+
+```bash
+source .env.deploy
+npm run deploy:web            # build web/ → rsync dist/ lên $DEPLOY_WEB_PATH
+npm run deploy:web -- --dry-run   # chỉ build + in lệnh rsync, không đẩy
+SKIP_BUILD=1 npm run deploy:web   # sync dist/ sẵn có, bỏ qua build
+```
+
+Backend serve dashboard tĩnh từ `web/dist` (`src/paths.ts`), nên deploy web **không cần restart** backend.
+
+### Deploy backend
+
+Backend chạy trực tiếp bằng `tsx` (không có bước build). Script sync source lên server
+(exclude `data/`, `profiles/`, `.env` — state trên server được giữ nguyên), chạy
+`npm ci --omit=dev`, rồi restart:
+
+```bash
+source .env.deploy
+npm run deploy:backend            # rsync source → npm ci → restart
+npm run deploy:backend -- --dry-run
+```
+
+Thứ tự ưu tiên restart trên server:
+
+1. **pm2** (nếu có): `pm2 restart agy-proxy`, lần đầu tự `pm2 start npm --name agy-proxy -- start`
+2. **systemd** (nếu có unit `agy-proxy.service`): `sudo systemctl restart agy-proxy`
+3. Không có gì → in hướng dẫn chạy tay
+
+Systemd unit mẫu (`/etc/systemd/system/agy-proxy.service`):
+
+```ini
+[Unit]
+Description=agy-proxy gateway
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/agy-proxy
+ExecStart=/usr/bin/node --import tsx src/index.ts
+Restart=on-failure
+EnvironmentFile=/opt/agy-proxy/.env
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Docker (thay thế)
+
+Đã có sẵn `Dockerfile` + `docker-compose.yml` (image kèm Chromium cho login flow):
+
+```bash
+docker compose up -d --build
+```
+
 ## Bảo mật
 
 - Dashboard: Basic auth (mật khẩu `123456` đổi trong `.env` `DASHBOARD_PASSWORD`)

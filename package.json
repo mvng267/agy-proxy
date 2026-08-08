@@ -23,7 +23,9 @@
     "test": "node --import tsx --test test/gateway/*.test.ts test/api/*.test.ts test/store/*.test.ts test/*.test.ts",
     "test:live": "LIVE=1 node --import tsx --test test/live/*.test.ts",
     "test:e2e": "node --import tsx --test test/e2e/*.test.ts",
-    "install-browser": "playwright install chrome"
+    "install-browser": "playwright install chrome",
+    "deploy:web": "scripts/deploy-web.sh",
+    "deploy:backend": "scripts/deploy-backend.sh"
   },
   "dependencies": {
     "@fastify/formbody": "^8.0.2",
