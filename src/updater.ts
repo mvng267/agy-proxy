@@ -116,9 +116,12 @@ export async function runUpdate(onStep?: (s: UpdateStep) => void): Promise<Updat
     return steps;
   }
 
-  const run = async (step: string, cmd: string, args: string[], cwd = ROOT) => {
+  const run = async (step: string, cmd: string, args: string[], cwd = ROOT, env?: NodeJS.ProcessEnv) => {
     try {
-      const { stdout, stderr } = await execFileAsync(cmd, args, { cwd, timeout: 300_000, maxBuffer: 8 << 20 });
+      const { stdout, stderr } = await execFileAsync(cmd, args, {
+        cwd, timeout: 300_000, maxBuffer: 8 << 20,
+        ...(env ? { env: { ...process.env, ...env } } : {}),
+      });
       push({ step, ok: true, detail: (stdout || stderr).trim().split('\n').slice(-2).join(' ').slice(0, 200) });
       return true;
     } catch (e: any) {
@@ -143,9 +146,25 @@ export async function runUpdate(onStep?: (s: UpdateStep) => void): Promise<Updat
   if (!(await run('npm install', 'npm', ['install', '--omit=dev', '--no-fund', '--no-audit']))) return steps;
 
   // Web build nằm trong repo nhưng dist có thể cũ hơn src sau khi pull.
+  //
+  // NODE_ENV phải ép về 'development' cho web: service systemd đặt NODE_ENV=production,
+  // tiến trình server kế thừa, và npm TỰ BỎ devDependencies khi thấy biến đó — kể cả
+  // khi không truyền --omit=dev. Kết quả: web/node_modules thiếu vite + @types/node,
+  // `tsc -b` chết với "Cannot find type definition file for 'vite/client'".
+  // Đo thật trên máy production, bắt được đúng bằng cách bấm nút Cập nhật.
+  let webOk = true;
   if (existsSync(resolve(ROOT, 'web/package.json'))) {
-    await run('npm install (web)', 'npm', ['install', '--no-fund', '--no-audit'], resolve(ROOT, 'web'));
-    await run('build web', 'npm', ['run', 'build'], resolve(ROOT, 'web'));
+    const webDir = resolve(ROOT, 'web');
+    const devEnv = { NODE_ENV: 'development' };
+    webOk = await run('npm install (web)', 'npm', ['install', '--no-fund', '--no-audit'], webDir, devEnv);
+    if (webOk) webOk = await run('build web', 'npm', ['run', 'build'], webDir, devEnv);
+  }
+
+  // Build web hỏng = dashboard sẽ chạy bản dist CŨ. Trước đây bước này vẫn báo "xong"
+  // dù build lỗi, nên người dùng tưởng đã cập nhật xong.
+  if (!webOk) {
+    push({ step: 'xong', ok: false, detail: `mã nguồn đã lên v${localVersion()} nhưng BUILD WEB LỖI — dashboard vẫn chạy giao diện cũ` });
+    return steps;
   }
 
   push({ step: 'xong', ok: true, detail: `đã cài v${localVersion()} — khởi động lại để áp dụng` });

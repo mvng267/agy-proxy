@@ -1,5 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { cmpVersion, isGitCheckout, checkUpdate } from '../src/updater.js';
 
 describe('cmpVersion', () => {
@@ -36,5 +37,26 @@ describe('checkUpdate', () => {
 
   test('repo này là git checkout nên tự cập nhật được', () => {
     assert.equal(isGitCheckout(), true);
+  });
+});
+
+describe('runUpdate — build web trong môi trường production', () => {
+  const SRC = readFileSync(new URL('../src/updater.ts', import.meta.url), 'utf8');
+
+  test('ép NODE_ENV=development cho bước web', () => {
+    // systemd đặt NODE_ENV=production, tiến trình server kế thừa, và npm TỰ BỎ
+    // devDependencies khi thấy biến đó — vite/@types/node biến mất, `tsc -b` chết.
+    // Bắt được trên máy production thật bằng cách bấm nút Cập nhật.
+    assert.match(SRC, /NODE_ENV: 'development'/, 'thiếu ép NODE_ENV → web build hỏng trên production');
+    const webPart = SRC.slice(SRC.indexOf('web/package.json'));
+    assert.match(webPart, /npm install \(web\)[\s\S]{0,200}devEnv/, 'npm install (web) phải dùng devEnv');
+    assert.match(webPart, /build web[\s\S]{0,200}devEnv/, 'build web phải dùng devEnv');
+  });
+
+  test('build web lỗi thì KHÔNG báo "xong" thành công', () => {
+    // Trước đây bước cuối luôn ok:true dù build hỏng → người dùng tưởng đã cập nhật
+    // xong trong khi dashboard vẫn chạy dist cũ.
+    assert.match(SRC, /if \(!webOk\)/, 'phải có nhánh xử lý build web thất bại');
+    assert.match(SRC, /BUILD WEB LỖI/, 'phải nói rõ dashboard đang chạy giao diện cũ');
   });
 });
