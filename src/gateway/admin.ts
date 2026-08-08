@@ -8,6 +8,7 @@ import {
   getComboRow, upsertComboRow, deleteComboRow, comboStatsRows,
   providerStats, creditsUsedThisMonth,
   usageByApiKey, usageByCombo, attributionSince, type UsageFilter,
+  metricsSeries, metricsHistoryCount,
 } from '../store/db.js';
 import {
   PROVIDERS, PROVIDER_IDS, allModels, parseModelId,
@@ -644,10 +645,57 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     const to = q.to ? Number(q.to) : Date.now();
     const days = q.range === '90d' ? 90 : q.range === '30d' ? 30 : q.range === '1d' ? 1 : 7;
     const from = q.from ? Number(q.from) : to - days * 86400_000;
-    const groupBy = q.groupBy === 'hour' || days <= 1 ? 'hour' : 'day';
     if (q.email) {
       return { email: q.email, points: quotaForAccount(String(q.email), from, to) };
     }
-    return { series: quotaSeries(from, to, groupBy), groupBy, total: quotaHistoryCount() };
+
+    /**
+     * Gộp theo NGÀY cho cửa sổ ≥7 ngày là đúng khi đã chạy nhiều ngày, nhưng sai hẳn lúc
+     * mới bật: đo trên production có 14.6k điểm mà TẤT CẢ rơi vào một ngày → gộp theo ngày
+     * ra ĐÚNG 1 điểm, và một điểm thì không vẽ thành đường. Khung "Xu hướng toàn pool" vì
+     * thế luôn trống dù dữ liệu đầy — người dùng thấy "Chưa có dữ liệu" và tưởng job hỏng.
+     *
+     * Nên tự hạ xuống mức mịn hơn khi kết quả quá thưa. Cùng dữ liệu đó, gộp theo giờ cho
+     * 14 điểm — vẽ được ngay.
+     */
+    const chosen = q.groupBy === 'hour' || q.groupBy === 'day'
+      ? (q.groupBy as 'hour' | 'day')
+      : days <= 1 ? 'hour' : 'day';
+    let series = quotaSeries(from, to, chosen);
+    let groupBy: 'hour' | 'day' = chosen;
+    if (!q.groupBy && groupBy === 'day' && series.length < 3) {
+      const finer = quotaSeries(from, to, 'hour');
+      if (finer.length > series.length) { series = finer; groupBy = 'hour'; }
+    }
+    return { series, groupBy, total: quotaHistoryCount() };
+  });
+
+  /**
+   * Lịch sử metrics — nguồn 3 chart trang /metrics.
+   *
+   * Trước đây trang đó tự tích luỹ điểm trong RAM trình duyệt nên F5 là trắng và phải
+   * chờ ≥2 lần poll mới vẽ được gì. Job nền ghi mỗi 60s xuống `metrics_history`, endpoint
+   * này đọc ra.
+   *
+   * Tự chọn độ mịn theo cửa sổ: ≤6h giữ nguyên từng điểm 1 phút; dài hơn thì gộp để
+   * không đẩy hàng chục nghìn điểm xuống trình duyệt (7 ngày = 10k điểm nếu để raw).
+   */
+  app.get('/api/metrics/history', async (req) => {
+    const q = req.query as any;
+    const to = q.to ? Number(q.to) : Date.now();
+    const hours = Math.max(1, Math.min(24 * 90, Number(q.hours) || 6));
+    const from = q.from ? Number(q.from) : to - hours * 3600_000;
+    const chosen: 'raw' | 'minute' | 'hour' =
+      q.groupBy === 'raw' || q.groupBy === 'minute' || q.groupBy === 'hour'
+        ? q.groupBy
+        : hours <= 6 ? 'raw' : hours <= 48 ? 'minute' : 'hour';
+    let series = metricsSeries(from, to, chosen);
+    let groupBy = chosen;
+    // Cùng lý do như quota/history: gộp thô quá thì cửa sổ dài ra 1-2 điểm và chart trống.
+    if (!q.groupBy && groupBy !== 'raw' && series.length < 3) {
+      const finer = metricsSeries(from, to, 'raw');
+      if (finer.length > series.length) { series = finer; groupBy = 'raw'; }
+    }
+    return { series, groupBy, from, to, total: metricsHistoryCount() };
   });
 }

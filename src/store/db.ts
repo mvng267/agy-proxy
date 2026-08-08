@@ -206,6 +206,34 @@ const MIGRATIONS: Array<{ v: number; name: string; up: (d: MigDb) => void }> = [
       `);
     },
   },
+  {
+    v: 4,
+    // Trước đây lịch sử metrics chỉ nằm trong RAM: MetricsRecorder giữ cửa sổ trượt 5
+    // phút ở server, còn trang Metrics tự tích luỹ 120 điểm trong RAM TRÌNH DUYỆT. Hệ
+    // quả: 3 khung chart trên /metrics luôn trống sau mỗi lần F5, và restart server là
+    // mất sạch. Bảng này làm lịch sử bền vững.
+    //
+    // Gộp luôn cột pool (acc_*) vào đây thay vì tạo bảng thứ hai — cùng nhịp ghi, cùng
+    // trục thời gian, nên tách ra chỉ tốn thêm một lần join.
+    name: 'bảng metrics_history cho chart Metrics bền vững',
+    up: (d) => {
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS metrics_history (
+          ts             INTEGER PRIMARY KEY,
+          rps            REAL,
+          error_rate     REAL,
+          p50            INTEGER,
+          p95            INTEGER,
+          p99            INTEGER,
+          requests       INTEGER,
+          errors         INTEGER,
+          acc_total      INTEGER,
+          acc_available  INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_metrics_ts ON metrics_history(ts);
+      `);
+    },
+  },
 ];
 
 /** Chạy mọi migration chưa áp dụng. Trả về danh sách version đã chạy. */
@@ -749,6 +777,81 @@ export function pruneQuotaHistory(days = 90): number {
   return Number(r.changes ?? 0) + Number(r2.changes ?? 0);
 }
 
+// ── Lịch sử metrics ────────────────────────────────────────────────────────
+// Nguồn cho 3 chart trang /metrics. Trước đây chúng đọc RAM trình duyệt nên F5 là trắng.
+
+export interface MetricsPoint {
+  ts: number;
+  rps?: number | null;
+  errorRate?: number | null;
+  p50?: number | null;
+  p95?: number | null;
+  p99?: number | null;
+  requests?: number | null;
+  errors?: number | null;
+  accTotal?: number | null;
+  accAvailable?: number | null;
+}
+
+/** Ghi 1 điểm. `ts` là PRIMARY KEY nên ghi trùng mốc sẽ đè, không sinh dòng thừa. */
+export function recordMetrics(p: MetricsPoint): void {
+  prep(
+    `INSERT INTO metrics_history (ts, rps, error_rate, p50, p95, p99, requests, errors, acc_total, acc_available)
+     VALUES (?,?,?,?,?,?,?,?,?,?)
+     ON CONFLICT(ts) DO UPDATE SET
+       rps=excluded.rps, error_rate=excluded.error_rate, p50=excluded.p50, p95=excluded.p95,
+       p99=excluded.p99, requests=excluded.requests, errors=excluded.errors,
+       acc_total=excluded.acc_total, acc_available=excluded.acc_available`,
+  ).run(
+    p.ts, p.rps ?? null, p.errorRate ?? null, p.p50 ?? null, p.p95 ?? null, p.p99 ?? null,
+    p.requests ?? null, p.errors ?? null, p.accTotal ?? null, p.accAvailable ?? null,
+  );
+}
+
+/**
+ * Chuỗi metrics theo thời gian.
+ *
+ * `raw` trả thẳng từng điểm (dùng cho cửa sổ ngắn — vài giờ, độ phân giải 1 phút);
+ * `minute`/`hour` gộp lại cho cửa sổ dài, tránh đẩy hàng chục nghìn điểm xuống trình duyệt.
+ * Latency lấy MAX chứ không AVG: trung bình của phân vị là số vô nghĩa, còn đỉnh p99
+ * trong khoảng mới là thứ cần nhìn.
+ */
+export function metricsSeries(
+  from: number,
+  to: number,
+  groupBy: 'raw' | 'minute' | 'hour' = 'raw',
+): Array<{ bucket: string; ts: number; rps: number; errorRate: number; p50: number; p95: number; p99: number; accTotal: number; accAvailable: number }> {
+  if (groupBy === 'raw') {
+    return db
+      .prepare(
+        `SELECT ts, ts AS bucket, rps, error_rate AS errorRate, p50, p95, p99,
+                acc_total AS accTotal, acc_available AS accAvailable
+         FROM metrics_history WHERE ts >= ? AND ts < ? ORDER BY ts ASC`,
+      )
+      .all(from, to) as any[];
+  }
+  const fmt = groupBy === 'hour' ? '%Y-%m-%d %H:00' : '%Y-%m-%d %H:%M';
+  return db
+    .prepare(
+      `SELECT strftime('${fmt}', ts/1000, 'unixepoch', 'localtime') AS bucket,
+              MIN(ts) AS ts,
+              ROUND(AVG(rps), 3) AS rps, ROUND(AVG(error_rate), 4) AS errorRate,
+              MAX(p50) AS p50, MAX(p95) AS p95, MAX(p99) AS p99,
+              MAX(acc_total) AS accTotal, ROUND(AVG(acc_available)) AS accAvailable
+       FROM metrics_history WHERE ts >= ? AND ts < ? GROUP BY bucket ORDER BY bucket ASC`,
+    )
+    .all(from, to) as any[];
+}
+
+export function metricsHistoryCount(): number {
+  return Number((db.prepare(`SELECT COUNT(*) AS n FROM metrics_history`).get() as any)?.n ?? 0);
+}
+
+export function pruneMetricsHistory(days = 90): number {
+  const r = db.prepare(`DELETE FROM metrics_history WHERE ts < ?`).run(Date.now() - days * 86400_000);
+  return Number(r.changes ?? 0);
+}
+
 /**
  * Mẫu (ts, ms, ok, model) MỚI NHẤT cho histogram/tỉ lệ lỗi — LIMIT ngay trong SQL.
  * Trước đây /api/gateway/stats gọi usageRows() kéo TOÀN BỘ bản ghi tới 90 ngày vào JS
@@ -788,6 +891,8 @@ export const BACKUP_TABLES = {
   gateway_usage: 'history',
   /** Lịch sử quota theo thời gian — vẽ biểu đồ xu hướng. */
   quota_history: 'history',
+  /** Lịch sử rps/latency/error + sức khoẻ pool — nguồn 3 chart trang Metrics. */
+  metrics_history: 'history',
   /** Lần chạy flow (login/warmup) + log của chúng. */
   runs: 'history',
   run_logs: 'history',

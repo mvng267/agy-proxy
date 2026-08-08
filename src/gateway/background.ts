@@ -1,7 +1,8 @@
 import { config } from '../config.js';
-import { pruneQuotaHistory, pruneUsage } from '../store/db.js';
+import { pruneQuotaHistory, pruneUsage, recordMetrics, pruneMetricsHistory } from '../store/db.js';
 import { pool, savePersist, ensureReady, dispatcherFor, refreshQuota } from './pool.js';
 import { log, checkLiveAccount } from './engine.js';
+import { gatewayMetrics } from './metrics.js';
 
 /**
  * Các job nền của gateway: auto refresh quota/token, dò hạn mức Kiro, dọn lịch sử.
@@ -128,10 +129,46 @@ export function startGatewayBackground(): void {
   };
   scheduleKiroProbe();
 
+  /**
+   * Chụp metrics mỗi 60 giây vào DB.
+   *
+   * Vì sao cần: `gatewayMetrics` chỉ giữ cửa sổ trượt 5 phút TRONG RAM và tự xoá mẫu cũ,
+   * nên trang /metrics buộc phải tự tích luỹ điểm trong RAM trình duyệt — F5 là trắng, và
+   * restart server cũng mất sạch. Ghi xuống DB làm lịch sử bền vững.
+   *
+   * 60s chứ không phải 5s như nhịp poll của UI: 5s sinh ~17k dòng/ngày cho một thứ chỉ
+   * để vẽ đường xu hướng; 60s còn ~1.4k dòng và vẫn đủ mịn.
+   */
+  const sampleMetrics = () => {
+    try {
+      const now = Date.now();
+      const m = gatewayMetrics.snapshot(now);
+      // Dùng chính `pool.candidates()` mà /api/metrics dùng — tự đếm lại bằng tay sẽ lệch
+      // với con số hiển thị trên KPI (và `cooldownUntil` là epoch ms chứ không phải cờ).
+      recordMetrics({
+        // Làm tròn về mốc phút để điểm rơi đều trục thời gian; `ts` là PRIMARY KEY nên
+        // hai lần chụp trong cùng một phút sẽ đè nhau thay vì tạo dòng lệch nhịp.
+        ts: Math.floor(Date.now() / 60_000) * 60_000,
+        rps: m.rps,
+        errorRate: m.errorRate,
+        p50: m.latency?.p50 ?? null,
+        p95: m.latency?.p95 ?? null,
+        p99: m.latency?.p99 ?? null,
+        requests: m.requests,
+        errors: m.errors,
+        accTotal: pool.list().length,
+        accAvailable: pool.candidates(now).length,
+      });
+    } catch { /* mất một điểm không đáng để làm sập job nền */ }
+  };
+  sampleMetrics();
+  setInterval(sampleMetrics, 60_000).unref?.();
+
   // Dọn lịch sử cũ (theo cấu hình, mặc định 90 ngày): lúc boot + mỗi 24h.
   const prune = () => {
     try {
       pruneQuotaHistory(config.gateway.quota?.historyDays ?? 90);
+      pruneMetricsHistory(config.gateway.quota?.historyDays ?? 90);
       // gateway_usage TRƯỚC ĐÂY không bao giờ được dọn (pruneUsage có sẵn mà không
       // nơi nào gọi) — chỉ lớn dần mãi. 0 = giữ vĩnh viễn.
       pruneUsage(config.gateway.usageRetentionDays);

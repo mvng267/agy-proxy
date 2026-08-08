@@ -109,3 +109,19 @@ test('addColumnIfMissing: trả true lần đầu, false lần sau', () => {
   assert.equal(addColumnIfMissing(d, 'runs', 'note', 'TEXT'), false);
   d.close();
 });
+
+test('migration v4 tạo metrics_history đủ cột + idempotent', () => {
+  const d = mkDb();
+  runMigrations(d);
+
+  const cols = (d.prepare(`PRAGMA table_info(metrics_history)`).all() as any[]).map((c) => c.name);
+  assert.deepEqual(
+    cols.sort(),
+    ['acc_available', 'acc_total', 'error_rate', 'errors', 'p50', 'p95', 'p99', 'requests', 'rps', 'ts'],
+  );
+
+  // Chạy lại trên cùng DB không được ném (cùng lý do với phần đầu file: DB production
+  // thiếu khoá schemaVersion sẽ bị coi là v0 và chạy lại toàn bộ).
+  assert.doesNotThrow(() => runMigrations(d));
+  d.close();
+});
