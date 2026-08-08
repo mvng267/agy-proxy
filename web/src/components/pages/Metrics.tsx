@@ -63,6 +63,15 @@ interface Series {
   values: (number | null)[]
 }
 
+/**
+ * Biểu đồ đường tự vẽ — CỐ Ý giữ, đã cân nhắc thay bằng Recharts và quyết định không.
+ *
+ * Recharts không thắng ở đây: bản này đã dùng token màu nên tự đổi theo theme, đã có
+ * crosshair + tooltip đọc mọi series cùng lúc, và quan trọng nhất là NGẮT NÉT ở điểm
+ * `null` thay vì vẽ 0 giả — cửa sổ không có mẫu nào (gateway rảnh) khác hẳn cửa sổ có
+ * mẫu với độ trễ 0ms. Đổi sang Recharts sẽ phải dựng lại đúng ba thứ đó, đánh đổi lấy
+ * ~100 KB thư viện. Không đổi vì đổi.
+ */
 function LineChart({
   points, series, fmt, height = 160,
 }: {

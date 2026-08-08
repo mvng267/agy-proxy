@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react"
 import { PageHeader } from "@/components/common"
+import { DonutStat } from "@/components/common/charts"
 import {
   Gauge,
   RefreshCw,
@@ -81,33 +82,6 @@ function claudePct(a: PoolAccount): number | null {
 const PAGE_SIZES = [25, 50, 100]
 
 // ── Donut Chart ────────────────────────────────────────────────────────
-
-function QuotaDonut({ label, pct, color, size = 100, strokeWidth = 10 }: {
-  label: string; pct: number; color: string; size?: number; strokeWidth?: number
-}) {
-  const radius = (size - strokeWidth) / 2
-  const circumference = 2 * Math.PI * radius
-  const center = size / 2
-  const filled = circumference * (pct / 100)
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="transform -rotate-90">
-          <circle cx={center} cy={center} r={radius} fill="none" stroke="var(--muted)" strokeWidth={strokeWidth} />
-          {pct > 0 && (
-            <circle cx={center} cy={center} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth}
-              strokeDasharray={`${filled} ${circumference - filled}`} strokeDashoffset={0} strokeLinecap="round"
-              className="transition-all duration-700" />
-          )}
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-lg font-bold text-foreground tabular-nums">{Math.round(pct)}%</span>
-        </div>
-      </div>
-      <span className="text-xs text-muted-foreground font-medium">{label}</span>
-    </div>
-  )
-}
 
 // ── Sparkline ─────────────────────────────────────────────────────────
 
@@ -382,7 +356,7 @@ export function Quota() {
         </Card>
         <Card className="bg-card border-border">
           <CardContent className="pt-4 flex items-center gap-4">
-            {avgGemini != null && <QuotaDonut label="Gemini TB" pct={avgGemini} color="var(--chart-success)" size={80} strokeWidth={8} />}
+            {avgGemini != null && <DonutStat label="Gemini TB" pct={avgGemini} tone="success" size={80} strokeWidth={8} />}
             <div className="flex-1">
               <QuotaBar pct={avgGemini ?? undefined} />
               <p className="text-[10px] text-muted-foreground mt-1">Trung bình pool</p>
@@ -391,7 +365,7 @@ export function Quota() {
         </Card>
         <Card className="bg-card border-border">
           <CardContent className="pt-4 flex items-center gap-4">
-            {avgClaude != null && <QuotaDonut label="Claude TB" pct={avgClaude} color="var(--chart-info)" size={80} strokeWidth={8} />}
+            {avgClaude != null && <DonutStat label="Claude TB" pct={avgClaude} tone="info" size={80} strokeWidth={8} />}
             <div className="flex-1">
               <QuotaBar pct={avgClaude ?? undefined} />
               <p className="text-[10px] text-muted-foreground mt-1">Trung bình pool</p>

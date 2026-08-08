@@ -11,7 +11,7 @@ import {
   Globe,
 } from "lucide-react"
 import { KpiCard, PageHeader } from "@/components/common"
-import { PoolDonut, RankBar, SegmentBar, TimeSeries } from "@/components/common/charts"
+import { DonutStat, PoolDonut, RankBar, SegmentBar, TimeSeries } from "@/components/common/charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -138,36 +138,6 @@ function reqOf(item: { requests?: number; count?: number }): number {
 
 
 // ── SVG Donut ──────────────────────────────────────────────────────────
-
-function Donut({ pct, label }: { pct?: number; label: string }) {
-  const p = pct ?? 0
-  const r = 34
-  const c = 2 * Math.PI * r
-  const off = c * (1 - p / 100)
-  // Ngưỡng quota: nhiều → khoẻ, ít → cảnh báo, cạn → nguy hiểm.
-  const col = p >= 50 ? "var(--chart-success)" : p >= 20 ? "var(--chart-warning)" : "var(--chart-danger)"
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <svg viewBox="0 0 90 90" className="w-20 h-20">
-        <circle cx="45" cy="45" r={r} fill="none" stroke="var(--muted)" strokeWidth="9" />
-        <circle
-          cx="45" cy="45" r={r} fill="none"
-          stroke={pct == null ? "var(--chart-muted)" : col} strokeWidth="9"
-          strokeLinecap="round"
-          strokeDasharray={`${c.toFixed(1)}`}
-          strokeDashoffset={off.toFixed(1)}
-          transform="rotate(-90 45 45)"
-          className="transition-all duration-700"
-        />
-        {/* Trước đây fill là màu sáng cố định — trên nền sáng chữ gần như vô hình. */}
-        <text x="45" y="50" textAnchor="middle" fill="var(--foreground)" fontSize="14" fontWeight="600">
-          {pct == null ? "—" : `${p}%`}
-        </text>
-      </svg>
-      <span className="text-xs text-muted-foreground">{label}</span>
-    </div>
-  )
-}
 
 // ── Stacked health bar ─────────────────────────────────────────────────
 
@@ -529,13 +499,13 @@ export function Overview() {
           <CardContent>
             <div className="flex items-center gap-6 flex-wrap">
               {quota.geminiAvg != null && (
-                <Donut pct={quota.geminiAvg} label="Gemini" />
+                <DonutStat pct={quota.geminiAvg} label="Gemini" />
               )}
               {quota.thirdPartyAvg != null && (
-                <Donut pct={quota.thirdPartyAvg} label="Claude/GPT" />
+                <DonutStat pct={quota.thirdPartyAvg} label="Claude/GPT" />
               )}
               {(quota.providers ?? []).map((p) => (
-                <Donut key={p.label} pct={p.pct} label={p.label} />
+                <DonutStat key={p.label} pct={p.pct} label={p.label} />
               ))}
             </div>
             <div className="mt-3 space-y-0.5 text-xs text-muted-foreground">

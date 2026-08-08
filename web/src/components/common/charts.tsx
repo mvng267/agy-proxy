@@ -134,6 +134,65 @@ export interface Segment {
 }
 
 /**
+ * Vòng tròn MỘT cung + phần trăm ở giữa + nhãn dưới (hạn mức Gemini/Claude).
+ *
+ * Gộp hai bản từng trùng nhau: `QuotaDonut` (Quota.tsx) và `Donut` (Overview.tsx) —
+ * cùng vẽ một vòng, cùng đặt % ở giữa, chỉ khác vài con số.
+ *
+ * Giữ lại hai điểm mạnh của bản Overview mà bản Quota không có:
+ *  - màu TỰ chọn theo ngưỡng (nhiều → khoẻ, ít → cảnh báo, cạn → nguy hiểm), nên người
+ *    xem biết ngay tình trạng mà không phải đọc số;
+ *  - `pct == null` (chưa nạp hạn mức) vẽ "—" và tô xám, khác hẳn 0% (đã nạp và đã cạn).
+ *    Nhập nhèm hai trạng thái này từng khiến pool còn nguyên quota trông như đã hết.
+ */
+export function DonutStat({
+  pct,
+  label,
+  size = 96,
+  strokeWidth = 9,
+  tone,
+}: {
+  pct?: number | null
+  label?: string
+  size?: number
+  strokeWidth?: number
+  /** Ép màu; bỏ trống thì tự chọn theo ngưỡng. */
+  tone?: "success" | "warning" | "danger" | "info" | "muted"
+}) {
+  const r = (size - strokeWidth) / 2
+  const c = 2 * Math.PI * r
+  const p = Math.max(0, Math.min(100, pct ?? 0))
+  const filled = c * (p / 100)
+  const auto = p >= 50 ? "success" : p >= 20 ? "warning" : "danger"
+  const stroke = `var(--chart-${pct == null ? "muted" : tone ?? auto})`
+
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90">
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--muted)" strokeWidth={strokeWidth} />
+          {pct != null && p > 0 ? (
+            <circle
+              cx={size / 2} cy={size / 2} r={r} fill="none"
+              stroke={stroke} strokeWidth={strokeWidth}
+              strokeDasharray={`${filled} ${c - filled}`}
+              strokeLinecap="round"
+              className="transition-all duration-700"
+            />
+          ) : null}
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-base font-semibold tabular-nums text-foreground">
+            {pct == null ? "—" : `${Math.round(p)}%`}
+          </span>
+        </div>
+      </div>
+      {label ? <span className="text-xs text-muted-foreground">{label}</span> : null}
+    </div>
+  )
+}
+
+/**
  * Vòng tròn nhiều cung + số ở giữa (sức khoẻ pool).
  *
  * Dùng NHÓM TOKEN NGỮ NGHĨA chứ không phải thang xám `--chart-1..5`: ba cung
