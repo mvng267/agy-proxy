@@ -34,13 +34,13 @@ function CodeBlock({ code, lang = "bash" }: CodeBlockProps) {
   }
 
   return (
-    <div className="relative group rounded-xl bg-slate-950 border border-slate-800 overflow-hidden">
+    <div className="relative group rounded-xl bg-background border border-border overflow-hidden">
       {lang && (
-        <div className="flex items-center justify-between px-4 py-1.5 border-b border-slate-800 bg-slate-900/50">
-          <span className="text-[10px] text-slate-500 font-mono uppercase">{lang}</span>
+        <div className="flex items-center justify-between px-4 py-1.5 border-b border-border bg-card/50">
+          <span className="text-[10px] text-muted-foreground font-mono uppercase">{lang}</span>
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
           >
             {copied ? (
               <>
@@ -56,7 +56,7 @@ function CodeBlock({ code, lang = "bash" }: CodeBlockProps) {
           </button>
         </div>
       )}
-      <pre className="p-4 text-xs text-slate-300 overflow-x-auto leading-relaxed whitespace-pre">
+      <pre className="p-4 text-xs text-foreground overflow-x-auto leading-relaxed whitespace-pre">
         <code>{code}</code>
       </pre>
     </div>
@@ -77,10 +77,10 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card className="bg-card border-border">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-          <Icon className="h-4 w-4 text-slate-500" />
+        <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+          <Icon className="h-4 w-4 text-muted-foreground" />
           {title}
           {badge && (
             <Badge className="bg-orange-500/15 text-orange-400 border-none text-[10px]">
@@ -101,13 +101,13 @@ export function CLITools() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <Terminal className="h-4 w-4 text-slate-500" />
-        <h2 className="text-sm font-medium text-slate-300">CLI Tools</h2>
+        <Terminal className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-medium text-foreground">CLI Tools</h2>
       </div>
 
       {/* Quick setup */}
       <Section icon={Terminal} title="Cài đặt nhanh" badge="Setup">
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-muted-foreground">
           Cài Claude Code trỏ vào agyproxy để dùng nhiều account:
         </p>
         <CodeBlock
@@ -127,20 +127,20 @@ echo 'ANTHROPIC_API_KEY=placeholder' >> ~/.bashrc`}
         <div className="flex items-start gap-2 bg-orange-500/5 border border-orange-500/20 rounded-lg px-3 py-2.5">
           <ChevronRight className="h-3.5 w-3.5 text-orange-400 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-orange-300">
-            <strong>Lưu ý:</strong> base URL bỏ <code className="bg-slate-800 px-1 rounded">/v1</code> — agyproxy tự thêm prefix đúng theo provider.
+            <strong>Lưu ý:</strong> base URL bỏ <code className="bg-muted px-1 rounded">/v1</code> — agyproxy tự thêm prefix đúng theo provider.
           </p>
         </div>
       </Section>
 
       {/* Gọi theo task */}
       <Section icon={Zap} title="Gọi Claude theo task">
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-muted-foreground">
           Ví dụ gọi API trực tiếp qua agyproxy:
         </p>
 
         <div className="space-y-3">
           <div>
-            <p className="text-xs text-slate-500 mb-2">Basic chat request</p>
+            <p className="text-xs text-muted-foreground mb-2">Basic chat request</p>
             <CodeBlock
               lang="bash"
               code={`curl http://localhost:7788/v1/chat/completions \\
@@ -154,7 +154,7 @@ echo 'ANTHROPIC_API_KEY=placeholder' >> ~/.bashrc`}
           </div>
 
           <div>
-            <p className="text-xs text-slate-500 mb-2">Stream response</p>
+            <p className="text-xs text-muted-foreground mb-2">Stream response</p>
             <CodeBlock
               lang="bash"
               code={`curl http://localhost:7788/v1/chat/completions \\
@@ -168,7 +168,7 @@ echo 'ANTHROPIC_API_KEY=placeholder' >> ~/.bashrc`}
           </div>
 
           <div>
-            <p className="text-xs text-slate-500 mb-2">Dùng Python SDK</p>
+            <p className="text-xs text-muted-foreground mb-2">Dùng Python SDK</p>
             <CodeBlock
               lang="python"
               code={`import anthropic
@@ -189,17 +189,17 @@ print(message.content[0].text)`}
         </div>
       </Section>
 
-      <Separator className="bg-slate-800" />
+      <Separator className="bg-muted" />
 
       {/* Combo management */}
       <Section icon={Shuffle} title="Quản lý Combo" badge="Advanced">
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-muted-foreground">
           Combo cho phép nhóm nhiều models với chiến lược round-robin hoặc fallback:
         </p>
 
         <div className="space-y-3">
           <div>
-            <p className="text-xs text-slate-500 mb-2">Tạo combo mới</p>
+            <p className="text-xs text-muted-foreground mb-2">Tạo combo mới</p>
             <CodeBlock
               lang="bash"
               code={`curl -X POST http://localhost:7788/api/combos \\
@@ -214,7 +214,7 @@ print(message.content[0].text)`}
           </div>
 
           <div>
-            <p className="text-xs text-slate-500 mb-2">Liệt kê combos</p>
+            <p className="text-xs text-muted-foreground mb-2">Liệt kê combos</p>
             <CodeBlock
               lang="bash"
               code={`curl http://localhost:7788/api/combos`}
@@ -222,7 +222,7 @@ print(message.content[0].text)`}
           </div>
 
           <div>
-            <p className="text-xs text-slate-500 mb-2">Xoá combo</p>
+            <p className="text-xs text-muted-foreground mb-2">Xoá combo</p>
             <CodeBlock
               lang="bash"
               code={`curl -X DELETE http://localhost:7788/api/combos/my-combo`}
@@ -230,7 +230,7 @@ print(message.content[0].text)`}
           </div>
 
           <div>
-            <p className="text-xs text-slate-500 mb-2">Dùng combo trong request</p>
+            <p className="text-xs text-muted-foreground mb-2">Dùng combo trong request</p>
             <CodeBlock
               lang="bash"
               code={`# Dùng combo id làm model name
@@ -247,7 +247,7 @@ curl http://localhost:7788/v1/chat/completions \\
 
       {/* Setup Hermes */}
       <Section icon={Terminal} title="Setup Hermes / OmniRoute">
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-muted-foreground">
           Kết nối Hermes để dùng nhiều provider:
         </p>
         <CodeBlock
@@ -265,19 +265,19 @@ npm start`}
         />
 
         <div className="grid grid-cols-2 gap-3 mt-2">
-          <div className="bg-slate-800/50 rounded-lg px-3 py-2">
-            <p className="text-[10px] text-slate-500 mb-1">Endpoint</p>
+          <div className="bg-muted/50 rounded-lg px-3 py-2">
+            <p className="text-[10px] text-muted-foreground mb-1">Endpoint</p>
             <code className="text-xs text-orange-400">POST /v1/chat/completions</code>
           </div>
-          <div className="bg-slate-800/50 rounded-lg px-3 py-2">
-            <p className="text-[10px] text-slate-500 mb-1">Events</p>
+          <div className="bg-muted/50 rounded-lg px-3 py-2">
+            <p className="text-[10px] text-muted-foreground mb-1">Events</p>
             <code className="text-xs text-blue-400">GET /events (SSE)</code>
           </div>
         </div>
       </Section>
 
       {/* Tips */}
-      <Card className="bg-slate-800/30 border-slate-800">
+      <Card className="bg-muted/30 border-border">
         <CardContent className="pt-4">
           <ul className="space-y-2">
             {[
@@ -287,7 +287,7 @@ npm start`}
               "Quota summary có sẵn tại /api/gateway/quota-summary",
               "Models list tại /api/gateway/models — trả về tất cả model hỗ trợ",
             ].map((tip, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs text-slate-400">
+              <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
                 <ChevronRight className="h-3 w-3 text-orange-500 flex-shrink-0 mt-0.5" />
                 {tip}
               </li>

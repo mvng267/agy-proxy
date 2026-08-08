@@ -1,6 +1,6 @@
 {
   "name": "agy-proxy",
-  "version": "2.16.2",
+  "version": "2.17.0",
   "type": "module",
   "description": "Antigravity gateway: cổng OpenAI-compatible gom pool tài khoản Antigravity + dashboard quản lý",
   "bin": {

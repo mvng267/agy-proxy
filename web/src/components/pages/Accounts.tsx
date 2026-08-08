@@ -62,7 +62,7 @@ function fmtAgo(ms?: number) {
 }
 
 function statusBadge(status?: string) {
-  if (!status) return <Badge className="bg-slate-700 text-slate-500 border-none text-[10px]">—</Badge>
+  if (!status) return <Badge className="bg-muted text-muted-foreground border-none text-[10px]">—</Badge>
   const s = status.toLowerCase()
   if (s === "ok" || s === "active" || s === "done")
     return <Badge className="bg-emerald-500/15 text-emerald-400 border-none text-[10px]">{status}</Badge>
@@ -72,7 +72,7 @@ function statusBadge(status?: string) {
     return <Badge className="bg-red-500/15 text-red-400 border-none text-[10px]">{status}</Badge>
   if (s === "cooldown")
     return <Badge className="bg-orange-500/15 text-orange-400 border-none text-[10px]">{status}</Badge>
-  return <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">{status}</Badge>
+  return <Badge className="bg-muted text-muted-foreground border-none text-[10px]">{status}</Badge>
 }
 
 // ── Accounts Page ──────────────────────────────────────────────────────
@@ -256,8 +256,8 @@ export function Accounts() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-10 w-full bg-slate-800" />
-        <Skeleton className="h-64 w-full bg-slate-800" />
+        <Skeleton className="h-10 w-full bg-muted" />
+        <Skeleton className="h-64 w-full bg-muted" />
       </div>
     )
   }
@@ -266,7 +266,7 @@ export function Accounts() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <AlertTriangle className="h-8 w-8 text-red-500" />
-        <p className="text-sm text-slate-400">Error: {error}</p>
+        <p className="text-sm text-muted-foreground">Error: {error}</p>
         <button onClick={fetchAccounts} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5">
           <RefreshCw className="h-3 w-3" /> Retry
         </button>
@@ -280,27 +280,27 @@ export function Accounts() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-wrap">
         {/* Search */}
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="Tìm email…"
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
-            className="pl-9 bg-slate-900 border-slate-800 text-slate-200 placeholder:text-slate-600 h-9 text-sm"
+            className="pl-9 bg-card border-border text-foreground placeholder:text-muted-foreground h-9 text-sm"
           />
         </div>
 
         {/* Flow checkboxes */}
-        <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5">
-          <span className="text-xs text-slate-500">Luồng:</span>
+        <div className="flex items-center gap-3 bg-card border border-border rounded-lg px-3 py-1.5">
+          <span className="text-xs text-muted-foreground">Luồng:</span>
           {FLOWS.map(f => (
             <label key={f.key} className="flex items-center gap-1.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={selectedFlows.has(f.key)}
                 onChange={() => toggleFlow(f.key)}
-                className="rounded border-slate-600 bg-slate-800 text-orange-500"
+                className="rounded border-border bg-muted text-orange-500"
               />
-              <span className="text-xs text-slate-300">{f.label}</span>
+              <span className="text-xs text-foreground">{f.label}</span>
             </label>
           ))}
         </div>
@@ -311,16 +311,16 @@ export function Accounts() {
             type="checkbox"
             checked={noProxy}
             onChange={e => setNoProxy(e.target.checked)}
-            className="rounded border-slate-600 bg-slate-800"
+            className="rounded border-border bg-muted"
           />
-          <span className="text-xs text-slate-400">Không dùng proxy</span>
+          <span className="text-xs text-muted-foreground">Không dùng proxy</span>
         </label>
 
         {/* Status filter */}
         <select
           value={statusFilter}
           onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
-          className="h-9 px-2 rounded-md bg-slate-900 border border-slate-800 text-slate-300 text-sm focus:outline-none"
+          className="h-9 px-2 rounded-md bg-card border border-border text-foreground text-sm focus:outline-none"
         >
           <option value="all">Tất cả</option>
           <option value="error">Lỗi / Failed</option>
@@ -328,14 +328,14 @@ export function Accounts() {
           <option value="done">Done</option>
         </select>
 
-        <Button size="sm" onClick={fetchAccounts} className="border border-slate-700 bg-transparent text-slate-400 hover:text-orange-400 h-9 text-xs gap-1">
+        <Button size="sm" onClick={fetchAccounts} className="border border-border bg-transparent text-muted-foreground hover:text-orange-400 h-9 text-xs gap-1">
           <RefreshCw className="h-3 w-3" /> Refresh
         </Button>
       </div>
 
       {/* Bulk actions bar — always visible */}
-      <div className="flex flex-wrap items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
-        <span className="text-xs text-slate-500 mr-1">
+      <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-lg px-3 py-2">
+        <span className="text-xs text-muted-foreground mr-1">
           {selected.size > 0 ? `${selected.size} đã chọn` : "Bulk:"}
         </span>
         <Button
@@ -348,14 +348,14 @@ export function Accounts() {
         <Button
           size="sm"
           onClick={handleRetryFailed}
-          className="bg-slate-700 hover:bg-slate-600 text-slate-200 h-7 text-xs gap-1"
+          className="bg-muted hover:bg-muted-foreground/40 text-foreground h-7 text-xs gap-1"
         >
           <RotateCcw className="h-3 w-3" /> Retry Failed
         </Button>
         <Button
           size="sm"
           onClick={handleStop}
-          className="bg-slate-700 hover:bg-slate-600 text-slate-200 h-7 text-xs gap-1"
+          className="bg-muted hover:bg-muted-foreground/40 text-foreground h-7 text-xs gap-1"
         >
           <Square className="h-3 w-3" /> Stop
         </Button>
@@ -372,10 +372,10 @@ export function Accounts() {
       </div>
 
       {/* Table */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-            <Users className="h-4 w-4 text-slate-500" />
+          <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
             Tài khoản ({filtered.length})
           </CardTitle>
         </CardHeader>
@@ -383,28 +383,28 @@ export function Accounts() {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-800 hover:bg-transparent">
+                <TableRow className="border-border hover:bg-transparent">
                   <TableHead className="w-8">
                     <input
                       type="checkbox"
                       checked={pageRows.length > 0 && selected.size === pageRows.length}
                       onChange={toggleAll}
-                      className="rounded border-slate-600 bg-slate-800"
+                      className="rounded border-border bg-muted"
                     />
                   </TableHead>
-                  <TableHead className="text-slate-500 text-xs">Email</TableHead>
-                  <TableHead className="text-slate-500 text-xs">Proxy</TableHead>
+                  <TableHead className="text-muted-foreground text-xs">Email</TableHead>
+                  <TableHead className="text-muted-foreground text-xs">Proxy</TableHead>
                   {FLOWS.map(f => (
-                    <TableHead key={f.key} className="text-slate-500 text-xs">{f.label}</TableHead>
+                    <TableHead key={f.key} className="text-muted-foreground text-xs">{f.label}</TableHead>
                   ))}
-                  <TableHead className="text-slate-500 text-xs">Last login</TableHead>
-                  <TableHead className="text-slate-500 text-xs text-right">Actions</TableHead>
+                  <TableHead className="text-muted-foreground text-xs">Last login</TableHead>
+                  <TableHead className="text-muted-foreground text-xs text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {pageRows.length === 0 ? (
-                  <TableRow className="border-slate-800">
-                    <TableCell colSpan={4 + FLOWS.length} className="text-center text-slate-600 text-xs py-8">
+                  <TableRow className="border-border">
+                    <TableCell colSpan={4 + FLOWS.length} className="text-center text-muted-foreground text-xs py-8">
                       Không có tài khoản khớp
                     </TableCell>
                   </TableRow>
@@ -412,17 +412,17 @@ export function Accounts() {
                   pageRows.map(acc => (
                     <TableRow
                       key={acc.email}
-                      className={`border-slate-800 hover:bg-slate-800/50 ${selected.has(acc.email) ? "bg-orange-500/5" : ""}`}
+                      className={`border-border hover:bg-muted/50 ${selected.has(acc.email) ? "bg-orange-500/5" : ""}`}
                     >
                       <TableCell>
                         <input
                           type="checkbox"
                           checked={selected.has(acc.email)}
                           onChange={() => toggleSelect(acc.email)}
-                          className="rounded border-slate-600 bg-slate-800"
+                          className="rounded border-border bg-muted"
                         />
                       </TableCell>
-                      <TableCell className="text-sm text-slate-200 font-mono max-w-[220px] truncate">
+                      <TableCell className="text-sm text-foreground font-mono max-w-[220px] truncate">
                         {acc.email}
                       </TableCell>
                       {/* Proxy dropdown */}
@@ -430,7 +430,7 @@ export function Accounts() {
                         <select
                           value={acc.proxy ?? ""}
                           onChange={e => setProxy(acc.email, e.target.value)}
-                          className="h-7 px-2 rounded bg-slate-800 border border-slate-700 text-slate-300 text-xs focus:outline-none max-w-[120px]"
+                          className="h-7 px-2 rounded bg-muted border border-border text-foreground text-xs focus:outline-none max-w-[120px]"
                         >
                           <option value="">(none)</option>
                           {proxies.map(p => (
@@ -444,7 +444,7 @@ export function Accounts() {
                           {statusBadge(acc[f.col])}
                         </TableCell>
                       ))}
-                      <TableCell className="text-xs text-slate-500">
+                      <TableCell className="text-xs text-muted-foreground">
                         {fmtAgo(acc.lastLogin)}
                       </TableCell>
                       <TableCell>
@@ -453,7 +453,7 @@ export function Accounts() {
                           <button
                             title="Login (chạy luồng đã chọn)"
                             onClick={() => runPipeline(acc.email)}
-                            className="h-6 px-2 flex items-center gap-1 rounded hover:bg-slate-700 text-slate-400 hover:text-emerald-400 text-xs"
+                            className="h-6 px-2 flex items-center gap-1 rounded hover:bg-muted text-muted-foreground hover:text-emerald-400 text-xs"
                           >
                             <Play className="h-3 w-3" /> Login
                           </button>
@@ -461,7 +461,7 @@ export function Accounts() {
                           <button
                             title="Xoá account"
                             onClick={() => deleteAccount(acc.email)}
-                            className="h-6 w-6 flex items-center justify-center rounded hover:bg-red-900/30 text-slate-500 hover:text-red-400"
+                            className="h-6 w-6 flex items-center justify-center rounded hover:bg-red-900/30 text-muted-foreground hover:text-red-400"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
@@ -476,9 +476,9 @@ export function Accounts() {
 
           {/* Pager */}
           {filtered.length > 0 && (
-            <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+            <div className="flex items-center justify-between pt-4 border-t border-border">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted-foreground">
                   Trang {safePage}/{totalPages} · {filtered.length} rows
                 </span>
                 <select
@@ -488,7 +488,7 @@ export function Accounts() {
                     setPage(1)
                     localStorage.setItem("vs_accSize", e.target.value)
                   }}
-                  className="h-7 px-2 rounded bg-slate-800 border border-slate-700 text-slate-300 text-xs focus:outline-none"
+                  className="h-7 px-2 rounded bg-muted border border-border text-foreground text-xs focus:outline-none"
                 >
                   {PAGE_SIZES.map(s => <option key={s} value={s}>{s}/trang</option>)}
                 </select>
@@ -497,7 +497,7 @@ export function Accounts() {
                 <button
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={safePage <= 1}
-                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 disabled:opacity-30"
+                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground disabled:opacity-30"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </button>
@@ -507,7 +507,7 @@ export function Accounts() {
                     <button
                       key={p}
                       onClick={() => setPage(p)}
-                      className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-orange-500 text-white" : "text-slate-400 hover:bg-slate-800"}`}
+                      className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-orange-500 text-white" : "text-muted-foreground hover:bg-muted"}`}
                     >
                       {p}
                     </button>
@@ -516,7 +516,7 @@ export function Accounts() {
                 <button
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                   disabled={safePage >= totalPages}
-                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 disabled:opacity-30"
+                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground disabled:opacity-30"
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
                 </button>

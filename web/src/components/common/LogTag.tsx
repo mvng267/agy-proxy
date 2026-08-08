@@ -24,7 +24,7 @@ const TONE: Record<TagTone, string> = {
   account: "bg-sky-500/15 text-sky-300",
   key: "bg-fuchsia-500/15 text-fuchsia-300",
   combo: "bg-teal-500/15 text-teal-300",
-  muted: "bg-slate-700/60 text-slate-300",
+  muted: "bg-muted/60 text-foreground",
 }
 
 export function LogTag({

@@ -153,14 +153,14 @@ function LineChart({
 
       {hp && hover != null && (
         <div
-          className="pointer-events-none absolute top-1 z-10 rounded-md border border-border bg-slate-950/95 px-2.5 py-1.5 text-xs shadow-lg"
+          className="pointer-events-none absolute top-1 z-10 rounded-md border border-border bg-background/95 px-2.5 py-1.5 text-xs shadow-lg"
           style={hover > n / 2 ? { right: `${100 - (x(hover) / W) * 100 + 2}%` } : { left: `${(x(hover) / W) * 100 + 2}%` }}
         >
           <p className="mb-1 font-mono text-[10px] text-muted-foreground">{fmtClock(hp.t)}</p>
           {series.map((s) => {
             const v = s.values[hover]
             return (
-              <p key={s.name} className="flex items-center gap-1.5 tabular-nums text-slate-200">
+              <p key={s.name} className="flex items-center gap-1.5 tabular-nums text-foreground">
                 <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
                 {s.name}: {v == null ? "—" : fmt(v)}
               </p>

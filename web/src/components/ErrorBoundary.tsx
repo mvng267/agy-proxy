@@ -43,8 +43,8 @@ export class ErrorBoundary extends Component<Props, State> {
             </svg>
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-slate-100">Có lỗi xảy ra</h2>
-            <p className="text-sm text-slate-500 mt-1 max-w-md break-words">
+            <h2 className="text-lg font-semibold text-foreground">Có lỗi xảy ra</h2>
+            <p className="text-sm text-muted-foreground mt-1 max-w-md break-words">
               {this.state.message || "Đã xảy ra lỗi không xác định."}
             </p>
           </div>

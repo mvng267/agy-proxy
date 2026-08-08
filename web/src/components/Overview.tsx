@@ -145,7 +145,7 @@ function SvgBars({
   height?: number
   color?: string
 }) {
-  if (!items.length) return <p className="text-xs text-slate-600 text-center py-4">Chưa có dữ liệu</p>
+  if (!items.length) return <p className="text-xs text-muted-foreground text-center py-4">Chưa có dữ liệu</p>
   const w = 300
   const pad = 8
   const gap = items.length > 20 ? 1 : 2
@@ -192,7 +192,7 @@ function Donut({ pct, label }: { pct?: number; label: string }) {
           {pct == null ? "—" : `${p}%`}
         </text>
       </svg>
-      <span className="text-xs text-slate-400">{label}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
     </div>
   )
 }
@@ -205,7 +205,7 @@ function StackedBar({
   segments: Array<{ label: string; value: number; color: string }>
 }) {
   const total = segments.reduce((s, x) => s + (x.value || 0), 0)
-  if (!total) return <div className="h-3 rounded-full bg-slate-800 w-full" />
+  if (!total) return <div className="h-3 rounded-full bg-muted w-full" />
   return (
     <div className="space-y-1.5">
       <div className="flex h-3 rounded-full overflow-hidden">
@@ -220,7 +220,7 @@ function StackedBar({
       </div>
       <div className="flex items-center gap-3 flex-wrap">
         {segments.map((s, i) => (
-          <span key={i} className="flex items-center gap-1 text-[10px] text-slate-400">
+          <span key={i} className="flex items-center gap-1 text-[10px] text-muted-foreground">
             <span className="h-2 w-2 rounded-sm" style={{ background: s.color }} />
             {s.label} {s.value}
           </span>
@@ -237,10 +237,10 @@ function HBar({ label, value, max, color = "bg-orange-500" }: { label: string; v
   return (
     <div className="space-y-0.5">
       <div className="flex items-center justify-between text-xs">
-        <span className="text-slate-400 font-mono truncate max-w-[200px]" title={label}>{label}</span>
-        <span className="text-slate-300 tabular-nums ml-4 flex-shrink-0">{fmtNum(value)}</span>
+        <span className="text-muted-foreground font-mono truncate max-w-[200px]" title={label}>{label}</span>
+        <span className="text-foreground tabular-nums ml-4 flex-shrink-0">{fmtNum(value)}</span>
       </div>
-      <div className="h-1 rounded-full bg-slate-800 overflow-hidden">
+      <div className="h-1 rounded-full bg-muted overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all duration-500`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -261,7 +261,7 @@ function DonutChart({
   if (total === 0) {
     return (
       <svg width={size} height={size} className="transform -rotate-90">
-        <circle cx={center} cy={center} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-slate-700" />
+        <circle cx={center} cy={center} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-border" />
       </svg>
     )
   }
@@ -293,8 +293,8 @@ function DonutChart({
         )}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-xl font-bold text-slate-100">{active}</span>
-        <span className="text-[10px] text-slate-500 uppercase tracking-wider">active</span>
+        <span className="text-xl font-bold text-foreground">{active}</span>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">active</span>
       </div>
     </div>
   )
@@ -320,13 +320,13 @@ function KpiCard({
     red: "bg-red-500/10 text-red-500",
   }
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card className="bg-card border-border">
       <CardContent className="pt-4">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{title}</p>
-            <p className="text-2xl font-bold text-slate-100 tabular-nums">{value}</p>
-            {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
+            <p className="text-2xl font-bold text-foreground tabular-nums">{value}</p>
+            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
           </div>
           <div className={`p-2 rounded-lg ${colorMap[color]}`}>
             <Icon className="h-4 w-4" />
@@ -336,7 +336,7 @@ function KpiCard({
           <div className="mt-3 flex items-center gap-1.5 text-xs">
             {trend === "up" && <TrendingUp className="h-3 w-3 text-emerald-500" />}
             {trend === "down" && <TrendingDown className="h-3 w-3 text-red-500" />}
-            <span className={trend === "up" ? "text-emerald-500" : trend === "down" ? "text-red-500" : "text-slate-500"}>
+            <span className={trend === "up" ? "text-emerald-500" : trend === "down" ? "text-red-500" : "text-muted-foreground"}>
               {trendLabel}
             </span>
           </div>
@@ -355,11 +355,11 @@ function ProviderHealthCard({
 }) {
   const inactive = total - active - cooldown
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card className="bg-card border-border">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-            <Server className="h-4 w-4 text-slate-500" />
+          <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Server className="h-4 w-4 text-muted-foreground" />
             {name}
           </CardTitle>
           <Badge variant={active > 0 ? "default" : "destructive"} className={active > 0 ? "bg-emerald-500/15 text-emerald-400 border-none text-[10px]" : "text-[10px]"}>
@@ -374,14 +374,14 @@ function ProviderHealthCard({
             {[
               { label: "Active", value: active, color: "bg-emerald-500" },
               { label: "Cooldown", value: cooldown, color: "bg-orange-500" },
-              { label: "Inactive", value: inactive, color: "bg-slate-600" },
+              { label: "Inactive", value: inactive, color: "bg-muted-foreground/40" },
             ].map((row) => (
               <div key={row.label} className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <span className={`h-2 w-2 rounded-full ${row.color}`} />
-                  <span className="text-slate-400">{row.label}</span>
+                  <span className="text-muted-foreground">{row.label}</span>
                 </span>
-                <span className="font-medium text-slate-200 tabular-nums">{row.value}</span>
+                <span className="font-medium text-foreground tabular-nums">{row.value}</span>
               </div>
             ))}
           </div>
@@ -397,32 +397,32 @@ function PoolHealthCard({ total, active, cooldown }: { total: number; active: nu
   const pctActive = total > 0 ? Math.round((active / total) * 100) : 0
   const pctCooldown = total > 0 ? Math.round((cooldown / total) * 100) : 0
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card className="bg-card border-border">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-          <Activity className="h-4 w-4 text-slate-500" />
+        <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+          <Activity className="h-4 w-4 text-muted-foreground" />
           Pool Health
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-400">Active</span>
+            <span className="text-muted-foreground">Active</span>
             <span className="text-emerald-400 font-medium tabular-nums">{active} / {total} ({pctActive}%)</span>
           </div>
           <Progress value={pctActive}>
-            <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-800">
+            <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
               <div className="h-full bg-emerald-500 transition-all duration-500 rounded-full" style={{ width: `${pctActive}%` }} />
             </div>
           </Progress>
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-400">Cooldown</span>
+            <span className="text-muted-foreground">Cooldown</span>
             <span className="text-orange-400 font-medium tabular-nums">{cooldown} / {total} ({pctCooldown}%)</span>
           </div>
           <Progress value={pctCooldown}>
-            <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-800">
+            <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
               <div className="h-full bg-orange-500 transition-all duration-500 rounded-full" style={{ width: `${pctCooldown}%` }} />
             </div>
           </Progress>
@@ -437,25 +437,25 @@ function PoolHealthCard({ total, active, cooldown }: { total: number; active: nu
 function TopModelsCard({ models }: { models: Array<{ model: string; count: number; requests?: number }> }) {
   const maxCount = Math.max(...models.map((m) => m.requests ?? m.count), 1)
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card className="bg-card border-border">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-          <Zap className="h-4 w-4 text-slate-500" />
+        <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+          <Zap className="h-4 w-4 text-muted-foreground" />
           Top Models (7D)
         </CardTitle>
       </CardHeader>
       <CardContent>
         {models.length === 0 ? (
-          <p className="text-xs text-slate-600 text-center py-4">No data</p>
+          <p className="text-xs text-muted-foreground text-center py-4">No data</p>
         ) : (
           <div className="space-y-3">
             {models.slice(0, 6).map((m) => (
               <div key={m.model} className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 truncate max-w-[60%] font-mono">{m.model}</span>
-                  <span className="text-slate-300 font-medium tabular-nums">{(m.requests ?? m.count).toLocaleString()}</span>
+                  <span className="text-muted-foreground truncate max-w-[60%] font-mono">{m.model}</span>
+                  <span className="text-foreground font-medium tabular-nums">{(m.requests ?? m.count).toLocaleString()}</span>
                 </div>
-                <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                   <div className="h-full rounded-full bg-orange-500/70 transition-all duration-500"
                     style={{ width: `${((m.requests ?? m.count) / maxCount) * 100}%` }} />
                 </div>
@@ -513,7 +513,7 @@ export function Overview() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <RefreshCw className="h-6 w-6 animate-spin text-slate-600" />
+        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     )
   }
@@ -522,7 +522,7 @@ export function Overview() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <AlertTriangle className="h-8 w-8 text-red-500" />
-        <p className="text-sm text-slate-400">Error: {error}</p>
+        <p className="text-sm text-muted-foreground">Error: {error}</p>
         <button onClick={fetchData} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5">
           <RefreshCw className="h-3 w-3" /> Retry
         </button>
@@ -662,10 +662,10 @@ export function Overview() {
 
       {/* ── Pool Health Stacked Bar ── */}
       {poolTotal > 0 && (
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Activity className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
               Phân bổ pool
             </CardTitle>
           </CardHeader>
@@ -677,10 +677,10 @@ export function Overview() {
 
       {/* ── Quota Donuts ── */}
       {(quota.geminiAvg != null || quota.thirdPartyAvg != null || (quota.providers ?? []).length > 0) && (
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-muted-foreground" />
               Hạn mức (Quota)
             </CardTitle>
           </CardHeader>
@@ -696,7 +696,7 @@ export function Overview() {
                 <Donut key={p.label} pct={p.pct} label={p.label} />
               ))}
             </div>
-            <div className="mt-3 space-y-0.5 text-xs text-slate-500">
+            <div className="mt-3 space-y-0.5 text-xs text-muted-foreground">
               {quota.fetched != null && (
                 <p>{quota.fetched}/{poolTotal || (acc.total ?? 0)} pool entry đã nạp hạn mức</p>
               )}
@@ -715,10 +715,10 @@ export function Overview() {
       {/* ── Request bars + Top Models ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Requests 7d bars */}
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
               Requests 7 ngày
             </CardTitle>
           </CardHeader>
@@ -726,13 +726,13 @@ export function Overview() {
             {seriesItems.length > 0 ? (
               <>
                 <SvgBars items={seriesItems} height={90} color="#f97316" />
-                <div className="flex justify-between mt-1 text-[10px] text-slate-600">
+                <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
                   <span>{usageSeries[0]?.bucket?.slice(5)}</span>
                   <span>{usageSeries[usageSeries.length - 1]?.bucket?.slice(5)}</span>
                 </div>
               </>
             ) : (
-              <p className="text-xs text-slate-600 text-center py-8">Chưa có dữ liệu</p>
+              <p className="text-xs text-muted-foreground text-center py-8">Chưa có dữ liệu</p>
             )}
           </CardContent>
         </Card>
@@ -743,16 +743,16 @@ export function Overview() {
       {/* ── Provider Perf + Top Accounts ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Provider performance */}
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Activity className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
               Hiệu năng provider (24h)
             </CardTitle>
           </CardHeader>
           <CardContent>
             {perfProviders.length === 0 ? (
-              <p className="text-xs text-slate-600 text-center py-6">Chưa có lệnh gọi trong 24h</p>
+              <p className="text-xs text-muted-foreground text-center py-6">Chưa có lệnh gọi trong 24h</p>
             ) : (
               <div className="space-y-4">
                 {perfProviders.map((p) => {
@@ -762,23 +762,23 @@ export function Overview() {
                   return (
                     <div key={p.label} className="space-y-2">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-slate-200">{p.label}</span>
-                        <span className="text-slate-500">{p.n ?? 0} lượt gọi</span>
+                        <span className="font-medium text-foreground">{p.label}</span>
+                        <span className="text-muted-foreground">{p.n ?? 0} lượt gọi</span>
                       </div>
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2 text-xs">
-                          <span className="text-slate-500 w-14 flex-shrink-0">Tỉ lệ ok</span>
-                          <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                          <span className="text-muted-foreground w-14 flex-shrink-0">Tỉ lệ ok</span>
+                          <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                             <div className={`h-full rounded-full ${okColor} transition-all duration-500`} style={{ width: `${Math.round(okRate * 100)}%` }} />
                           </div>
-                          <span className="text-slate-300 w-8 text-right tabular-nums">{Math.round(okRate * 100)}%</span>
+                          <span className="text-foreground w-8 text-right tabular-nums">{Math.round(okRate * 100)}%</span>
                         </div>
                         <div className="flex items-center gap-2 text-xs">
-                          <span className="text-slate-500 w-14 flex-shrink-0">p95 độ trễ</span>
-                          <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                          <span className="text-muted-foreground w-14 flex-shrink-0">p95 độ trễ</span>
+                          <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                             <div className="h-full rounded-full bg-purple-500 transition-all duration-500" style={{ width: `${Math.min(100, p95s / 3 * 100)}%` }} />
                           </div>
-                          <span className="text-slate-300 w-12 text-right tabular-nums">{p95s.toFixed(1)}s</span>
+                          <span className="text-foreground w-12 text-right tabular-nums">{p95s.toFixed(1)}s</span>
                         </div>
                       </div>
                     </div>
@@ -790,16 +790,16 @@ export function Overview() {
         </Card>
 
         {/* Top Accounts */}
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Users className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
               Top Accounts (7D)
             </CardTitle>
           </CardHeader>
           <CardContent>
             {usageByAccount.length === 0 ? (
-              <p className="text-xs text-slate-600 text-center py-6">Chưa có dữ liệu</p>
+              <p className="text-xs text-muted-foreground text-center py-6">Chưa có dữ liệu</p>
             ) : (
               <div className="space-y-3">
                 {usageByAccount.slice(0, 6).map((a) => (
@@ -813,17 +813,17 @@ export function Overview() {
 
       {/* ── Proxy Load ── */}
       {proxyLoadEntries.length > 0 && (
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Globe className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Globe className="h-4 w-4 text-muted-foreground" />
               Phân bổ tải theo proxy / IP
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {proxyLoadEntries.map((entry) => (
-                <HBar key={entry.label} label={entry.label} value={entry.n} max={maxProxyLoad} color="bg-slate-500" />
+                <HBar key={entry.label} label={entry.label} value={entry.n} max={maxProxyLoad} color="bg-muted-foreground/50" />
               ))}
             </div>
             {proxyLoadEntries[0]?.label === "(direct)" && proxyLoadEntries[0]?.n > 20 && (

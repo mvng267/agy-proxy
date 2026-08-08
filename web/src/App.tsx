@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from "react"
+import { getTheme, setTheme, initTheme, type Theme } from "@/lib/theme"
 import { QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryClient } from "@/lib/queryClient"
 import { api } from "@/lib/api"
@@ -7,6 +8,10 @@ import {
   BookOpen,
   ExternalLink,
   ChevronDown,
+  Sun,
+  Moon,
+  MonitorSmartphone,
+  Check,
   CircleUser,
   Settings,
   LogOut,
@@ -129,7 +134,7 @@ function PageContent({ tab }: { tab: string }) {
     default:
       return (
         <div className="flex flex-col items-center justify-center h-64 gap-3">
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             {tabTitles[tab] ?? tab} — not found
           </p>
         </div>
@@ -176,12 +181,13 @@ function UserMenu({ onOpenSettings }: { onOpenSettings: () => void }) {
     staleTime: 5 * 60_000,
   })
   const user = data?.user ?? "admin"
+  const [theme, setThemeState] = useState<Theme>(getTheme)
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100">
-        <CircleUser className="h-4 w-4 text-slate-400" />
+      <DropdownMenuTrigger className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-foreground transition-colors hover:bg-muted hover:text-foreground">
+        <CircleUser className="h-4 w-4 text-muted-foreground" />
         <span className="hidden max-w-28 truncate md:inline">{user}</span>
-        <ChevronDown className="h-3 w-3 text-slate-500" />
+        <ChevronDown className="h-3 w-3 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-44">
         {/* GroupLabel của Base UI bắt buộc nằm trong Group — thiếu là crash khi mở menu */}
@@ -191,6 +197,27 @@ function UserMenu({ onOpenSettings }: { onOpenSettings: () => void }) {
             <span className="truncate">{user}</span>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        {/* Ba lựa chọn chứ không phải công tắc bật/tắt: "Theo máy" là trạng thái thứ ba,
+            gộp thành boolean sẽ mất khả năng đi theo hệ điều hành. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-xs text-muted-foreground">Giao diện</DropdownMenuLabel>
+        </DropdownMenuGroup>
+        {([
+          { v: "light", label: "Sáng", Icon: Sun },
+          { v: "dark", label: "Tối", Icon: Moon },
+          { v: "system", label: "Theo máy", Icon: MonitorSmartphone },
+        ] as const).map(({ v, label, Icon }) => (
+          <DropdownMenuItem
+            key={v}
+            onClick={() => { setTheme(v); setThemeState(v) }}
+            className={theme === v ? "text-primary" : ""}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+            {theme === v ? <Check className="ml-auto h-3.5 w-3.5" /> : null}
+          </DropdownMenuItem>
+        ))}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onOpenSettings}>
           <Settings className="h-4 w-4" />
@@ -230,6 +257,9 @@ function useTabFromUrl(): [string, (t: string) => void] {
 }
 
 function AppShell() {
+  // Áp theme SỚM và theo dõi thay đổi của hệ điều hành khi đang ở chế độ "theo máy".
+  useEffect(() => initTheme(), [])
+
   const [activeTab, setActiveTab] = useTabFromUrl()
   const qc = useQueryClient()
   // Cùng queryKey với ServerStatus — react-query dedupe, không thêm request nào.
@@ -253,9 +283,9 @@ function AppShell() {
           <SidebarInset>
             {/* Topbar — 3.5rem + safe-area-inset-top: sticky nên phải tự chừa notch khi dính lên đỉnh.
                 px-4/lg:px-6: footer dùng đúng cặp số này để hai thanh cân nhau */}
-            <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-950/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-sm lg:px-6">
-              <SidebarTrigger className="-ml-1 text-slate-400 hover:text-slate-200" />
-              <Separator orientation="vertical" className="h-5 bg-slate-800" />
+            <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-border bg-background/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-sm lg:px-6">
+              <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground" />
+              <Separator orientation="vertical" className="h-5 bg-muted" />
               {/* Logo CHỈ hiện khi sidebar bị ẩn (mobile offcanvas). Trên desktop sidebar
                   luôn hiển thị logo ngay bên trái, nên lặp lại ở đây vừa thừa vừa đẩy
                   tiêu đề thụt vào 126px so với mép nội dung — đo bằng Playwright. */}
@@ -267,39 +297,39 @@ function AppShell() {
                 <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500 text-xs font-bold text-white">
                   A
                 </span>
-                <span className="hidden text-sm font-semibold text-slate-100 sm:inline">agyproxy</span>
+                <span className="hidden text-sm font-semibold text-foreground sm:inline">agyproxy</span>
               </button>
-              <span className="text-slate-700 md:hidden">/</span>
-              <h1 className="truncate text-sm font-medium text-slate-200">
+              <span className="text-border md:hidden">/</span>
+              <h1 className="truncate text-sm font-medium text-foreground">
                 {tabTitles[activeTab] ?? activeTab}
               </h1>
               <div className="ml-auto flex items-center gap-2">
                 <ServerStatus />
                 <button
                   onClick={() => qc.invalidateQueries()}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   title="Làm mới dữ liệu"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
-                <Separator orientation="vertical" className="h-5 bg-slate-800" />
+                <Separator orientation="vertical" className="h-5 bg-muted" />
                 <UserMenu onOpenSettings={() => setActiveTab("settings")} />
               </div>
             </header>
 
             {/* Content */}
-            <main className="flex-1 bg-slate-950 p-4 lg:p-6">
-              <Suspense fallback={<div className="flex h-64 items-center justify-center text-sm text-slate-500">Đang tải…</div>}>
+            <main className="flex-1 bg-background p-4 lg:p-6">
+              <Suspense fallback={<div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Đang tải…</div>}>
                 <PageContent tab={activeTab} />
               </Suspense>
             </main>
 
             {/* Footer — cùng 3.5rem với topbar để khung trên–dưới đối xứng; safe-area-inset-bottom
                 đẩy nội dung lên trên home indicator của iPhone */}
-            <footer className="flex h-[calc(3.5rem+env(safe-area-inset-bottom))] shrink-0 items-center justify-between gap-3 border-t border-slate-800 bg-slate-950 px-4 pb-[env(safe-area-inset-bottom)] lg:px-6">
-              <p className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
+            <footer className="flex h-[calc(3.5rem+env(safe-area-inset-bottom))] shrink-0 items-center justify-between gap-3 border-t border-border bg-background px-4 pb-[env(safe-area-inset-bottom)] lg:px-6">
+              <p className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
                 <span className="truncate">© 2026 agyproxy</span>
-                <span className="hidden sm:inline text-slate-700">·</span>
+                <span className="hidden sm:inline text-border">·</span>
                 <span className="hidden font-mono sm:inline">v{__APP_VERSION__}</span>
               </p>
               <nav className="flex items-center gap-1">
@@ -307,7 +337,7 @@ function AppShell() {
                   href={`${REPO_URL}#readme`}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
+                  className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   <BookOpen className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Tài liệu</span>
@@ -316,7 +346,7 @@ function AppShell() {
                   href={REPO_URL}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
+                  className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">GitHub</span>

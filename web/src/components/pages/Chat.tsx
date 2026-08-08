@@ -80,11 +80,11 @@ function NativeSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className={`appearance-none h-8 px-2 pr-7 rounded-md bg-slate-800 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:opacity-50 ${className ?? ""}`}
+        className={`appearance-none h-8 px-2 pr-7 rounded-md bg-muted border border-border text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:opacity-50 ${className ?? ""}`}
       >
         {children}
       </select>
-      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-500 pointer-events-none" />
+      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
     </div>
   )
 }
@@ -234,15 +234,15 @@ export function Chat() {
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <MessageSquare className="h-4 w-4 text-slate-500" />
-          <h2 className="text-sm font-medium text-slate-300">Chat thử</h2>
+          <MessageSquare className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-medium text-foreground">Chat thử</h2>
         </div>
 
         {/* Selectors */}
         {loadingData ? (
           <div className="flex gap-2">
-            <Skeleton className="h-8 w-40 bg-slate-800" />
-            <Skeleton className="h-8 w-32 bg-slate-800" />
+            <Skeleton className="h-8 w-40 bg-muted" />
+            <Skeleton className="h-8 w-32 bg-muted" />
           </div>
         ) : (
           <div className="flex items-center gap-2 flex-wrap sm:ml-auto">
@@ -292,7 +292,7 @@ export function Chat() {
             {/* Reload */}
             <button
               onClick={() => { setLoadingData(true); loadData() }}
-              className="p-1.5 rounded text-slate-500 hover:text-orange-400 hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded text-muted-foreground hover:text-orange-400 hover:bg-muted transition-colors"
               title="Reload models/accounts"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -304,7 +304,7 @@ export function Chat() {
                 variant="outline"
                 size="sm"
                 onClick={() => setMessages([])}
-                className="border-slate-700 text-slate-500 hover:text-red-400 h-8 text-xs gap-1"
+                className="border-border text-muted-foreground hover:text-red-400 h-8 text-xs gap-1"
               >
                 <Trash2 className="h-3 w-3" />
                 Xoá
@@ -315,17 +315,17 @@ export function Chat() {
       </div>
 
       {/* Messages area */}
-      <Card className="bg-slate-900 border-slate-800 flex-1 min-h-0 flex flex-col">
+      <Card className="bg-card border-border flex-1 min-h-0 flex flex-col">
         <CardContent className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
-              <div className="p-3 rounded-xl bg-slate-800/50">
-                <MessageSquare className="h-8 w-8 text-slate-600" />
+              <div className="p-3 rounded-xl bg-muted/50">
+                <MessageSquare className="h-8 w-8 text-muted-foreground" />
               </div>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 Nhập prompt bên dưới để bắt đầu chat
               </p>
-              <p className="text-xs text-slate-600">Ctrl+Enter để gửi</p>
+              <p className="text-xs text-muted-foreground">Ctrl+Enter để gửi</p>
             </div>
           ) : (
             messages.map((msg, i) => (
@@ -344,20 +344,20 @@ export function Chat() {
                   {msg.role === "assistant" && msg.meta && (
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       {msg.meta.model && (
-                        <Badge className="bg-slate-800 text-slate-500 border-none text-[10px] h-4">
+                        <Badge className="bg-muted text-muted-foreground border-none text-[10px] h-4">
                           {msg.meta.model.split("/").pop() ?? msg.meta.model}
                         </Badge>
                       )}
                       {msg.meta.account && (
-                        <Badge className="bg-slate-800 text-slate-500 border-none text-[10px] h-4">
+                        <Badge className="bg-muted text-muted-foreground border-none text-[10px] h-4">
                           {msg.meta.account.split("@")[0]}
                         </Badge>
                       )}
                       {msg.meta.ms && (
-                        <span className="text-[10px] text-slate-600">{msg.meta.ms}ms</span>
+                        <span className="text-[10px] text-muted-foreground">{msg.meta.ms}ms</span>
                       )}
                       {msg.meta.tokens && (
-                        <span className="text-[10px] text-slate-600">{msg.meta.tokens} tok</span>
+                        <span className="text-[10px] text-muted-foreground">{msg.meta.tokens} tok</span>
                       )}
                     </div>
                   )}
@@ -368,7 +368,7 @@ export function Chat() {
                         ? "bg-orange-500 text-white rounded-tr-sm"
                         : msg.error
                         ? "bg-red-500/15 text-red-300 border border-red-500/20 rounded-tl-sm"
-                        : "bg-slate-800 text-slate-200 rounded-tl-sm"
+                        : "bg-muted text-foreground rounded-tl-sm"
                     }`}
                   >
                     <pre className="whitespace-pre-wrap font-sans leading-relaxed">{msg.content}</pre>
@@ -376,8 +376,8 @@ export function Chat() {
                 </div>
 
                 {msg.role === "user" && (
-                  <div className="flex-shrink-0 h-7 w-7 rounded-full bg-slate-700 flex items-center justify-center mt-0.5">
-                    <User className="h-4 w-4 text-slate-400" />
+                  <div className="flex-shrink-0 h-7 w-7 rounded-full bg-muted flex items-center justify-center mt-0.5">
+                    <User className="h-4 w-4 text-muted-foreground" />
                   </div>
                 )}
               </div>
@@ -390,9 +390,9 @@ export function Chat() {
               <div className="flex-shrink-0 h-7 w-7 rounded-full bg-orange-500/15 flex items-center justify-center">
                 <Bot className="h-4 w-4 text-orange-400" />
               </div>
-              <div className="bg-slate-800 rounded-2xl rounded-tl-sm px-4 py-2.5 flex items-center gap-2">
-                <Loader2 className="h-3.5 w-3.5 text-slate-500 animate-spin" />
-                <span className="text-xs text-slate-500">Đang gọi model…</span>
+              <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-2.5 flex items-center gap-2">
+                <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin" />
+                <span className="text-xs text-muted-foreground">Đang gọi model…</span>
               </div>
             </div>
           )}
@@ -409,7 +409,7 @@ export function Chat() {
         )}
 
         {/* Input */}
-        <div className="border-t border-slate-800 p-3 flex-shrink-0">
+        <div className="border-t border-border p-3 flex-shrink-0">
           <div className="flex gap-2 items-end">
             <div className="flex-1">
               <textarea
@@ -420,7 +420,7 @@ export function Chat() {
                 placeholder="Nhập prompt… (Ctrl+Enter để gửi)"
                 rows={3}
                 disabled={sending}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 resize-none focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:opacity-50"
+                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:opacity-50"
               />
             </div>
             <Button
@@ -437,15 +437,15 @@ export function Chat() {
             </Button>
           </div>
           <div className="flex items-center justify-between mt-1.5">
-            <span className="text-[10px] text-slate-600">Ctrl+Enter để gửi</span>
+            <span className="text-[10px] text-muted-foreground">Ctrl+Enter để gửi</span>
             <div className="flex items-center gap-2">
               {selectedModel && (
-                <Badge className="bg-slate-800 text-slate-500 border-none text-[10px]">
+                <Badge className="bg-muted text-muted-foreground border-none text-[10px]">
                   {selectedModel.split("/").pop() ?? selectedModel}
                 </Badge>
               )}
               {selectedAccount !== "auto" && (
-                <Badge className="bg-slate-800 text-blue-500 border-none text-[10px]">
+                <Badge className="bg-muted text-blue-500 border-none text-[10px]">
                   {selectedAccount.split("@")[0]}
                 </Badge>
               )}

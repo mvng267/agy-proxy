@@ -101,7 +101,7 @@ function HealthBadge({ health }: { health?: string }) {
     )
   }
   return (
-    <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">—</Badge>
+    <Badge className="bg-muted text-muted-foreground border-none text-[10px]">—</Badge>
   )
 }
 
@@ -113,7 +113,7 @@ function TargetBadge({ target }: { target: string }) {
     kiro: "bg-blue-500/15 text-blue-400",
     gweb: "bg-purple-500/15 text-purple-400",
   }
-  const cls = map[target] ?? "bg-slate-700 text-slate-400"
+  const cls = map[target] ?? "bg-muted text-muted-foreground"
   return (
     <Badge className={`${cls} border-none text-[10px]`}>{target}</Badge>
   )
@@ -151,8 +151,8 @@ function TokenRow({ cred }: { cred: Credential }) {
   }
 
   return (
-    <TableRow className="border-slate-800 hover:bg-slate-800/40">
-      <TableCell className="text-sm text-slate-200 font-mono max-w-[200px] truncate" title={cred.email}>
+    <TableRow className="border-border hover:bg-muted/40">
+      <TableCell className="text-sm text-foreground font-mono max-w-[200px] truncate" title={cred.email}>
         {cred.email}
       </TableCell>
       <TableCell>
@@ -161,7 +161,7 @@ function TokenRow({ cred }: { cred: Credential }) {
       <TableCell>
         <HealthBadge health={cred.health} />
       </TableCell>
-      <TableCell className="font-mono text-xs text-slate-400 max-w-[220px]">
+      <TableCell className="font-mono text-xs text-muted-foreground max-w-[220px]">
         <span
           className="select-all"
           title={shown ? rawVal : undefined}
@@ -173,14 +173,14 @@ function TokenRow({ cred }: { cred: Credential }) {
           <span className="inline-flex gap-1 ml-1.5 align-middle">
             <button
               onClick={() => setShown(!shown)}
-              className="p-0.5 rounded text-slate-600 hover:text-slate-300 transition-colors"
+              className="p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
               title={shown ? "Ẩn" : "Hiện"}
             >
               {shown ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
             </button>
             <button
               onClick={handleCopy}
-              className="p-0.5 rounded text-slate-600 hover:text-slate-300 transition-colors"
+              className="p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
               title="Copy token"
             >
               {copied ? (
@@ -191,9 +191,9 @@ function TokenRow({ cred }: { cred: Credential }) {
             </button>
           </span>
         )}
-        {info && <span className="block text-slate-600 text-[10px] mt-0.5">{info}</span>}
+        {info && <span className="block text-muted-foreground text-[10px] mt-0.5">{info}</span>}
       </TableCell>
-      <TableCell className="text-xs text-slate-500">
+      <TableCell className="text-xs text-muted-foreground">
         {cred.updated_at ? new Date(cred.updated_at).toLocaleString("vi-VN") : "—"}
       </TableCell>
     </TableRow>
@@ -307,8 +307,8 @@ export function Tokens() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-20 w-full bg-slate-800" />
-        <Skeleton className="h-64 w-full bg-slate-800" />
+        <Skeleton className="h-20 w-full bg-muted" />
+        <Skeleton className="h-64 w-full bg-muted" />
       </div>
     )
   }
@@ -317,7 +317,7 @@ export function Tokens() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <AlertTriangle className="h-8 w-8 text-red-500" />
-        <p className="text-sm text-slate-400">Lỗi: {error}</p>
+        <p className="text-sm text-muted-foreground">Lỗi: {error}</p>
         <button
           onClick={fetchData}
           className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5"
@@ -332,28 +332,28 @@ export function Tokens() {
     <div className="space-y-4">
       {/* KPI row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Tổng</p>
-            <p className="text-2xl font-bold text-slate-100 tabular-nums">{creds.length}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Tổng</p>
+            <p className="text-2xl font-bold text-foreground tabular-nums">{creds.length}</p>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Alive</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Alive</p>
             <p className="text-2xl font-bold text-emerald-400 tabular-nums">{alive}</p>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Dead</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Dead</p>
             <p className="text-2xl font-bold text-red-400 tabular-nums">{dead}</p>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Chưa rõ</p>
-            <p className="text-2xl font-bold text-slate-400 tabular-nums">{unknown}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Chưa rõ</p>
+            <p className="text-2xl font-bold text-muted-foreground tabular-nums">{unknown}</p>
           </CardContent>
         </Card>
       </div>
@@ -361,7 +361,7 @@ export function Tokens() {
       {/* Health bar */}
       {creds.length > 0 && (
         <div className="flex items-center gap-2">
-          <div className="flex-1 h-2 rounded-full overflow-hidden bg-slate-800 flex">
+          <div className="flex-1 h-2 rounded-full overflow-hidden bg-muted flex">
             <div
               className="h-full bg-emerald-500 transition-all"
               style={{ width: `${(alive / creds.length) * 100}%` }}
@@ -371,11 +371,11 @@ export function Tokens() {
               style={{ width: `${(dead / creds.length) * 100}%` }}
             />
             <div
-              className="h-full bg-slate-600 transition-all"
+              className="h-full bg-muted-foreground/40 transition-all"
               style={{ width: `${(unknown / creds.length) * 100}%` }}
             />
           </div>
-          <span className="text-xs text-slate-500 whitespace-nowrap">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
             {Math.round((alive / creds.length) * 100)}% alive
           </span>
         </div>
@@ -384,23 +384,23 @@ export function Tokens() {
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
         <div className="relative flex-1 max-w-xs">
-          <KeyRound className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+          <KeyRound className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="Tìm email…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 bg-slate-900 border-slate-800 text-slate-200 placeholder:text-slate-600 h-8 text-sm"
+            className="pl-8 bg-card border-border text-foreground placeholder:text-muted-foreground h-8 text-sm"
           />
         </div>
 
         <Select value={filterTarget} onValueChange={(v) => setFilterTarget(v ?? "all")}>
-          <SelectTrigger className="w-32 h-8 bg-slate-900 border-slate-800 text-slate-300 text-xs">
+          <SelectTrigger className="w-32 h-8 bg-card border-border text-foreground text-xs">
             <SelectValue placeholder="Provider" />
           </SelectTrigger>
-          <SelectContent className="bg-slate-900 border-slate-800">
-            <SelectItem value="all" className="text-xs text-slate-300">Tất cả</SelectItem>
+          <SelectContent className="bg-card border-border">
+            <SelectItem value="all" className="text-xs text-foreground">Tất cả</SelectItem>
             {targets.map((t) => (
-              <SelectItem key={t} value={t} className="text-xs text-slate-300">
+              <SelectItem key={t} value={t} className="text-xs text-foreground">
                 {t}
               </SelectItem>
             ))}
@@ -408,14 +408,14 @@ export function Tokens() {
         </Select>
 
         <Select value={filterHealth} onValueChange={(v) => setFilterHealth(v ?? "all")}>
-          <SelectTrigger className="w-32 h-8 bg-slate-900 border-slate-800 text-slate-300 text-xs">
+          <SelectTrigger className="w-32 h-8 bg-card border-border text-foreground text-xs">
             <SelectValue placeholder="Health" />
           </SelectTrigger>
-          <SelectContent className="bg-slate-900 border-slate-800">
-            <SelectItem value="all" className="text-xs text-slate-300">Tất cả</SelectItem>
+          <SelectContent className="bg-card border-border">
+            <SelectItem value="all" className="text-xs text-foreground">Tất cả</SelectItem>
             <SelectItem value="alive" className="text-xs text-emerald-400">alive</SelectItem>
             <SelectItem value="dead" className="text-xs text-red-400">dead</SelectItem>
-            <SelectItem value="unknown" className="text-xs text-slate-400">chưa rõ</SelectItem>
+            <SelectItem value="unknown" className="text-xs text-muted-foreground">chưa rõ</SelectItem>
           </SelectContent>
         </Select>
 
@@ -437,7 +437,7 @@ export function Tokens() {
           variant="outline"
           size="sm"
           onClick={handleExport}
-          className="border-slate-700 text-slate-400 hover:text-orange-400 h-8 text-xs gap-1"
+          className="border-border text-muted-foreground hover:text-orange-400 h-8 text-xs gap-1"
         >
           <Download className="h-3 w-3" /> Export CSV
         </Button>
@@ -450,28 +450,28 @@ export function Tokens() {
       )}
 
       {/* Table */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-            <KeyRound className="h-4 w-4 text-slate-500" />
+          <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-muted-foreground" />
             Credentials ({filtered.length} / {creds.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="border-slate-800 hover:bg-transparent">
-                <TableHead className="text-slate-500 text-xs pl-4">Email</TableHead>
-                <TableHead className="text-slate-500 text-xs">Target</TableHead>
-                <TableHead className="text-slate-500 text-xs">Health</TableHead>
-                <TableHead className="text-slate-500 text-xs">Token</TableHead>
-                <TableHead className="text-slate-500 text-xs">Updated</TableHead>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="text-muted-foreground text-xs pl-4">Email</TableHead>
+                <TableHead className="text-muted-foreground text-xs">Target</TableHead>
+                <TableHead className="text-muted-foreground text-xs">Health</TableHead>
+                <TableHead className="text-muted-foreground text-xs">Token</TableHead>
+                <TableHead className="text-muted-foreground text-xs">Updated</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
-                <TableRow className="border-slate-800">
-                  <TableCell colSpan={5} className="text-center text-slate-600 text-xs py-10">
+                <TableRow className="border-border">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground text-xs py-10">
                     {creds.length === 0
                       ? "Chưa có credential nào"
                       : "Không khớp bộ lọc"}

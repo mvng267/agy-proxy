@@ -62,7 +62,7 @@ function fmtNum(n: number | undefined) {
 function StatusBadge({ status, enabled }: { status?: string; enabled?: boolean }) {
   if (enabled === false) {
     return (
-      <Badge className="bg-slate-700/60 text-slate-400 border-none text-[10px] font-normal">
+      <Badge className="bg-muted/60 text-muted-foreground border-none text-[10px] font-normal">
         Disabled
       </Badge>
     )
@@ -85,7 +85,7 @@ function StatusBadge({ status, enabled }: { status?: string; enabled?: boolean }
     )
   }
   return (
-    <Badge className="bg-slate-700/60 text-slate-400 border-none text-[10px] font-normal">
+    <Badge className="bg-muted/60 text-muted-foreground border-none text-[10px] font-normal">
       <HelpCircle className="h-2.5 w-2.5 mr-1" />
       {status ?? "Unknown"}
     </Badge>
@@ -206,9 +206,9 @@ export function Connections() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-8 w-48 bg-slate-800" />
+        <Skeleton className="h-8 w-48 bg-muted" />
         {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-24 w-full bg-slate-800" />
+          <Skeleton key={i} className="h-24 w-full bg-muted" />
         ))}
       </div>
     )
@@ -220,7 +220,7 @@ export function Connections() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <AlertTriangle className="h-8 w-8 text-red-500" />
-        <p className="text-sm text-slate-400">Error: {error}</p>
+        <p className="text-sm text-muted-foreground">Error: {error}</p>
         <button
           onClick={fetchData}
           className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5"
@@ -242,17 +242,17 @@ export function Connections() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Link className="h-4 w-4 text-slate-500" />
-          <h2 className="text-sm font-medium text-slate-300">Connections OmniRoute</h2>
+          <Link className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-medium text-foreground">Connections OmniRoute</h2>
           {note && (
-            <span className="text-xs text-slate-500">· {note}</span>
+            <span className="text-xs text-muted-foreground">· {note}</span>
           )}
         </div>
         <Button
           variant="outline"
           size="sm"
           onClick={fetchData}
-          className="border-slate-700 text-slate-400 hover:text-orange-400 h-7 text-xs gap-1"
+          className="border-border text-muted-foreground hover:text-orange-400 h-7 text-xs gap-1"
         >
           <RefreshCw className="h-3 w-3" /> Refresh
         </Button>
@@ -260,15 +260,15 @@ export function Connections() {
 
       {/* Summary KPIs */}
       <div className="grid grid-cols-3 gap-3">
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4">
-            <p className="text-xs text-slate-500 mb-1">Tổng connections</p>
-            <p className="text-2xl font-bold text-slate-100 tabular-nums">{connections.length}</p>
+            <p className="text-xs text-muted-foreground mb-1">Tổng connections</p>
+            <p className="text-2xl font-bold text-foreground tabular-nums">{connections.length}</p>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4">
-            <p className="text-xs text-slate-500 mb-1">Active</p>
+            <p className="text-xs text-muted-foreground mb-1">Active</p>
             <p className="text-2xl font-bold text-emerald-400 tabular-nums">
               {connections.filter((c) => {
                 const s = (c.status ?? c.testStatus ?? "").toLowerCase()
@@ -277,9 +277,9 @@ export function Connections() {
             </p>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4">
-            <p className="text-xs text-slate-500 mb-1">Offline/Lỗi</p>
+            <p className="text-xs text-muted-foreground mb-1">Offline/Lỗi</p>
             <p className="text-2xl font-bold text-red-400 tabular-nums">
               {connections.filter((c) => {
                 const s = (c.status ?? c.testStatus ?? "").toLowerCase()
@@ -292,12 +292,12 @@ export function Connections() {
 
       {/* Connection List */}
       {sorted.length === 0 ? (
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-6">
             <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <Link className="h-8 w-8 text-slate-600" />
-              <p className="text-sm text-slate-500">Chưa có connection nào</p>
-              <p className="text-xs text-slate-600">Thêm connection OmniRoute từ trang Settings</p>
+              <Link className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Chưa có connection nào</p>
+              <p className="text-xs text-muted-foreground">Thêm connection OmniRoute từ trang Settings</p>
             </div>
           </CardContent>
         </Card>
@@ -314,7 +314,7 @@ export function Connections() {
             return (
               <Card
                 key={conn.id}
-                className={`bg-slate-900 border-slate-800 transition-opacity ${
+                className={`bg-card border-border transition-opacity ${
                   isDeleting ? "opacity-40" : ""
                 }`}
               >
@@ -327,23 +327,23 @@ export function Connections() {
                         {enabled ? (
                           <Wifi className="h-4 w-4 text-emerald-400" />
                         ) : (
-                          <WifiOff className="h-4 w-4 text-slate-600" />
+                          <WifiOff className="h-4 w-4 text-muted-foreground" />
                         )}
                       </div>
 
                       <div className="min-w-0 flex-1">
                         {/* Name + badges */}
                         <div className="flex items-center flex-wrap gap-2 mb-1">
-                          <span className="text-sm font-medium text-slate-200">
+                          <span className="text-sm font-medium text-foreground">
                             {conn.name}
                           </span>
                           {conn.provider && (
-                            <Badge className="bg-slate-700/60 text-slate-300 border-none text-[10px] font-normal">
+                            <Badge className="bg-muted/60 text-foreground border-none text-[10px] font-normal">
                               {conn.provider}
                             </Badge>
                           )}
                           {conn.authType && (
-                            <Badge className="bg-slate-700/40 text-slate-400 border-none text-[10px] font-normal">
+                            <Badge className="bg-muted/40 text-muted-foreground border-none text-[10px] font-normal">
                               {conn.authType}
                             </Badge>
                           )}
@@ -355,31 +355,31 @@ export function Connections() {
 
                         {/* URL */}
                         {conn.url && (
-                          <p className="text-xs text-slate-500 font-mono truncate mb-1">
+                          <p className="text-xs text-muted-foreground font-mono truncate mb-1">
                             {conn.url}
                           </p>
                         )}
 
                         {/* Model badge */}
                         {conn.model && (
-                          <p className="text-xs text-slate-400 mb-1">
-                            <span className="text-slate-600">model: </span>
+                          <p className="text-xs text-muted-foreground mb-1">
+                            <span className="text-muted-foreground">model: </span>
                             <span className="font-mono">{conn.model}</span>
                           </p>
                         )}
 
                         {/* Stats row */}
-                        <div className="flex items-center gap-4 text-xs text-slate-500 mt-1.5">
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1.5">
                           {conn.latency != null && (
                             <span>
-                              <span className="text-slate-600">latency: </span>
-                              <span className="text-slate-300 tabular-nums">{fmtMs(conn.latency)}</span>
+                              <span className="text-muted-foreground">latency: </span>
+                              <span className="text-foreground tabular-nums">{fmtMs(conn.latency)}</span>
                             </span>
                           )}
                           {conn.requests != null && (
                             <span>
-                              <span className="text-slate-600">requests: </span>
-                              <span className="text-slate-300 tabular-nums">{fmtNum(conn.requests)}</span>
+                              <span className="text-muted-foreground">requests: </span>
+                              <span className="text-foreground tabular-nums">{fmtNum(conn.requests)}</span>
                             </span>
                           )}
                           {conn.proxyEnabled && (
@@ -416,7 +416,7 @@ export function Connections() {
                         size="sm"
                         disabled={isPinging}
                         onClick={() => pingConnection(conn.id)}
-                        className="border-slate-700 text-slate-400 hover:text-blue-400 h-7 text-xs gap-1"
+                        className="border-border text-muted-foreground hover:text-blue-400 h-7 text-xs gap-1"
                         title="Test connection"
                       >
                         {isPinging ? (
@@ -433,10 +433,10 @@ export function Connections() {
                         size="sm"
                         disabled={isToggling}
                         onClick={() => toggleConnection(conn)}
-                        className={`border-slate-700 h-7 text-xs gap-1 ${
+                        className={`border-border h-7 text-xs gap-1 ${
                           enabled
                             ? "text-orange-400 hover:text-orange-300"
-                            : "text-slate-400 hover:text-emerald-400"
+                            : "text-muted-foreground hover:text-emerald-400"
                         }`}
                         title={enabled ? "Tắt connection" : "Bật connection"}
                       >
@@ -456,7 +456,7 @@ export function Connections() {
                         size="sm"
                         disabled={isDeleting}
                         onClick={() => deleteConnection(conn.id)}
-                        className="border-slate-700 text-slate-500 hover:text-red-400 hover:border-red-800 h-7 w-7 p-0"
+                        className="border-border text-muted-foreground hover:text-red-400 hover:border-red-800 h-7 w-7 p-0"
                         title="Xóa connection"
                       >
                         {isDeleting ? (

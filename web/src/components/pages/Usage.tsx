@@ -93,7 +93,7 @@ function SvgBars({
 }) {
   if (!items.length) {
     return (
-      <p className="text-xs text-slate-600 text-center py-4">Chưa có dữ liệu</p>
+      <p className="text-xs text-muted-foreground text-center py-4">Chưa có dữ liệu</p>
     )
   }
   const w = 300
@@ -151,14 +151,14 @@ function HBar({
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
-        <span className="text-slate-300 font-mono truncate max-w-[200px]" title={label}>
+        <span className="text-foreground font-mono truncate max-w-[200px]" title={label}>
           {label}
         </span>
-        <span className="text-slate-400 tabular-nums ml-4 flex-shrink-0">
+        <span className="text-muted-foreground tabular-nums ml-4 flex-shrink-0">
           {fmtNum(value)}{sub ? ` ${sub}` : ""}
         </span>
       </div>
-      <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-500 ${color}`}
           style={{ width: `${pct}%` }}
@@ -202,12 +202,12 @@ export function Usage() {
     return (
       <div className="space-y-4">
         <div className="flex gap-2">
-          <Skeleton className="h-8 w-16 bg-slate-800" />
-          <Skeleton className="h-8 w-16 bg-slate-800" />
+          <Skeleton className="h-8 w-16 bg-muted" />
+          <Skeleton className="h-8 w-16 bg-muted" />
         </div>
-        <Skeleton className="h-16 w-full bg-slate-800" />
-        <Skeleton className="h-48 w-full bg-slate-800" />
-        <Skeleton className="h-48 w-full bg-slate-800" />
+        <Skeleton className="h-16 w-full bg-muted" />
+        <Skeleton className="h-48 w-full bg-muted" />
+        <Skeleton className="h-48 w-full bg-muted" />
       </div>
     )
   }
@@ -218,7 +218,7 @@ export function Usage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <AlertTriangle className="h-8 w-8 text-red-500" />
-        <p className="text-sm text-slate-400">Error: {error}</p>
+        <p className="text-sm text-muted-foreground">Error: {error}</p>
         <button
           onClick={fetchData}
           className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5"
@@ -267,8 +267,8 @@ export function Usage() {
       {/* Header + controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <BarChart3 className="h-4 w-4 text-slate-500" />
-          <h2 className="text-sm font-medium text-slate-300">Báo cáo Usage</h2>
+          <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-medium text-foreground">Báo cáo Usage</h2>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Range selector */}
@@ -281,7 +281,7 @@ export function Usage() {
               className={
                 range === r
                   ? "bg-orange-500 hover:bg-orange-600 text-white h-8 text-xs"
-                  : "border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800 h-8 text-xs"
+                  : "border-border text-muted-foreground hover:text-foreground hover:bg-muted h-8 text-xs"
               }
             >
               {r}
@@ -291,7 +291,7 @@ export function Usage() {
             variant="outline"
             size="sm"
             onClick={fetchData}
-            className="border-slate-700 text-slate-400 hover:text-orange-400 h-8 text-xs gap-1"
+            className="border-border text-muted-foreground hover:text-orange-400 h-8 text-xs gap-1"
           >
             <RefreshCw className="h-3 w-3" /> Refresh
           </Button>
@@ -299,7 +299,7 @@ export function Usage() {
           <a
             href={`/api/gateway/usage/export.csv?range=${range}`}
             download
-            className="inline-flex items-center gap-1 px-3 h-8 rounded-md border border-slate-700 text-slate-400 hover:text-emerald-400 hover:border-emerald-700 text-xs transition-colors"
+            className="inline-flex items-center gap-1 px-3 h-8 rounded-md border border-border text-muted-foreground hover:text-emerald-400 hover:border-emerald-700 text-xs transition-colors"
           >
             <Download className="h-3 w-3" /> Export CSV
           </a>
@@ -308,15 +308,15 @@ export function Usage() {
 
       {/* KPI */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs text-slate-500 mb-1">Requests</p>
-                <p className="text-2xl font-bold text-slate-100 tabular-nums">
+                <p className="text-xs text-muted-foreground mb-1">Requests</p>
+                <p className="text-2xl font-bold text-foreground tabular-nums">
                   {fmtNum(totalRequests)}
                 </p>
-                <p className="text-xs text-slate-500 mt-0.5">{range}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{range}</p>
               </div>
               <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
                 <Activity className="h-4 w-4" />
@@ -324,15 +324,15 @@ export function Usage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs text-slate-500 mb-1">Avg / ngày</p>
-                <p className="text-2xl font-bold text-slate-100 tabular-nums">
+                <p className="text-xs text-muted-foreground mb-1">Avg / ngày</p>
+                <p className="text-2xl font-bold text-foreground tabular-nums">
                   {fmtNum(avgPerDay)}
                 </p>
-                <p className="text-xs text-slate-500 mt-0.5">req / day</p>
+                <p className="text-xs text-muted-foreground mt-0.5">req / day</p>
               </div>
               <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
                 <TrendingUp className="h-4 w-4" />
@@ -340,15 +340,15 @@ export function Usage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs text-slate-500 mb-1">Tokens</p>
-                <p className="text-2xl font-bold text-slate-100 tabular-nums">
+                <p className="text-xs text-muted-foreground mb-1">Tokens</p>
+                <p className="text-2xl font-bold text-foreground tabular-nums">
                   {fmtNum(totalTokIn + totalTokOut)}
                 </p>
-                <p className="text-xs text-slate-500 mt-0.5">in + out</p>
+                <p className="text-xs text-muted-foreground mt-0.5">in + out</p>
               </div>
               <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500">
                 <Cpu className="h-4 w-4" />
@@ -356,15 +356,15 @@ export function Usage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs text-slate-500 mb-1">Accounts</p>
-                <p className="text-2xl font-bold text-slate-100 tabular-nums">
+                <p className="text-xs text-muted-foreground mb-1">Accounts</p>
+                <p className="text-2xl font-bold text-foreground tabular-nums">
                   {activeAccounts}
                 </p>
-                <p className="text-xs text-slate-500 mt-0.5">active</p>
+                <p className="text-xs text-muted-foreground mt-0.5">active</p>
               </div>
               <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
                 <Users className="h-4 w-4" />
@@ -375,15 +375,15 @@ export function Usage() {
       </div>
 
       {/* Series chart */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
               Lưu lượng theo ngày
             </CardTitle>
             {/* Metric toggle */}
-            <div className="flex items-center gap-1 bg-slate-800 rounded-md p-0.5">
+            <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
               {([
                 { key: "req", label: "Requests" },
                 { key: "tok", label: "Tokens" },
@@ -393,8 +393,8 @@ export function Usage() {
                   onClick={() => setMetric(m.key)}
                   className={`px-2.5 py-1 rounded text-[10px] font-medium transition-colors ${
                     metric === m.key
-                      ? "bg-slate-700 text-slate-100"
-                      : "text-slate-500 hover:text-slate-300"
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {m.label}
@@ -405,7 +405,7 @@ export function Usage() {
         </CardHeader>
         <CardContent>
           {series.length === 0 ? (
-            <p className="text-xs text-slate-600 text-center py-8">Chưa có dữ liệu sử dụng</p>
+            <p className="text-xs text-muted-foreground text-center py-8">Chưa có dữ liệu sử dụng</p>
           ) : (
             <>
               <SvgBars
@@ -414,7 +414,7 @@ export function Usage() {
                 color={metric === "tok" ? "#a855f7" : "#f97316"}
               />
               {(dateFrom || dateTo) && (
-                <div className="flex items-center justify-between mt-2 text-[10px] text-slate-600">
+                <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
                   <span>{dateFrom}</span>
                   {dateTo && dateTo !== dateFrom && <span>{dateTo}</span>}
                 </div>
@@ -423,7 +423,7 @@ export function Usage() {
               {series.length > 0 && (
                 <div className="flex justify-between mt-0.5 px-0">
                   {series.filter((_, i) => i === 0 || i === series.length - 1 || i === Math.floor(series.length / 2)).map((s, i) => (
-                    <span key={i} className="text-[9px] text-slate-700">{s.bucket.slice(5)}</span>
+                    <span key={i} className="text-[9px] text-border">{s.bucket.slice(5)}</span>
                   ))}
                 </div>
               )}
@@ -435,16 +435,16 @@ export function Usage() {
       {/* Top Models + Top Accounts side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Top Models */}
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-muted-foreground" />
               Top Models
             </CardTitle>
           </CardHeader>
           <CardContent>
             {byModel.length === 0 ? (
-              <p className="text-xs text-slate-600 text-center py-6">Không có dữ liệu</p>
+              <p className="text-xs text-muted-foreground text-center py-6">Không có dữ liệu</p>
             ) : (
               <div className="space-y-3">
                 {byModel.slice(0, 8).map((m) => (
@@ -463,16 +463,16 @@ export function Usage() {
         </Card>
 
         {/* Top Accounts */}
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Users className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
               Top Accounts
             </CardTitle>
           </CardHeader>
           <CardContent>
             {byAccount.length === 0 ? (
-              <p className="text-xs text-slate-600 text-center py-6">Không có dữ liệu</p>
+              <p className="text-xs text-muted-foreground text-center py-6">Không có dữ liệu</p>
             ) : (
               <div className="space-y-3">
                 {byAccount.slice(0, 8).map((a) => (
@@ -493,10 +493,10 @@ export function Usage() {
 
       {/* Full model table */}
       {byModel.length > 0 && (
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-muted-foreground" />
               Tất cả models ({byModel.length})
             </CardTitle>
           </CardHeader>
@@ -504,22 +504,22 @@ export function Usage() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-slate-800">
-                    <th className="text-left text-slate-500 pb-2 font-normal">Model</th>
-                    <th className="text-right text-slate-500 pb-2 font-normal">Requests</th>
-                    <th className="text-right text-slate-500 pb-2 font-normal">Tokens</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left text-muted-foreground pb-2 font-normal">Model</th>
+                    <th className="text-right text-muted-foreground pb-2 font-normal">Requests</th>
+                    <th className="text-right text-muted-foreground pb-2 font-normal">Tokens</th>
                   </tr>
                 </thead>
                 <tbody>
                   {byModel.map((m) => (
-                    <tr key={m.model} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                      <td className="py-1.5 text-slate-300 font-mono truncate max-w-[200px]">
+                    <tr key={m.model} className="border-b border-border/50 hover:bg-muted/30">
+                      <td className="py-1.5 text-foreground font-mono truncate max-w-[200px]">
                         {m.model}
                       </td>
-                      <td className="py-1.5 text-slate-400 text-right tabular-nums">
+                      <td className="py-1.5 text-muted-foreground text-right tabular-nums">
                         {reqOf(m).toLocaleString()}
                       </td>
-                      <td className="py-1.5 text-slate-500 text-right tabular-nums">
+                      <td className="py-1.5 text-muted-foreground text-right tabular-nums">
                         {(m.tokIn != null || m.tokOut != null)
                           ? fmtNum((m.tokIn ?? 0) + (m.tokOut ?? 0))
                           : "—"}

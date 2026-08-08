@@ -98,11 +98,11 @@ function DonutChart({ total, active, cooldown, size = 120, strokeWidth = 12 }: {
     return (
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="transform -rotate-90">
-          <circle cx={center} cy={center} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-slate-700" />
+          <circle cx={center} cy={center} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-border" />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-lg font-bold text-slate-500">0</span>
-          <span className="text-[10px] text-slate-600 uppercase tracking-wider">total</span>
+          <span className="text-lg font-bold text-muted-foreground">0</span>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">total</span>
         </div>
       </div>
     )
@@ -123,8 +123,8 @@ function DonutChart({ total, active, cooldown, size = 120, strokeWidth = 12 }: {
         {inactiveRatio > 0 && <circle cx={center} cy={center} r={radius} fill="none" stroke="#334155" strokeWidth={strokeWidth} strokeDasharray={`${inactiveLen} ${circumference - inactiveLen}`} strokeDashoffset={inactiveOffset} className="transition-all duration-700" />}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold text-slate-100">{active}</span>
-        <span className="text-[10px] text-slate-500 uppercase tracking-wider">active</span>
+        <span className="text-2xl font-bold text-foreground">{active}</span>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">active</span>
       </div>
     </div>
   )
@@ -143,13 +143,13 @@ function KpiCard({ title, value, subtitle, icon: Icon, color = "orange" }: {
     red: "bg-red-500/10 text-red-500",
   }
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card className="bg-card border-border">
       <CardContent className="pt-4">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{title}</p>
-            <p className="text-2xl font-bold text-slate-100 tabular-nums">{value}</p>
-            {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
+            <p className="text-2xl font-bold text-foreground tabular-nums">{value}</p>
+            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
           </div>
           <div className={`p-2 rounded-lg ${colorMap[color]}`}>
             <Icon className="h-4 w-4" />
@@ -384,24 +384,24 @@ export function Pool() {
   }
 
   const statusBadge = (acc: PoolAccount) => {
-    if (!acc.enabled) return <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">Off</Badge>
+    if (!acc.enabled) return <Badge className="bg-muted text-muted-foreground border-none text-[10px]">Off</Badge>
     if (acc.cooldown) return <Badge className="bg-orange-500/15 text-orange-400 border-none text-[10px]">Cooldown</Badge>
     if (acc.health === "alive") return <Badge className="bg-emerald-500/15 text-emerald-400 border-none text-[10px]">Active</Badge>
     if (acc.health === "dead") return <Badge className="bg-red-500/15 text-red-400 border-none text-[10px]">Dead</Badge>
-    return <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">—</Badge>
+    return <Badge className="bg-muted text-muted-foreground border-none text-[10px]">—</Badge>
   }
 
   const healthBadge = (h?: string) => {
     if (h === "alive") return <span className="text-emerald-400 text-xs">● alive</span>
     if (h === "dead") return <span className="text-red-400 text-xs">● dead</span>
-    return <span className="text-slate-600 text-xs">—</span>
+    return <span className="text-muted-foreground text-xs">—</span>
   }
 
   const liveBadge = (s?: string) => {
     if (s === "ok") return <span className="text-emerald-400 text-xs">✓ live</span>
     if (s === "quota") return <span className="text-amber-400 text-xs">⏳ quota</span>
     if (s === "error") return <span className="text-red-400 text-xs">✗ error</span>
-    return <span className="text-slate-600 text-xs">—</span>
+    return <span className="text-muted-foreground text-xs">—</span>
   }
 
   // ── Loading ──────────────────────────────────────────────────────────
@@ -410,9 +410,9 @@ export function Pool() {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full bg-slate-800" />)}
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full bg-muted" />)}
         </div>
-        <Skeleton className="h-64 w-full bg-slate-800" />
+        <Skeleton className="h-64 w-full bg-muted" />
       </div>
     )
   }
@@ -421,7 +421,7 @@ export function Pool() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <AlertTriangle className="h-8 w-8 text-red-500" />
-        <p className="text-sm text-slate-400">Error: {error}</p>
+        <p className="text-sm text-muted-foreground">Error: {error}</p>
         <button onClick={fetchData} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5">
           <RefreshCw className="h-3 w-3" /> Retry
         </button>
@@ -440,12 +440,12 @@ export function Pool() {
             onClick={() => setProvider(key)}
             className={provider === key
               ? "bg-orange-500 hover:bg-orange-600 text-white h-8 text-xs"
-              : "border border-slate-700 bg-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800 h-8 text-xs"}
+              : "border border-border bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted h-8 text-xs"}
           >
             {label}
           </Button>
         ))}
-        <Badge className="bg-slate-800 text-slate-400 border-none text-xs ml-1">{provAccounts.length} account</Badge>
+        <Badge className="bg-muted text-muted-foreground border-none text-xs ml-1">{provAccounts.length} account</Badge>
       </div>
 
       {/* KPI Row */}
@@ -461,10 +461,10 @@ export function Pool() {
 
       {/* Donut + Health */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Zap className="h-4 w-4 text-slate-500" /> Pool Distribution
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Zap className="h-4 w-4 text-muted-foreground" /> Pool Distribution
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -474,14 +474,14 @@ export function Pool() {
                 {[
                   { label: "Active", color: "bg-emerald-500", val: poolActive },
                   { label: "Cooldown", color: "bg-orange-500", val: poolCooldown },
-                  { label: "Inactive", color: "bg-slate-600", val: poolInactive },
+                  { label: "Inactive", color: "bg-muted-foreground/40", val: poolInactive },
                 ].map(({ label, color, val }) => (
                   <div key={label} className="flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
                       <span className={`h-2 w-2 rounded-full ${color}`} />
-                      <span className="text-slate-400">{label}</span>
+                      <span className="text-muted-foreground">{label}</span>
                     </span>
-                    <span className="font-medium text-slate-200 tabular-nums">{val}</span>
+                    <span className="font-medium text-foreground tabular-nums">{val}</span>
                   </div>
                 ))}
               </div>
@@ -489,28 +489,28 @@ export function Pool() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Activity className="h-4 w-4 text-slate-500" /> Pool Health
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" /> Pool Health
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Active</span>
+                <span className="text-muted-foreground">Active</span>
                 <span className="text-emerald-400 font-medium tabular-nums">{poolActive} / {poolTotal} ({pctActive}%)</span>
               </div>
-              <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-800">
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
                 <div className="h-full bg-emerald-500 transition-all duration-500 rounded-full" style={{ width: `${pctActive}%` }} />
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Cooldown</span>
+                <span className="text-muted-foreground">Cooldown</span>
                 <span className="text-orange-400 font-medium tabular-nums">{poolCooldown} / {poolTotal} ({pctCooldown}%)</span>
               </div>
-              <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-800">
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
                 <div className="h-full bg-orange-500 transition-all duration-500 rounded-full" style={{ width: `${pctCooldown}%` }} />
               </div>
             </div>
@@ -520,65 +520,65 @@ export function Pool() {
 
       {/* Check progress bar */}
       {checkProgress && (
-        <div className="flex items-center gap-3 bg-slate-800/60 rounded-lg px-4 py-2">
+        <div className="flex items-center gap-3 bg-muted/60 rounded-lg px-4 py-2">
           <RefreshCw className="h-3.5 w-3.5 text-orange-400 animate-spin" />
-          <span className="text-xs text-slate-300">Đang check…</span>
-          <div className="flex-1 h-1.5 rounded-full bg-slate-700">
+          <span className="text-xs text-foreground">Đang check…</span>
+          <div className="flex-1 h-1.5 rounded-full bg-muted">
             <div
               className="h-full bg-orange-500 rounded-full transition-all"
               style={{ width: `${checkProgress.total ? Math.round((checkProgress.done / checkProgress.total) * 100) : 0}%` }}
             />
           </div>
-          <span className="text-xs text-slate-400 tabular-nums">{checkProgress.done}/{checkProgress.total}</span>
+          <span className="text-xs text-muted-foreground tabular-nums">{checkProgress.done}/{checkProgress.total}</span>
         </div>
       )}
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 bg-slate-800/50 rounded-lg px-4 py-2">
-          <span className="text-xs text-slate-400 mr-1">{selected.size} đã chọn</span>
+        <div className="flex flex-wrap items-center gap-2 bg-muted/50 rounded-lg px-4 py-2">
+          <span className="text-xs text-muted-foreground mr-1">{selected.size} đã chọn</span>
           <Button size="sm" onClick={() => handleBulkEnable(true, [...selected])} className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-xs gap-1">
             <Power className="h-3 w-3" /> Bật
           </Button>
-          <Button size="sm" onClick={() => handleBulkEnable(false, [...selected])} className="bg-slate-700 hover:bg-slate-600 text-slate-200 h-7 text-xs gap-1">
+          <Button size="sm" onClick={() => handleBulkEnable(false, [...selected])} className="bg-muted hover:bg-muted-foreground/40 text-foreground h-7 text-xs gap-1">
             <PowerOff className="h-3 w-3" /> Tắt
           </Button>
-          <Button size="sm" onClick={handleBulkQuota} className="bg-slate-700 hover:bg-slate-600 text-slate-200 h-7 text-xs gap-1">
+          <Button size="sm" onClick={handleBulkQuota} className="bg-muted hover:bg-muted-foreground/40 text-foreground h-7 text-xs gap-1">
             <Gauge className="h-3 w-3" /> Quota
           </Button>
-          <Button size="sm" onClick={() => startCheck("token")} className="bg-slate-700 hover:bg-slate-600 text-slate-200 h-7 text-xs gap-1">
+          <Button size="sm" onClick={() => startCheck("token")} className="bg-muted hover:bg-muted-foreground/40 text-foreground h-7 text-xs gap-1">
             <FlaskConical className="h-3 w-3" /> Token
           </Button>
-          <Button size="sm" onClick={() => startCheck("live")} className="bg-slate-700 hover:bg-slate-600 text-slate-200 h-7 text-xs gap-1">
+          <Button size="sm" onClick={() => startCheck("live")} className="bg-muted hover:bg-muted-foreground/40 text-foreground h-7 text-xs gap-1">
             <Activity className="h-3 w-3" /> Live
           </Button>
         </div>
       )}
 
       {/* Table */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Server className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Server className="h-4 w-4 text-muted-foreground" />
               Pool — {provider === "agy" ? "Antigravity" : "Kiro"} ({filtered.length})
             </CardTitle>
             <div className="flex flex-wrap items-center gap-2">
               {/* Search */}
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Tìm email…"
                   value={search}
                   onChange={e => { setSearch(e.target.value); setPage(1) }}
-                  className="pl-8 bg-slate-800 border-slate-700 text-slate-200 placeholder:text-slate-600 h-8 text-xs w-44"
+                  className="pl-8 bg-muted border-border text-foreground placeholder:text-muted-foreground h-8 text-xs w-44"
                 />
               </div>
               {/* Filter */}
               <select
                 value={filter}
                 onChange={e => { setFilter(e.target.value); setPage(1) }}
-                className="h-8 px-2 rounded-md bg-slate-800 border border-slate-700 text-slate-300 text-xs focus:outline-none"
+                className="h-8 px-2 rounded-md bg-muted border border-border text-foreground text-xs focus:outline-none"
               >
                 <option value="all">Tất cả</option>
                 <option value="on">Bật</option>
@@ -590,29 +590,29 @@ export function Pool() {
               <select
                 value={sort}
                 onChange={e => { setSort(e.target.value); setPage(1) }}
-                className="h-8 px-2 rounded-md bg-slate-800 border border-slate-700 text-slate-300 text-xs focus:outline-none"
+                className="h-8 px-2 rounded-md bg-muted border border-border text-foreground text-xs focus:outline-none"
               >
                 <option value="email">Email</option>
                 <option value="requests">Requests</option>
                 <option value="quota">Quota</option>
               </select>
               {/* Bulk: Enable all / Disable all / Wake / Check all / Refresh quota all */}
-              <Button size="sm" onClick={() => handleBulkEnable(true)} className="border border-slate-700 bg-transparent text-emerald-400 hover:bg-slate-800 h-8 text-xs gap-1">
+              <Button size="sm" onClick={() => handleBulkEnable(true)} className="border border-border bg-transparent text-emerald-400 hover:bg-muted h-8 text-xs gap-1">
                 <Power className="h-3 w-3" /> All On
               </Button>
-              <Button size="sm" onClick={() => handleBulkEnable(false)} className="border border-slate-700 bg-transparent text-slate-400 hover:bg-slate-800 h-8 text-xs gap-1">
+              <Button size="sm" onClick={() => handleBulkEnable(false)} className="border border-border bg-transparent text-muted-foreground hover:bg-muted h-8 text-xs gap-1">
                 <PowerOff className="h-3 w-3" /> All Off
               </Button>
-              <Button size="sm" onClick={handleWake} className="border border-slate-700 bg-transparent text-orange-400 hover:bg-slate-800 h-8 text-xs gap-1">
+              <Button size="sm" onClick={handleWake} className="border border-border bg-transparent text-orange-400 hover:bg-muted h-8 text-xs gap-1">
                 <Snowflake className="h-3 w-3" /> Wake
               </Button>
-              <Button size="sm" onClick={() => startCheck("live")} className="border border-slate-700 bg-transparent text-slate-400 hover:bg-slate-800 h-8 text-xs gap-1">
+              <Button size="sm" onClick={() => startCheck("live")} className="border border-border bg-transparent text-muted-foreground hover:bg-muted h-8 text-xs gap-1">
                 <CheckCheck className="h-3 w-3" /> Check All
               </Button>
-              <Button size="sm" onClick={() => handleBulkQuota()} className="border border-slate-700 bg-transparent text-slate-400 hover:bg-slate-800 h-8 text-xs gap-1">
+              <Button size="sm" onClick={() => handleBulkQuota()} className="border border-border bg-transparent text-muted-foreground hover:bg-muted h-8 text-xs gap-1">
                 <Gauge className="h-3 w-3" /> Quota All
               </Button>
-              <Button size="sm" onClick={fetchData} className="border border-slate-700 bg-transparent text-slate-400 hover:text-orange-400 h-8 text-xs gap-1">
+              <Button size="sm" onClick={fetchData} className="border border-border bg-transparent text-muted-foreground hover:text-orange-400 h-8 text-xs gap-1">
                 <RefreshCw className="h-3 w-3" /> Refresh
               </Button>
             </div>
@@ -622,30 +622,30 @@ export function Pool() {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-800 hover:bg-transparent">
+                <TableRow className="border-border hover:bg-transparent">
                   <TableHead className="w-8">
                     <input
                       type="checkbox"
                       checked={pageRows.length > 0 && selected.size === pageRows.length}
                       onChange={toggleAll}
-                      className="rounded border-slate-600 bg-slate-800"
+                      className="rounded border-border bg-muted"
                     />
                   </TableHead>
-                  <TableHead className="text-slate-500 text-xs">On</TableHead>
-                  <TableHead className="text-slate-500 text-xs">Email</TableHead>
-                  <TableHead className="text-slate-500 text-xs">{provider === "kr" ? "Credit" : "Quota"}</TableHead>
-                  <TableHead className="text-slate-500 text-xs">Status</TableHead>
-                  <TableHead className="text-slate-500 text-xs">Health / Live</TableHead>
-                  <TableHead className="text-slate-500 text-xs">Cooldown</TableHead>
-                  <TableHead className="text-slate-500 text-xs text-right">Requests</TableHead>
-                  <TableHead className="text-slate-500 text-xs">Last used</TableHead>
-                  <TableHead className="text-slate-500 text-xs text-right">Actions</TableHead>
+                  <TableHead className="text-muted-foreground text-xs">On</TableHead>
+                  <TableHead className="text-muted-foreground text-xs">Email</TableHead>
+                  <TableHead className="text-muted-foreground text-xs">{provider === "kr" ? "Credit" : "Quota"}</TableHead>
+                  <TableHead className="text-muted-foreground text-xs">Status</TableHead>
+                  <TableHead className="text-muted-foreground text-xs">Health / Live</TableHead>
+                  <TableHead className="text-muted-foreground text-xs">Cooldown</TableHead>
+                  <TableHead className="text-muted-foreground text-xs text-right">Requests</TableHead>
+                  <TableHead className="text-muted-foreground text-xs">Last used</TableHead>
+                  <TableHead className="text-muted-foreground text-xs text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {pageRows.length === 0 ? (
-                  <TableRow className="border-slate-800">
-                    <TableCell colSpan={10} className="text-center text-slate-600 text-xs py-8">
+                  <TableRow className="border-border">
+                    <TableCell colSpan={10} className="text-center text-muted-foreground text-xs py-8">
                       {filter !== "all" || search ? "Không có account khớp" : "Chưa có account trong pool"}
                     </TableCell>
                   </TableRow>
@@ -655,14 +655,14 @@ export function Pool() {
                     return (
                       <TableRow
                         key={acc.email}
-                        className={`border-slate-800 hover:bg-slate-800/50 ${!acc.enabled ? "opacity-50" : ""} ${acc.cooldown ? "bg-orange-500/5" : ""}`}
+                        className={`border-border hover:bg-muted/50 ${!acc.enabled ? "opacity-50" : ""} ${acc.cooldown ? "bg-orange-500/5" : ""}`}
                       >
                         <TableCell>
                           <input
                             type="checkbox"
                             checked={selected.has(acc.email)}
                             onChange={() => toggleSelect(acc.email)}
-                            className="rounded border-slate-600 bg-slate-800"
+                            className="rounded border-border bg-muted"
                           />
                         </TableCell>
                         {/* Toggle switch */}
@@ -670,13 +670,13 @@ export function Pool() {
                           <button
                             onClick={() => handleToggle(acc, !acc.enabled)}
                             disabled={sp.toggle}
-                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${acc.enabled ? "bg-orange-500" : "bg-slate-700"}`}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${acc.enabled ? "bg-orange-500" : "bg-muted"}`}
                           >
                             <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${acc.enabled ? "translate-x-4" : "translate-x-1"}`} />
                           </button>
                         </TableCell>
-                        <TableCell className="text-sm text-slate-200 font-mono max-w-[220px] truncate">{acc.email}</TableCell>
-                        <TableCell className="text-xs text-slate-400 tabular-nums">
+                        <TableCell className="text-sm text-foreground font-mono max-w-[220px] truncate">{acc.email}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground tabular-nums">
                           {acc.geminiPct != null ? (
                             <span className={acc.geminiPct >= 50 ? "text-emerald-400" : acc.geminiPct >= 20 ? "text-amber-400" : "text-red-400"}>
                               {acc.geminiPct}%
@@ -693,10 +693,10 @@ export function Pool() {
                         <TableCell className="text-xs text-orange-400 tabular-nums">
                           {acc.cooldown ? fmtCooldown(acc.cooldownUntil) : "—"}
                         </TableCell>
-                        <TableCell className="text-right text-sm text-slate-400 tabular-nums">
+                        <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
                           {fmtNum(acc.requests ?? 0)}
                         </TableCell>
-                        <TableCell className="text-xs text-slate-500">
+                        <TableCell className="text-xs text-muted-foreground">
                           {fmtAgo(acc.lastUsed)}
                         </TableCell>
                         <TableCell>
@@ -706,7 +706,7 @@ export function Pool() {
                               title="Test token"
                               onClick={() => handleTest(acc.email)}
                               disabled={sp.test}
-                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-slate-700 text-slate-400 hover:text-emerald-400 disabled:opacity-50"
+                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-emerald-400 disabled:opacity-50"
                             >
                               {sp.test
                                 ? <RefreshCw className="h-3 w-3 animate-spin" />
@@ -717,7 +717,7 @@ export function Pool() {
                               title="Check live"
                               onClick={() => handleCheckLive(acc.email)}
                               disabled={sp.live}
-                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-slate-700 text-slate-400 hover:text-orange-400 disabled:opacity-50"
+                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-orange-400 disabled:opacity-50"
                             >
                               {sp.live
                                 ? <RefreshCw className="h-3 w-3 animate-spin" />
@@ -728,7 +728,7 @@ export function Pool() {
                               title="Refresh quota"
                               onClick={() => handleRefreshQuota(acc.email)}
                               disabled={sp.quota}
-                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-slate-700 text-slate-400 hover:text-blue-400 disabled:opacity-50"
+                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-blue-400 disabled:opacity-50"
                             >
                               {sp.quota
                                 ? <RefreshCw className="h-3 w-3 animate-spin" />
@@ -746,13 +746,13 @@ export function Pool() {
 
           {/* Pager */}
           {sorted.length > 0 && (
-            <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+            <div className="flex items-center justify-between pt-4 border-t border-border">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">Trang {safePage}/{totalPages} · {sorted.length} rows</span>
+                <span className="text-xs text-muted-foreground">Trang {safePage}/{totalPages} · {sorted.length} rows</span>
                 <select
                   value={pageSize}
                   onChange={e => { setPageSize(Number(e.target.value)); setPage(1); localStorage.setItem("vs_agySize", e.target.value) }}
-                  className="h-7 px-2 rounded bg-slate-800 border border-slate-700 text-slate-300 text-xs focus:outline-none"
+                  className="h-7 px-2 rounded bg-muted border border-border text-foreground text-xs focus:outline-none"
                 >
                   {PAGE_SIZES.map(s => <option key={s} value={s}>{s}/trang</option>)}
                 </select>
@@ -761,7 +761,7 @@ export function Pool() {
                 <button
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={safePage <= 1}
-                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 disabled:opacity-30"
+                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground disabled:opacity-30"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </button>
@@ -771,7 +771,7 @@ export function Pool() {
                     <button
                       key={p}
                       onClick={() => setPage(p)}
-                      className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-orange-500 text-white" : "text-slate-400 hover:bg-slate-800"}`}
+                      className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-orange-500 text-white" : "text-muted-foreground hover:bg-muted"}`}
                     >
                       {p}
                     </button>
@@ -780,7 +780,7 @@ export function Pool() {
                 <button
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                   disabled={safePage >= totalPages}
-                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-slate-800 text-slate-400 disabled:opacity-30"
+                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground disabled:opacity-30"
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
                 </button>

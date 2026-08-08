@@ -50,7 +50,7 @@ const STATUS_CONFIG: Record<string, { color: string; dotColor: string; label: st
   quota:   { color: "bg-amber-500/15 text-amber-400",     dotColor: "bg-amber-400",   label: "quota",   icon: <AlertTriangle className="h-2.5 w-2.5" /> },
   error:   { color: "bg-red-500/15 text-red-400",         dotColor: "bg-red-400",     label: "error",   icon: <XCircle className="h-2.5 w-2.5" /> },
   image:   { color: "bg-purple-500/15 text-purple-400",   dotColor: "bg-purple-400",  label: "image",   icon: <Cpu className="h-2.5 w-2.5" /> },
-  unknown: { color: "bg-slate-700/60 text-slate-400",     dotColor: "bg-slate-600",   label: "—",       icon: <HelpCircle className="h-2.5 w-2.5" /> },
+  unknown: { color: "bg-muted/60 text-muted-foreground",     dotColor: "bg-muted-foreground/40",   label: "—",       icon: <HelpCircle className="h-2.5 w-2.5" /> },
 }
 
 function statusCfg(status?: string) {
@@ -84,7 +84,7 @@ function ModelChip({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-700/50 text-xs font-mono ${cfg.color} bg-slate-800/70 group relative`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border/50 text-xs font-mono ${cfg.color} bg-muted/70 group relative`}
       title={tip}
     >
       {/* Status dot */}
@@ -96,17 +96,17 @@ function ModelChip({
       )}
 
       {/* Model ID */}
-      <span className="text-slate-200">{model.id}</span>
+      <span className="text-foreground">{model.id}</span>
 
       {/* Latency */}
       {model.ms != null && (
-        <span className="text-slate-500 text-[10px]">{fmtMs(model.ms)}</span>
+        <span className="text-muted-foreground text-[10px]">{fmtMs(model.ms)}</span>
       )}
 
       {/* Copy button */}
       <button
         onClick={() => onCopy(model.id)}
-        className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 text-slate-500 hover:text-slate-200"
+        className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5 text-muted-foreground hover:text-foreground"
         title="Copy model id"
       >
         {copied ? (
@@ -252,11 +252,11 @@ export function Models() {
     return (
       <div className="space-y-4">
         <div className="flex gap-2">
-          <Skeleton className="h-8 w-24 bg-slate-800" />
-          <Skeleton className="h-8 w-24 bg-slate-800" />
+          <Skeleton className="h-8 w-24 bg-muted" />
+          <Skeleton className="h-8 w-24 bg-muted" />
         </div>
-        <Skeleton className="h-48 w-full bg-slate-800" />
-        <Skeleton className="h-48 w-full bg-slate-800" />
+        <Skeleton className="h-48 w-full bg-muted" />
+        <Skeleton className="h-48 w-full bg-muted" />
       </div>
     )
   }
@@ -267,7 +267,7 @@ export function Models() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <AlertTriangle className="h-8 w-8 text-red-500" />
-        <p className="text-sm text-slate-400">Error: {error}</p>
+        <p className="text-sm text-muted-foreground">Error: {error}</p>
         <button
           onClick={fetchData}
           className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5"
@@ -329,8 +329,8 @@ export function Models() {
       {/* Header + actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Cpu className="h-4 w-4 text-slate-500" />
-          <h2 className="text-sm font-medium text-slate-300">
+          <Cpu className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-medium text-foreground">
             Models ({models.length})
           </h2>
         </div>
@@ -339,7 +339,7 @@ export function Models() {
             variant="outline"
             size="sm"
             onClick={fetchData}
-            className="border-slate-700 text-slate-400 hover:text-orange-400 h-7 text-xs gap-1"
+            className="border-border text-muted-foreground hover:text-orange-400 h-7 text-xs gap-1"
           >
             <RefreshCw className="h-3 w-3" /> Refresh
           </Button>
@@ -348,7 +348,7 @@ export function Models() {
             size="sm"
             disabled={checkingAll}
             onClick={checkAllLive}
-            className="border-slate-700 text-slate-400 hover:text-emerald-400 h-7 text-xs gap-1"
+            className="border-border text-muted-foreground hover:text-emerald-400 h-7 text-xs gap-1"
             title="Gọi thử từng model (1-2 phút)"
           >
             {checkingAll ? (
@@ -363,7 +363,7 @@ export function Models() {
             size="sm"
             disabled={probingKiro}
             onClick={probeKiro}
-            className="border-slate-700 text-slate-400 hover:text-purple-400 h-7 text-xs gap-1"
+            className="border-border text-muted-foreground hover:text-purple-400 h-7 text-xs gap-1"
             title="Probe Kiro accounts để tìm model dùng được"
           >
             {probingKiro ? (
@@ -378,7 +378,7 @@ export function Models() {
 
       {/* Status feedback */}
       {checkResult && (
-        <div className="bg-slate-800/60 border border-slate-700 rounded-lg px-4 py-2.5 text-xs text-slate-300">
+        <div className="bg-muted/60 border border-border rounded-lg px-4 py-2.5 text-xs text-foreground">
           {checkResult}
         </div>
       )}
@@ -389,11 +389,11 @@ export function Models() {
           { label: "Live", count: statusCounts.ok, color: "text-emerald-400" },
           { label: "Quota", count: statusCounts.quota, color: "text-amber-400" },
           { label: "Error", count: statusCounts.error, color: "text-red-400" },
-          { label: "Chưa kiểm", count: statusCounts.unknown, color: "text-slate-400" },
+          { label: "Chưa kiểm", count: statusCounts.unknown, color: "text-muted-foreground" },
         ].map((s) => (
-          <Card key={s.label} className="bg-slate-900 border-slate-800">
+          <Card key={s.label} className="bg-card border-border">
             <CardContent className="pt-3 pb-3">
-              <p className="text-xs text-slate-500 mb-0.5">{s.label}</p>
+              <p className="text-xs text-muted-foreground mb-0.5">{s.label}</p>
               <p className={`text-xl font-bold tabular-nums ${s.color}`}>{s.count}</p>
             </CardContent>
           </Card>
@@ -402,13 +402,13 @@ export function Models() {
 
       {/* Provider tabs */}
       {providerKeys.length > 1 && (
-        <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-lg p-1 w-fit">
+        <div className="flex items-center gap-1.5 bg-muted/60 rounded-lg p-1 w-fit">
           <button
             onClick={() => setActiveProvider("all")}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
               activeProvider === "all"
-                ? "bg-slate-700 text-slate-100"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Tất cả
@@ -423,12 +423,12 @@ export function Models() {
                 onClick={() => setActiveProvider(pk)}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   activeProvider === pk
-                    ? "bg-slate-700 text-slate-100"
-                    : "text-slate-400 hover:text-slate-200"
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {provLabel}
-                <span className="ml-1.5 text-slate-500 text-[10px]">
+                <span className="ml-1.5 text-muted-foreground text-[10px]">
                   {models.filter((m) => (m.provider ?? "unknown") === pk).length}
                 </span>
               </button>
@@ -439,11 +439,11 @@ export function Models() {
 
       {/* Groups */}
       {filteredGroups.length === 0 ? (
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-6">
             <div className="flex flex-col items-center justify-center py-8 gap-3">
-              <Cpu className="h-8 w-8 text-slate-600" />
-              <p className="text-sm text-slate-500">Không có model</p>
+              <Cpu className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Không có model</p>
             </div>
           </CardContent>
         </Card>
@@ -454,13 +454,13 @@ export function Models() {
           const checkedCount = group.models.filter((m) => m.status && m.status !== "unknown").length
 
           return (
-            <Card key={group.key} className="bg-slate-900 border-slate-800">
+            <Card key={group.key} className="bg-card border-border">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                    <Cpu className="h-4 w-4 text-slate-500" />
+                  <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Cpu className="h-4 w-4 text-muted-foreground" />
                     {group.title}
-                    <span className="text-slate-500 font-normal text-xs">
+                    <span className="text-muted-foreground font-normal text-xs">
                       {group.models.length} model
                     </span>
                   </CardTitle>
@@ -481,7 +481,7 @@ export function Models() {
                       variant="ghost"
                       size="sm"
                       onClick={() => checkSingleModel(group.models[0])}
-                      className="h-6 text-[10px] text-slate-500 hover:text-slate-200 px-2 gap-1"
+                      className="h-6 text-[10px] text-muted-foreground hover:text-foreground px-2 gap-1"
                       title="Check provider này"
                     >
                       <Activity className="h-3 w-3" />
@@ -492,7 +492,7 @@ export function Models() {
                       variant="ghost"
                       size="sm"
                       onClick={() => copyAll(group.models)}
-                      className="h-6 text-[10px] text-slate-500 hover:text-slate-200 px-2 gap-1"
+                      className="h-6 text-[10px] text-muted-foreground hover:text-foreground px-2 gap-1"
                     >
                       <Copy className="h-3 w-3" />
                       Copy tất cả
@@ -513,17 +513,17 @@ export function Models() {
                 </div>
 
                 {/* Legend */}
-                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-800">
+                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border">
                   {Object.entries(STATUS_CONFIG)
                     .filter(([k]) => k !== "unknown")
                     .map(([k, cfg]) => (
-                      <span key={k} className="flex items-center gap-1 text-[10px] text-slate-500">
+                      <span key={k} className="flex items-center gap-1 text-[10px] text-muted-foreground">
                         <span className={`h-1.5 w-1.5 rounded-full ${cfg.dotColor}`} />
                         {cfg.label}
                       </span>
                     ))}
-                  <span className="flex items-center gap-1 text-[10px] text-slate-500">
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
                     chưa kiểm
                   </span>
                 </div>

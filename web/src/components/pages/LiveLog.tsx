@@ -202,7 +202,7 @@ export function LiveLog() {
         <h2 className="text-sm font-medium text-foreground">Live Log</h2>
         <span
           className={`ml-1 h-2 w-2 rounded-full ${
-            connected ? "bg-emerald-400 ring-2 ring-emerald-400/25" : "bg-slate-600"
+            connected ? "bg-emerald-400 ring-2 ring-emerald-400/25" : "bg-muted-foreground/40"
           }`}
         />
         <span className="text-xs text-muted-foreground">
@@ -332,7 +332,7 @@ export function LiveLog() {
         <CardContent className="min-h-0 flex-1 overflow-y-auto p-0">
           {shown.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-2">
-              <ScrollText className="h-8 w-8 text-slate-700" />
+              <ScrollText className="h-8 w-8 text-border" />
               <p className="text-sm text-muted-foreground">
                 {entries.length === 0
                   ? connected
@@ -386,7 +386,7 @@ export function LiveLog() {
                   {/* HÀNG 2 — mô tả */}
                   <p
                     className={`mt-1 break-words font-mono text-[11px] leading-relaxed ${
-                      e.kind === "err" ? "text-red-300/90" : "text-slate-300"
+                      e.kind === "err" ? "text-red-300/90" : "text-foreground"
                     }`}
                   >
                     {e.msg}

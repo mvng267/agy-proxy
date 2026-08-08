@@ -66,20 +66,20 @@ export function UpdatePanel() {
   }
 
   return (
-    <Card className="bg-slate-900 border-slate-800">
+    <Card className="bg-card border-border">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-300">
-          <Download className="h-4 w-4 text-slate-500" /> Phiên bản
+        <CardTitle className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <Download className="h-4 w-4 text-muted-foreground" /> Phiên bản
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm text-slate-300">
-            Đang chạy <span className="font-mono text-slate-100">v{d?.current ?? "…"}</span>
+          <span className="text-sm text-foreground">
+            Đang chạy <span className="font-mono text-foreground">v{d?.current ?? "…"}</span>
           </span>
 
           {q.isLoading ? (
-            <span className="text-xs text-slate-500">đang kiểm tra…</span>
+            <span className="text-xs text-muted-foreground">đang kiểm tra…</span>
           ) : d?.error ? (
             <span className="text-xs text-amber-400">không kiểm tra được: {d.error.slice(0, 60)}</span>
           ) : d?.hasUpdate ? (
@@ -112,16 +112,16 @@ export function UpdatePanel() {
 
         {/* Bản cài không phải git thì nút cập nhật vô dụng — nói rõ phải làm gì thay thế. */}
         {d?.hasUpdate && !d.canSelfUpdate ? (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             Bản cài này không phải git checkout nên không tự cập nhật được. Chạy trên máy chủ:{" "}
-            <code className="rounded bg-slate-800 px-1 text-slate-300">agyproxy update</code>
+            <code className="rounded bg-muted px-1 text-foreground">agyproxy update</code>
           </p>
         ) : null}
 
-        {done ? <p className="text-xs text-slate-300">{done}</p> : null}
+        {done ? <p className="text-xs text-foreground">{done}</p> : null}
 
         {steps.length ? (
-          <div className="space-y-1 rounded-md border border-slate-800 bg-slate-950/60 p-2">
+          <div className="space-y-1 rounded-md border border-border bg-background/60 p-2">
             {steps.map((s, i) => (
               <div key={i} className="flex items-start gap-2 text-xs">
                 {s.ok ? (
@@ -129,8 +129,8 @@ export function UpdatePanel() {
                 ) : (
                   <XCircle className="mt-0.5 h-3 w-3 shrink-0 text-red-500" />
                 )}
-                <span className="w-28 shrink-0 text-slate-400">{s.step}</span>
-                <span className="min-w-0 flex-1 break-words text-slate-500">{s.detail}</span>
+                <span className="w-28 shrink-0 text-muted-foreground">{s.step}</span>
+                <span className="min-w-0 flex-1 break-words text-muted-foreground">{s.detail}</span>
               </div>
             ))}
           </div>

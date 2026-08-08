@@ -209,8 +209,8 @@ export function Combo() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-10 w-full bg-slate-800" />
-        <Skeleton className="h-64 w-full bg-slate-800" />
+        <Skeleton className="h-10 w-full bg-muted" />
+        <Skeleton className="h-64 w-full bg-muted" />
       </div>
     )
   }
@@ -219,7 +219,7 @@ export function Combo() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <AlertTriangle className="h-8 w-8 text-red-500" />
-        <p className="text-sm text-slate-400">Error: {error}</p>
+        <p className="text-sm text-muted-foreground">Error: {error}</p>
         <button
           onClick={fetchData}
           className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5"
@@ -246,12 +246,12 @@ export function Combo() {
     <div className="space-y-4">
       {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Combos</p>
-                <p className="text-2xl font-bold text-slate-100 tabular-nums">{combos.length}</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Combos</p>
+                <p className="text-2xl font-bold text-foreground tabular-nums">{combos.length}</p>
               </div>
               <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
                 <Shuffle className="h-4 w-4" />
@@ -259,11 +259,11 @@ export function Combo() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Enabled</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Enabled</p>
                 <p className="text-2xl font-bold text-emerald-400 tabular-nums">{enabledCount}</p>
               </div>
               <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
@@ -272,12 +272,12 @@ export function Combo() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="pt-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Auto Variants</p>
-                <p className="text-2xl font-bold text-slate-100">{autoVariants ? "On" : "Off"}</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Auto Variants</p>
+                <p className="text-2xl font-bold text-foreground">{autoVariants ? "On" : "Off"}</p>
               </div>
               <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
                 <Shuffle className="h-4 w-4" />
@@ -290,12 +290,12 @@ export function Combo() {
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="Tìm combo..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-slate-900 border-slate-800 text-slate-200 placeholder:text-slate-600 h-9 text-sm"
+            className="pl-9 bg-card border-border text-foreground placeholder:text-muted-foreground h-9 text-sm"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -303,7 +303,7 @@ export function Combo() {
             variant="outline"
             size="sm"
             onClick={fetchData}
-            className="border-slate-700 text-slate-400 hover:text-orange-400 h-9 text-xs gap-1"
+            className="border-border text-muted-foreground hover:text-orange-400 h-9 text-xs gap-1"
           >
             <RefreshCw className="h-3 w-3" /> Refresh
           </Button>
@@ -321,12 +321,12 @@ export function Combo() {
             >
               <Plus className="h-3 w-3" /> Tạo Combo
             </DialogTrigger>
-            <DialogContent className="bg-slate-900 border-slate-800 text-slate-200 sm:max-w-md">
+            <DialogContent className="bg-card border-border text-foreground sm:max-w-md">
               <DialogHeader>
-                <DialogTitle className="text-slate-100">
+                <DialogTitle className="text-foreground">
                   {editingId ? "Sửa Combo" : "Tạo Combo mới"}
                 </DialogTitle>
-                <DialogDescription className="text-slate-500">
+                <DialogDescription className="text-muted-foreground">
                   {editingId ? `Đang sửa: ${editingId}` : "Nhập thông tin combo model routing"}
                 </DialogDescription>
               </DialogHeader>
@@ -334,31 +334,31 @@ export function Combo() {
               <div className="space-y-4 py-2">
                 {/* Combo ID */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-400">Combo ID</label>
+                  <label className="text-xs font-medium text-muted-foreground">Combo ID</label>
                   <Input
                     placeholder="vd: claude-fast"
                     value={form.id}
                     onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))}
                     disabled={editingId !== null}
-                    className="bg-slate-800 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm disabled:opacity-50"
+                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground h-9 text-sm disabled:opacity-50"
                   />
                 </div>
 
                 {/* Targets */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-400">Targets (comma-separated)</label>
+                  <label className="text-xs font-medium text-muted-foreground">Targets (comma-separated)</label>
                   <Input
                     placeholder="vd: agy/gemini-3-pro, kr/claude-sonnet-4.5:2"
                     value={form.targets}
                     onChange={(e) => setForm((f) => ({ ...f, targets: e.target.value }))}
-                    className="bg-slate-800 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm"
+                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground h-9 text-sm"
                   />
-                  <p className="text-[10px] text-slate-600">Các model ID cách nhau bằng dấu phẩy — thêm :số để đặt trọng số (strategy weighted)</p>
+                  <p className="text-[10px] text-muted-foreground">Các model ID cách nhau bằng dấu phẩy — thêm :số để đặt trọng số (strategy weighted)</p>
                 </div>
 
                 {/* Strategy */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-400">Strategy</label>
+                  <label className="text-xs font-medium text-muted-foreground">Strategy</label>
                   <div className="flex flex-wrap gap-1.5">
                     {STRATEGIES.map((s) => (
                       <Button
@@ -369,7 +369,7 @@ export function Combo() {
                         className={
                           form.strategy === s
                             ? "bg-orange-500 hover:bg-orange-600 text-white h-7 text-xs"
-                            : "border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800 h-7 text-xs"
+                            : "border-border text-muted-foreground hover:text-foreground hover:bg-muted h-7 text-xs"
                         }
                       >
                         {s}
@@ -378,11 +378,11 @@ export function Combo() {
                   </div>
                 </div>
 
-                <Separator className="bg-slate-800" />
+                <Separator className="bg-muted" />
 
                 {/* Enabled */}
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-slate-400">Enabled</label>
+                  <label className="text-xs font-medium text-muted-foreground">Enabled</label>
                   <Switch
                     checked={form.enabled}
                     onCheckedChange={(checked) => setForm((f) => ({ ...f, enabled: checked }))}
@@ -413,40 +413,40 @@ export function Combo() {
       </div>
 
       {/* Combos Table */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-            <Shuffle className="h-4 w-4 text-slate-500" />
+          <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Shuffle className="h-4 w-4 text-muted-foreground" />
             Combos ({filtered.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
-              <TableRow className="border-slate-800 hover:bg-transparent">
-                <TableHead className="text-slate-500 text-xs">ID</TableHead>
-                <TableHead className="text-slate-500 text-xs">Targets</TableHead>
-                <TableHead className="text-slate-500 text-xs">Strategy</TableHead>
-                <TableHead className="text-slate-500 text-xs text-center">Enabled</TableHead>
-                <TableHead className="text-slate-500 text-xs text-right">Actions</TableHead>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="text-muted-foreground text-xs">ID</TableHead>
+                <TableHead className="text-muted-foreground text-xs">Targets</TableHead>
+                <TableHead className="text-muted-foreground text-xs">Strategy</TableHead>
+                <TableHead className="text-muted-foreground text-xs text-center">Enabled</TableHead>
+                <TableHead className="text-muted-foreground text-xs text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
-                <TableRow className="border-slate-800">
-                  <TableCell colSpan={5} className="text-center text-slate-600 text-xs py-8">
+                <TableRow className="border-border">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground text-xs py-8">
                     {search ? "Không tìm thấy combo" : "Chưa có combo nào"}
                   </TableCell>
                 </TableRow>
               ) : (
                 filtered.map((combo) => (
-                  <TableRow key={combo.id} className="border-slate-800 hover:bg-slate-800/50">
+                  <TableRow key={combo.id} className="border-border hover:bg-muted/50">
                     <TableCell>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm text-slate-200 font-mono">{combo.id}</span>
+                        <span className="text-sm text-foreground font-mono">{combo.id}</span>
                         <button
                           onClick={() => copyId(combo.id)}
-                          className="text-slate-600 hover:text-slate-400 transition-colors"
+                          className="text-muted-foreground hover:text-muted-foreground transition-colors"
                           title="Copy ID"
                         >
                           <Copy className="h-3 w-3" />
@@ -458,7 +458,7 @@ export function Combo() {
                         {combo.targets.map((t) => (
                           <Badge
                             key={t.model}
-                            className="bg-slate-700 text-slate-300 border-none text-[10px] font-mono"
+                            className="bg-muted text-foreground border-none text-[10px] font-mono"
                           >
                             {t.model}
                             {t.weight != null ? ` ×${t.weight}` : ""}
@@ -484,7 +484,7 @@ export function Combo() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleEdit(combo)}
-                          className="border-slate-700 text-slate-400 hover:text-blue-400 h-7 w-7 p-0"
+                          className="border-border text-muted-foreground hover:text-blue-400 h-7 w-7 p-0"
                           title="Sửa"
                         >
                           <Edit3 className="h-3 w-3" />
@@ -503,7 +503,7 @@ export function Combo() {
                               variant="outline"
                               size="sm"
                               onClick={() => setDeleteConfirm(null)}
-                              className="border-slate-700 text-slate-400 h-7 text-[10px] px-2"
+                              className="border-border text-muted-foreground h-7 text-[10px] px-2"
                             >
                               Huỷ
                             </Button>
@@ -513,7 +513,7 @@ export function Combo() {
                             variant="outline"
                             size="sm"
                             onClick={() => setDeleteConfirm(combo.id)}
-                            className="border-slate-700 text-slate-400 hover:text-red-400 h-7 w-7 p-0"
+                            className="border-border text-muted-foreground hover:text-red-400 h-7 w-7 p-0"
                             title="Xoá"
                           >
                             <Trash2 className="h-3 w-3" />

@@ -63,7 +63,7 @@ interface AutoAssignResult {
 function StatusBadge({ status }: { status?: string }) {
   if (!status) {
     return (
-      <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">—</Badge>
+      <Badge className="bg-muted text-muted-foreground border-none text-[10px]">—</Badge>
     )
   }
   const map: Record<string, string> = {
@@ -73,7 +73,7 @@ function StatusBadge({ status }: { status?: string }) {
     dead: "bg-red-500/15 text-red-400",
     slow: "bg-amber-500/15 text-amber-400",
   }
-  const cls = map[status] ?? "bg-slate-700 text-slate-400"
+  const cls = map[status] ?? "bg-muted text-muted-foreground"
   return (
     <Badge className={`${cls} border-none text-[10px]`}>{status}</Badge>
   )
@@ -227,8 +227,8 @@ export function Proxy() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-10 w-full bg-slate-800" />
-        <Skeleton className="h-64 w-full bg-slate-800" />
+        <Skeleton className="h-10 w-full bg-muted" />
+        <Skeleton className="h-64 w-full bg-muted" />
       </div>
     )
   }
@@ -237,7 +237,7 @@ export function Proxy() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <AlertTriangle className="h-8 w-8 text-red-500" />
-        <p className="text-sm text-slate-400">Lỗi: {error}</p>
+        <p className="text-sm text-muted-foreground">Lỗi: {error}</p>
         <button
           onClick={fetchProxies}
           className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5"
@@ -253,27 +253,27 @@ export function Proxy() {
   return (
     <div className="space-y-4">
       {/* Import form */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Download className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Download className="h-4 w-4 text-muted-foreground" />
               Import Proxy
             </CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-2">
-            <label className="text-xs text-slate-500">URL (tùy chọn — load từ URL)</label>
+            <label className="text-xs text-muted-foreground">URL (tùy chọn — load từ URL)</label>
             <Input
               placeholder="https://example.com/proxies.txt"
               value={importUrl}
               onChange={(e) => setImportUrl(e.target.value)}
-              className="bg-slate-950 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm"
+              className="bg-background border-border text-foreground placeholder:text-muted-foreground h-9 text-sm"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs text-slate-500">
+            <label className="text-xs text-muted-foreground">
               Paste danh sách proxy (mỗi dòng 1 proxy: <code className="text-orange-400">host:port:user:pass</code> hoặc URL đầy đủ)
             </label>
             <textarea
@@ -281,16 +281,16 @@ export function Proxy() {
               onChange={(e) => setImportText(e.target.value)}
               placeholder={"1.2.3.4:8080:user:pass\n5.6.7.8:3128\nsocks5://user:pass@9.10.11.12:1080"}
               rows={5}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-mono text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 resize-y"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 resize-y"
             />
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-400">
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground">
               <input
                 type="checkbox"
                 checked={importReplace}
                 onChange={(e) => setImportReplace(e.target.checked)}
-                className="rounded border-slate-600 bg-slate-800 text-orange-500"
+                className="rounded border-border bg-muted text-orange-500"
               />
               Thay thế (xoá proxy cũ)
             </label>
@@ -322,7 +322,7 @@ export function Proxy() {
           size="sm"
           onClick={handleAutoAssign}
           disabled={assigning}
-          className="bg-slate-700 hover:bg-slate-600 text-slate-200 h-8 text-xs gap-1.5"
+          className="bg-muted hover:bg-muted-foreground/40 text-foreground h-8 text-xs gap-1.5"
         >
           {assigning ? (
             <RefreshCw className="h-3 w-3 animate-spin" />
@@ -335,7 +335,7 @@ export function Proxy() {
           variant="outline"
           size="sm"
           onClick={fetchProxies}
-          className="border-slate-700 text-slate-400 hover:text-orange-400 h-8 text-xs gap-1"
+          className="border-border text-muted-foreground hover:text-orange-400 h-8 text-xs gap-1"
         >
           <RefreshCw className="h-3 w-3" /> Refresh
         </Button>
@@ -344,36 +344,36 @@ export function Proxy() {
             {assignMsg}
           </span>
         )}
-        <span className="text-xs text-slate-500 ml-auto">{proxies.length} proxy</span>
+        <span className="text-xs text-muted-foreground ml-auto">{proxies.length} proxy</span>
       </div>
 
       {/* Proxy table */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-            <Globe className="h-4 w-4 text-slate-500" />
+          <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Globe className="h-4 w-4 text-muted-foreground" />
             Danh sách proxy ({proxies.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="border-slate-800 hover:bg-transparent">
-                <TableHead className="text-slate-500 text-xs pl-4">Label / Host</TableHead>
-                <TableHead className="text-slate-500 text-xs">Protocol</TableHead>
-                <TableHead className="text-slate-500 text-xs">Status</TableHead>
-                <TableHead className="text-slate-500 text-xs">Latency</TableHead>
-                <TableHead className="text-slate-500 text-xs">Country</TableHead>
-                <TableHead className="text-slate-500 text-xs">Tested</TableHead>
-                <TableHead className="text-slate-500 text-xs w-36" />
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="text-muted-foreground text-xs pl-4">Label / Host</TableHead>
+                <TableHead className="text-muted-foreground text-xs">Protocol</TableHead>
+                <TableHead className="text-muted-foreground text-xs">Status</TableHead>
+                <TableHead className="text-muted-foreground text-xs">Latency</TableHead>
+                <TableHead className="text-muted-foreground text-xs">Country</TableHead>
+                <TableHead className="text-muted-foreground text-xs">Tested</TableHead>
+                <TableHead className="text-muted-foreground text-xs w-36" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {proxies.length === 0 ? (
-                <TableRow className="border-slate-800">
+                <TableRow className="border-border">
                   <TableCell
                     colSpan={7}
-                    className="text-center text-slate-600 text-xs py-10"
+                    className="text-center text-muted-foreground text-xs py-10"
                   >
                     Chưa có proxy nào — import proxy bên trên để bắt đầu
                   </TableCell>
@@ -401,22 +401,22 @@ export function Proxy() {
                   return (
                     <TableRow
                       key={proxy.label}
-                      className="border-slate-800 hover:bg-slate-800/40"
+                      className="border-border hover:bg-muted/40"
                     >
-                      <TableCell className="text-sm text-slate-200 font-mono pl-4">
+                      <TableCell className="text-sm text-foreground font-mono pl-4">
                         {proxy.label}
                         {proxy.host && proxy.host !== proxy.label && (
-                          <span className="text-slate-500 text-xs block">{proxy.host}</span>
+                          <span className="text-muted-foreground text-xs block">{proxy.host}</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge className="bg-slate-800 text-slate-400 border-none text-[10px]">
+                        <Badge className="bg-muted text-muted-foreground border-none text-[10px]">
                           {proxy.protocol ?? "http"}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         {isTestLoading ? (
-                          <Badge className="bg-slate-700 text-slate-400 border-none text-[10px]">
+                          <Badge className="bg-muted text-muted-foreground border-none text-[10px]">
                             <RefreshCw className="h-2.5 w-2.5 animate-spin mr-1 inline" />
                             testing…
                           </Badge>
@@ -428,13 +428,13 @@ export function Proxy() {
                           <StatusBadge status={displayStatus} />
                         )}
                       </TableCell>
-                      <TableCell className="text-sm text-slate-400 tabular-nums">
+                      <TableCell className="text-sm text-muted-foreground tabular-nums">
                         {latency != null ? `${latency}ms` : "—"}
                       </TableCell>
-                      <TableCell className="text-xs text-slate-500">
+                      <TableCell className="text-xs text-muted-foreground">
                         {country || "—"}
                       </TableCell>
-                      <TableCell className="text-xs text-slate-500">
+                      <TableCell className="text-xs text-muted-foreground">
                         {proxy.lastTested
                           ? new Date(proxy.lastTested).toLocaleString("vi-VN", {
                               day: "2-digit",
@@ -450,7 +450,7 @@ export function Proxy() {
                           <button
                             onClick={() => handleTest(proxy.label)}
                             disabled={isTestLoading}
-                            className="p-1.5 rounded text-slate-500 hover:text-amber-400 hover:bg-slate-800 transition-colors disabled:opacity-50"
+                            className="p-1.5 rounded text-muted-foreground hover:text-amber-400 hover:bg-muted transition-colors disabled:opacity-50"
                             title="Test proxy"
                           >
                             <Zap className="h-3.5 w-3.5" />
@@ -458,7 +458,7 @@ export function Proxy() {
                           {/* Copy */}
                           <button
                             onClick={() => handleCopy(proxy.label)}
-                            className="p-1.5 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+                            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                             title="Copy label"
                           >
                             {copiedLabel === proxy.label ? (
@@ -473,7 +473,7 @@ export function Proxy() {
                             className={`p-1.5 rounded transition-colors ${
                               isConfirmDelete
                                 ? "bg-red-500/20 text-red-400"
-                                : "text-slate-500 hover:text-red-400 hover:bg-slate-800"
+                                : "text-muted-foreground hover:text-red-400 hover:bg-muted"
                             }`}
                             title={isConfirmDelete ? "Bấm lần nữa để xác nhận xoá" : "Xoá proxy"}
                           >

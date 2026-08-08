@@ -42,7 +42,7 @@ function Tab3({
       className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
         active
           ? "bg-orange-500 text-white"
-          : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted"
       }`}
     >
       {icon}
@@ -122,40 +122,40 @@ function SingleForm({ proxyLabels }: { proxyLabels: string[] }) {
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
-          <label className="text-xs text-slate-500">Email *</label>
+          <label className="text-xs text-muted-foreground">Email *</label>
           <Input
             type="email"
             placeholder="user@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="bg-slate-950 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm"
+            className="bg-background border-border text-foreground placeholder:text-muted-foreground h-9 text-sm"
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs text-slate-500">Password</label>
+          <label className="text-xs text-muted-foreground">Password</label>
           <Input
             type="password"
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="bg-slate-950 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm"
+            className="bg-background border-border text-foreground placeholder:text-muted-foreground h-9 text-sm"
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs text-slate-500">TOTP Secret (tùy chọn)</label>
+          <label className="text-xs text-muted-foreground">TOTP Secret (tùy chọn)</label>
           <Input
             placeholder="JBSWY3DPEHPK3PXP"
             value={totp}
             onChange={(e) => setTotp(e.target.value)}
-            className="bg-slate-950 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm font-mono"
+            className="bg-background border-border text-foreground placeholder:text-muted-foreground h-9 text-sm font-mono"
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs text-slate-500">Proxy (tùy chọn)</label>
+          <label className="text-xs text-muted-foreground">Proxy (tùy chọn)</label>
           <select
             value={proxy}
             onChange={(e) => setProxy(e.target.value)}
-            className="w-full h-9 px-2 rounded-md bg-slate-950 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+            className="w-full h-9 px-2 rounded-md bg-background border border-border text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
           >
             <option value="">(không gán)</option>
             {proxyLabels.map((l) => (
@@ -242,7 +242,7 @@ function BulkForm() {
     <div className="space-y-3">
       <div
         className={`relative rounded-lg border-2 border-dashed transition-colors ${
-          dragging ? "border-orange-500 bg-orange-500/5" : "border-slate-700 hover:border-slate-600"
+          dragging ? "border-orange-500 bg-orange-500/5" : "border-border hover:border-border"
         }`}
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
@@ -253,17 +253,17 @@ function BulkForm() {
           onChange={(e) => setText(e.target.value)}
           placeholder={"Paste danh sách email (mỗi dòng 1 email) hoặc kéo thả file vào đây:\n\nuser1@example.com\nuser2@example.com\n\nHoặc JSON:\n{\"email\": \"user@example.com\", \"password\": \"pass\"}"}
           rows={10}
-          className="w-full bg-transparent px-3 py-2.5 text-sm font-mono text-slate-200 placeholder:text-slate-600 focus:outline-none resize-y"
+          className="w-full bg-transparent px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none resize-y"
         />
         {dragging && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 rounded-lg pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-center bg-card/80 rounded-lg pointer-events-none">
             <p className="text-orange-400 font-medium text-sm">Thả file vào đây</p>
           </div>
         )}
       </div>
 
       {lineCount > 0 && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted-foreground">
           Nhận diện{" "}
           <span className="text-orange-400 font-medium">{lineCount}</span> dòng
         </p>
@@ -282,7 +282,7 @@ function BulkForm() {
           variant="outline"
           size="sm"
           onClick={() => fileInputRef.current?.click()}
-          className="border-slate-700 text-slate-400 hover:text-slate-200 h-9 text-xs gap-1.5"
+          className="border-border text-muted-foreground hover:text-foreground h-9 text-xs gap-1.5"
         >
           <FileText className="h-3.5 w-3.5" />
           Chọn file
@@ -292,7 +292,7 @@ function BulkForm() {
             variant="ghost"
             size="sm"
             onClick={() => { setText(""); setResult(null) }}
-            className="text-slate-500 hover:text-slate-300 h-9 text-xs"
+            className="text-muted-foreground hover:text-foreground h-9 text-xs"
           >
             Xoá
           </Button>
@@ -362,65 +362,65 @@ function GenerateForm() {
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
-          <label className="text-xs text-slate-500">Prefix *</label>
+          <label className="text-xs text-muted-foreground">Prefix *</label>
           <Input
             placeholder="user"
             value={prefix}
             onChange={(e) => setPrefix(e.target.value)}
-            className="bg-slate-950 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm font-mono"
+            className="bg-background border-border text-foreground placeholder:text-muted-foreground h-9 text-sm font-mono"
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs text-slate-500">Domain *</label>
+          <label className="text-xs text-muted-foreground">Domain *</label>
           <Input
             placeholder="gmail.com"
             value={domain}
             onChange={(e) => setDomain(e.target.value)}
-            className="bg-slate-950 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm font-mono"
+            className="bg-background border-border text-foreground placeholder:text-muted-foreground h-9 text-sm font-mono"
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs text-slate-500">Bắt đầu từ số</label>
+          <label className="text-xs text-muted-foreground">Bắt đầu từ số</label>
           <Input
             type="number"
             min={1}
             value={start}
             onChange={(e) => setStart(Math.max(1, parseInt(e.target.value) || 1))}
-            className="bg-slate-950 border-slate-700 text-slate-200 h-9 text-sm tabular-nums"
+            className="bg-background border-border text-foreground h-9 text-sm tabular-nums"
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs text-slate-500">Số lượng</label>
+          <label className="text-xs text-muted-foreground">Số lượng</label>
           <Input
             type="number"
             min={1}
             max={500}
             value={count}
             onChange={(e) => setCount(Math.max(1, Math.min(500, parseInt(e.target.value) || 1)))}
-            className="bg-slate-950 border-slate-700 text-slate-200 h-9 text-sm tabular-nums"
+            className="bg-background border-border text-foreground h-9 text-sm tabular-nums"
           />
         </div>
         <div className="space-y-1 sm:col-span-2">
-          <label className="text-xs text-slate-500">Password (dùng chung)</label>
+          <label className="text-xs text-muted-foreground">Password (dùng chung)</label>
           <Input
             type="password"
             placeholder="Password cho tất cả account"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="bg-slate-950 border-slate-700 text-slate-200 placeholder:text-slate-600 h-9 text-sm"
+            className="bg-background border-border text-foreground placeholder:text-muted-foreground h-9 text-sm"
           />
         </div>
       </div>
 
       {/* Preview */}
       {preview > 0 && prefix && domain && (
-        <div className="bg-slate-800/50 rounded-lg px-3 py-2.5 space-y-1">
-          <p className="text-xs text-slate-400 font-medium">Preview ({preview} account)</p>
-          <p className="text-xs font-mono text-slate-300">
+        <div className="bg-muted/50 rounded-lg px-3 py-2.5 space-y-1">
+          <p className="text-xs text-muted-foreground font-medium">Preview ({preview} account)</p>
+          <p className="text-xs font-mono text-foreground">
             {exampleFirst}
             {count > 1 && (
               <>
-                <span className="text-slate-500 mx-2">→</span>
+                <span className="text-muted-foreground mx-2">→</span>
                 {exampleLast}
               </>
             )}
@@ -466,16 +466,16 @@ export function AddAccount() {
 
   return (
     <div className="space-y-4 max-w-2xl">
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-            <UserPlus className="h-4 w-4 text-slate-500" />
+          <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+            <UserPlus className="h-4 w-4 text-muted-foreground" />
             Thêm tài khoản
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Tab switcher */}
-          <div className="flex items-center gap-1 bg-slate-800/50 rounded-lg p-1 w-fit">
+          <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 w-fit">
             <Tab3
               active={tab === "single"}
               id="single"
