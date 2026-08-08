@@ -26,7 +26,11 @@ import {
   Moon,
   MonitorSmartphone,
   Check,
+  BookOpen,
+  ExternalLink,
 } from "lucide-react"
+
+const REPO_URL = "https://github.com/mvng267/agy-proxy"
 import { api } from "@/lib/api"
 import { getTheme, setTheme, type Theme } from "@/lib/theme"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -52,7 +56,6 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from "@/components/ui/sidebar"
 
 /**
@@ -168,19 +171,19 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
-      <SidebarHeader className="px-3 py-4">
-        <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
+      {/* Atlas: header cao 52px, padding 8px, logo 14px/600 — không có dòng version phụ và
+          không có đường kẻ ngăn dưới. Bản cũ dùng px-3 py-4 nên cao 68px, lệch hẳn so với
+          header nội dung (h-16) bên phải. */}
+      <SidebarHeader className="p-2">
+        <div className="flex h-9 items-center gap-2 px-1 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
             A
           </div>
-          <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-            <span className="text-sm font-semibold text-foreground">agyproxy</span>
-            <span className="text-xs text-muted-foreground">v{__APP_VERSION__}</span>
-          </div>
+          <span className="truncate text-sm font-semibold text-foreground group-data-[collapsible=icon]:hidden">
+            agyproxy
+          </span>
         </div>
       </SidebarHeader>
-
-      <SidebarSeparator className="bg-muted" />
 
       {/* py-1 + gap-0: mặc định ReUI để py-2/gap-2 cho mỗi nhóm, cộng lại thừa 26px so
           với chỗ trống — đo trên cửa sổ 900px thì mục cuối "Bảo mật" rơi xuống y=829
@@ -196,7 +199,9 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
       >
         {navGroups.map((group) => (
           <SidebarGroup key={group.label} className="py-1">
-            <SidebarGroupLabel className="h-6 text-muted-foreground uppercase text-[10px] tracking-wider font-semibold">
+            {/* Atlas: 12px / 500 / thường — KHÔNG uppercase, KHÔNG letter-spacing.
+                Kiểu nhãn viết hoa nhỏ li ti là của template khác. */}
+            <SidebarGroupLabel className="h-8 text-xs font-medium text-muted-foreground">
               {group.label}
             </SidebarGroupLabel>
             <SidebarMenu>
@@ -239,12 +244,11 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
         ))}
       </SidebarContent>
 
-      <SidebarSeparator className="bg-muted" />
-
-      {/* Card người dùng kiểu Atlas: avatar + tên + menu "…".
-          Menu này THAY cho UserMenu ở topbar — hai chỗ cùng đổi theme và đăng xuất thì
-          người dùng phải nhớ hai nơi cho một việc. */}
-      <SidebarFooter className="p-2">
+      {/* Card người dùng kiểu Atlas: avatar + tên + menu "…". Không kẻ ngăn phía trên —
+          Atlas để footer liền mạch với vùng nav.
+          Menu này THAY cho UserMenu ở topbar VÀ cho footer cũ của trang: hai chỗ cùng đổi
+          theme / đăng xuất thì người dùng phải nhớ hai nơi cho một việc. */}
+      <SidebarFooter className="p-2 pb-3">
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
@@ -292,6 +296,22 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
                 <DropdownMenuItem onClick={() => window.location.reload()}>
                   <RefreshCw className="h-4 w-4" />
                   Làm mới
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {/* Hai link này trước ở <footer> của trang. Atlas không có footer, nên chúng
+                    về đây thay vì bị bỏ đi. */}
+                <DropdownMenuItem
+                  onClick={() => window.open(`${REPO_URL}#readme`, "_blank", "noreferrer")}
+                >
+                  <BookOpen className="h-4 w-4" />
+                  Tài liệu
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.open(REPO_URL, "_blank", "noreferrer")}>
+                  <ExternalLink className="h-4 w-4" />
+                  GitHub
+                  <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+                    v{__APP_VERSION__}
+                  </span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onClick={handleLogout}>

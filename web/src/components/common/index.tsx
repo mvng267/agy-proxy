@@ -146,8 +146,9 @@ export function StatusBadge({ status, label }: { status: keyof typeof STATUS_TON
 export function PageHeader({ title, desc, actions }: { title: string; desc?: string; actions?: ReactNode }) {
   return (
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+      <div className="min-w-0">
+        {/* 16px/600 + mô tả 14px — số đo từ Atlas, không phải text-lg. */}
+        <h2 className="text-base font-semibold text-foreground">{title}</h2>
         {desc ? <p className="mt-0.5 text-sm text-muted-foreground">{desc}</p> : null}
       </div>
       {actions ? <div className="flex items-center gap-2">{actions}</div> : null}

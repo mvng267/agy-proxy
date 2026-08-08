@@ -3,11 +3,7 @@ import { initTheme } from "@/lib/theme"
 import { QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryClient } from "@/lib/queryClient"
 import { api } from "@/lib/api"
-import {
-  RefreshCw,
-  BookOpen,
-  ExternalLink,
-} from "lucide-react"
+import { RefreshCw } from "lucide-react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { AppSidebar } from "@/components/AppSidebar"
@@ -64,8 +60,6 @@ const tabTitles: Record<string, string> = {
   omniroute: "OmniRoute",
   security: "Bảo mật",
 }
-
-const REPO_URL = "https://github.com/mvng267/agy-proxy"
 
 // ── Page router ────────────────────────────────────────────────────────
 
@@ -207,81 +201,61 @@ function AppShell() {
             poolCount={health?.poolSize}
           />
           <SidebarInset>
-            {/* Topbar — 3.5rem + safe-area-inset-top: sticky nên phải tự chừa notch khi dính lên đỉnh.
-                px-4/lg:px-6: footer dùng đúng cặp số này để hai thanh cân nhau */}
-            <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-border bg-background/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-sm lg:px-6">
-              <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground" />
-              <Separator orientation="vertical" className="h-5 bg-muted" />
-              {/* Logo CHỈ hiện khi sidebar bị ẩn (mobile offcanvas). Trên desktop sidebar
-                  luôn hiển thị logo ngay bên trái, nên lặp lại ở đây vừa thừa vừa đẩy
-                  tiêu đề thụt vào 126px so với mép nội dung — đo bằng Playwright. */}
-              <button
-                onClick={() => setActiveTab("overview")}
-                className="flex shrink-0 items-center gap-2 md:hidden"
-                title="Về Dashboard"
-              >
-                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
-                  A
-                </span>
-                <span className="hidden text-sm font-semibold text-foreground sm:inline">agyproxy</span>
-              </button>
-              <span className="text-border md:hidden">/</span>
-              <h1 className="truncate text-sm font-medium text-foreground">
-                {tabTitles[activeTab] ?? activeTab}
-              </h1>
-              <div className="ml-auto flex items-center gap-2">
-                <ServerStatus />
-                <button
-                  onClick={() => qc.invalidateQueries()}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  title="Làm mới dữ liệu"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                </button>
+            {/*
+              Header và nội dung dùng CHUNG một khuôn căn giữa:
+                  mx-auto w-full max-w-(--container-app) px-6
+
+              Đây là điều kiện để hai tầng thẳng hàng, và trước đây chính là chỗ sai. Header
+              cũ căn theo mép trái (`px-4 lg:px-6`) còn nội dung căn GIỮA trong hộp 80rem, nên
+              màn càng rộng hai bên càng lệch: đo ở 1920px thì header ở left=272 mà nội dung ở
+              left=448 — thụt 176px. Atlas đo được left=448 cho CẢ HAI.
+
+              Hệ quả: `px-6` phải là số CỐ ĐỊNH ở cả hai chỗ. Dùng cặp responsive khác nhau
+              (`p-4 lg:p-6` cho một bên) là cách chắc chắn để chúng lại lệch nhau.
+
+              Header cũng KHÔNG sticky, không viền dưới, không nền mờ — Atlas để nó cuộn đi
+              cùng nội dung. Bỏ luôn `<footer>`: Atlas không có, và bản cũ chỉ chứa link
+              GitHub/Tài liệu — đã chuyển xuống menu người dùng ở đáy sidebar.
+            */}
+            <header className="flex h-16 shrink-0 items-center pt-[env(safe-area-inset-top)]">
+              <div className="mx-auto flex w-full min-w-0 max-w-(--container-app) items-center justify-between gap-2 px-6">
+                <div className="flex min-w-0 items-center gap-2">
+                  <SidebarTrigger className="-ml-1.5 shrink-0 text-muted-foreground hover:text-foreground" />
+                  <Separator orientation="vertical" className="mr-1 h-4 bg-border" />
+                  <h1 className="truncate text-sm font-medium text-foreground">
+                    {tabTitles[activeTab] ?? activeTab}
+                  </h1>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <ServerStatus />
+                  <button
+                    onClick={() => qc.invalidateQueries()}
+                    className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    title="Làm mới dữ liệu"
+                  >
+                    <RefreshCw className="size-3.5" />
+                  </button>
+                </div>
               </div>
             </header>
 
-            {/* Content */}
-            {/* Atlas giới hạn nội dung ở --container-app (80rem) và căn giữa — không cho
-                bảng kéo dài hết màn 2560px. `@container` để trang dùng được @3xl:/@6xl:
-                thay cho media query, đúng cách Atlas dựng grid KPI. */}
-            <main className="@container flex-1 bg-background p-4 lg:p-6">
-              <div className="mx-auto w-full max-w-(--container-app)">
-              <Suspense fallback={<div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Đang tải…</div>}>
-                <PageContent tab={activeTab} />
-              </Suspense>
+            {/*
+              Hộp giới hạn bề rộng phải là thẻ TRONG `<main>`, không phải chính `<main>`.
+              `SidebarInset` là flex-column, mà flex mặc định `align-items: stretch` — nó kéo
+              con ra hết bề ngang và `mx-auto` không thắng được: đo ra `main.left=256`,
+              `width=1920`, tức `max-w` bị vô hiệu hoàn toàn. Atlas cũng dựng đúng hai tầng
+              như thế này.
+
+              `@container` để trang dùng được @3xl:/@6xl: thay cho media query, đúng cách Atlas
+              dựng grid KPI. `pt-0`: khoảng cách phía trên đã do header h-16 lo.
+            */}
+            <main className="flex min-w-0 flex-1 flex-col">
+              <div className="@container mx-auto w-full min-w-0 max-w-(--container-app) flex-1 px-6 pt-0 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+                <Suspense fallback={<div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Đang tải…</div>}>
+                  <PageContent tab={activeTab} />
+                </Suspense>
               </div>
             </main>
-
-            {/* Footer — cùng 3.5rem với topbar để khung trên–dưới đối xứng; safe-area-inset-bottom
-                đẩy nội dung lên trên home indicator của iPhone */}
-            <footer className="flex h-[calc(3.5rem+env(safe-area-inset-bottom))] shrink-0 items-center justify-between gap-3 border-t border-border bg-background px-4 pb-[env(safe-area-inset-bottom)] lg:px-6">
-              <p className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                <span className="truncate">© 2026 agyproxy</span>
-                <span className="hidden sm:inline text-border">·</span>
-                <span className="hidden font-mono sm:inline">v{__APP_VERSION__}</span>
-              </p>
-              <nav className="flex items-center gap-1">
-                <a
-                  href={`${REPO_URL}#readme`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  <BookOpen className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Tài liệu</span>
-                </a>
-                <a
-                  href={REPO_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">GitHub</span>
-                </a>
-              </nav>
-            </footer>
           </SidebarInset>
         </SidebarProvider>
       </ErrorBoundary>
