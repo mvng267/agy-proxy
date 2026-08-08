@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { setSetting, getSetting, allSettings, deleteSetting, recordQuota, quotaSeries, quotaForAccount, pruneQuotaHistory, db } from '../src/store/db.js';
 import { config, setConfig, getConfigValue, CONFIG_KEYS, SECRET_KEYS, RESTART_KEYS } from '../src/config.js';
@@ -127,4 +127,36 @@ test('applyConfig: pacingMin > pacingMax bị báo lỗi ràng buộc liên kho�
   } finally {
     applyConfig({ pacingMinSec: min, pacingMaxSec: max });
   }
+});
+
+describe('passcode 6 số', () => {
+  test('chỉ nhận đúng 6 chữ số', async () => {
+    const { isPasscode } = await import('../src/security.js');
+    for (const ok of ['481602', '000000', '999999']) assert.equal(isPasscode(ok), true, ok);
+    for (const bad of ['12345', '1234567', 'abcdef', '12 456', '', '12345a']) {
+      assert.equal(isPasscode(bad), false, bad);
+    }
+  });
+
+  test('chặn passcode dễ đoán — đó là mã người dò thử ĐẦU TIÊN', () => {
+    // Entropy chỉ 10^6; nếu để lọt 000000/123456 thì khoá 5 lần cũng không cứu được.
+    const weak = ['000000', '111111', '999999', '123456', '654321', '345678'];
+    const strong = ['481602', '203948', '100001', '135790'];
+    return import('../src/security.js').then(({ isWeakPasscode }) => {
+      for (const w of weak) assert.equal(isWeakPasscode(w), true, `${w} phải bị coi là yếu`);
+      for (const s of strong) assert.equal(isWeakPasscode(s), false, `${s} không được coi là yếu`);
+    });
+  });
+
+  test('chuỗi không phải passcode thì không bị gắn nhãn yếu', async () => {
+    // Người vẫn có thể đặt mật khẩu chữ dài; hàm này chỉ nói về passcode số.
+    const { isWeakPasscode } = await import('../src/security.js');
+    for (const s of ['matkhaudai', '12345', 'abc123def']) assert.equal(isWeakPasscode(s), false, s);
+  });
+
+  test('giới hạn 5 lần sai vẫn là mặc định — passcode phụ thuộc vào nó', async () => {
+    const { config } = await import('../src/config.js');
+    assert.equal(config.loginMaxFail, 5, 'bỏ khoá này thì passcode 6 số dò được trong vài giờ');
+    assert.ok(config.loginLockMin > 0);
+  });
 });

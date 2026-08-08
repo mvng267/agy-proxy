@@ -1,7 +1,7 @@
 import { store } from './store/index.js';
 import { config } from './config.js';
 import { pool, syncFromStore, savePersist } from './gateway/pool.js';
-import { allSettings, setSetting, listComboRows, upsertComboRow } from './store/db.js';
+import { allSettings, setSetting, listComboRows, upsertComboRow, BACKUP_TABLES, dumpTable, loadTable, type BackupTable } from './store/db.js';
 import type { Account, Credential, Proxy } from './store/models.js';
 
 /**
@@ -23,9 +23,27 @@ export interface BackupData {
   settings?: Record<string, string>;
   /** v2: combo do người dùng tạo (chuỗi model có fallback). */
   combos?: Array<{ id: string; name: string; strategy: string; targets: unknown; enabled: boolean }>;
+  /**
+   * v3: các bảng còn lại, để chuyển TOÀN BỘ hệ thống giữa server chứ không chỉ account.
+   * Quan trọng nhất là `api_keys` — key lưu dạng hash nên mất là phải phát lại cho
+   * từng người dùng. Xem BACKUP_TABLES để biết bảng nào vì sao.
+   */
+  tables?: Partial<Record<BackupTable, Record<string, unknown>[]>>;
 }
 
-export function buildBackup(): BackupData {
+/** Tối đa số dòng lịch sử mỗi bảng — file backup không nên phình vô hạn. */
+export const HISTORY_LIMIT = 50_000;
+
+export interface BuildOpts {
+  /**
+   * Kèm bảng lịch sử (usage/quota/runs). Mặc định KHÔNG — quota_history một mình
+   * chiếm 17MB/23.9MB (71% file) mà chỉ để vẽ biểu đồ xu hướng. Chuyển server thì
+   * thứ bắt buộc phải đi theo là account + credential + api_keys, không phải lịch sử.
+   */
+  history?: boolean;
+}
+
+export function buildBackup(opts: BuildOpts = {}): BackupData {
   const accounts = store.listAccounts();
   const proxies = store.listProxies();
   const credentials = store.listCredentials();
@@ -34,8 +52,18 @@ export function buildBackup(): BackupData {
   // được cookie đăng nhập. Các secret còn lại (mật khẩu OmniRoute, API key, hash mật
   // khẩu dashboard) vẫn giữ để khôi phục máy mới là chạy được ngay.
   const { sessionSecret: _omit, ...settings } = allSettings();
+  // Bảng 'core' LUÔN đi theo (api_keys: hash không tái tạo được, mất là phải phát lại
+  // key cho từng người). Bảng 'history' chỉ khi được yêu cầu, và có trần riêng.
+  const tables: Partial<Record<BackupTable, Record<string, unknown>[]>> = {};
+  for (const [t, kind] of Object.entries(BACKUP_TABLES) as Array<[BackupTable, string]>) {
+    if (kind === 'history' && !opts.history) continue;
+    const rows = dumpTable(t, kind === 'history' ? HISTORY_LIMIT : undefined);
+    if (rows.length) tables[t] = rows;
+  }
+
   return {
-    version: 2,
+    version: 3,
+    tables,
     settings,
     combos: listComboRows().map((c) => ({ id: c.id, name: c.name, strategy: c.strategy, targets: JSON.parse(c.targets_json), enabled: c.enabled !== 0 })),
     exportedAt: new Date().toISOString(),
@@ -63,9 +91,9 @@ export function buildBackup(): BackupData {
 export function restoreBackup(
   data: any,
   opts: { mode?: 'merge' | 'replace' } = {},
-): { restored: { accounts: number; proxies: number; credentials: number; gateway: number } } {
-  if (!data || typeof data !== 'object' || (data.version !== 1 && data.version !== 2)) {
-    throw new Error('File backup không hợp lệ (cần version 1 hoặc 2)');
+): { restored: { accounts: number; proxies: number; credentials: number; gateway: number; tables?: Record<string, number> } } {
+  if (!data || typeof data !== 'object' || ![1, 2, 3].includes(data.version)) {
+    throw new Error('File backup không hợp lệ (cần version 1, 2 hoặc 3)');
   }
   const mode = opts.mode === 'replace' ? 'replace' : 'merge';
 
@@ -121,6 +149,23 @@ export function restoreBackup(
     }
   }
 
+  // 5c) các bảng còn lại (v3): api_keys + lịch sử.
+  //
+  // `merge` dùng INSERT OR IGNORE nên gộp dữ liệu hai server không vỡ vì trùng id;
+  // `replace` xoá sạch bảng trước — đúng khi CHUYỂN HẲN sang máy mới.
+  const tableCounts: Record<string, number> = {};
+  if (data.tables && typeof data.tables === 'object') {
+    for (const [t, rows] of Object.entries<any>(data.tables)) {
+      if (!Array.isArray(rows)) continue;
+      try {
+        tableCounts[t] = loadTable(t as BackupTable, rows, mode === 'replace');
+      } catch (e) {
+        // Một bảng hỏng KHÔNG được chặn phần còn lại — account vẫn phải khôi phục được.
+        tableCounts[t] = 0;
+      }
+    }
+  }
+
   // 6) config runtime (backup v1 cũ) — vẫn áp để tương thích ngược
   const c = data.config;
   if (c && typeof c === 'object') {
@@ -147,6 +192,7 @@ export function restoreBackup(
       proxies: Array.isArray(data.proxies) ? data.proxies.length : 0,
       credentials: Array.isArray(data.credentials) ? data.credentials.length : 0,
       gateway: data.gateway ? Object.keys(data.gateway).length : 0,
+      ...(Object.keys(tableCounts).length ? { tables: tableCounts } : {}),
     },
   };
 }

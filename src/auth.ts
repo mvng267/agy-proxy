@@ -149,7 +149,7 @@ export function registerAuth(app: FastifyInstance): void {
     if (!passwordOk(password, user)) {
       addAuthLog(ip, uaOf(req), false, 'wrong_password');
       const left = Math.max(0, config.loginMaxFail - failedLoginCount(ip, config.loginLockMin * 60_000));
-      return reply.code(401).send({ ok: false, error: `Sai mật khẩu${left > 0 ? ` (còn ${left} lần)` : ''}` });
+      return reply.code(401).send({ ok: false, error: `Sai passcode${left > 0 ? ` (còn ${left} lần)` : ''}` });
     }
     clearFailedLogins(ip);
     addAuthLog(ip, uaOf(req), true, 'login');

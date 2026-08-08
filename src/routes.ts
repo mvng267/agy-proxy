@@ -11,7 +11,7 @@ import { omniroute } from './omniroute/client.js';
 import { config, CSV, saveSettings, setConfig, applyConfig, getConfigValue, CONFIG_KEYS, SECRET_KEYS, RESTART_KEYS, AGY_HOME, ROOT } from './config.js';
 import { checkAll, restartHealthLoop } from './health/tokenHealth.js';
 import { checkUpdate, runUpdate } from './updater.js';
-import { hashPassword, verifyPassword } from './security.js';
+import { hashPassword, verifyPassword, isWeakPasscode } from './security.js';
 import { registerGatewayRoutes } from './gateway/routes.js';
 import { registerToolRoutes } from './tools/routes.js';
 import { buildBackup, restoreBackup } from './backup.js';
@@ -428,6 +428,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     if (pass && pass.length < 6) {
       return reply.code(400).send({ ok: false, error: 'Mật khẩu tối thiểu 6 ký tự' });
     }
+    // Passcode 6 số chỉ có 10^6 tổ hợp nên phải chặn các mã dễ đoán nhất — 000000,
+    // 123456… là thứ người dò thử ĐẦU TIÊN, và chúng lọt qua "tối thiểu 6 ký tự".
+    if (isWeakPasscode(pass)) {
+      return reply.code(400).send({ ok: false, error: 'Passcode quá dễ đoán (số lặp lại hoặc dãy liên tiếp) — chọn mã khác' });
+    }
     const stored = pass ? hashPassword(pass) : ''; // lưu HASH, không lưu plaintext
     config.dashboardPassword = stored;
     config.dashboardUser = user;
@@ -436,8 +441,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- backup / restore toàn bộ (JSON kèm token) ----------
-  app.get('/api/backup/export', async (_req, reply) => {
-    const data = buildBackup();
+  app.get('/api/backup/export', async (req, reply) => {
+    // ?history=1 để kèm usage/quota/runs. Mặc định không: quota_history một mình
+    // chiếm ~71% dung lượng file mà chỉ dùng vẽ biểu đồ xu hướng.
+    const withHistory = (req.query as any)?.history === '1';
+    const data = buildBackup({ history: withHistory });
     const date = new Date().toISOString().slice(0, 10);
     reply.header('content-type', 'application/json; charset=utf-8');
     reply.header('content-disposition', `attachment; filename="antigravity-backup_${date}.json"`);

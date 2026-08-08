@@ -45,3 +45,26 @@ export function verifyPassword(pw: string, stored: string): boolean {
     return false;
   }
 }
+
+/**
+ * Passcode 6 số — dạng đăng nhập chính của dashboard.
+ *
+ * Entropy chỉ 10^6 (1 triệu tổ hợp), thấp hơn hẳn mật khẩu chữ, nên nó CHỈ an toàn khi
+ * đi kèm khoá sau N lần sai (config.loginMaxFail, mặc định 5 lần / 15 phút). Với 5 lần
+ * thử mỗi 15 phút thì dò hết không gian mất ~5,7 năm — chấp nhận được cho dashboard nội bộ.
+ * Đừng bỏ khoá đó khi tối ưu về sau.
+ */
+export const PASSCODE_LEN = 6;
+
+export function isPasscode(s: string): boolean {
+  return new RegExp(`^\\d{${PASSCODE_LEN}}$`).test(s);
+}
+
+/** Passcode quá dễ đoán: toàn số giống nhau, hoặc dãy tăng/giảm liên tiếp. */
+export function isWeakPasscode(s: string): boolean {
+  if (!isPasscode(s)) return false;
+  if (/^(\d)\1+$/.test(s)) return true; // 000000, 111111…
+  const d = s.split('').map(Number);
+  const step = (k: number) => d.every((v, i) => i === 0 || v === d[i - 1]! + k);
+  return step(1) || step(-1); // 123456, 654321
+}

@@ -480,7 +480,7 @@ function help() {
   ${c.b('agyproxy version')}       phiên bản
 
   ${c.b('── backup ──')}
-  ${c.b('agyproxy backup')}         xuất backup  ${c.d('[--keep 10] · gồm account, credential, settings, combo')}
+  ${c.b('agyproxy backup')}         xuất backup  ${c.d('[--keep 10] [--history] · account, credential, api key, settings, combo')}
   ${c.b('agyproxy backup list')}    liệt kê bản đã lưu
   ${c.b('agyproxy backup restore')} khôi phục  ${c.d('[file|latest] [--mode merge|replace]')}
   ${c.b('agyproxy backup schedule')} tự backup hằng ngày  ${c.d('[on|off|status] [--hour 3] [--keep 10]')}
@@ -505,16 +505,20 @@ const BACKUP_DIR = resolve(HOME, 'backups');
  * sessionSecret, refresh token của mọi account) để khôi phục máy mới là chạy được ngay
  * → file này nhạy cảm như chính DB, ghi quyền 600.
  */
-async function backupRun(keep) {
+async function backupRun(keep, history) {
   mkdirSync(BACKUP_DIR, { recursive: true });
-  const data = await httpJson(`http://127.0.0.1:${PORT}/api/backup/export`);
+  const data = await httpJson(`http://127.0.0.1:${PORT}/api/backup/export${history ? '?history=1' : ''}`);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const file = resolve(BACKUP_DIR, `backup_${stamp}.json`);
   writeFileSync(file, JSON.stringify(data), { mode: 0o600 });
   const kb = Math.round(statSync(file).size / 1024);
   const n = data.counts ?? {};
   console.log(c.g(`✓ ${file}`));
-  console.log(c.d(`  ${kb}KB · ${n.accounts ?? '?'} account · ${n.credentials ?? '?'} credential · ${(data.combos ?? []).length} combo`));
+  const tb = data.tables ?? {};
+  const nKeys = (tb.api_keys ?? []).length;
+  const nHist = Object.entries(tb).filter(([k]) => k !== 'api_keys').reduce((s, [, v]) => s + v.length, 0);
+  console.log(c.d(`  ${kb}KB · ${n.accounts ?? '?'} account · ${n.credentials ?? '?'} credential · ${(data.combos ?? []).length} combo · ${nKeys} api key${nHist ? ` · ${nHist} dòng lịch sử` : ''}`));
+  if (!history) console.log(c.d('  (thêm --history để kèm usage/quota/runs)'));
 
   // Dọn bản cũ, giữ N gần nhất (mặc định 10).
   const all = readdirSync(BACKUP_DIR).filter((f) => /^backup_.*\.json$/.test(f)).sort();
@@ -782,7 +786,7 @@ switch (cmd) {
     if (sub === 'list' || sub === 'ls') backupList();
     else if (sub === 'restore') await backupRestore(rest[1], flagVal('--mode'));
     else if (sub === 'schedule' || sub === 'auto') backupSchedule(rest[1] ?? 'on', flagVal('--hour'), flagVal('--keep'));
-    else await backupRun(Number(flagVal('--keep') ?? 10));
+    else await backupRun(Number(flagVal('--keep') ?? 10), process.argv.includes('--history'));
     break;
   }
   case 'on': await gatewayToggle(true); break;

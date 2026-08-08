@@ -52,6 +52,23 @@
   </style>
 </head>
 <body>
+  <style>
+    .pc-label{display:block;text-align:center;font-size:13px;color:#94a3b8;margin-bottom:14px}
+    .pc-dots{display:flex;gap:14px;justify-content:center;margin-bottom:26px;cursor:text}
+    .pc-dots span{width:13px;height:13px;border-radius:50%;border:1.5px solid #475569;transition:all .15s}
+    .pc-dots span.on{background:#f97316;border-color:#f97316;transform:scale(1.12)}
+    .pc-dots.shake{animation:sh .4s}
+    @keyframes sh{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+    /* Ẩn khỏi mắt nhưng KHÔNG khỏi bàn phím: display:none sẽ chặn cả focus lẫn autofill. */
+    .pc-hidden{position:absolute;opacity:0;pointer-events:none;height:1px;width:1px}
+    .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}
+    .pad button{height:56px;font-size:21px;font-weight:500;color:#e2e8f0;background:#1e293b;
+      border:1px solid #334155;border-radius:13px;cursor:pointer;transition:background .12s}
+    .pad button:active{background:#334155}
+    .pad button[data-k="del"]{font-size:17px;background:transparent;border-color:transparent;color:#94a3b8}
+    .hide{display:none}
+    @media (max-width:380px){.pad button{height:50px;font-size:19px}}
+  </style>
   <div class="card">
     <div class="logo">
       <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -62,16 +79,24 @@
       <div><h1>agyproxy</h1><span>AI Gateway</span></div>
     </div>
     <div class="err" id="err"></div>
-    <form method="POST" action="/auth/login" id="form">
-      <div class="field">
-        <label for="user">Tên đăng nhập</label>
-        <input id="user" name="username" type="text" value="admin" autocomplete="username" />
+
+    <!-- Passcode 6 số. Ô input thật bị ẩn nhưng VẪN nhận focus để bàn phím số của
+         điện thoại bật lên và trình quản lý mật khẩu vẫn điền được; 6 chấm phía trên
+         chỉ là phần nhìn thấy. -->
+    <form id="form" autocomplete="off">
+      <label class="pc-label" for="pass">Nhập passcode</label>
+      <div class="pc-dots" id="dots" role="button" tabindex="0" aria-label="Nhập passcode 6 số">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
       </div>
-      <div class="field">
-        <label for="pass">Mật khẩu</label>
-        <input id="pass" name="password" type="password" placeholder="••••••••" autocomplete="current-password" autofocus />
+      <input id="pass" name="password" type="text" inputmode="numeric" pattern="[0-9]*"
+             maxlength="6" autocomplete="one-time-code" autofocus class="pc-hidden" />
+      <div class="pad" id="pad">
+        <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+        <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+        <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+        <span></span><button type="button" data-k="0">0</button><button type="button" data-k="del" aria-label="Xoá">⌫</button>
       </div>
-      <button type="submit" id="btn">Đăng nhập</button>
+      <button type="submit" id="btn" class="hide">Đăng nhập</button>
     </form>
   </div>
   <script>
@@ -83,26 +108,61 @@
       });
     });
     const form = document.getElementById('form');
-    const btn = document.getElementById('btn');
-    const err = document.getElementById('err');
-    form.addEventListener('submit', async e => {
-      e.preventDefault();
-      btn.disabled = true; btn.textContent = 'Đang đăng nhập…'; err.style.display = 'none';
-      const fd = new FormData(form);
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams(fd).toString(),
-      });
-      if (res.ok || res.redirected) {
-        window.location.href = '/';
-      } else {
-        const j = await res.json().catch(() => ({}));
-        err.textContent = j.error || 'Mật khẩu không đúng';
-        err.style.display = 'block';
-        btn.disabled = false; btn.textContent = 'Đăng nhập';
-      }
+    const err  = document.getElementById('err');
+    const pass = document.getElementById('pass');
+    const dots = document.getElementById('dots');
+    const LEN  = 6;
+    let busy = false;
+
+    const paint = () => {
+      const n = pass.value.length;
+      dots.querySelectorAll('span').forEach((d, i) => d.classList.toggle('on', i < n));
+    };
+    const setVal = (v) => {
+      pass.value = v.replace(/\D/g, '').slice(0, LEN);
+      paint();
+      // Đủ 6 số thì gửi luôn — không bắt bấm thêm nút, đó là điểm nhanh của passcode.
+      if (pass.value.length === LEN) submit();
+    };
+
+    document.getElementById('pad').addEventListener('click', (e) => {
+      const k = e.target.dataset?.k;
+      if (!k || busy) return;
+      setVal(k === 'del' ? pass.value.slice(0, -1) : pass.value + k);
     });
+    // Bàn phím cứng + dán + trình quản lý mật khẩu đều đi qua đây.
+    pass.addEventListener('input', () => setVal(pass.value));
+    dots.addEventListener('click', () => pass.focus());
+    dots.addEventListener('keydown', () => pass.focus());
+
+    async function submit() {
+      if (busy) return;
+      busy = true;
+      err.style.display = 'none';
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pass.value }),
+        });
+        if (res.ok || res.redirected) { window.location.href = '/'; return; }
+        const j = await res.json().catch(() => ({}));
+        // Server đếm số lần sai còn lại và khoá sau N lần — hiện nguyên văn để người
+        // dùng biết mình còn mấy lượt, thay vì cứ thử tới lúc bị khoá bất ngờ.
+        err.textContent = j.error || 'Passcode không đúng';
+        err.style.display = 'block';
+        dots.classList.add('shake');
+        setTimeout(() => dots.classList.remove('shake'), 400);
+        pass.value = ''; paint(); pass.focus();
+      } catch {
+        err.textContent = 'Không kết nối được máy chủ';
+        err.style.display = 'block';
+      } finally {
+        busy = false;
+      }
+    }
+    form.addEventListener('submit', (e) => { e.preventDefault(); submit(); });
+    paint();
   </script>
 </body>
 </html>

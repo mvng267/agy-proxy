@@ -771,3 +771,84 @@ export function usageRows(from: number, to: number, f?: UsageFilter): UsageRow[]
     )
     .all(from, to, ...(w.args as any[])) as any[];
 }
+
+// ---------------------------------------------------------------------------
+// Backup/restore theo BẢNG — dùng để chuyển toàn bộ hệ thống giữa các server.
+//
+// Trước đây backup chỉ gom accounts/credentials/settings/combos, thiếu 8/10 bảng.
+// Nghiêm trọng nhất là `api_keys`: chuyển server là mất sạch key của người dùng, và
+// vì key lưu dạng hash nên KHÔNG dựng lại được — phải phát key mới cho từng người.
+// ---------------------------------------------------------------------------
+
+/** Bảng đi theo backup, kèm ghi chú vì sao. */
+export const BACKUP_TABLES = {
+  /** Định danh người dùng. Hash không tái tạo được → mất là phải phát lại key. */
+  api_keys: 'core',
+  /** Lịch sử dùng: nguồn của trang Báo cáo. Mất là mất hết số liệu tích luỹ. */
+  gateway_usage: 'history',
+  /** Lịch sử quota theo thời gian — vẽ biểu đồ xu hướng. */
+  quota_history: 'history',
+  /** Lần chạy flow (login/warmup) + log của chúng. */
+  runs: 'history',
+  run_logs: 'history',
+  combo_runs: 'history',
+} as const;
+
+export type BackupTable = keyof typeof BACKUP_TABLES;
+
+/**
+ * KHÔNG backup: `sessions` (cookie đăng nhập của riêng máy đó, mang sang máy khác là
+ * lỗ hổng) và `auth_log` (nhật ký đăng nhập theo IP của máy cũ, vô nghĩa ở máy mới —
+ * tệ hơn là mang theo lịch sử đăng nhập sai sẽ khoá nhầm người dùng ở máy mới).
+ */
+export const BACKUP_SKIP_TABLES = ['sessions', 'auth_log', 'settings', 'combos'] as const;
+
+export function dumpTable(table: BackupTable, limit?: number): Record<string, unknown>[] {
+  if (!(table in BACKUP_TABLES)) throw new Error(`bảng không nằm trong danh sách backup: ${table}`);
+  const sql = limit
+    ? `SELECT * FROM ${table} ORDER BY rowid DESC LIMIT ${Number(limit)}`
+    : `SELECT * FROM ${table}`;
+  try {
+    return db.prepare(sql).all() as Record<string, unknown>[];
+  } catch {
+    return []; // bảng chưa tồn tại (DB cũ) → bỏ qua thay vì làm hỏng cả backup
+  }
+}
+
+/**
+ * Nạp lại một bảng. `replace` xoá sạch trước; mặc định là chèn thêm và BỎ QUA dòng
+ * trùng khoá chính (INSERT OR IGNORE) để gộp dữ liệu hai máy không bị vỡ.
+ */
+export function loadTable(table: BackupTable, rows: Record<string, unknown>[], replace = false): number {
+  if (!(table in BACKUP_TABLES)) throw new Error(`bảng không nằm trong danh sách backup: ${table}`);
+  if (!rows?.length) return 0;
+  const d = db;
+  // Cột trong file backup có thể lệch schema hiện tại (bản cũ/mới) → chỉ lấy cột CÓ THẬT.
+  let cols: string[];
+  try {
+    cols = (d.prepare(`PRAGMA table_info(${table})`).all() as any[]).map((c) => String(c.name));
+  } catch {
+    return 0;
+  }
+  if (!cols.length) return 0;
+  const use = cols.filter((c) => c in rows[0]!);
+  if (!use.length) return 0;
+
+  if (replace) d.prepare(`DELETE FROM ${table}`).run();
+  const stmt = d.prepare(
+    `INSERT OR IGNORE INTO ${table} (${use.join(',')}) VALUES (${use.map(() => '?').join(',')})`,
+  );
+  let n = 0;
+  d.exec('BEGIN');
+  try {
+    for (const r of rows) {
+      stmt.run(...use.map((c) => (r[c] === undefined ? null : (r[c] as any))));
+      n++;
+    }
+    d.exec('COMMIT');
+  } catch (e) {
+    d.exec('ROLLBACK');
+    throw e;
+  }
+  return n;
+}
