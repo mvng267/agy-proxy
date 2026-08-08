@@ -340,6 +340,7 @@ export interface UsageRow {
   stream?: boolean;
 }
 export function recordGatewayUsage(r: UsageRow): void {
+  creditsCache = null; // usage mới → số credit Kiro tháng này đổi
   prep(
     `INSERT INTO gateway_usage
        (ts, email, model, prompt_tokens, completion_tokens, ok, ms,
@@ -604,14 +605,24 @@ export function providerStats(sinceMs: number): { provider: string; n: number; o
  * OmniRoute…), vì vậy chỉ là mức TỐI THIỂU đã dùng.
  * Gói KIRO FREE = 50 credit/tháng (lấy từ listAvailableSubscriptions).
  */
+/**
+ * Cache 60s + invalidate khi có usage mới (recordGatewayUsage): trang Pool poll
+ * /api/gateway/accounts mỗi 10s và mỗi lần đều GROUP BY cả tháng usage — trong khi
+ * kết quả chỉ đổi khi có request Kiro mới.
+ */
+let creditsCache: { at: number; prefix: string; data: Record<string, number> } | null = null;
+
 export function creditsUsedThisMonth(prefix = 'kr/'): Record<string, number> {
+  if (creditsCache && creditsCache.prefix === prefix && Date.now() - creditsCache.at < 60_000) {
+    return creditsCache.data;
+  }
   const d = new Date();
   const monthStart = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
-  const rows = db
-    .prepare(`SELECT email, COUNT(*) AS n FROM gateway_usage WHERE ok = 1 AND model LIKE ? AND ts >= ? GROUP BY email`)
+  const rows = prep(`SELECT email, COUNT(*) AS n FROM gateway_usage WHERE ok = 1 AND model LIKE ? AND ts >= ? GROUP BY email`)
     .all(prefix + '%', monthStart) as { email: string; n: number }[];
   const out: Record<string, number> = {};
   for (const r of rows) out[r.email] = r.n;
+  creditsCache = { at: Date.now(), prefix, data: out };
   return out;
 }
 
@@ -731,6 +742,18 @@ export function pruneQuotaHistory(days = 90): number {
   const r = db.prepare(`DELETE FROM quota_history WHERE ts < ?`).run(cutoff);
   const r2 = db.prepare(`DELETE FROM auth_log WHERE ts < ?`).run(cutoff);
   return Number(r.changes ?? 0) + Number(r2.changes ?? 0);
+}
+
+/**
+ * Mẫu (ts, ms, ok, model) MỚI NHẤT cho histogram/tỉ lệ lỗi — LIMIT ngay trong SQL.
+ * Trước đây /api/gateway/stats gọi usageRows() kéo TOÀN BỘ bản ghi tới 90 ngày vào JS
+ * rồi mới slice(-3000): bảng lớn thì mỗi lần mở trang Báo cáo là một lần quét thừa.
+ */
+export function usageSamples(from: number, limit: number): { ts: number; ms: number; ok: number; model: string }[] {
+  const rows = db
+    .prepare(`SELECT ts, ms, ok, model FROM gateway_usage WHERE ts >= ? ORDER BY ts DESC LIMIT ?`)
+    .all(from, limit) as any[];
+  return rows.reverse(); // trả theo thời gian tăng dần như slice(-N) cũ
 }
 
 export function usageRows(from: number, to: number, f?: UsageFilter): UsageRow[] {

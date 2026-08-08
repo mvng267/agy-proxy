@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { pruneQuotaHistory } from '../store/db.js';
+import { pruneQuotaHistory, pruneUsage } from '../store/db.js';
 import { pool, savePersist, ensureReady, dispatcherFor, refreshQuota } from './pool.js';
 import { log, checkLiveAccount } from './engine.js';
 
@@ -132,6 +132,9 @@ export function startGatewayBackground(): void {
   const prune = () => {
     try {
       pruneQuotaHistory(config.gateway.quota?.historyDays ?? 90);
+      // gateway_usage TRƯỚC ĐÂY không bao giờ được dọn (pruneUsage có sẵn mà không
+      // nơi nào gọi) — chỉ lớn dần mãi. 0 = giữ vĩnh viễn.
+      pruneUsage(config.gateway.usageRetentionDays);
     } catch { /* bỏ qua */ }
   };
   prune();

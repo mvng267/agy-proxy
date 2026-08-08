@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { config, applyConfig } from '../config.js';
 import { createApiKey, listPublicApiKeys, patchApiKey, removeApiKey } from './apikeys.js';
 import {
-  usageTotals, usageSeries, usageByModel, usageByAccount, usageRows,
+  usageTotals, usageSeries, usageByModel, usageByAccount, usageRows, usageSamples,
   quotaSeries, quotaForAccount, quotaHistoryCount,
   getComboRow, upsertComboRow, deleteComboRow, comboStatsRows,
   providerStats, creditsUsedThisMonth,
@@ -371,9 +371,8 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     const q = (req.query ?? {}) as any;
     const days = Math.min(90, Math.max(1, Number(q.days) || 7));
     const since = Date.now() - days * 86400_000;
-    const rows = usageRows(since, Date.now());
-    // Chỉ giữ 2 cột cần cho histogram/tỉ lệ lỗi — tránh đẩy cả nghìn bản ghi đầy đủ.
-    const samples = rows.slice(-3000).map((r) => ({ ts: r.ts, ms: r.ms, ok: r.ok, model: r.model }));
+    // LIMIT trong SQL — kéo cả 90 ngày vào JS rồi mới slice là quét thừa trên bảng lớn.
+    const samples = usageSamples(since, 3000);
     return {
       days,
       providers: providerStats(since).map((p) => ({

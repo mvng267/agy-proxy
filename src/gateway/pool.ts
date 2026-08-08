@@ -242,8 +242,6 @@ export function nextMonthResetMs(now: number): number {
 
 export class Pool {
   accounts = new Map<string, PoolAccount>(); // khoá = `${provider}:${email}`
-  /** @deprecated — giữ lại để không break import cũ; pick() không dùng nữa. */
-  private rrCursor = new Map<ProviderId, number>(); // legacy — replaced by lastUsed-based rotation
 
   /** Thêm/cập nhật account (giữ nguyên state cũ nếu đã tồn tại). */
   upsert(i: UpsertInput): PoolAccount {
