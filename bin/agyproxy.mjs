@@ -96,11 +96,11 @@ function dashCreds() {
   return { user, pass: pass || '123456' };
 }
 
-/** Như postJson nhưng dùng PATCH — các endpoint đổi cấu hình đều là PATCH. */
-async function patchJson(url, body) {
+/** Gửi JSON kèm Basic auth CLI. Trước đây postJson/patchJson là 2 bản copy y hệt. */
+async function sendJson(method, url, body) {
   const { user, pass } = dashCreds();
   const r = await fetch(url, {
-    method: 'PATCH',
+    method,
     headers: {
       'user-agent': 'agyproxy-cli', accept: 'application/json', 'content-type': 'application/json',
       authorization: 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64'),
@@ -112,22 +112,9 @@ async function patchJson(url, body) {
   if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
   return j;
 }
-
-async function postJson(url, body) {
-  const { user, pass } = dashCreds();
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'user-agent': 'agyproxy-cli', accept: 'application/json', 'content-type': 'application/json',
-      authorization: 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64'),
-    },
-    body: JSON.stringify(body ?? {}),
-    signal: AbortSignal.timeout(30000),
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
-  return j;
-}
+const postJson = (url, body) => sendJson('POST', url, body);
+// Các endpoint đổi cấu hình đều là PATCH.
+const patchJson = (url, body) => sendJson('PATCH', url, body);
 
 /**
  * Cấu hình 1 tool CLI. Gọi HTTP tới server (writer đã audit nằm ở src/tools/writer.ts)

@@ -269,20 +269,12 @@ export async function runComboRequest(
     toolConfig?: Record<string, unknown>;
   },
 ): Promise<any> {
-  const snap = poolSnapshot();
-  let plan: ComboTarget[];
-  let comboName: string;
-
-  if (parsed.kind === 'auto') {
-    comboName = parsed.prefixed;
-    plan = planAuto(parsed.combo || 'default', snap);
-  } else {
-    const c = listCombos().find((x) => x.id === parsed.combo);
-    if (!c) return o.reply.code(404).send({ error: `Combo "${parsed.combo}" không tồn tại` });
-    if (!c.enabled) return o.reply.code(503).send({ error: `Combo "${c.id}" đang tắt` });
-    comboName = `combo/${c.id}`;
-    plan = planCombo(c, snap);
-  }
+  // resolveComboPlan là NGUỒN DUY NHẤT dựng plan (trước đây khối này tự lặp lại
+  // đúng logic đó — hai bản đã bắt đầu phân kỳ ở thông điệp lỗi).
+  const resolved = resolveComboPlan(parsed);
+  if ('error' in resolved) return o.reply.code(resolved.status).send({ error: resolved.error });
+  const comboName = resolved.name;
+  let plan = resolved.plan;
   if (!plan.length) return o.reply.code(503).send({ error: `${comboName}: không có model nào khả dụng` });
 
   // Có tools → bỏ các bước trỏ tới provider không có function calling (bước đó

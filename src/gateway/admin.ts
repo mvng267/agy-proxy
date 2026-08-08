@@ -423,58 +423,58 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     return { ok: true, email, ...r };
   });
 
+  /** Danh sách account đích cho check hàng loạt: theo emails/khoá ghép, hoặc cả pool. */
+  function bulkTargets(emails?: string[]): PoolAccount[] {
+    syncFromStore();
+    return (emails && emails.length
+      ? emails.map((e) => (e.includes(':') ? pool.getByKey(e) : pool.get(e, 'agy'))).filter(Boolean)
+      : pool.list()) as PoolAccount[];
+  }
+
+  /**
+   * Vòng check nền dùng chung cho `check` và `test-bulk` (trước đây 2 bản copy).
+   * Nhịp 1.2s/account là BẮT BUỘC: 300ms × 400 account = Google chặn tốc độ endpoint
+   * refresh, gần như mọi account sau vài chục cái đầu đều fail → bulk test tự tay giết
+   * pool. Đo thật: chạy dày không gỡ được cái nào, giãn ~1.2s thì 100% hồi sinh.
+   */
+  async function runBulkCheck(targets: PoolAccount[], m: 'token' | 'live' | 'both'): Promise<void> {
+    const total = targets.length;
+    let i = 0, okc = 0;
+    for (const a of targets) {
+      i++;
+      if (m === 'token' || m === 'both') {
+        const r = await testAccount(a);
+        emitCheck(a.email, 'token', r.alive ? 'alive' : 'dead', r.alive ? 'info' : 'warn', i, total);
+        if (!r.alive) { await new Promise((r) => setTimeout(r, 1200)); continue; } // token chết thì khỏi check live
+      }
+      if (m === 'live' || m === 'both') {
+        const r = await checkLiveAccount(a);
+        if (r.status === 'ok') okc++;
+        emitCheck(a.email, 'live', r.status, r.status === 'ok' ? 'info' : r.status === 'quota' ? 'warn' : 'error', i, total);
+      } else if (m === 'token') {
+        okc += a.health === 'alive' ? 1 : 0;
+      }
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+    savePersist();
+    log('', 'info', `Check ${m} xong: ${okc}/${total} ok`);
+  }
+
   /** Check hàng loạt token/live/both — chạy nền, emit realtime từng account. */
   app.post('/api/gateway/accounts/check', async (req) => {
     const { emails, mode } = (req.body as { emails?: string[]; mode?: 'token' | 'live' | 'both' }) ?? {};
     const m = mode || 'token';
-    syncFromStore();
-    const targets = (emails && emails.length ? emails.map((e) => (e.includes(':') ? pool.getByKey(e) : pool.get(e, 'agy'))).filter(Boolean) : pool.list()) as PoolAccount[];
-    const total = targets.length;
-    (async () => {
-      let i = 0, okc = 0;
-      for (const a of targets) {
-        i++;
-        if (m === 'token' || m === 'both') {
-          const r = await testAccount(a);
-          emitCheck(a.email, 'token', r.alive ? 'alive' : 'dead', r.alive ? 'info' : 'warn', i, total);
-          if (!r.alive) { await new Promise((r) => setTimeout(r, 1200)); continue; } // token chết thì khỏi check live
-        }
-        if (m === 'live' || m === 'both') {
-          const r = await checkLiveAccount(a);
-          if (r.status === 'ok') okc++;
-          emitCheck(a.email, 'live', r.status, r.status === 'ok' ? 'info' : r.status === 'quota' ? 'warn' : 'error', i, total);
-        } else if (m === 'token') {
-          okc += a.health === 'alive' ? 1 : 0;
-        }
-        await new Promise((r) => setTimeout(r, 1200)); // xem ghi chú nhịp ở test-bulk
-      }
-      savePersist();
-      log('', 'info', `Check ${m} xong: ${okc}/${total} ok`);
-    })().catch(() => {});
-    return { queued: total, mode: m };
+    const targets = bulkTargets(emails);
+    runBulkCheck(targets, m).catch(() => {});
+    return { queued: targets.length, mode: m };
   });
 
   // giữ tương thích: test-bulk = check mode token
   app.post('/api/gateway/accounts/test-bulk', async (req) => {
     const { emails } = (req.body as { emails?: string[] }) ?? {};
-    syncFromStore();
-    const targets = (emails && emails.length ? emails.map((e) => (e.includes(':') ? pool.getByKey(e) : pool.get(e, 'agy'))).filter(Boolean) : pool.list()) as PoolAccount[];
-    const total = targets.length;
-    (async () => {
-      let i = 0;
-      for (const a of targets) {
-        i++;
-        const r = await testAccount(a);
-        emitCheck(a.email, 'token', r.alive ? 'alive' : 'dead', r.alive ? 'info' : 'warn', i, total);
-        // 300ms × 400 account = Google chặn tốc độ endpoint refresh, gần như mọi account
-        // sau vài chục cái đầu đều fail → bulk test tự tay giết pool. Đo thật: chạy bulk
-        // không gỡ được cái nào, trong khi test lẻ (giãn ~1.2s) thì 100% hồi sinh.
-        await new Promise((r) => setTimeout(r, 1200));
-      }
-      savePersist();
-      log('', 'info', `Test token xong: ${total} account`);
-    })().catch(() => {});
-    return { queued: total };
+    const targets = bulkTargets(emails);
+    runBulkCheck(targets, 'token').catch(() => {});
+    return { queued: targets.length };
   });
 
   // ---------------- Check live model ----------------
