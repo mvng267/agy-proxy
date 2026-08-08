@@ -41,7 +41,10 @@ const HOST = HOST_EXPLICIT || '127.0.0.1'; // chỉ dùng để hiển thị
 const OPEN = HOST === '0.0.0.0' || HOST === '::';
 const hostEnv = HOST_EXPLICIT ? { HOST: HOST_EXPLICIT } : {};
 
-const c = { g: (s) => `\x1b[32m${s}\x1b[0m`, r: (s) => `\x1b[31m${s}\x1b[0m`, y: (s) => `\x1b[33m${s}\x1b[0m`, d: (s) => `\x1b[90m${s}\x1b[0m`, b: (s) => `\x1b[1m${s}\x1b[0m` };
+// NO_COLOR (https://no-color.org): tắt ANSI khi pipe/test cần output sạch.
+const c = process.env.NO_COLOR
+  ? { g: (s) => `${s}`, r: (s) => `${s}`, y: (s) => `${s}`, d: (s) => `${s}`, b: (s) => `${s}` }
+  : { g: (s) => `\x1b[32m${s}\x1b[0m`, r: (s) => `\x1b[31m${s}\x1b[0m`, y: (s) => `\x1b[33m${s}\x1b[0m`, d: (s) => `\x1b[90m${s}\x1b[0m`, b: (s) => `\x1b[1m${s}\x1b[0m` };
 
 function readPid() {
   if (!existsSync(PID_FILE)) return null;
@@ -441,6 +444,8 @@ function help() {
 
   ${c.b('── bật/tắt nhanh ──')}
   ${c.b('agyproxy off')} / ${c.b('on')}      tắt/bật gateway ${c.d('(server vẫn chạy)')}
+  ${c.b('agyproxy metrics')}        rps · error rate · p99 · circuit breaker  ${c.d('[--json]')}
+  ${c.b('agyproxy rotation')}       xem/đổi chiến lược xoay  ${c.d('[round-robin|full-first|failover|highest-first|smart]')}
   ${c.b('agyproxy model')}          xem cấu hình  ${c.d('· --big combo/agyproxy --small agy/gemini-2.5-flash')}
   ${c.b('agyproxy accounts')}       trạng thái pool  ${c.d('[on|off|wake] [--provider agy|kr]')}
      ${c.d('wake = gỡ cooldown hàng loạt sau sự cố upstream')}
@@ -528,6 +533,62 @@ function backupSchedule(action, hour, keep) {
   write((cur ? cur + '\n' : '') + line);
   console.log(c.g(`✓ Backup tự động: ${h}:00 mỗi ngày, giữ ${k} bản`));
   console.log(c.d(`  log: ${resolve(HOME, 'backup.log')}`));
+}
+
+// ---------- metrics ----------
+function fmtDur(sec) {
+  if (!Number.isFinite(sec) || sec < 0) return '?';
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+  return h ? `${h}h${String(m).padStart(2, '0')}m` : m ? `${m}m${String(Math.floor(sec % 60)).padStart(2, '0')}s` : `${Math.floor(sec)}s`;
+}
+
+/** Số liệu tức thời từ /api/metrics: rps, error rate, p50/p95/p99, pool, circuit breaker. */
+async function metricsCmd(json) {
+  let m;
+  try {
+    m = await httpJson(`http://127.0.0.1:${PORT}/api/metrics`);
+  } catch (e) {
+    console.log(c.r('✗ Không gọi được /api/metrics: ') + (e?.message ?? e));
+    console.log(c.d('  Server chạy chưa? agyproxy start -d'));
+    process.exitCode = 1;
+    return;
+  }
+  if (json) { console.log(JSON.stringify(m, null, 2)); return; }
+  const w = m.window ?? {};
+  const lat = w.latency;
+  const errPct = Math.round((w.errorRate ?? 0) * 1000) / 10;
+  console.log(c.b('Metrics') + c.d(` · cửa sổ ${w.windowSec ?? '?'}s · uptime ${fmtDur(m.uptimeSec)} · RAM ${m.rssMb}MB`));
+  console.log(`  requests  ${c.b(w.requests ?? 0)} (${w.rps ?? 0}/s)  ·  lỗi ${(w.errors ?? 0) > 0 ? c.r(w.errors) : c.g(0)} (${errPct}%)`);
+  console.log(`  latency   ${lat ? `avg ${lat.avgMs}ms · p50 ${lat.p50}ms · p95 ${lat.p95}ms · p99 ${c.b(lat.p99 + 'ms')}` : c.d('chưa có request nào trong cửa sổ')}`);
+  console.log(`  luỹ kế    ${w.totals?.requests ?? 0} requests · ${w.totals?.errors ?? 0} lỗi ${c.d('(từ lúc process chạy)')}`);
+  for (const [pid, a] of Object.entries(m.accounts ?? {})) {
+    const br = m.breaker?.[pid];
+    const brTxt = !br || br.state === 'closed'
+      ? c.g('mạch đóng')
+      : br.state === 'open' ? c.r(`mạch MỞ (${br.consecutiveFails} lỗi liên tiếp)`) : c.y('mạch thăm dò');
+    console.log(`  ${c.b(pid.padEnd(4))} ${a.available}/${a.total} khả dụng · inflight ${a.inflight} · ${brTxt}`);
+  }
+}
+
+// ---------- rotation ----------
+const ROTATION_STRATEGIES = ['round-robin', 'full-first', 'failover', 'highest-first', 'smart'];
+
+/** Xem/đổi chiến lược xoay account của pool. Không truyền gì → chỉ xem. */
+async function rotationCmd(strategy) {
+  if (!strategy) {
+    const g = await httpJson(`http://127.0.0.1:${PORT}/api/gateway/config`);
+    console.log(`  rotation hiện tại: ${c.b(g.rotation)}`);
+    console.log(c.d(`  đổi: agyproxy rotation <${ROTATION_STRATEGIES.join('|')}>`));
+    return;
+  }
+  if (!ROTATION_STRATEGIES.includes(strategy)) {
+    console.log(c.r(`✗ Chiến lược không hợp lệ: ${strategy}`));
+    console.log(c.d(`  hợp lệ: ${ROTATION_STRATEGIES.join(', ')}`));
+    process.exitCode = 1;
+    return;
+  }
+  await patchJson(`http://127.0.0.1:${PORT}/api/gateway/config`, { rotation: strategy });
+  console.log(c.g(`✓ Đã đổi rotation → ${strategy}`));
 }
 
 // ---------- bật/tắt nhanh ----------
@@ -683,6 +744,8 @@ switch (cmd) {
   }
   case 'on': await gatewayToggle(true); break;
   case 'off': await gatewayToggle(false); break;
+  case 'metrics': case 'm': await metricsCmd(has('--json')); break;
+  case 'rotation': case 'rotate': await rotationCmd(rest.find((a) => !a.startsWith('-'))); break;
   case 'model': await modelCmd(flagVal('--big'), flagVal('--small')); break;
   case 'accounts': case 'acc': await accountsCmd(rest[0], flagVal('--provider')); break;
   case 'claude': {
