@@ -4,14 +4,13 @@ import {
   Zap,
   Activity,
   AlertTriangle,
-  TrendingUp,
-  TrendingDown,
   Server,
   RefreshCw,
   BarChart3,
   Cpu,
   Globe,
 } from "lucide-react"
+import { KpiCard } from "@/components/common"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -302,49 +301,6 @@ function DonutChart({
 
 // ── KPI Card ───────────────────────────────────────────────────────────
 
-function KpiCard({
-  title, value, subtitle, icon: Icon, trend, trendLabel, color = "orange",
-}: {
-  title: string
-  value: number | string
-  subtitle?: string
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
-  trend?: "up" | "down" | "neutral"
-  trendLabel?: string
-  color?: "orange" | "green" | "blue" | "red"
-}) {
-  const colorMap = {
-    orange: "bg-orange-500/10 text-orange-500",
-    green: "bg-emerald-500/10 text-emerald-500",
-    blue: "bg-blue-500/10 text-blue-500",
-    red: "bg-red-500/10 text-red-500",
-  }
-  return (
-    <Card className="bg-card border-border">
-      <CardContent className="pt-4">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
-            <p className="text-2xl font-bold text-foreground tabular-nums">{value}</p>
-            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-          </div>
-          <div className={`p-2 rounded-lg ${colorMap[color]}`}>
-            <Icon className="h-4 w-4" />
-          </div>
-        </div>
-        {trend && trendLabel && (
-          <div className="mt-3 flex items-center gap-1.5 text-xs">
-            {trend === "up" && <TrendingUp className="h-3 w-3 text-emerald-500" />}
-            {trend === "down" && <TrendingDown className="h-3 w-3 text-red-500" />}
-            <span className={trend === "up" ? "text-emerald-500" : trend === "down" ? "text-red-500" : "text-muted-foreground"}>
-              {trendLabel}
-            </span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
 
 // ── Provider Health Card ───────────────────────────────────────────────
 
@@ -612,36 +568,33 @@ export function Overview() {
       {/* ── KPI Row ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="Tài khoản"
+          label="Tài khoản"
           value={acc.total ?? 0}
-          subtitle={acc.counts
+          sub={acc.counts
             ? `${acc.counts.agy?.ok ?? 0} agy ok · ${acc.counts.kiro?.ok ?? 0} kiro ok`
             : `${acc.active ?? 0} active`}
           icon={Users}
-          color="blue"
         />
         <KpiCard
-          title="Pool hoạt động"
+          label="Pool hoạt động"
           value={poolReady}
-          subtitle={`/ ${poolTotal} total`}
+          sub={`/ ${poolTotal} total`}
           icon={Zap}
-          color="green"
+          tone="success"
         />
         <KpiCard
-          title="Requests 7D"
+          label="Requests 7D"
           value={fmtNum(gw.requests7d ?? usageTotals.requests)}
-          subtitle={`${fmtNum(todayReq)} today`}
+          sub={`${fmtNum(todayReq)} hôm nay`}
           icon={Activity}
-          color="orange"
-          trend={todayReq != null && todayReq > 0 ? "up" : "neutral"}
-          trendLabel={todayReq != null ? `${todayReq.toLocaleString()} today` : undefined}
+          spark={usageSeries.slice(-14).map((d) => reqOf(d))}
         />
         <KpiCard
-          title="Cooldown"
+          label="Cooldown"
           value={poolCooldown}
-          subtitle={poolTotal ? `${Math.round((poolCooldown / poolTotal) * 100)}% of pool` : "—"}
+          sub={poolTotal ? `${Math.round((poolCooldown / poolTotal) * 100)}% của pool` : "—"}
           icon={AlertTriangle}
-          color="red"
+          tone={poolCooldown > 0 ? "warning" : "default"}
         />
       </div>
 

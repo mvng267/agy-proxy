@@ -16,6 +16,7 @@ import {
   ChevronRight,
   CheckCheck,
 } from "lucide-react"
+import { KpiCard } from "@/components/common"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -132,33 +133,6 @@ function DonutChart({ total, active, cooldown, size = 120, strokeWidth = 12 }: {
 
 // ── KPI Card ───────────────────────────────────────────────────────────
 
-function KpiCard({ title, value, subtitle, icon: Icon, color = "orange" }: {
-  title: string; value: number | string; subtitle?: string
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; color?: "orange" | "green" | "blue" | "red"
-}) {
-  const colorMap = {
-    orange: "bg-orange-500/10 text-orange-500",
-    green: "bg-emerald-500/10 text-emerald-500",
-    blue: "bg-blue-500/10 text-blue-500",
-    red: "bg-red-500/10 text-red-500",
-  }
-  return (
-    <Card className="bg-card border-border">
-      <CardContent className="pt-4">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
-            <p className="text-2xl font-bold text-foreground tabular-nums">{value}</p>
-            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-          </div>
-          <div className={`p-2 rounded-lg ${colorMap[color]}`}>
-            <Icon className="h-4 w-4" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
 
 // ── Pool Page ──────────────────────────────────────────────────────────
 
@@ -450,10 +424,10 @@ export function Pool() {
 
       {/* KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="Tổng tài khoản" value={poolTotal} subtitle="Trong pool" icon={Users} color="blue" />
-        <KpiCard title="Sẵn sàng" value={poolActive} subtitle={`${pctActive}% tổng`} icon={Zap} color="green" />
-        <KpiCard title="Đang nghỉ" value={poolCooldown} subtitle={`${pctCooldown}% tổng`} icon={Snowflake} color="orange" />
-        <KpiCard title="Không dùng được" value={poolInactive} subtitle={poolTotal > 0 ? `${Math.round((poolInactive / poolTotal) * 100)}% tổng` : "—"} icon={AlertTriangle} color="red" />
+        <KpiCard label="Tổng tài khoản" value={poolTotal} sub="Trong pool" icon={Users} />
+        <KpiCard label="Sẵn sàng" value={poolActive} sub={`${pctActive}% tổng`} icon={Zap} tone="success" />
+        <KpiCard label="Đang nghỉ" value={poolCooldown} sub={`${pctCooldown}% tổng`} icon={Snowflake} tone="warning" />
+        <KpiCard label="Không dùng được" value={poolInactive} sub={poolTotal > 0 ? `${Math.round((poolInactive / poolTotal) * 100)}% tổng` : "—"} icon={AlertTriangle} tone="danger" />
       </div>
 
       {/* Gợi ý định tuyến: bể nào còn nhiều quota → nên ưu tiên model nào */}

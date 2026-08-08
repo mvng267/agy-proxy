@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react"
 import { AlertTriangle, Loader2, type LucideIcon } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import { Sparkline } from "./Sparkline"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export { DataTable, type Column } from "./DataTable"
@@ -15,6 +16,7 @@ export { DataTable, type Column } from "./DataTable"
 
 export function KpiCard({
   label, value, sub, icon: Icon, tone = "default", loading,
+  delta, deltaTone = "auto", spark, sparkTone, corners = true, grid = true,
 }: {
   label: string
   value: ReactNode
@@ -22,6 +24,20 @@ export function KpiCard({
   icon?: LucideIcon
   tone?: "default" | "success" | "warning" | "danger"
   loading?: boolean
+  /** Huy hiệu % thay đổi, kiểu Atlas. `dir` quyết định mũi tên. */
+  delta?: { value: number; dir: "up" | "down" }
+  /**
+   * Tông của huy hiệu. `auto` = tăng xanh / giảm đỏ, nhưng PHẢI cho ghi đè vì
+   * tăng không phải lúc nào cũng tốt — số lỗi tăng là xấu, account sống tăng là tốt.
+   */
+  deltaTone?: "auto" | "success" | "danger" | "warning" | "muted"
+  /** Đường xu hướng nhỏ bên phải giá trị. */
+  spark?: number[]
+  sparkTone?: "current" | "success" | "warning" | "danger" | "info" | "muted"
+  /** 4 dấu góc đặc trưng Atlas. */
+  corners?: boolean
+  /** Nền lưới mờ dần từ tâm, đặc trưng Atlas. */
+  grid?: boolean
 }) {
   const toneCls = {
     default: "text-foreground",
@@ -30,21 +46,71 @@ export function KpiCard({
     danger: "text-destructive",
   }[tone]
 
+  const dTone = deltaTone === "auto" ? (delta?.dir === "up" ? "success" : "danger") : deltaTone
+  const deltaCls = {
+    success: "bg-[color:var(--success)]/12 text-[color:var(--success)]",
+    danger: "bg-destructive/12 text-destructive",
+    warning: "bg-[color:var(--warning)]/12 text-[color:var(--warning)]",
+    muted: "bg-muted text-muted-foreground",
+  }[dTone]
+
   return (
-    <Card className="bg-card border-border">
-      <CardContent className="p-4">
+    <Card className="relative overflow-hidden">
+      {/* Nền lưới mờ dần từ tâm — chi tiết làm nên vẻ "telemetry" của Atlas. */}
+      {grid ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.16] [mask-image:radial-gradient(72%_64%_at_50%_44%,black,transparent)]"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, var(--border) 1px, transparent 1px), linear-gradient(to bottom, var(--border) 1px, transparent 1px)",
+            backgroundSize: "16px 16px",
+          }}
+        />
+      ) : null}
+
+      {/* 4 dấu góc. Atlas dùng `border-foreground/65`; ở đây nhạt hơn cho đỡ ồn. */}
+      {corners
+        ? (
+            [
+              "top-0 left-0 border-t border-l",
+              "top-0 right-0 border-t border-r",
+              "bottom-0 left-0 border-b border-l",
+              "bottom-0 right-0 border-b border-r",
+            ] as const
+          ).map((pos) => (
+            <span key={pos} data-slot="kpi-corner" aria-hidden className={`pointer-events-none absolute size-2 border-foreground/40 ${pos}`} />
+          ))
+        : null}
+
+      <CardContent className="relative z-10 p-4">
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground truncate">{label}</p>
-            {loading ? (
-              <Skeleton className="mt-1.5 h-7 w-20" />
-            ) : (
-              <p className={`mt-1 text-2xl font-semibold tabular-nums ${toneCls}`}>{value}</p>
-            )}
-            {sub ? <p className="mt-0.5 text-xs text-muted-foreground truncate">{sub}</p> : null}
-          </div>
-          {Icon ? <Icon className="h-4 w-4 shrink-0 text-muted-foreground" /> : null}
+          <p className="min-w-0 truncate text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
+            {label}
+          </p>
+          {Icon ? <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : null}
         </div>
+
+        <div className="mt-2 flex items-end justify-between gap-3">
+          {loading ? (
+            <Skeleton className="h-8 w-24" />
+          ) : (
+            <p className={`text-[1.75rem] font-semibold leading-none tabular-nums ${toneCls}`}>{value}</p>
+          )}
+          {spark?.length ? <Sparkline data={spark} tone={sparkTone ?? "current"} className={toneCls} /> : null}
+        </div>
+
+        {delta || sub ? (
+          <div className="mt-3 flex items-center gap-2 border-t border-border pt-2.5">
+            {delta ? (
+              <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium tabular-nums ${deltaCls}`}>
+                {delta.dir === "up" ? "+" : "−"}
+                {Math.abs(delta.value)}%
+              </span>
+            ) : null}
+            {sub ? <span className="min-w-0 truncate text-xs text-muted-foreground">{sub}</span> : null}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   )
