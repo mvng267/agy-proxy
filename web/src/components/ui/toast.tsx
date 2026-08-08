@@ -27,17 +27,17 @@ interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const VARIANT_STYLE: Record<ToastVariant, string> = {
-  success: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-  error: "border-red-500/30 bg-red-500/10 text-red-300",
-  warning: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  info: "border-slate-700 bg-slate-800 text-slate-200",
+  success: "border-success/30 bg-success/10 text-success",
+  error: "border-destructive/30 bg-destructive/10 text-destructive",
+  warning: "border-warning/30 bg-warning/10 text-warning",
+  info: "border-border bg-card text-card-foreground",
 };
 
 const VARIANT_ICON: Record<ToastVariant, ReactNode> = {
-  success: <CheckCircle2 className="h-4 w-4 text-emerald-400" />,
-  error: <XCircle className="h-4 w-4 text-red-400" />,
-  warning: <AlertTriangle className="h-4 w-4 text-amber-400" />,
-  info: <Info className="h-4 w-4 text-slate-400" />,
+  success: <CheckCircle2 className="h-4 w-4 text-success" />,
+  error: <XCircle className="h-4 w-4 text-destructive" />,
+  warning: <AlertTriangle className="h-4 w-4 text-warning" />,
+  info: <Info className="h-4 w-4 text-muted-foreground" />,
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -75,7 +75,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             </div>
             <button
               onClick={() => remove(t.id)}
-              className="text-slate-400 hover:text-slate-200 transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors"
             >
               <X className="h-3.5 w-3.5" />
             </button>

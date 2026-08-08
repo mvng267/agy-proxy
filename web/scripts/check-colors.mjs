@@ -47,6 +47,7 @@ const RE_HEX = /#[0-9a-fA-F]{3,8}\b/g;
 const EXEMPT = [
   { path: 'src/lib/theme.ts', why: 'meta theme-color — trình duyệt đọc HTML, không đọc CSS var' },
   { path: 'src/login.html', why: 'trang tĩnh ngoài Tailwind, xử lý riêng bằng CSS var' },
+  { path: 'src/index.css', why: 'NƠI ĐỊNH NGHĨA token — hex ở đây là đích đến, không phải vi phạm' },
 ];
 
 /** Ánh xạ theo VAI TRÒ, không theo độ đậm. Chỉ để gợi ý — người quyết định. */
