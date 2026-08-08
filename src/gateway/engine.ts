@@ -58,6 +58,9 @@ export function emitGw(e: {
   endpoint?: string;
   status?: number;
   attempt?: number;
+  /** Ai gọi (tên API key) và qua combo nào — để Live Log lọc được theo user. */
+  apiKey?: string;
+  combo?: string;
 }) {
   emitLog({
     runId: 0,
@@ -74,6 +77,8 @@ export function emitGw(e: {
     endpoint: e.endpoint,
     status: e.status,
     attempt: e.attempt,
+    apiKey: e.apiKey,
+    combo: e.combo,
   });
 }
 
@@ -88,6 +93,8 @@ export const COMBO_MAX_STEPS = 6;
 export interface UsageCtx {
   requestId: string;
   apiKeyId: string;
+  /** Tên người dùng của key — chỉ để HIỂN THỊ trong Live Log, không dùng xác thực. */
+  keyName?: string;
   combo?: string;
   endpoint: string;
   stream: boolean;
@@ -388,6 +395,15 @@ export async function runProviderCall(opts: {
   // không đốt thêm 3 lượt gọi mạng + hàng chục vòng pick. 503 nằm trong shouldFallback
   // nên combo/auto tự trượt sang provider khác.
   providerBreaker.allow(provider);
+  /**
+   * Mọi dòng log của request này đều mang theo "ai gọi" (tên API key) và combo.
+   *
+   * Bọc lại thay vì thêm 2 field ở 8 chỗ gọi emitGw: chỉ cần quên MỘT chỗ là dòng log
+   * đó mất danh tính, mà đúng những dòng hay quên nhất lại là nhánh lỗi — nơi cần biết
+   * user nào nhất.
+   */
+  const gw = (e: Parameters<typeof emitGw>[0]) =>
+    emitGw({ ...e, apiKey: opts.usage?.keyName, combo: opts.usage?.combo });
   const genArgs = { generationConfig: opts.generationConfig, tools: opts.tools, toolConfig: opts.toolConfig };
   const bucket = bucketOf(provider, bare);
   /**
@@ -461,7 +477,7 @@ export async function runProviderCall(opts: {
     if (stream) releaseLimiter = await streamLimiter.acquire();
     const t0 = Date.now();
     const plabel = proxyLabelOf(ctx.account);
-    emitGw({
+    gw({
       kind: 'req', account: ctx.account.email, model: labelModel, proxy: plabel,
       endpoint: opts.endpoint ?? '/proxy/v1', attempt: attempt + 1,
       msg: `→ ${labelModel} · ${ctx.account.email}${stream ? ' (stream)' : ''} · ${promptKB}KB/${nTools}tool · proxy:${plabel}`,
@@ -509,7 +525,7 @@ export async function runProviderCall(opts: {
         pool.report(ctx.account, { ok: true, promptTokens: pt, completionTokens: ct, latencyMs: ms });
         afterCall(ctx.account, labelModel, { ok: true, promptTokens: pt, completionTokens: ct, ms, status: 200 }, opts.usage);
         savePersist();
-        emitGw({ kind: 'res', account: ctx.account.email, model: labelModel, ms, tokens: pt + ct, status: 200, msg: `← 200 · stream · ${pt + ct} tok · ${ms}ms` });
+        gw({ kind: 'res', account: ctx.account.email, model: labelModel, ms, tokens: pt + ct, status: 200, msg: `← 200 · stream · ${pt + ct} tok · ${ms}ms` });
         return { done: true };
       }
       const r = await p.generate({ session: ctx.session, model: bare, messages, ...genArgs, dispatcher: ctx.dispatcher });
@@ -518,7 +534,7 @@ export async function runProviderCall(opts: {
       pool.report(ctx.account, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, latencyMs: ms });
       afterCall(ctx.account, labelModel, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, ms, status: 200 }, opts.usage);
       savePersist();
-      emitGw({ kind: 'res', account: ctx.account.email, model: labelModel, ms, tokens: r.usage.totalTokens, status: 200, msg: `← 200 · ${r.usage.totalTokens} tok · ${ms}ms` });
+      gw({ kind: 'res', account: ctx.account.email, model: labelModel, ms, tokens: r.usage.totalTokens, status: 200, msg: `← 200 · ${r.usage.totalTokens} tok · ${ms}ms` });
       return { result: r };
     } catch (e: any) {
       lastErr = e;
@@ -534,7 +550,7 @@ export async function runProviderCall(opts: {
       // và làm bẩn log. Dừng ngay để tầng combo đổi sang MODEL khác.
       const tooLong = isContextTooLong(e);
       if (tooLong) {
-        emitGw({
+        gw({
           kind: 'err', account: ctx.account.email, model: labelModel, ms, status: e?.status,
           msg: `← ✗ ${e?.status ?? ''} prompt quá dài — không thử account khác, cần đổi model ngữ cảnh lớn hơn`,
         });
@@ -546,7 +562,7 @@ export async function runProviderCall(opts: {
       // trong khi ngay account đầu Google đã nói rõ "quota reset after 4h59m". Ném ngay
       // để tầng combo đổi sang MODEL khác, giống cách xử lý prompt quá dài ở trên.
       if (isModelQuotaError(e)) {
-        emitGw({
+        gw({
           kind: 'err', account: ctx.account.email, model: labelModel, ms, status: e?.status,
           msg: `← ✗ ${e?.status ?? ''} hết hạn mức của MODEL (không phải account) — đổi model, không thử account khác`,
         });
@@ -558,7 +574,7 @@ export async function runProviderCall(opts: {
       // đúng bể (xem bucketSkip), account hỏng hạ tầng thì chặn hẳn.
       if (outOfQuota) opts.skipKeys?.add(bucketSkip(ctx.account.key));
       else if (e?.status >= 500) opts.skipKeys?.add(ctx.account.key);
-      emitGw({
+      gw({
         kind: 'err', account: ctx.account.email, model: labelModel, ms, status: e?.status,
         msg: `← ✗ ${e?.status ?? ''} ${outOfQuota ? '(hết hạn mức → đổi account)' : ''} ${String(e?.message ?? e).slice(0, 90)}`,
       });
@@ -567,7 +583,7 @@ export async function runProviderCall(opts: {
       if (!outOfQuota && isTransientError(String(e?.message ?? e), e?.status)) {
         providerBreaker.fail(provider);
         if (providerBreaker.state(provider) === 'open') {
-          emitGw({
+          gw({
             kind: 'err', account: '-', model: labelModel, status: 503,
             msg: `⛔ circuit breaker ${provider} MỞ — ngừng failover, chặn tạm để upstream hồi`,
           });

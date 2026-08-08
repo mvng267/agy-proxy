@@ -25,6 +25,15 @@ export interface LogEvent {
   endpoint?: string;
   status?: number;
   attempt?: number;
+  /**
+   * Tên API key gọi request này, và combo (nếu đi qua combo).
+   *
+   * Trước đây Live Log chỉ có account + model, nên nhìn một dòng lỗi KHÔNG biết được
+   * user nào đang gây ra — phải mở trang Báo cáo lọc thủ công. Gửi kèm tên (không phải
+   * id) để dashboard hiển thị thẳng, khỏi phải tra bảng api_keys cho mỗi dòng.
+   */
+  apiKey?: string;
+  combo?: string;
   // Check live/token realtime (kind='check'):
   check?: { kind: 'token' | 'live'; result: string; done?: number; total?: number };
 }

@@ -90,7 +90,7 @@ export function registerOpenAIDialect(app: FastifyInstance): void {
       const messages = toMessages(body);
       const tools = toToolDefs(body);
       const stream = !!body?.stream;
-      const usage: UsageCtx = { requestId: randomUUID(), apiKeyId: auth.keyId, endpoint: path, stream };
+      const usage: UsageCtx = { requestId: randomUUID(), apiKeyId: auth.keyId, keyName: auth.keyName, endpoint: path, stream };
       // TRƯỚC ĐÂY không dựng generationConfig → max_tokens/temperature/top_p bị bỏ hoàn toàn.
       const generationConfig = openaiGenerationConfig(body);
       const toolConfig = openaiToolConfig(body);
@@ -201,7 +201,7 @@ export function registerOpenAIDialect(app: FastifyInstance): void {
           provider: p.provider!, bare: p.model!, labelModel: p.prefixed,
           messages, stream: false, reply, endpoint: '/proxy/v1/responses',
           generationConfig, skipKeys,
-          usage: { requestId, apiKeyId: auth.keyId, endpoint: '/proxy/v1/responses', stream: false, combo },
+          usage: { requestId, apiKeyId: auth.keyId, keyName: auth.keyName, endpoint: '/proxy/v1/responses', stream: false, combo },
         } as any);
 
       let out: any;

@@ -1,282 +1,396 @@
-import { useEffect, useState, useRef, useCallback } from "react"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import {
-  ScrollText,
-  Trash2,
+  ArrowDownToLine,
+  Clock,
+  Cpu,
+  Filter,
+  KeyRound,
   Pause,
   Play,
+  ScrollText,
+  Search,
+  Shuffle,
+  Trash2,
+  User,
+  X,
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
+import { LogTag, statusTone, type TagTone } from "@/components/common/LogTag"
 
-// ── Types ──────────────────────────────────────────────────────────────
+/**
+ * Live Log — mỗi dòng gồm HAI hàng:
+ *   hàng trên : thẻ (giờ · loại · model · account · api key · combo · status · ms · tok)
+ *   hàng dưới : mô tả nguyên văn từ gateway
+ *
+ * Trước đây tất cả nhồi vào một hàng monospace nên message dài đẩy các thông tin quan
+ * trọng ra khỏi màn hình, và model/account/api key KHÔNG hiển thị dù backend đã gửi.
+ *
+ * Bộ lọc phải NÓI RÕ nó đang lọc gì: bản cũ không có lọc, chỉ đếm tổng — nhìn 200 dòng
+ * trôi qua không cách nào tách được request của một user.
+ */
 
-type LogType = "req" | "ok" | "err" | "429" | "info" | "warn" | string
+const MAX_ENTRIES = 500
 
-interface LogEntry {
+type Kind = "req" | "res" | "err" | "check" | "info"
+
+interface Entry {
   id: number
-  type: LogType
-  message: string
-  timestamp: string
-  raw: string
+  ts: number
+  kind: Kind
+  level: string
+  msg: string
+  model?: string
+  account?: string
+  apiKey?: string
+  combo?: string
+  status?: number
+  ms?: number
+  tokens?: number
+  endpoint?: string
+  proxy?: string
+  attempt?: number
 }
 
-const MAX_ENTRIES = 200
-
-// ── Log color helpers ──────────────────────────────────────────────────
-
-function typeColor(type: LogType): string {
-  switch (type) {
-    case "req":
-      return "text-blue-400"
-    case "ok":
-    case "200":
-      return "text-emerald-400"
-    case "err":
-    case "error":
-      return "text-red-400"
-    case "429":
-      return "text-orange-400"
-    case "warn":
-      return "text-amber-400"
-    default:
-      return "text-slate-400"
-  }
-}
-
-function typeBadgeClass(type: LogType): string {
-  switch (type) {
-    case "req":
-      return "bg-blue-500/15 text-blue-400 border-none"
-    case "ok":
-    case "200":
-      return "bg-emerald-500/15 text-emerald-400 border-none"
-    case "err":
-    case "error":
-      return "bg-red-500/15 text-red-400 border-none"
-    case "429":
-      return "bg-orange-500/15 text-orange-400 border-none"
-    default:
-      return "bg-slate-700 text-slate-400 border-none"
-  }
-}
-
-function parseLogLine(raw: string, id: number): LogEntry {
-  // Try to detect type from content
-  let type: LogType = "info"
-  const lower = raw.toLowerCase()
-
-  if (lower.includes('"type":"req"') || lower.includes("→") || lower.includes("request")) {
-    type = "req"
-  } else if (lower.includes('"type":"ok"') || lower.includes("200") || lower.includes("success")) {
-    type = "ok"
-  } else if (lower.includes('"type":"err"') || lower.includes("error") || lower.includes("fail")) {
-    type = "err"
-  } else if (lower.includes("429") || lower.includes("rate limit") || lower.includes("cooldown")) {
-    type = "429"
-  } else if (lower.includes("warn")) {
-    type = "warn"
-  }
-
-  // Try parse JSON for type field
+/** Chuẩn hoá 1 dòng SSE → Entry. Dòng không phải JSON vẫn hiển thị được (fallback). */
+function toEntry(raw: string, id: number): Entry {
   try {
-    const parsed = JSON.parse(raw) as { type?: LogType; message?: string; msg?: string; time?: string; ts?: string }
-    if (parsed.type) type = parsed.type
+    const j = JSON.parse(raw) as Record<string, any>
+    const kind: Kind =
+      j.kind === "req" || j.kind === "res" || j.kind === "err" || j.kind === "check"
+        ? j.kind
+        : j.level === "error"
+          ? "err"
+          : "info"
     return {
       id,
-      type,
-      message: parsed.message ?? parsed.msg ?? raw,
-      timestamp: parsed.time ?? parsed.ts ?? new Date().toISOString(),
-      raw,
+      ts: j.ts ? Date.parse(j.ts) : Date.now(),
+      kind,
+      level: String(j.level ?? "info"),
+      msg: String(j.msg ?? raw),
+      model: j.model || undefined,
+      account: j.account || j.email || undefined,
+      apiKey: j.apiKey || undefined,
+      combo: j.combo || undefined,
+      status: typeof j.status === "number" ? j.status : undefined,
+      ms: typeof j.ms === "number" ? j.ms : undefined,
+      tokens: typeof j.tokens === "number" ? j.tokens : undefined,
+      endpoint: j.endpoint || undefined,
+      proxy: j.proxy || undefined,
+      attempt: typeof j.attempt === "number" ? j.attempt : undefined,
     }
   } catch {
-    return {
-      id,
-      type,
-      message: raw,
-      timestamp: new Date().toISOString(),
-      raw,
-    }
+    return { id, ts: Date.now(), kind: "info", level: "info", msg: raw }
   }
 }
 
-// ── LiveLog Page ────────────────────────────────────────────────────────
+const KIND_LABEL: Record<Kind, string> = {
+  req: "REQ",
+  res: "RES",
+  err: "ERR",
+  check: "CHECK",
+  info: "INFO",
+}
+const KIND_TONE: Record<Kind, TagTone> = {
+  req: "req",
+  res: "ok",
+  err: "err",
+  check: "warn",
+  info: "muted",
+}
+
+const hhmmss = (ts: number) =>
+  new Date(ts).toLocaleTimeString("vi-VN", { hour12: false })
 
 export function LiveLog() {
-  const [entries, setEntries] = useState<LogEntry[]>([])
+  const [entries, setEntries] = useState<Entry[]>([])
   const [paused, setPaused] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [counts, setCounts] = useState({ req: 0, ok: 0, err: 0, "429": 0 })
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const [follow, setFollow] = useState(true)
+
+  // Bộ lọc
+  const [kinds, setKinds] = useState<Set<Kind>>(new Set())
+  const [model, setModel] = useState("")
+  const [apiKey, setApiKey] = useState("")
+  const [q, setQ] = useState("")
+
   const pausedRef = useRef(false)
-  const counterRef = useRef(0)
-  const esRef = useRef<EventSource | null>(null)
+  const idRef = useRef(0)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
-  const addEntry = useCallback((raw: string) => {
+  const add = useCallback((raw: string) => {
     if (pausedRef.current) return
-    counterRef.current += 1
-    const entry = parseLogLine(raw.trim(), counterRef.current)
-
+    idRef.current += 1
+    const e = toEntry(raw.trim(), idRef.current)
     setEntries((prev) => {
-      const next = [...prev, entry]
-      return next.length > MAX_ENTRIES ? next.slice(next.length - MAX_ENTRIES) : next
-    })
-
-    setCounts((prev) => {
-      const key = entry.type as keyof typeof prev
-      if (key in prev) {
-        return { ...prev, [key]: prev[key] + 1 }
-      }
-      return prev
+      const next = prev.length >= MAX_ENTRIES ? prev.slice(prev.length - MAX_ENTRIES + 1) : prev
+      return [...next, e]
     })
   }, [])
 
-  // Auto-scroll
-  useEffect(() => {
-    if (!paused) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-    }
-  }, [entries, paused])
-
-  // EventSource connection
   useEffect(() => {
     const es = new EventSource("/events")
-    esRef.current = es
-
     es.onopen = () => setConnected(true)
     es.onerror = () => setConnected(false)
-
-    es.onmessage = (event: MessageEvent<string>) => {
-      if (event.data) addEntry(event.data)
-    }
-
-    // Also listen for named event types
-    const handleLog = (event: MessageEvent<string>) => {
-      if (event.data) addEntry(event.data)
-    }
-    es.addEventListener("log", handleLog)
-    es.addEventListener("req", handleLog)
-    es.addEventListener("ok", handleLog)
-    es.addEventListener("err", handleLog)
-
+    es.onmessage = (ev: MessageEvent<string>) => ev.data && add(ev.data)
     return () => {
       es.close()
-      esRef.current = null
       setConnected(false)
     }
-  }, [addEntry])
+  }, [add])
 
-  const handlePause = () => {
-    pausedRef.current = !pausedRef.current
-    setPaused(pausedRef.current)
-  }
+  // Tự cuộn xuống dòng mới, TẮT ĐƯỢC bằng nút "Bám đáy": đang kéo lên đọc dòng cũ mà
+  // bị giật xuống là lỗi khó chịu nhất của khung log realtime.
+  useEffect(() => {
+    if (follow && !paused) bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [entries, follow, paused])
 
-  const handleClear = () => {
-    setEntries([])
-    setCounts({ req: 0, ok: 0, err: 0, "429": 0 })
-    counterRef.current = 0
+  const models = useMemo(
+    () => [...new Set(entries.map((e) => e.model).filter(Boolean) as string[])].sort(),
+    [entries],
+  )
+  const apiKeys = useMemo(
+    () => [...new Set(entries.map((e) => e.apiKey).filter(Boolean) as string[])].sort(),
+    [entries],
+  )
+
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    return entries.filter((e) => {
+      if (kinds.size && !kinds.has(e.kind)) return false
+      if (model && e.model !== model) return false
+      if (apiKey && e.apiKey !== apiKey) return false
+      if (needle) {
+        const hay = `${e.msg} ${e.model ?? ""} ${e.account ?? ""} ${e.apiKey ?? ""} ${e.combo ?? ""}`
+        if (!hay.toLowerCase().includes(needle)) return false
+      }
+      return true
+    })
+  }, [entries, kinds, model, apiKey, q])
+
+  const counts = useMemo(() => {
+    const c: Record<Kind, number> = { req: 0, res: 0, err: 0, check: 0, info: 0 }
+    for (const e of entries) c[e.kind]++
+    return c
+  }, [entries])
+
+  const filtering = kinds.size > 0 || !!model || !!apiKey || !!q.trim()
+
+  const toggleKind = (k: Kind) =>
+    setKinds((prev) => {
+      const n = new Set(prev)
+      if (n.has(k)) n.delete(k)
+      else n.add(k)
+      return n
+    })
+
+  const clearFilters = () => {
+    setKinds(new Set())
+    setModel("")
+    setApiKey("")
+    setQ("")
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-10rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] gap-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <ScrollText className="h-4 w-4 text-slate-500" />
-          <h2 className="text-sm font-medium text-slate-300">Live Log</h2>
-          <div
-            className={`h-2 w-2 rounded-full ml-1 ${
-              connected ? "bg-emerald-400 ring-2 ring-emerald-400/25" : "bg-slate-600"
-            }`}
-          />
-          <span className="text-xs text-slate-500">
-            {connected ? "Connected" : "Disconnected"}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Counters */}
-          <Badge className="bg-blue-500/15 text-blue-400 border-none text-[10px]">
-            REQ {counts.req}
-          </Badge>
-          <Badge className="bg-emerald-500/15 text-emerald-400 border-none text-[10px]">
-            OK {counts.ok}
-          </Badge>
-          <Badge className="bg-red-500/15 text-red-400 border-none text-[10px]">
-            ERR {counts.err}
-          </Badge>
-          <Badge className="bg-orange-500/15 text-orange-400 border-none text-[10px]">
-            429 {counts["429"]}
-          </Badge>
+    <div className="flex h-[calc(100dvh-9rem)] flex-col gap-3">
+      {/* ── Thanh trạng thái + hành động ─────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <ScrollText className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-medium text-foreground">Live Log</h2>
+        <span
+          className={`ml-1 h-2 w-2 rounded-full ${
+            connected ? "bg-emerald-400 ring-2 ring-emerald-400/25" : "bg-slate-600"
+          }`}
+        />
+        <span className="text-xs text-muted-foreground">
+          {connected ? "đang kết nối" : "mất kết nối"}
+        </span>
 
+        <div className="ml-auto flex items-center gap-1.5">
           <Button
-            variant="outline"
+            variant={follow ? "secondary" : "outline"}
             size="sm"
-            onClick={handlePause}
-            className={`border-slate-700 h-7 text-xs gap-1 ${
-              paused
-                ? "text-orange-400 border-orange-700"
-                : "text-slate-400 hover:text-orange-400"
-            }`}
+            onClick={() => setFollow((v) => !v)}
+            title="Tự cuộn xuống dòng mới nhất"
+            className="h-8 gap-1 text-xs"
           >
-            {paused ? (
-              <>
-                <Play className="h-3 w-3" /> Resume
-              </>
-            ) : (
-              <>
-                <Pause className="h-3 w-3" /> Pause
-              </>
-            )}
+            <ArrowDownToLine className="h-3 w-3" />
+            Bám đáy
+          </Button>
+          <Button
+            variant={paused ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              pausedRef.current = !pausedRef.current
+              setPaused(pausedRef.current)
+            }}
+            className="h-8 gap-1 text-xs"
+          >
+            {paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+            {paused ? "Tiếp tục" : "Tạm dừng"}
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={handleClear}
-            className="border-slate-700 text-slate-400 hover:text-red-400 h-7 text-xs gap-1"
+            onClick={() => {
+              setEntries([])
+              idRef.current = 0
+            }}
+            className="h-8 gap-1 text-xs"
           >
-            <Trash2 className="h-3 w-3" /> Clear
+            <Trash2 className="h-3 w-3" />
+            Xoá
           </Button>
         </div>
       </div>
 
-      {/* Log pane */}
-      <Card className="bg-slate-900 border-slate-800 flex-1 min-h-0 flex flex-col">
-        <CardHeader className="pb-2 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-xs font-medium text-slate-500">
-              {entries.length} / {MAX_ENTRIES} entries
-            </CardTitle>
-            {paused && (
-              <Badge className="bg-orange-500/15 text-orange-400 border-none text-[10px]">
-                PAUSED
-              </Badge>
-            )}
+      {/* ── Bộ lọc ───────────────────────────────────────────────────── */}
+      <Card className="border-border bg-card">
+        <CardContent className="flex flex-wrap items-center gap-2 p-2.5">
+          <Filter className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+
+          {/* Lọc theo loại — kèm SỐ ĐẾM để biết có gì mà lọc trước khi bấm. */}
+          {(["req", "res", "err"] as Kind[]).map((k) => {
+            const on = kinds.has(k)
+            return (
+              <Button
+                key={k}
+                size="sm"
+                variant={on ? "default" : "outline"}
+                onClick={() => toggleKind(k)}
+                className="h-7 gap-1 px-2 text-[11px]"
+              >
+                {KIND_LABEL[k]}
+                <span className={on ? "opacity-80" : "text-muted-foreground"}>{counts[k]}</span>
+              </Button>
+            )
+          })}
+
+          <div className="mx-1 h-5 w-px bg-border" />
+
+          <Select value={model} onValueChange={(v) => setModel(v ?? "")}>
+            {/* SelectValue hiển thị value thô, nên tự render nhãn tiếng Việt. */}
+            <SelectTrigger className="h-7 w-44 text-[11px]">
+              <span className="truncate">{model || `Mọi model (${models.length})`}</span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="" className="text-xs">Mọi model ({models.length})</SelectItem>
+              {models.map((m) => (
+                <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={apiKey} onValueChange={(v) => setApiKey(v ?? "")}>
+            <SelectTrigger className="h-7 w-40 text-[11px]">
+              <span className="truncate">{apiKey || `Mọi API key (${apiKeys.length})`}</span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="" className="text-xs">Mọi API key ({apiKeys.length})</SelectItem>
+              {apiKeys.map((k) => (
+                <SelectItem key={k} value={k} className="text-xs">{k}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Tìm trong log…"
+              className="h-7 w-44 pl-7 text-[11px]"
+            />
           </div>
-        </CardHeader>
-        <CardContent className="flex-1 min-h-0 overflow-y-auto p-0">
-          {entries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-3">
+
+          {filtering ? (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 gap-1 px-2 text-[11px]">
+              <X className="h-3 w-3" />
+              Bỏ lọc
+            </Button>
+          ) : null}
+
+          {/* Trạng thái bộ lọc: luôn nói rõ đang hiện bao nhiêu trên tổng bao nhiêu. */}
+          <div className="ml-auto flex items-center gap-2 text-[11px]">
+            {paused ? (
+              <Badge className="h-5 rounded bg-orange-500/15 px-1.5 text-[10px] text-orange-300">
+                ĐANG DỪNG
+              </Badge>
+            ) : null}
+            <span className={filtering ? "font-medium text-primary" : "text-muted-foreground"}>
+              {filtering ? `lọc: ${shown.length}/${entries.length} dòng` : `${entries.length} dòng`}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Danh sách log ────────────────────────────────────────────── */}
+      <Card className="flex min-h-0 flex-1 flex-col border-border bg-card">
+        <CardContent className="min-h-0 flex-1 overflow-y-auto p-0">
+          {shown.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center gap-2">
               <ScrollText className="h-8 w-8 text-slate-700" />
-              <p className="text-sm text-slate-600">
-                {connected ? "Đang chờ events..." : "Đang kết nối /events..."}
+              <p className="text-sm text-muted-foreground">
+                {entries.length === 0
+                  ? connected
+                    ? "Đang chờ request…"
+                    : "Đang kết nối /events…"
+                  : "Không dòng nào khớp bộ lọc"}
               </p>
+              {entries.length > 0 && filtering ? (
+                <Button variant="outline" size="sm" onClick={clearFilters} className="h-7 text-xs">
+                  Bỏ lọc
+                </Button>
+              ) : null}
             </div>
           ) : (
-            <div className="font-mono text-xs">
-              {entries.map((entry) => (
+            <div>
+              {shown.map((e) => (
                 <div
-                  key={entry.id}
-                  className={`flex items-start gap-2 px-4 py-1 hover:bg-slate-800/40 border-b border-slate-800/30 ${typeColor(entry.type)}`}
+                  key={e.id}
+                  className="border-b border-border/40 px-3 py-2 transition-colors hover:bg-background/60"
                 >
-                  <span className="text-slate-600 flex-shrink-0 tabular-nums text-[10px] mt-0.5">
-                    {new Date(entry.timestamp).toLocaleTimeString()}
-                  </span>
-                  <Badge
-                    className={`flex-shrink-0 text-[9px] px-1 py-0 h-4 mt-0.5 ${typeBadgeClass(entry.type)}`}
+                  {/* HÀNG 1 — thẻ */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
+                      {hhmmss(e.ts)}
+                    </span>
+                    <LogTag tone={KIND_TONE[e.kind]} value={KIND_LABEL[e.kind]} />
+                    {e.status ? (
+                      <LogTag tone={statusTone(e.status)} value={e.status} title="HTTP status" />
+                    ) : null}
+                    {e.model ? (
+                      <LogTag tone="model" icon={<Cpu className="h-2.5 w-2.5" />} value={e.model} title="model" />
+                    ) : null}
+                    {e.apiKey ? (
+                      <LogTag tone="key" icon={<KeyRound className="h-2.5 w-2.5" />} value={e.apiKey} title="API key" />
+                    ) : null}
+                    {e.combo ? (
+                      <LogTag tone="combo" icon={<Shuffle className="h-2.5 w-2.5" />} value={e.combo} title="combo" />
+                    ) : null}
+                    {e.account && e.account !== "-" ? (
+                      <LogTag tone="account" icon={<User className="h-2.5 w-2.5" />} value={e.account} title="account" />
+                    ) : null}
+                    {e.ms != null ? (
+                      <LogTag tone="muted" icon={<Clock className="h-2.5 w-2.5" />} value={`${e.ms}ms`} title="thời gian" />
+                    ) : null}
+                    {e.tokens ? <LogTag tone="muted" value={`${e.tokens} tok`} title="tokens" /> : null}
+                    {e.attempt && e.attempt > 1 ? (
+                      <LogTag tone="warn" value={`lần ${e.attempt}`} title="lần thử" />
+                    ) : null}
+                  </div>
+
+                  {/* HÀNG 2 — mô tả */}
+                  <p
+                    className={`mt-1 break-words font-mono text-[11px] leading-relaxed ${
+                      e.kind === "err" ? "text-red-300/90" : "text-slate-300"
+                    }`}
                   >
-                    {entry.type.toUpperCase()}
-                  </Badge>
-                  <span className="break-all leading-relaxed">{entry.message}</span>
+                    {e.msg}
+                  </p>
                 </div>
               ))}
               <div ref={bottomRef} />

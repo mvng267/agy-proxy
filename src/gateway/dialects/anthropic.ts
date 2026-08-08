@@ -80,7 +80,7 @@ export function registerAnthropicDialect(app: FastifyInstance): void {
             onToolCall,
             skipKeys,
             // `label` chỉ có giá trị khi gọi từ nhánh combo → dùng làm tên combo.
-            usage: { requestId, apiKeyId: auth.keyId, endpoint: path, stream, combo: label },
+            usage: { requestId, apiKeyId: auth.keyId, keyName: auth.keyName, endpoint: path, stream, combo: label },
             onUsage: (u) => { realUsage = u; },
           });
 
