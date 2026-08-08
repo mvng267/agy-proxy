@@ -513,7 +513,7 @@ export function Quota() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
-                    <TableHead className="w-8 pl-4">
+                    <TableHead className="w-8">
                       <input
                         type="checkbox"
                         checked={pageRows.length > 0 && selected.size === pageRows.length}
@@ -522,12 +522,12 @@ export function Quota() {
                       />
                     </TableHead>
                     <TableHead className="w-8" />
-                    <TableHead className="text-muted-foreground text-xs">Email</TableHead>
-                    <TableHead className="text-muted-foreground text-xs">Tier</TableHead>
-                    <TableHead className="text-muted-foreground text-xs">Gemini</TableHead>
-                    <TableHead className="text-muted-foreground text-xs">Claude/GPT</TableHead>
-                    <TableHead className="text-muted-foreground text-xs">Reset</TableHead>
-                    <TableHead className="text-muted-foreground text-xs text-right pr-4">Nạp</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Tier</TableHead>
+                    <TableHead>Gemini</TableHead>
+                    <TableHead>Claude/GPT</TableHead>
+                    <TableHead>Reset</TableHead>
+                    <TableHead className="text-right">Nạp</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -549,7 +549,7 @@ export function Quota() {
                           key={acc.email}
                           className={`border-border hover:bg-muted/40 ${selected.has(acc.email) ? "bg-warning/5" : ""}`}
                         >
-                          <TableCell className="pl-4">
+                          <TableCell>
                             <input
                               type="checkbox"
                               checked={selected.has(acc.email)}
@@ -580,7 +580,7 @@ export function Quota() {
                           <TableCell><QuotaBar pct={acc.geminiPct} /></TableCell>
                           <TableCell><QuotaBar pct={cpct ?? undefined} /></TableCell>
                           <TableCell className="text-xs text-muted-foreground">{reset}</TableCell>
-                          <TableCell className="text-right pr-4">
+                          <TableCell className="text-right">
                             <button
                               onClick={() => handleRefreshOne(acc.email)}
                               disabled={refreshing[acc.email]}

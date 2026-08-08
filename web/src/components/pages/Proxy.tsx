@@ -362,13 +362,13 @@ export function Proxy() {
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="text-muted-foreground text-xs pl-4">Label / Host</TableHead>
-                <TableHead className="text-muted-foreground text-xs">Protocol</TableHead>
-                <TableHead className="text-muted-foreground text-xs">Status</TableHead>
-                <TableHead className="text-muted-foreground text-xs">Latency</TableHead>
-                <TableHead className="text-muted-foreground text-xs">Country</TableHead>
-                <TableHead className="text-muted-foreground text-xs">Tested</TableHead>
-                <TableHead className="text-muted-foreground text-xs w-36" />
+                <TableHead>Label / Host</TableHead>
+                <TableHead>Protocol</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Latency</TableHead>
+                <TableHead>Country</TableHead>
+                <TableHead>Tested</TableHead>
+                <TableHead className="w-36" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -406,7 +406,7 @@ export function Proxy() {
                       key={proxy.label}
                       className="border-border hover:bg-muted/40"
                     >
-                      <TableCell className="text-sm text-foreground font-mono pl-4">
+                      <TableCell className="text-sm text-foreground font-mono">
                         {proxy.label}
                         {proxy.host && proxy.host !== proxy.label && (
                           <span className="text-muted-foreground text-xs block">{proxy.host}</span>

@@ -576,15 +576,15 @@ export function Pool() {
                       className="rounded border-border bg-muted"
                     />
                   </TableHead>
-                  <TableHead className="text-muted-foreground text-xs">On</TableHead>
-                  <TableHead className="text-muted-foreground text-xs">Email</TableHead>
-                  <TableHead className="text-muted-foreground text-xs">{provider === "kr" ? "Credit" : "Quota"}</TableHead>
-                  <TableHead className="text-muted-foreground text-xs">Status</TableHead>
-                  <TableHead className="text-muted-foreground text-xs">Health / Live</TableHead>
-                  <TableHead className="text-muted-foreground text-xs">Cooldown</TableHead>
-                  <TableHead className="text-muted-foreground text-xs text-right">Requests</TableHead>
-                  <TableHead className="text-muted-foreground text-xs">Last used</TableHead>
-                  <TableHead className="text-muted-foreground text-xs text-right">Actions</TableHead>
+                  <TableHead>On</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>{provider === "kr" ? "Credit" : "Quota"}</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Health / Live</TableHead>
+                  <TableHead>Cooldown</TableHead>
+                  <TableHead className="text-right">Requests</TableHead>
+                  <TableHead>Last used</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

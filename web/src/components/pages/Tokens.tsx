@@ -461,11 +461,11 @@ export function Tokens() {
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="text-muted-foreground text-xs pl-4">Email</TableHead>
-                <TableHead className="text-muted-foreground text-xs">Target</TableHead>
-                <TableHead className="text-muted-foreground text-xs">Health</TableHead>
-                <TableHead className="text-muted-foreground text-xs">Token</TableHead>
-                <TableHead className="text-muted-foreground text-xs">Updated</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Target</TableHead>
+                <TableHead>Health</TableHead>
+                <TableHead>Token</TableHead>
+                <TableHead>Updated</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

@@ -392,13 +392,13 @@ export function Accounts() {
                       className="rounded border-border bg-muted"
                     />
                   </TableHead>
-                  <TableHead className="text-muted-foreground text-xs">Email</TableHead>
-                  <TableHead className="text-muted-foreground text-xs">Proxy</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Proxy</TableHead>
                   {FLOWS.map(f => (
                     <TableHead key={f.key} className="text-muted-foreground text-xs">{f.label}</TableHead>
                   ))}
-                  <TableHead className="text-muted-foreground text-xs">Last login</TableHead>
-                  <TableHead className="text-muted-foreground text-xs text-right">Actions</TableHead>
+                  <TableHead>Last login</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

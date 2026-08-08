@@ -427,11 +427,11 @@ export function Combo() {
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="text-muted-foreground text-xs">ID</TableHead>
-                <TableHead className="text-muted-foreground text-xs">Targets</TableHead>
-                <TableHead className="text-muted-foreground text-xs">Strategy</TableHead>
-                <TableHead className="text-muted-foreground text-xs text-center">Enabled</TableHead>
-                <TableHead className="text-muted-foreground text-xs text-right">Actions</TableHead>
+                <TableHead>ID</TableHead>
+                <TableHead>Targets</TableHead>
+                <TableHead>Strategy</TableHead>
+                <TableHead className="text-center">Enabled</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
