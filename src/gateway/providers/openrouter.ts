@@ -127,6 +127,24 @@ function parseToolCalls(raw: any[] | undefined): ToolCall[] {
   });
 }
 
+/** Gọi thử 1 request cực nhỏ vào 1 model — checkLive và checkModelsLive dùng chung. */
+async function probeModel(p: Provider, s: ProviderSession, model: string, d?: Dispatcher): Promise<LiveResult> {
+  const t0 = Date.now();
+  try {
+    const r = await p.generate({
+      session: s,
+      model,
+      messages: [{ role: 'user', content: 'hi' }],
+      generationConfig: { maxOutputTokens: 8 },
+      dispatcher: d,
+    });
+    return { status: 'ok', ms: Date.now() - t0, detail: (r.text || '').slice(0, 40) };
+  } catch (e: any) {
+    const quota = e?.status === 402 || e?.status === 429;
+    return { status: quota ? 'quota' : 'error', ms: Date.now() - t0, detail: String(e?.message ?? e).slice(0, 120) };
+  }
+}
+
 export const openrouterProvider: Provider = {
   id: 'or',
   label: 'OpenRouter',
@@ -168,10 +186,11 @@ export const openrouterProvider: Provider = {
   },
 
   async generate(args: GenArgs): Promise<GenResult> {
+    const tools = wireTools(args.tools);
     const res = await callUpstream(args.session, {
       model: args.model,
       messages: toOpenAIWire(args.messages),
-      ...(wireTools(args.tools) ? { tools: wireTools(args.tools) } : {}),
+      ...(tools ? { tools } : {}),
       ...wireGenConfig(args.generationConfig),
     }, args.dispatcher, args.signal);
     const j: any = await res.json();
@@ -192,13 +211,14 @@ export const openrouterProvider: Provider = {
   },
 
   async *generateStream(args: GenArgs): AsyncGenerator<StreamEvent> {
+    const tools = wireTools(args.tools);
     const res = await callUpstream(args.session, {
       model: args.model,
       messages: toOpenAIWire(args.messages),
       stream: true,
       // usage nằm ở chunk cuối — không xin thì upstream OpenAI-compatible không gửi
       stream_options: { include_usage: true },
-      ...(wireTools(args.tools) ? { tools: wireTools(args.tools) } : {}),
+      ...(tools ? { tools } : {}),
       ...wireGenConfig(args.generationConfig),
     }, args.dispatcher, args.signal);
 
@@ -209,6 +229,33 @@ export const openrouterProvider: Provider = {
     let finishReason: string | undefined;
     let usage: StreamEvent['usage'];
 
+    const handleLine = function* (line: string): Generator<StreamEvent> {
+      if (!line.startsWith('data:')) return;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') return;
+      let j: any;
+      try { j = JSON.parse(data); } catch { return; }
+      const choice = j?.choices?.[0];
+      const delta = choice?.delta ?? {};
+      if (typeof delta.content === 'string' && delta.content) yield { delta: delta.content };
+      for (const t of delta.tool_calls ?? []) {
+        const idx = t?.index ?? 0;
+        const cur = pending.get(idx) ?? { id: '', name: '', args: '' };
+        if (t?.id) cur.id = t.id;
+        if (t?.function?.name) cur.name = t.function.name;
+        if (typeof t?.function?.arguments === 'string') cur.args += t.function.arguments;
+        pending.set(idx, cur);
+      }
+      if (choice?.finish_reason) finishReason = choice.finish_reason;
+      if (j?.usage) {
+        usage = {
+          promptTokens: j.usage.prompt_tokens ?? 0,
+          completionTokens: j.usage.completion_tokens ?? 0,
+          totalTokens: j.usage.total_tokens ?? 0,
+        };
+      }
+    };
+
     const decoder = new TextDecoder();
     let buf = '';
     for await (const chunk of res.body as any as AsyncIterable<Uint8Array>) {
@@ -217,32 +264,14 @@ export const openrouterProvider: Provider = {
       while ((nl = buf.indexOf('\n')) >= 0) {
         const line = buf.slice(0, nl).trim();
         buf = buf.slice(nl + 1);
-        if (!line.startsWith('data:')) continue;
-        const data = line.slice(5).trim();
-        if (data === '[DONE]') continue;
-        let j: any;
-        try { j = JSON.parse(data); } catch { continue; }
-        const choice = j?.choices?.[0];
-        const delta = choice?.delta ?? {};
-        if (typeof delta.content === 'string' && delta.content) yield { delta: delta.content };
-        for (const t of delta.tool_calls ?? []) {
-          const idx = t?.index ?? 0;
-          const cur = pending.get(idx) ?? { id: '', name: '', args: '' };
-          if (t?.id) cur.id = t.id;
-          if (t?.function?.name) cur.name = t.function.name;
-          if (typeof t?.function?.arguments === 'string') cur.args += t.function.arguments;
-          pending.set(idx, cur);
-        }
-        if (choice?.finish_reason) finishReason = choice.finish_reason;
-        if (j?.usage) {
-          usage = {
-            promptTokens: j.usage.prompt_tokens ?? 0,
-            completionTokens: j.usage.completion_tokens ?? 0,
-            totalTokens: j.usage.total_tokens ?? 0,
-          };
-        }
+        yield* handleLine(line);
       }
     }
+    // Flush phần còn sót: upstream đóng stream mà dòng cuối KHÔNG có newline thì
+    // dòng đó (thường mang usage/finish_reason) sẽ bị vứt lặng lẽ nếu chỉ xử lý trong
+    // vòng lặp. decoder.decode() cuối trả nốt ký tự UTF-8 multi-byte đang cắt dở.
+    buf += decoder.decode();
+    if (buf.trim()) yield* handleLine(buf.trim());
 
     for (const [idx, t] of [...pending.entries()].sort((a, b) => a[0] - b[0])) {
       let input: Record<string, unknown> = {};
@@ -268,40 +297,12 @@ export const openrouterProvider: Provider = {
   },
 
   async checkLive(_a: ProviderAccount, s: ProviderSession, d?: Dispatcher): Promise<LiveResult> {
-    const t0 = Date.now();
-    try {
-      const r = await this.generate({
-        session: s,
-        model: this.defaultModel,
-        messages: [{ role: 'user', content: 'hi' }],
-        generationConfig: { maxOutputTokens: 8 },
-        dispatcher: d,
-      });
-      return { status: 'ok', ms: Date.now() - t0, detail: (r.text || '').slice(0, 40) };
-    } catch (e: any) {
-      const quota = e?.status === 402 || e?.status === 429;
-      return { status: quota ? 'quota' : 'error', ms: Date.now() - t0, detail: String(e?.message ?? e).slice(0, 120) };
-    }
+    return probeModel(this, s, this.defaultModel, d);
   },
 
   async checkModelsLive(s: ProviderSession, d?: Dispatcher) {
     const out: { id: string; status: 'ok' | 'quota' | 'error'; ms: number; detail?: string }[] = [];
-    for (const m of this.models) {
-      const t0 = Date.now();
-      try {
-        const r = await this.generate({
-          session: s,
-          model: m.id,
-          messages: [{ role: 'user', content: 'hi' }],
-          generationConfig: { maxOutputTokens: 8 },
-          dispatcher: d,
-        });
-        out.push({ id: m.id, status: 'ok', ms: Date.now() - t0, detail: (r.text || '').slice(0, 30) });
-      } catch (e: any) {
-        const quota = e?.status === 402 || e?.status === 429;
-        out.push({ id: m.id, status: quota ? 'quota' : 'error', ms: Date.now() - t0, detail: String(e?.message ?? e).slice(0, 100) });
-      }
-    }
+    for (const m of this.models) out.push({ id: m.id, ...(await probeModel(this, s, m.id, d)) });
     return out;
   },
 

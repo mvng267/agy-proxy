@@ -732,7 +732,9 @@ switch (cmd) {
   case 'on': await gatewayToggle(true); break;
   case 'off': await gatewayToggle(false); break;
   case 'metrics': case 'm': await metricsCmd(has('--json')); break;
-  case 'rotation': case 'rotate': await rotationCmd(rest.find((a) => !a.startsWith('-'))); break;
+  // Chỉ nhận rest[0] khi không phải flag — `rest.find(a => !a.startsWith('-'))` sẽ
+  // bốc nhầm GIÁ TRỊ của flag toàn cục (vd `rotation --host 1.2.3.4` → '1.2.3.4').
+  case 'rotation': case 'rotate': await rotationCmd(rest[0]?.startsWith('-') ? undefined : rest[0]); break;
   case 'model': await modelCmd(flagVal('--big'), flagVal('--small')); break;
   case 'accounts': case 'acc': await accountsCmd(rest[0], flagVal('--provider')); break;
   case 'claude': {

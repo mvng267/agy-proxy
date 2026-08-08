@@ -11,8 +11,9 @@ import { KpiCard, PageHeader, ChartCard, ErrorState, StatusBadge } from "@/compo
  * Backend chỉ trả ảnh chụp cửa sổ trượt 5 phút (không lưu chuỗi thời gian —
  * /api/metrics cố ý không đụng DB), nên LỊCH SỬ được tích luỹ phía client:
  * mỗi lần poll đẩy 1 điểm vào bộ nhớ trang, giữ tối đa 120 điểm (~10 phút).
- * F5 là mất lịch sử — chấp nhận được cho màn hình "đang khoẻ không";
- * xu hướng dài hạn đã có trang Báo cáo (đọc DB).
+ * Rời trang/F5 là mất lịch sử, và trục x cách đều theo THỨ TỰ điểm (tab ẩn thì
+ * poll dừng → khoảng trống bị nén) — chấp nhận được cho màn hình "đang khoẻ
+ * không"; xu hướng dài hạn đã có trang Báo cáo (đọc DB).
  */
 
 interface MetricsResp {
@@ -213,8 +214,9 @@ export function Metrics() {
     const d = q.data
     if (!d) return
     setHistory((h) => {
-      // refetch thủ công/focus có thể trả cùng snapshot — không đẩy điểm trùng
-      if (h.length && h[h.length - 1]!.t === d.now) return h
+      // refetch thủ công/focus xen giữa nhịp poll → điểm dày đặc làm méo trục x
+      // (x cách đều theo index); bỏ điểm đến sớm hơn 2s so với điểm trước.
+      if (h.length && d.now - h[h.length - 1]!.t < 2_000) return h
       const next = [...h, {
         t: d.now,
         rps: d.window.rps,

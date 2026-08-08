@@ -88,8 +88,8 @@ test('toOpenAIWire: tool result + assistant tool_calls về đúng wire-format',
 let server: Server;
 let baseUrl = '';
 let lastReq: { url: string; auth: string; body: any } | null = null;
-/** Response kịch bản cho lượt kế: 'ok' | 'stream' | số HTTP status lỗi. */
-let script: 'ok' | 'stream' | number = 'ok';
+/** Response kịch bản cho lượt kế: 'ok' | 'stream' | 'stream-nolf' | số HTTP status lỗi. */
+let script: 'ok' | 'stream' | 'stream-nolf' | number = 'ok';
 
 function sessionOfMock() {
   return { accessToken: 'sk-or-test', baseUrl };
@@ -109,6 +109,14 @@ await new Promise<void>((done) => {
       if (typeof script === 'number') {
         res.writeHead(script, { 'retry-after': '7' });
         res.end(JSON.stringify({ error: { message: 'mock fail' } }));
+        return;
+      }
+      if (script === 'stream-nolf') {
+        // Upstream "gần chuẩn": đóng stream mà dòng data cuối KHÔNG có newline.
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'một nửa' } }] })}\n\n`);
+        res.write(`data: ${JSON.stringify({ choices: [{ finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 } })}`);
+        res.end();
         return;
       }
       if (script === 'stream') {
@@ -196,6 +204,21 @@ test('generateStream: delta theo thứ tự, tool_call GOM ĐỦ mẩu arguments
   assert.deepEqual(last.usage, { promptTokens: 5, completionTokens: 7, totalTokens: 12 });
   assert.equal(lastReq!.body.stream, true);
   assert.deepEqual(lastReq!.body.stream_options, { include_usage: true });
+});
+
+test('generateStream: dòng data cuối KHÔNG có newline vẫn không mất usage/finishReason', async () => {
+  script = 'stream-nolf';
+  const events: any[] = [];
+  for await (const ev of openrouterProvider.generateStream({
+    session: sessionOfMock(),
+    model: 'openrouter/auto',
+    messages: [{ role: 'user', content: 'ping' }],
+  })) events.push(ev);
+
+  assert.deepEqual(events.filter((e) => e.delta).map((e) => e.delta), ['một nửa']);
+  const last = events[events.length - 1];
+  assert.equal(last.finishReason, 'stop', 'finish_reason nằm ở dòng chưa kịp xuống dòng — phải flush');
+  assert.deepEqual(last.usage, { promptTokens: 1, completionTokens: 2, totalTokens: 3 });
 });
 
 test('checkToken: GET /models với Bearer — key sống trả true', async () => {

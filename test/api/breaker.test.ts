@@ -99,6 +99,23 @@ test('3 lỗi 500 liên tiếp → mạch MỞ ngay trong request, request kế 
   assert.match(msg, /circuit breaker/i, `lỗi phải nói rõ vì sao bị chặn: ${r2.body}`);
 });
 
+test('lỗi hạ tầng ở tầng CHUẨN BỊ (ensureReady sập) cũng mở mạch', async () => {
+  const orig = fakeAgy.ensureReady;
+  (fakeAgy as any).sessionFresh = () => false; // ép đi qua ensureReady
+  (fakeAgy as any).ensureReady = async () => {
+    throw Object.assign(new Error('fetch failed: auth endpoint down'), { status: undefined });
+  };
+  try {
+    const r = await fire();
+    assert.ok(r.statusCode >= 500, r.body);
+    assert.equal(calls.length, 0, 'chưa từng gọi tới model');
+    assert.equal(providerBreaker.state('agy'), 'open', 'outage tầng auth phải mở mạch như outage tầng model');
+  } finally {
+    (fakeAgy as any).ensureReady = orig;
+    (fakeAgy as any).sessionFresh = () => true;
+  }
+});
+
 test('lỗi quota (429) KHÔNG nuôi breaker — mạch vẫn đóng', async () => {
   failQueue = [429, 429, 429, 429];
   const r = await fire();

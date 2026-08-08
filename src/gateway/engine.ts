@@ -442,12 +442,16 @@ export async function runProviderCall(opts: {
         skips++;
         continue;
       }
-    } catch (e) {
+    } catch (e: any) {
       lastErr = e;
       // Hết account thật → dừng. Nhưng lỗi của MỘT account (vd refresh token hỏng khiến
       // ensureReady ném) thì phải thử account kế: trước đây `break` ở đây làm cả vòng
       // failover dừng dù pool còn nguyên hàng trăm account khoẻ.
       if (e instanceof NoAccountError) break;
+      // Lỗi hạ tầng ở tầng CHUẨN BỊ (endpoint auth sập, mạng đứt) cũng nuôi breaker:
+      // một đợt outage thật thường chết ngay ở refresh token, chưa kịp gọi model nào.
+      // invalid_grant/401 của MỘT account thì không tính — đó không phải provider sập.
+      if (isTransientError(String(e?.message ?? e), e?.status)) providerBreaker.fail(provider);
       tries++;
       continue;
     }
@@ -547,7 +551,8 @@ export async function runProviderCall(opts: {
         msg: `← ✗ ${e?.status ?? ''} ${outOfQuota ? '(hết hạn mức → đổi account)' : ''} ${String(e?.message ?? e).slice(0, 90)}`,
       });
       // Chỉ lỗi HẠ TẦNG mới nuôi circuit breaker — quota là chuyện từng account.
-      if (!outOfQuota && (e?.status >= 500 || isTransientError(String(e?.message ?? e), e?.status))) {
+      // isTransientError đã bao mọi status >= 5xx lẫn lỗi mạng/timeout.
+      if (!outOfQuota && isTransientError(String(e?.message ?? e), e?.status)) {
         providerBreaker.fail(provider);
         if (providerBreaker.state(provider) === 'open') {
           emitGw({
