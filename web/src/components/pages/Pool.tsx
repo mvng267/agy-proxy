@@ -12,12 +12,11 @@ import {
   PowerOff,
   FlaskConical,
   Gauge,
-  ChevronLeft,
-  ChevronRight,
   CheckCheck,
 } from "lucide-react"
 import { KpiCard, PageHeader } from "@/components/common"
 import { PoolDonut } from "@/components/common/charts"
+import { DataTable } from "@/components/common/DataTable"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -25,14 +24,6 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/toast"
 import { RoutingHint } from "@/components/common/RoutingHint"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -96,8 +87,6 @@ function fmtCooldown(until?: number) {
 
 // ── Pool Page ──────────────────────────────────────────────────────────
 
-const PAGE_SIZES = [25, 50, 100]
-
 export function Pool() {
   const [accounts, setAccounts] = useState<PoolAccount[]>([])
   const [loading, setLoading] = useState(true)
@@ -113,10 +102,8 @@ export function Pool() {
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState("all")
   const [sort, setSort] = useState("email")
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<number>(() =>
-    Number(localStorage.getItem("vs_agySize") || 50)
-  )
+  // DataTable tự quản số dòng/trang; đây chỉ là giá trị KHỞI TẠO đọc từ lựa chọn cũ.
+  const [pageSize] = useState<number>(() => Number(localStorage.getItem("vs_agySize") || 50))
 
   // Selection
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -151,7 +138,6 @@ export function Pool() {
   // Save provider preference
   useEffect(() => {
     localStorage.setItem("vs_agyProv", provider)
-    setPage(1)
     setSelected(new Set())
   }, [provider])
 
@@ -294,9 +280,6 @@ export function Pool() {
     return a.email.localeCompare(b.email)
   })
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
-  const safePage = Math.min(page, totalPages)
-  const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   const poolTotal = provAccounts.length
   const poolActive = provAccounts.filter(a => a.enabled && !a.cooldown).length
@@ -304,18 +287,6 @@ export function Pool() {
   const poolInactive = poolTotal - poolActive - poolCooldown
   const pctActive = poolTotal > 0 ? Math.round((poolActive / poolTotal) * 100) : 0
   const pctCooldown = poolTotal > 0 ? Math.round((poolCooldown / poolTotal) * 100) : 0
-
-  const toggleSelect = (email: string) => {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(email)) next.delete(email); else next.add(email)
-      return next
-    })
-  }
-  const toggleAll = () => {
-    if (selected.size === pageRows.length) setSelected(new Set())
-    else setSelected(new Set(pageRows.map(a => a.email)))
-  }
 
   const statusBadge = (acc: PoolAccount) => {
     if (!acc.enabled) return <Badge className="bg-muted text-muted-foreground border-none text-[10px]">Off</Badge>
@@ -515,14 +486,14 @@ export function Pool() {
                 <Input
                   placeholder="Tìm email…"
                   value={search}
-                  onChange={e => { setSearch(e.target.value); setPage(1) }}
+                  onChange={e => { setSearch(e.target.value); }}
                   className="pl-8 bg-muted border-border text-foreground placeholder:text-muted-foreground h-8 text-xs w-44"
                 />
               </div>
               {/* Filter */}
               <select
                 value={filter}
-                onChange={e => { setFilter(e.target.value); setPage(1) }}
+                onChange={e => { setFilter(e.target.value); }}
                 className="h-8 px-2 rounded-md bg-muted border border-border text-foreground text-xs focus:outline-none"
               >
                 <option value="all">Tất cả</option>
@@ -534,7 +505,7 @@ export function Pool() {
               {/* Sort */}
               <select
                 value={sort}
-                onChange={e => { setSort(e.target.value); setPage(1) }}
+                onChange={e => { setSort(e.target.value); }}
                 className="h-8 px-2 rounded-md bg-muted border border-border text-foreground text-xs focus:outline-none"
               >
                 <option value="email">Email</option>
@@ -563,175 +534,122 @@ export function Pool() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="w-8">
-                    <input
-                      type="checkbox"
-                      checked={pageRows.length > 0 && selected.size === pageRows.length}
-                      onChange={toggleAll}
-                      className="rounded border-border bg-muted"
-                    />
-                  </TableHead>
-                  <TableHead>On</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>{provider === "kr" ? "Credit" : "Quota"}</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Health / Live</TableHead>
-                  <TableHead>Cooldown</TableHead>
-                  <TableHead className="text-right">Requests</TableHead>
-                  <TableHead>Last used</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pageRows.length === 0 ? (
-                  <TableRow className="border-border">
-                    <TableCell colSpan={10} className="text-center text-muted-foreground text-xs py-8">
-                      {filter !== "all" || search ? "Không có account khớp" : "Chưa có account trong pool"}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  pageRows.map(acc => {
-                    const sp = spinning[acc.email] ?? {}
-                    return (
-                      <TableRow
-                        key={acc.email}
-                        className={`border-border hover:bg-muted/50 ${!acc.enabled ? "opacity-50" : ""} ${acc.cooldown ? "bg-warning/5" : ""}`}
-                      >
-                        <TableCell>
-                          <input
-                            type="checkbox"
-                            checked={selected.has(acc.email)}
-                            onChange={() => toggleSelect(acc.email)}
-                            className="rounded border-border bg-muted"
-                          />
-                        </TableCell>
-                        {/* Toggle switch */}
-                        <TableCell>
-                          <button
-                            onClick={() => handleToggle(acc, !acc.enabled)}
-                            disabled={sp.toggle}
-                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${acc.enabled ? "bg-primary" : "bg-muted"}`}
-                          >
-                            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${acc.enabled ? "translate-x-4" : "translate-x-1"}`} />
-                          </button>
-                        </TableCell>
-                        <TableCell className="text-sm text-foreground font-mono max-w-[220px] truncate">{acc.email}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground tabular-nums">
-                          {acc.geminiPct != null ? (
-                            <span className={acc.geminiPct >= 50 ? "text-success" : acc.geminiPct >= 20 ? "text-warning" : "text-destructive"}>
-                              {acc.geminiPct}%
-                            </span>
-                          ) : "—"}
-                        </TableCell>
-                        <TableCell>{statusBadge(acc)}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-0.5">
-                            {healthBadge(acc.health)}
-                            {liveBadge(acc.liveStatus)}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs text-warning tabular-nums">
-                          {acc.cooldown ? fmtCooldown(acc.cooldownUntil) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
-                          {fmtNum(acc.requests ?? 0)}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {fmtAgo(acc.lastUsed)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            {/* Test token */}
-                            <button
-                              title="Test token"
-                              onClick={() => handleTest(acc.email)}
-                              disabled={sp.test}
-                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-success disabled:opacity-50"
-                            >
-                              {sp.test
-                                ? <RefreshCw className="h-3 w-3 animate-spin" />
-                                : <FlaskConical className="h-3 w-3" />}
-                            </button>
-                            {/* Check live */}
-                            <button
-                              title="Check live"
-                              onClick={() => handleCheckLive(acc.email)}
-                              disabled={sp.live}
-                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-warning disabled:opacity-50"
-                            >
-                              {sp.live
-                                ? <RefreshCw className="h-3 w-3 animate-spin" />
-                                : <Zap className="h-3 w-3" />}
-                            </button>
-                            {/* Refresh quota */}
-                            <button
-                              title="Refresh quota"
-                              onClick={() => handleRefreshQuota(acc.email)}
-                              disabled={sp.quota}
-                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-info disabled:opacity-50"
-                            >
-                              {sp.quota
-                                ? <RefreshCw className="h-3 w-3 animate-spin" />
-                                : <Gauge className="h-3 w-3" />}
-                            </button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Pager */}
-          {sorted.length > 0 && (
-            <div className="flex items-center justify-between pt-4 border-t border-border">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Trang {safePage}/{totalPages} · {sorted.length} rows</span>
-                <select
-                  value={pageSize}
-                  onChange={e => { setPageSize(Number(e.target.value)); setPage(1); localStorage.setItem("vs_agySize", e.target.value) }}
-                  className="h-7 px-2 rounded bg-muted border border-border text-foreground text-xs focus:outline-none"
-                >
-                  {PAGE_SIZES.map(s => <option key={s} value={s}>{s}/trang</option>)}
-                </select>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={safePage <= 1}
-                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground disabled:opacity-30"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </button>
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  const p = Math.max(1, Math.min(totalPages - 4, safePage - 2)) + i
+        <CardContent className="p-0">
+          <DataTable
+            rows={sorted}
+            rowKey={(a) => a.email}
+            pageSize={pageSize}
+            selection={{ selected, onChange: setSelected }}
+            empty={filter !== "all" || search ? "Không có account khớp" : "Chưa có account trong pool"}
+            columns={[
+              {
+                key: "enabled",
+                header: "On",
+                sort: (a) => (a.enabled ? 1 : 0),
+                render: (a) => (
+                  <button
+                    onClick={() => handleToggle(a, !a.enabled)}
+                    disabled={spinning[a.email]?.toggle}
+                    aria-label={a.enabled ? "Tắt account" : "Bật account"}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${a.enabled ? "bg-primary" : "bg-muted"}`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full transition-transform ${a.enabled ? "translate-x-4 bg-primary-foreground" : "translate-x-1 bg-foreground/60"}`} />
+                  </button>
+                ),
+              },
+              {
+                key: "email",
+                header: "Email",
+                sort: (a) => a.email,
+                render: (a) => (
+                  <span className="block max-w-[220px] truncate font-mono text-sm text-foreground" title={a.email}>{a.email}</span>
+                ),
+              },
+              {
+                key: "quota",
+                header: provider === "kr" ? "Credit" : "Quota",
+                sort: (a) => a.geminiPct ?? -1,
+                render: (a) => (
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {a.geminiPct != null ? (
+                      <span className={a.geminiPct >= 50 ? "text-success" : a.geminiPct >= 20 ? "text-warning" : "text-destructive"}>
+                        {a.geminiPct}%
+                      </span>
+                    ) : "—"}
+                  </span>
+                ),
+              },
+              { key: "status", header: "Status", render: (a) => statusBadge(a) },
+              {
+                key: "health",
+                header: "Health / Live",
+                sort: (a) => a.health ?? "",
+                render: (a) => (
+                  <div className="flex flex-col gap-0.5">
+                    {healthBadge(a.health)}
+                    {liveBadge(a.liveStatus)}
+                  </div>
+                ),
+              },
+              {
+                key: "cooldown",
+                header: "Cooldown",
+                sort: (a) => a.cooldownUntil ?? 0,
+                render: (a) => (
+                  <span className="text-xs tabular-nums text-warning">{a.cooldown ? fmtCooldown(a.cooldownUntil) : "—"}</span>
+                ),
+              },
+              {
+                key: "requests",
+                header: "Requests",
+                align: "right",
+                sort: (a) => a.requests ?? 0,
+                render: (a) => <span className="text-sm tabular-nums text-muted-foreground">{fmtNum(a.requests ?? 0)}</span>,
+              },
+              {
+                key: "lastUsed",
+                header: "Last used",
+                sort: (a) => a.lastUsed ?? 0,
+                render: (a) => <span className="text-xs text-muted-foreground">{fmtAgo(a.lastUsed)}</span>,
+              },
+              {
+                key: "actions",
+                header: "",
+                align: "right",
+                render: (a) => {
+                  const sp = spinning[a.email] ?? {}
                   return (
-                    <button
-                      key={p}
-                      onClick={() => setPage(p)}
-                      className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                    >
-                      {p}
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        title="Test token"
+                        onClick={() => handleTest(a.email)}
+                        disabled={sp.test}
+                        className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-success disabled:opacity-50"
+                      >
+                        {sp.test ? <RefreshCw className="h-3 w-3 animate-spin" /> : <FlaskConical className="h-3 w-3" />}
+                      </button>
+                      <button
+                        title="Check live"
+                        onClick={() => handleCheckLive(a.email)}
+                        disabled={sp.live}
+                        className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-warning disabled:opacity-50"
+                      >
+                        {sp.live ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                      </button>
+                      <button
+                        title="Refresh quota"
+                        onClick={() => handleRefreshQuota(a.email)}
+                        disabled={sp.quota}
+                        className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-info disabled:opacity-50"
+                      >
+                        {sp.quota ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Gauge className="h-3 w-3" />}
+                      </button>
+                    </div>
                   )
-                })}
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={safePage >= totalPages}
-                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground disabled:opacity-30"
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          )}
+                },
+              },
+            ]}
+          />
         </CardContent>
       </Card>
     </div>
