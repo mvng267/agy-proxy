@@ -21,8 +21,24 @@ import {
   UserCheck,
   Route,
   ShieldCheck,
+  MoreHorizontal,
+  Sun,
+  Moon,
+  MonitorSmartphone,
+  Check,
 } from "lucide-react"
 import { api } from "@/lib/api"
+import { getTheme, setTheme, type Theme } from "@/lib/theme"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { POLL } from "@/lib/queryClient"
 
 import {
@@ -134,6 +150,14 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
   }, [])
 
   // Số run chờ duyệt tay — hiện badge cạnh "Chờ duyệt" để không bỏ sót captcha đang treo.
+  const [theme, setThemeState] = useState<Theme>(getTheme)
+  const { data: me } = useQuery({
+    queryKey: ["auth-me"],
+    queryFn: () => api.get<{ ok: boolean; user: string }>("/api/auth/me"),
+    staleTime: 5 * 60_000,
+  })
+  const user = me?.user || "admin"
+
   const { data: pendingData } = useQuery({
     queryKey: ["pending-human"],
     queryFn: () => api.get<{ pending: unknown[] }>("/api/pending-human"),
@@ -146,7 +170,7 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarHeader className="px-3 py-4">
         <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-500 text-white font-bold text-sm">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
             A
           </div>
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">
@@ -184,13 +208,12 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
                       isActive={isActive}
                       tooltip={item.title}
                       onClick={() => onTabChange(item.tab)}
-                      className={
-                        isActive
-                          ? "bg-orange-500/10 text-orange-400 hover:bg-orange-500/15 hover:text-orange-400"
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                      }
+                      /* Không tự vẽ trạng thái active nữa — `ui/sidebar.tsx` đã có
+                         `data-[active=true]:bg-sidebar-accent`. Tự viết class là thêm một
+                         chỗ nữa có thể lệch với phần còn lại. */
+                      className="text-muted-foreground hover:text-foreground"
                     >
-                      <item.icon className={isActive ? "text-orange-500" : ""} />
+                      <item.icon />
                       <span>{item.title}</span>
                     </SidebarMenuButton>
                     {item.tab === "accounts" && accountCount != null && (
@@ -199,12 +222,12 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
                       </SidebarMenuBadge>
                     )}
                     {item.tab === "pending" && pendingCount > 0 && (
-                      <SidebarMenuBadge className="bg-amber-500/20 text-amber-400 text-[10px] px-1.5 rounded">
+                      <SidebarMenuBadge className="bg-warning/15 text-warning text-[10px] px-1.5 rounded">
                         {pendingCount}
                       </SidebarMenuBadge>
                     )}
                     {item.tab === "agy" && poolCount != null && (
-                      <SidebarMenuBadge className="bg-orange-500/20 text-orange-400 text-[10px] px-1.5 rounded">
+                      <SidebarMenuBadge className="bg-primary/12 text-primary text-[10px] px-1.5 rounded">
                         {poolCount}
                       </SidebarMenuBadge>
                     )}
@@ -218,27 +241,65 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
 
       <SidebarSeparator className="bg-muted" />
 
-      <SidebarFooter className="px-3 py-3">
+      {/* Card người dùng kiểu Atlas: avatar + tên + menu "…".
+          Menu này THAY cho UserMenu ở topbar — hai chỗ cùng đổi theme và đăng xuất thì
+          người dùng phải nhớ hai nơi cho một việc. */}
+      <SidebarFooter className="p-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Làm mới"
-              onClick={() => window.location.reload()}
-              className="text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            >
-              <RefreshCw />
-              <span>Làm mới</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Đăng xuất"
-              onClick={handleLogout}
-              className="text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
-            >
-              <LogOut />
-              <span>Đăng xuất</span>
-            </SidebarMenuButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <SidebarMenuButton
+                    size="lg"
+                    tooltip={user}
+                    className="data-[state=open]:bg-sidebar-accent"
+                  >
+                    <Avatar className="size-7 rounded-md">
+                      <AvatarFallback className="rounded-md bg-primary text-[11px] font-semibold text-primary-foreground">
+                        {user.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="flex-1 truncate text-left text-sm font-medium">{user}</span>
+                    <MoreHorizontal className="size-4 shrink-0 text-muted-foreground" />
+                  </SidebarMenuButton>
+                }
+              />
+              <DropdownMenuContent side="top" align="start" className="min-w-52">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">Giao diện</DropdownMenuLabel>
+                </DropdownMenuGroup>
+                {([
+                  { v: "light", label: "Sáng", Icon: Sun },
+                  { v: "dark", label: "Tối", Icon: Moon },
+                  { v: "system", label: "Theo máy", Icon: MonitorSmartphone },
+                ] as const).map(({ v, label, Icon }) => (
+                  <DropdownMenuItem
+                    key={v}
+                    onClick={() => { setTheme(v); setThemeState(v) }}
+                    className={theme === v ? "text-primary" : ""}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                    {theme === v ? <Check className="ml-auto h-3.5 w-3.5" /> : null}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onTabChange("settings")}>
+                  <Settings className="h-4 w-4" />
+                  Cấu hình
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.location.reload()}>
+                  <RefreshCw className="h-4 w-4" />
+                  Làm mới
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4" />
+                  Đăng xuất
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

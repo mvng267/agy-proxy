@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from "react"
-import { getTheme, setTheme, initTheme, type Theme } from "@/lib/theme"
+import { initTheme } from "@/lib/theme"
 import { QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryClient } from "@/lib/queryClient"
 import { api } from "@/lib/api"
@@ -7,27 +7,10 @@ import {
   RefreshCw,
   BookOpen,
   ExternalLink,
-  ChevronDown,
-  Sun,
-  Moon,
-  MonitorSmartphone,
-  Check,
-  CircleUser,
-  Settings,
-  LogOut,
 } from "lucide-react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { AppSidebar, handleLogout } from "@/components/AppSidebar"
+import { AppSidebar } from "@/components/AppSidebar"
 import { ToastProvider } from "@/components/ui/toast"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 
@@ -161,12 +144,12 @@ function ServerStatus() {
     <div
       className={`flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs ${
         down
-          ? "border-red-500/30 bg-red-500/10 text-red-400"
-          : "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+          ? "border-destructive/30 bg-destructive/10 text-destructive"
+          : "border-success/30 bg-success/10 text-success"
       }`}
       title={down ? "Không gọi được /api/health" : `Server OK — cổng ${port}`}
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${down ? "bg-red-400" : "bg-emerald-400"}`} />
+      <span className={`h-1.5 w-1.5 rounded-full ${down ? "bg-destructive" : "bg-success"}`} />
       <span className="hidden sm:inline">{isPending ? "Đang kiểm tra…" : down ? "Mất kết nối" : "Đang chạy"}</span>
       <span className="font-mono text-[11px] opacity-70">:{port}</span>
     </div>
@@ -174,63 +157,6 @@ function ServerStatus() {
 }
 
 /** Menu người dùng: tên đăng nhập từ /api/auth/me + lối tắt Cấu hình / Đăng xuất. */
-function UserMenu({ onOpenSettings }: { onOpenSettings: () => void }) {
-  const { data } = useQuery({
-    queryKey: ["auth-me"],
-    queryFn: () => api.get<{ ok: boolean; user: string }>("/api/auth/me"),
-    staleTime: 5 * 60_000,
-  })
-  const user = data?.user ?? "admin"
-  const [theme, setThemeState] = useState<Theme>(getTheme)
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-foreground transition-colors hover:bg-muted hover:text-foreground">
-        <CircleUser className="h-4 w-4 text-muted-foreground" />
-        <span className="hidden max-w-28 truncate md:inline">{user}</span>
-        <ChevronDown className="h-3 w-3 text-muted-foreground" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-44">
-        {/* GroupLabel của Base UI bắt buộc nằm trong Group — thiếu là crash khi mở menu */}
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="flex items-center gap-2">
-            <CircleUser className="h-4 w-4" />
-            <span className="truncate">{user}</span>
-          </DropdownMenuLabel>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        {/* Ba lựa chọn chứ không phải công tắc bật/tắt: "Theo máy" là trạng thái thứ ba,
-            gộp thành boolean sẽ mất khả năng đi theo hệ điều hành. */}
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="text-xs text-muted-foreground">Giao diện</DropdownMenuLabel>
-        </DropdownMenuGroup>
-        {([
-          { v: "light", label: "Sáng", Icon: Sun },
-          { v: "dark", label: "Tối", Icon: Moon },
-          { v: "system", label: "Theo máy", Icon: MonitorSmartphone },
-        ] as const).map(({ v, label, Icon }) => (
-          <DropdownMenuItem
-            key={v}
-            onClick={() => { setTheme(v); setThemeState(v) }}
-            className={theme === v ? "text-primary" : ""}
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-            {theme === v ? <Check className="ml-auto h-3.5 w-3.5" /> : null}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onOpenSettings}>
-          <Settings className="h-4 w-4" />
-          Cấu hình
-        </DropdownMenuItem>
-        <DropdownMenuItem variant="destructive" onClick={handleLogout}>
-          <LogOut className="h-4 w-4" />
-          Đăng xuất
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
 
 // ── App ────────────────────────────────────────────────────────────────
 
@@ -294,7 +220,7 @@ function AppShell() {
                 className="flex shrink-0 items-center gap-2 md:hidden"
                 title="Về Dashboard"
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500 text-xs font-bold text-white">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
                   A
                 </span>
                 <span className="hidden text-sm font-semibold text-foreground sm:inline">agyproxy</span>
@@ -312,16 +238,19 @@ function AppShell() {
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
-                <Separator orientation="vertical" className="h-5 bg-muted" />
-                <UserMenu onOpenSettings={() => setActiveTab("settings")} />
               </div>
             </header>
 
             {/* Content */}
-            <main className="flex-1 bg-background p-4 lg:p-6">
+            {/* Atlas giới hạn nội dung ở --container-app (80rem) và căn giữa — không cho
+                bảng kéo dài hết màn 2560px. `@container` để trang dùng được @3xl:/@6xl:
+                thay cho media query, đúng cách Atlas dựng grid KPI. */}
+            <main className="@container flex-1 bg-background p-4 lg:p-6">
+              <div className="mx-auto w-full max-w-(--container-app)">
               <Suspense fallback={<div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Đang tải…</div>}>
                 <PageContent tab={activeTab} />
               </Suspense>
+              </div>
             </main>
 
             {/* Footer — cùng 3.5rem với topbar để khung trên–dưới đối xứng; safe-area-inset-bottom
