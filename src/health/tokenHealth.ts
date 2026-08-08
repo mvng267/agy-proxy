@@ -26,6 +26,8 @@ async function checkAgy(refreshToken: string): Promise<Health> {
       }),
       signal: AbortSignal.timeout(15000),
     });
+    // Cùng lý do với Kiro: 429/5xx là lỗi tạm, không kết luận token chết.
+    if (res.status === 429 || res.status >= 500) return 'unknown';
     return res.ok ? 'alive' : 'dead';
   } catch {
     return 'unknown'; // lỗi mạng -> không kết luận
@@ -48,6 +50,14 @@ async function checkKiro(value: string): Promise<Health> {
       body: JSON.stringify({ refreshToken }),
       signal: AbortSignal.timeout(15000),
     });
+    // KHÔNG phải mọi lỗi HTTP đều là token chết. 429/5xx là chuyện của MÁY CHỦ hoặc
+    // nhịp gọi, không nói gì về token — kết luận 'dead' ở đây là ĐÁNH DẤU SAI, và tai
+    // hại vì dead còn kéo theo setStatus('new') để re-capture.
+    //
+    // Đo thật: 299/350 credential Kiro bị đánh dead thành mảng LIÊN TỤC (thehien150–299
+    // + toàn bộ lovansam), trong khi refresh thủ công từng cái đều trả HTTP 200. Dấu
+    // hiệu kinh điển của rate-limit giữa chừng vòng quét, không phải token hỏng.
+    if (res.status === 429 || res.status >= 500) return 'unknown';
     if (!res.ok) return 'dead';
     const d = (await res.json().catch(() => ({}))) as { accessToken?: string };
     return d.accessToken ? 'alive' : 'dead';
@@ -79,11 +89,17 @@ export async function checkAll(filterTarget?: string): Promise<{ alive: number; 
   let alive = 0,
     dead = 0,
     unknown = 0;
+  // Giãn nhịp: quét 700 credential bằng vòng lặp trần là bắn 700 request liên tục vào
+  // cùng một endpoint auth — đúng cách để bị rate-limit, và mỗi lần bị chặn lại đánh
+  // dấu nhầm một account. 60ms/lần ≈ 17 req/s, đủ chậm để không bị chặn mà quét 700
+  // cái vẫn chỉ mất ~42 giây.
+  const GAP_MS = 60;
   for (const c of creds) {
     const h = await checkCredential(c);
     if (h === 'alive') alive++;
     else if (h === 'dead') dead++;
     else unknown++;
+    await new Promise((r) => setTimeout(r, GAP_MS));
   }
   return { alive, dead, unknown, total: creds.length };
 }
