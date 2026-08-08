@@ -104,8 +104,11 @@ test('report: hết hạn mức THÁNG (402) → monthlyExhaustedUntil đến đ
   const now = Date.now();
   p.report(acc, { ok: false, status: 402, err: 'MONTHLY_REQUEST_COUNT', retryAfterMs: 5_000 }, now);
   // monthlyExhaustedUntil phải >= đầu tháng kế (local time)
-  const d = new Date(now);
-  const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
+  // Mốc reset là đầu tháng kế THEO GIỜ VN (UTC+7), không theo giờ máy chủ —
+  // test cũ dùng giờ máy nên đỏ khi chạy ở EDT/UTC (đo thật trên Debian).
+  const TZ = 7;
+  const vn = new Date(now + TZ * 3600_000);
+  const nextMonth = Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth() + 1, 1) - TZ * 3600_000;
   assert.ok(acc.monthlyExhaustedUntil >= nextMonth, 'phải sleep đến đầu tháng kế');
   assert.equal(acc.cooldownUntil, acc.monthlyExhaustedUntil, 'cooldownUntil đồng bộ');
 });

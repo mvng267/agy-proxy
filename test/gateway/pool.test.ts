@@ -178,9 +178,13 @@ test('report: 402 MONTHLY_REQUEST_COUNT → monthlyExhaustedUntil đến đầu 
   const now = Date.now();
   const a = p.get('a@x', 'kr')!;
   p.report(a, { ok: false, status: 402, err: 'MONTHLY_REQUEST_COUNT' }, now);
-  // Phải sleep tới đầu tháng kế (local time) + 1h buffer
-  const d = new Date(now);
-  const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
+  // Mốc reset là đầu tháng kế THEO GIỜ VN (UTC+7) — hằng số RESET_TZ_OFFSET_H, cố ý
+  // không phụ thuộc giờ máy chủ vì Docker/CI thường chạy UTC.
+  // TRƯỚC ĐÂY test dùng `new Date(y, m+1, 1)` = giờ MÁY: xanh ở VN, đỏ ở EDT/UTC
+  // (đo thật trên Debian EDT). Tính lại bằng UTC để chạy đúng ở mọi múi giờ.
+  const TZ = 7;
+  const vn = new Date(now + TZ * 3600_000);
+  const nextMonth = Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth() + 1, 1) - TZ * 3600_000;
   assert.ok(a.monthlyExhaustedUntil >= nextMonth, 'monthlyExhaustedUntil phải >= đầu tháng kế');
   assert.ok(a.monthlyExhaustedUntil <= nextMonth + 2 * 3600_000, 'không quá xa đầu tháng kế');
   assert.ok(a.cooldownUntil === a.monthlyExhaustedUntil, 'cooldownUntil phải khớp monthlyExhaustedUntil');
