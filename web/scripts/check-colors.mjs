@@ -137,6 +137,12 @@ if (flag('suggest')) {
   process.exit(0);
 }
 
+// Van thoat cho luc khan cap — phai CO Y bam, khong phai mac dinh.
+if (process.env.SKIP_COLOR_CHECK === '1') {
+  console.log('  ⚠ Bỏ qua kiểm màu (SKIP_COLOR_CHECK=1)');
+  process.exit(0);
+}
+
 const { rows, total } = scan();
 const max = Number(arg('max', '0'));
 

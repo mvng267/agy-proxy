@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && cp src/login.html dist/login.html",
+    "build": "node scripts/check-colors.mjs && tsc -b && vite build && cp src/login.html dist/login.html",
     "check:colors": "node scripts/check-colors.mjs",
-    "lint": "oxlint",
+    "lint": "oxlint && node scripts/check-colors.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

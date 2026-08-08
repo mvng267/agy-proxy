@@ -5,7 +5,7 @@
   <!-- viewport-fit=cover bắt buộc để env(safe-area-inset-*) hoạt động;
        interactive-widget=resizes-content để bàn phím ảo không che input (Chrome/Android) -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
-  <meta name="theme-color" content="#020817" />
+  <meta name="theme-color" content="#0a0a0a" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -13,7 +13,34 @@
   <link rel="apple-touch-icon" href="/favicon.svg" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <title>Đăng nhập · agyproxy</title>
+  <!--
+    Trang này nằm NGOÀI React và ngoài Tailwind (nó tự chứa <style>), nên phải tự khai báo
+    biến màu. Giá trị khớp src/index.css để đăng nhập và dashboard cùng một tông.
+  -->
+  <script>
+    (function () {
+      try {
+        var v = localStorage.getItem('agy_theme');
+        var d = v === 'dark' || (v !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.add(d ? 'dark' : 'light');
+      } catch (e) { document.documentElement.classList.add('dark'); }
+    })();
+  </script>
   <style>
+    :root {
+      --bg: #ffffff; --fg: #0a0a0a; --card: #ffffff; --border: #e5e5e5;
+      --muted-fg: #737373; --primary: #171717; --primary-fg: #fafafa;
+      --input-bg: #ffffff; --input-border: #e5e5e5; --ring: #a1a1a1;
+      --danger-bg: #fef2f2; --danger-border: #fecaca; --danger-fg: #b91c1c;
+      --shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.06);
+    }
+    .dark {
+      --bg: #0a0a0a; --fg: #fafafa; --card: #171717; --border: #ffffff1a;
+      --muted-fg: #a1a1a1; --primary: #e5e5e5; --primary-fg: #171717;
+      --input-bg: #0a0a0a; --input-border: #ffffff26; --ring: #737373;
+      --danger-bg: #2a0d0d; --danger-border: #7f1d1d; --danger-fg: #ff6568;
+      --shadow: 0 25px 50px rgba(0,0,0,.5);
+    }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       /* 100dvh + safe-area: card không bị notch/home indicator che, keyboard bật thì co lại theo viewport */
@@ -22,62 +49,62 @@
       padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
       padding-left: calc(16px + env(safe-area-inset-left, 0px));
       padding-right: calc(16px + env(safe-area-inset-right, 0px));
-      background: #020817; font-family: 'Geist', 'Inter', system-ui, sans-serif; color: #f8fafc;
+      background: var(--bg); font-family: 'Geist', 'Inter', system-ui, sans-serif; color: var(--fg);
     }
     .card {
-      background: #0f172a; border: 1px solid #1e293b; border-radius: 16px;
-      padding: 40px 36px; width: 100%; max-width: 380px; box-shadow: 0 25px 50px rgba(0,0,0,.5);
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 40px 36px; width: 100%; max-width: 380px; box-shadow: var(--shadow);
     }
     .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; }
     .logo svg { width: 36px; height: 36px; }
-    .logo h1 { font-size: 20px; font-weight: 700; letter-spacing: -.5px; color: #f97316; }
-    .logo span { font-size: 11px; color: #64748b; margin-left: 2px; }
-    label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 6px; font-weight: 500; }
+    .logo h1 { font-size: 20px; font-weight: 700; letter-spacing: -.5px; color: var(--fg); }
+    .logo span { font-size: 11px; color: var(--muted-fg); margin-left: 2px; }
+    label { display: block; font-size: 12px; color: var(--muted-fg); margin-bottom: 6px; font-weight: 500; }
     input {
-      width: 100%; padding: 10px 14px; background: #1e293b; border: 1px solid #334155;
-      border-radius: 8px; color: #f8fafc; font-size: 14px; outline: none; transition: border .15s;
+      width: 100%; padding: 10px 14px; background: var(--input-bg); border: 1px solid var(--input-border);
+      border-radius: 8px; color: var(--fg); font-size: 14px; outline: none; transition: border .15s;
     }
-    input:focus { border-color: #f97316; }
+    input:focus { border-color: var(--ring); }
     .field { margin-bottom: 16px; }
     button {
-      width: 100%; padding: 11px; background: #f97316; border: none; border-radius: 8px;
-      color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px;
+      width: 100%; padding: 11px; background: var(--primary); border: none; border-radius: 8px;
+      color: var(--primary-fg); font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px;
       transition: background .15s;
     }
-    button:hover { background: #ea6c0a; }
+    button:hover { opacity: .9; }
     button:disabled { opacity: .6; cursor: not-allowed; }
-    .hint { text-align: center; font-size: 12px; color: #475569; margin-top: 20px; }
-    .err { background: #450a0a; border: 1px solid #7f1d1d; border-radius: 8px; padding: 10px 14px;
-           color: #fca5a5; font-size: 13px; margin-bottom: 16px; display: none; }
+    .hint { text-align: center; font-size: 12px; color: var(--muted-fg); margin-top: 20px; }
+    .err { background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: 8px; padding: 10px 14px;
+           color: var(--danger-fg); font-size: 13px; margin-bottom: 16px; display: none; }
   </style>
 </head>
 <body>
   <style>
-    .pc-label{display:block;text-align:center;font-size:13px;color:#94a3b8;margin-bottom:14px}
+    .pc-label{display:block;text-align:center;font-size:13px;color:var(--muted-fg);margin-bottom:14px}
     .pc-dots{display:flex;gap:14px;justify-content:center;margin-bottom:26px;cursor:text}
-    .pc-dots span{width:13px;height:13px;border-radius:50%;border:1.5px solid #475569;transition:all .15s}
-    .pc-dots span.on{background:#f97316;border-color:#f97316;transform:scale(1.12)}
+    .pc-dots span{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--input-border);transition:all .15s}
+    .pc-dots span.on{background:var(--primary);border-color:var(--primary);transform:scale(1.12)}
     .pc-dots.shake{animation:sh .4s}
     @keyframes sh{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
     /* Ẩn khỏi mắt nhưng KHÔNG khỏi bàn phím: display:none sẽ chặn cả focus lẫn autofill. */
     .pc-hidden{position:absolute;opacity:0;pointer-events:none;height:1px;width:1px}
     .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}
-    .pad button{height:56px;font-size:21px;font-weight:500;color:#e2e8f0;background:#1e293b;
-      border:1px solid #334155;border-radius:13px;cursor:pointer;transition:background .12s}
-    .pad button:active{background:#334155}
-    .pad button[data-k="del"]{font-size:17px;background:transparent;border-color:transparent;color:#94a3b8}
+    .pad button{height:56px;font-size:21px;font-weight:500;color:var(--fg);background:var(--input-bg);
+      border:1px solid var(--input-border);border-radius:13px;cursor:pointer;transition:background .12s}
+    .pad button:active{background:var(--border)}
+    .pad button[data-k="del"]{font-size:17px;background:transparent;border-color:transparent;color:var(--muted-fg)}
     .hide{display:none}
-    .alt{display:block;width:100%;margin-top:16px;padding:9px;font-size:13px;color:#94a3b8;
+    .alt{display:block;width:100%;margin-top:16px;padding:9px;font-size:13px;color:var(--muted-fg);
       background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
-    .alt:hover{color:#e2e8f0}
+    .alt:hover{color:var(--fg)}
     @media (max-width:380px){.pad button{height:50px;font-size:19px}}
   </style>
   <div class="card">
     <div class="logo">
       <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="36" height="36" rx="10" fill="#f97316"/>
-        <path d="M8 18 L18 8 L28 18 L18 28 Z" fill="white" opacity=".9"/>
-        <circle cx="18" cy="18" r="4" fill="#f97316"/>
+        <rect width="36" height="36" rx="10" fill="var(--primary)"/>
+        <path d="M8 18 L18 8 L28 18 L18 28 Z" fill="var(--primary-fg)" opacity=".9"/>
+        <circle cx="18" cy="18" r="4" fill="var(--primary)"/>
       </svg>
       <div><h1>agyproxy</h1><span>AI Gateway</span></div>
     </div>
