@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 
@@ -21,7 +21,7 @@ const TMP_HOME = mkdtempSync(resolve(tmpdir(), 'agy-cli-'));
 let server: Server;
 let port = 0;
 /** Request cuối stub nhận được — để khẳng định CLI gọi đúng method + path + body. */
-let lastReq: { method: string; url: string; body: any } | null = null;
+let lastReq: { method: string; url: string; body: any; headers: Record<string, any> } | null = null;
 
 before(async () => {
   await new Promise<void>((done) => {
@@ -29,7 +29,7 @@ before(async () => {
       let raw = '';
       req.on('data', (c) => (raw += c));
       req.on('end', () => {
-        lastReq = { method: req.method ?? '', url: req.url ?? '', body: raw ? JSON.parse(raw) : null };
+        lastReq = { method: req.method ?? '', url: req.url ?? '', body: raw ? JSON.parse(raw) : null, headers: req.headers as Record<string, any> };
         res.writeHead(200, { 'content-type': 'application/json' });
         if (req.url === '/api/metrics') {
           res.end(JSON.stringify({
@@ -57,7 +57,9 @@ before(async () => {
         res.end('{}');
       });
     });
-    server.listen(0, '127.0.0.1', () => {
+    // Không ghim '127.0.0.1': nhóm test remote gọi qua `127.1` (cùng loopback nhưng CLI
+    // xếp là "máy khác"), nên stub phải nghe cả dải chứ không riêng một địa chỉ.
+    server.listen(0, () => {
       port = (server.address() as { port: number }).port;
       done();
     });
@@ -158,5 +160,88 @@ describe('daemon: PID phải là tiến trình ĐANG PHỤC VỤ', () => {
     // Chỉ xét THÂN HÀM: comment phía trên có nhắc tên wrapper để giải thích lý do.
     assert.doesNotMatch(fn, /\.bin\/tsx/, 'wrapper shell tự thoát, để lại tiến trình mồ côi PID khác');
     assert.match(fn, /process\.execPath/, 'spawn thẳng node để PID khớp tiến trình phục vụ');
+  });
+});
+
+/**
+ * Điều khiển từ xa — thứ "tools control" cần.
+ *
+ * Cách kiểm: chạy CLI với AGY_HOME RIÊNG — không có state.db, đúng hoàn cảnh máy khác
+ * (CLI không đọc trộm được token, phải lấy từ cli.json).
+ *
+ * Địa chỉ dùng `127.1` chứ không phải `127.0.0.1`: CLI phân loại 127.0.0.1/localhost/[::1]
+ * là "cùng máy", nên gọi qua chúng sẽ đi nhánh local và test không kiểm được gì.
+ */
+describe('điều khiển từ xa qua CLI', () => {
+  const REMOTE_HOME = mkdtempSync(resolve(tmpdir(), 'agy-cli-remote-'));
+  after(() => rmSync(REMOTE_HOME, { recursive: true, force: true }));
+
+  /** Chạy CLI như đang ở MÁY KHÁC: home riêng, không có DB để đọc token. */
+  const runRemote = (...args: string[]) =>
+    exec(process.execPath, [BIN, ...args], {
+      env: { ...process.env, PORT: String(port), AGY_HOME: REMOTE_HOME, NO_COLOR: '1' },
+      timeout: 30_000,
+    });
+
+  // `127.1` là cách viết tắt hợp lệ của 127.0.0.1 — vẫn về loopback nên stub trả lời,
+  // nhưng KHÁC chuỗi "127.0.0.1" nên CLI xếp vào nhóm "máy khác". (127.0.0.2 không dùng
+  // được: Linux route nhưng macOS thì không, đã đo.)
+  const remoteUrl = () => `http://127.1:${port}`;
+
+  test('chưa có token: báo cách lấy, KHÔNG im lặng rơi về mật khẩu mặc định', async () => {
+    // Rơi về '123456' rồi nhận 401 sẽ khiến người dùng đi tìm nhầm chỗ.
+    const e = await runRemote('api', '/api/health', '--url', remoteUrl()).catch((x) => x);
+    assert.equal(e.code, 1, 'phải exit 1');
+    assert.match(e.stderr, /agyproxy token/, 'phải chỉ ra lệnh lấy token');
+    assert.match(e.stderr, /agyproxy connect/, 'phải chỉ ra lệnh kết nối');
+  });
+
+  test('connect lưu cli.json với quyền 0600', async () => {
+    await runRemote('connect', remoteUrl(), '--token', 'tok-test');
+    const f = resolve(REMOTE_HOME, 'cli.json');
+    const cfg = JSON.parse(readFileSync(f, 'utf8'));
+    assert.equal(cfg.url, remoteUrl());
+    assert.equal(cfg.token, 'tok-test');
+    // Token cho toàn quyền điều khiển gateway — user khác trên máy không được đọc.
+    assert.equal(statSync(f).mode & 0o777, 0o600, 'cli.json phải là 0600');
+  });
+
+  test('sau connect: api gọi đúng URL đã lưu, không cần --url nữa', async () => {
+    lastReq = null;
+    const { stdout } = await runRemote('api', '/api/health');
+    assert.equal(lastReq?.url, '/api/health');
+    assert.doesNotThrow(() => JSON.parse(stdout), 'stdout phải là JSON thuần để jq xử lý');
+  });
+
+  test('api truyền được method + body', async () => {
+    lastReq = null;
+    await runRemote('api', 'PATCH', '/api/gateway/config', '{"rotation":"smart"}');
+    assert.equal(lastReq?.method, 'PATCH');
+    assert.deepEqual(lastReq?.body, { rotation: 'smart' });
+  });
+
+  test('lệnh cục bộ bị CHẶN khi đang trỏ sang máy khác', async () => {
+    // stop/start thao tác tiến trình trên máy đang gõ — chạy nhầm sẽ dừng sai server.
+    for (const cmd of ['stop', 'logs', 'update']) {
+      const e = await runRemote(cmd).catch((x) => x);
+      assert.equal(e.code, 1, `${cmd} phải bị chặn`);
+      assert.match(e.stderr, /chỉ chạy được trên máy chủ/, `${cmd} phải giải thích lý do`);
+    }
+  });
+
+  test('--token trên dòng lệnh thắng cli.json đã lưu', async () => {
+    // Thứ tự ưu tiên sai thì tool ngoài không ghi đè được cấu hình sẵn có.
+    lastReq = null;
+    await runRemote('api', '/api/health', '--token', 'tok-khac');
+    const auth = lastReq?.headers?.authorization ?? '';
+    const decoded = Buffer.from(String(auth).replace('Basic ', ''), 'base64').toString();
+    assert.match(decoded, /tok-khac/, '--token phải thắng token trong cli.json');
+  });
+
+  test('routes liệt kê endpoint đọc từ src/, có --json', async () => {
+    const { stdout } = await runRemote('routes', '--json');
+    const list = JSON.parse(stdout);
+    assert.ok(Array.isArray(list) && list.length > 50, `phải liệt kê nhiều endpoint, có ${list.length}`);
+    assert.ok(list.some((r: any) => r.path === '/api/overview'), 'phải có /api/overview');
   });
 });

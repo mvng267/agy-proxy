@@ -118,11 +118,65 @@ function serverCmd() {
 }
 
 /**
+ * ─── Kết nối tới server ───────────────────────────────────────────────────────
+ *
+ * CLI phải chạy được ở HAI vị trí, và trước đây chỉ chạy được vị trí thứ nhất:
+ *
+ *   1. Cùng máy với server  → đọc token thẳng từ SQLite, gọi 127.0.0.1
+ *   2. Máy khác / tool ngoài → không mở được file DB, và 127.0.0.1 là máy của
+ *      chính nó chứ không phải server
+ *
+ * Vị trí 2 là thứ "tools control" cần. Server KHÔNG cần sửa gì: `src/auth.ts:94`
+ * đã nhận cliToken qua Basic auth từ bất kỳ host nào.
+ *
+ * Thứ tự ưu tiên (cao → thấp), để cờ dòng lệnh luôn thắng cấu hình đã lưu:
+ *   --url/--token  →  env AGY_URL/AGY_TOKEN  →  ~/.agyproxy/cli.json  →  local
+ */
+const CONFIG_FILE = resolve(HOME, 'cli.json');
+
+/** In lỗi ra stderr rồi thoát mã 1 — stdout để dành cho dữ liệu (--json phải parse được). */
+function die(msg) {
+  console.error(c.r('✗ ') + msg);
+  process.exit(1);
+}
+
+function readCliConfig() {
+  try { return JSON.parse(readFileSync(CONFIG_FILE, 'utf8')); } catch { return {}; }
+}
+function writeCliConfig(cfg) {
+  mkdirSync(dirname(CONFIG_FILE), { recursive: true });
+  // 0600: file chứa token toàn quyền điều khiển gateway — không để user khác trên
+  // cùng máy đọc được.
+  writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2) + '\n', { mode: 0o600 });
+}
+
+/** Base URL của server (không có dấu / cuối). */
+function baseUrl() {
+  const explicit = flagVal('--url') || process.env.AGY_URL || readCliConfig().url;
+  if (explicit) return String(explicit).replace(/\/+$/, '');
+  const h = flagVal('--host') || process.env.AGY_REMOTE_HOST;
+  if (h) return `http://${h}:${flagVal('--port') || PORT}`;
+  return `http://127.0.0.1:${PORT}`;
+}
+/** Đang trỏ tới server trên máy khác? Lệnh vòng đời (start/stop/logs) không áp dụng. */
+const isRemote = () => !/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|$)/.test(baseUrl());
+
+/**
  * Thông tin đăng nhập cho CLI. Mật khẩu trong DB đã được BĂM nên không dùng lại được;
  * CLI dùng token CLI riêng (sinh + lưu trong bảng settings) để gọi API.
- * Thứ tự: token CLI trong DB → .env DASHBOARD_PASSWORD → 123456.
+ * Thứ tự: --token/env → cli.json → token CLI trong DB → .env DASHBOARD_PASSWORD → 123456.
  */
 function dashCreds() {
+  const tok = flagVal('--token') || process.env.AGY_TOKEN;
+  if (tok) return { user: flagVal('--user') || process.env.AGY_USER || '', pass: tok };
+  const cfg = readCliConfig();
+  if (cfg.token) return { user: cfg.user || '', pass: cfg.token };
+  // Máy khác thì không có DB để đọc — báo rõ thay vì rơi về '123456' rồi nhận 401 khó hiểu.
+  if (isRemote()) {
+    die(`Chưa có token cho ${baseUrl()}.\n` +
+        `  Chạy trên MÁY CHỦ:  agyproxy token\n` +
+        `  Rồi trên máy này:   agyproxy connect ${baseUrl()} --token <token>`);
+  }
   let pass = '', user = '';
   try {
     const db = new DatabaseSync(resolve(HOME, 'data/state.db'));
@@ -268,20 +322,38 @@ function stop() {
 }
 
 async function status() {
-  const pid = readPid();
+  const remote = isRemote();
+  // Từ xa thì không có PID để đọc — "sống hay chết" phải hỏi qua HTTP.
+  const pid = remote ? null : readPid();
+  let o = null, err = null;
+  try { o = await httpJson(`${baseUrl()}/api/overview`); } catch (e) { err = e.message; }
+
+  if (has('--json')) {
+    console.log(JSON.stringify({
+      version: PKG.version, url: baseUrl(), remote, pid,
+      up: !!o, ...(err ? { error: err } : {}),
+      ...(o ? { accounts: o.accounts, gateway: o.gateway, usage: o.usage } : {}),
+    }, null, 2));
+    if (!o) process.exit(1);
+    return;
+  }
+
   console.log(c.b(`agyproxy v${PKG.version}`));
-  console.log(`  Tiến trình : ${pid ? c.g('đang chạy') + ` (PID ${pid})` : c.r('đã dừng')}`);
-  console.log(`  Dashboard  : http://localhost:${PORT}`);
-  console.log(`  Gateway    : http://localhost:${PORT}/proxy/v1`);
-  const lan = lanIp();
-  if (lan) console.log(`  Máy khác   : http://${lan}:${PORT}${OPEN ? '' : c.d('  (đang chỉ localhost — mở bằng: agyproxy restart --host 0.0.0.0)')}`);
-  console.log(`  Dữ liệu    : ${HOME}`);
-  try {
-    const o = await httpJson(`http://localhost:${PORT}/api/overview`);
+  if (remote) {
+    console.log(`  Server     : ${baseUrl()} ${o ? c.g('(đang chạy)') : c.r('(không trả lời)')}`);
+  } else {
+    console.log(`  Tiến trình : ${pid ? c.g('đang chạy') + ` (PID ${pid})` : c.r('đã dừng')}`);
+    console.log(`  Dashboard  : http://localhost:${PORT}`);
+    console.log(`  Gateway    : http://localhost:${PORT}/proxy/v1`);
+    const lan = lanIp();
+    if (lan) console.log(`  Máy khác   : http://${lan}:${PORT}${OPEN ? '' : c.d('  (đang chỉ localhost — mở bằng: agyproxy restart --host 0.0.0.0)')}`);
+    console.log(`  Dữ liệu    : ${HOME}`);
+  }
+  if (o) {
     console.log(`  Tài khoản  : ${o.accounts.total} · pool bật ${o.gateway.enabled}/${o.gateway.total} · cooldown ${o.gateway.cooldown} · chết ${o.gateway.dead}`);
     console.log(`  Requests7d : ${o.usage.totals.requests} · tokens ${o.usage.totals.tokIn + o.usage.totals.tokOut}`);
-  } catch {
-    if (pid) console.log(c.d('  (server chưa sẵn sàng hoặc PORT khác)'));
+  } else if (pid || remote) {
+    console.log(c.d(`  (không lấy được số liệu: ${err})`));
   }
 }
 
@@ -513,6 +585,19 @@ function help() {
   ${c.b('agyproxy accounts')}       trạng thái pool  ${c.d('[on|off|wake] [--provider agy|kr]')}
      ${c.d('wake = gỡ cooldown hàng loạt sau sự cố upstream')}
 
+  ${c.b('── điều khiển từ xa / từ tool ngoài ──')}
+  ${c.b('agyproxy token')}         in token CLI ${c.d('(chạy TRÊN MÁY CHỦ)')}
+  ${c.b('agyproxy connect <url>')} lưu kết nối  ${c.d('--token <tok> · ghi ~/.agyproxy/cli.json')}
+  ${c.b('agyproxy ping')}          server sống không + độ trễ  ${c.d('[--json]')}
+  ${c.b('agyproxy routes')}        liệt kê toàn bộ endpoint  ${c.d('[--json]')}
+  ${c.b('agyproxy api <M> <path>')} gọi thẳng API bất kỳ  ${c.d('[json | -]')}
+     ${c.d("vd: agyproxy api /api/overview")}
+     ${c.d("    agyproxy api PATCH /api/gateway/config '{\"rotation\":\"smart\"}'")}
+     ${c.d('    cat big.json | agyproxy api POST /api/accounts/import -')}
+
+  ${c.d('Mọi lệnh nhận --url/--token, hoặc env AGY_URL/AGY_TOKEN, để trỏ sang máy khác.')}
+  ${c.d('Không cài CLI cũng dùng được:  curl -u :<token> <url>/api/overview')}
+
   Dashboard: http://localhost:${PORT}   ·   Gateway: /proxy/v1
   Dữ liệu:   ${HOME}   (đổi bằng env AGY_HOME)`);
 }
@@ -527,7 +612,7 @@ const BACKUP_DIR = resolve(HOME, 'backups');
  */
 async function backupRun(keep, history) {
   mkdirSync(BACKUP_DIR, { recursive: true });
-  const data = await httpJson(`http://127.0.0.1:${PORT}/api/backup/export${history ? '?history=1' : ''}`);
+  const data = await httpJson(`${baseUrl()}/api/backup/export${history ? '?history=1' : ''}`);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const file = resolve(BACKUP_DIR, `backup_${stamp}.json`);
   writeFileSync(file, JSON.stringify(data), { mode: 0o600 });
@@ -568,7 +653,7 @@ async function backupRestore(fileArg, mode) {
   }
   if (!existsSync(file)) { console.log(c.r(`Không thấy file: ${file}`)); process.exit(1); }
   const data = JSON.parse(readFileSync(file, 'utf8'));
-  const r = await postJson(`http://127.0.0.1:${PORT}/api/backup/import`, { data, mode: mode === 'replace' ? 'replace' : 'merge' });
+  const r = await postJson(`${baseUrl()}/api/backup/import`, { data, mode: mode === 'replace' ? 'replace' : 'merge' });
   console.log(c.g(`✓ Đã khôi phục (${mode === 'replace' ? 'replace' : 'merge'}) từ ${file}`));
   console.log(c.d('  ' + JSON.stringify(r)));
 }
@@ -613,7 +698,7 @@ function fmtDur(sec) {
 async function metricsCmd(json) {
   let m;
   try {
-    m = await httpJson(`http://127.0.0.1:${PORT}/api/metrics`);
+    m = await httpJson(`${baseUrl()}/api/metrics`);
   } catch (e) {
     console.log(c.r('✗ Không gọi được /api/metrics: ') + (e?.message ?? e));
     console.log(c.d('  Server chạy chưa? agyproxy start -d'));
@@ -643,7 +728,7 @@ const ROTATION_STRATEGIES = ['round-robin', 'full-first', 'failover', 'highest-f
 /** Xem/đổi chiến lược xoay account của pool. Không truyền gì → chỉ xem. */
 async function rotationCmd(strategy) {
   if (!strategy) {
-    const g = await httpJson(`http://127.0.0.1:${PORT}/api/gateway/config`);
+    const g = await httpJson(`${baseUrl()}/api/gateway/config`);
     console.log(`  rotation hiện tại: ${c.b(g.rotation)}`);
     console.log(c.d(`  đổi: agyproxy rotation <${ROTATION_STRATEGIES.join('|')}>`));
     return;
@@ -654,20 +739,20 @@ async function rotationCmd(strategy) {
     process.exitCode = 1;
     return;
   }
-  await patchJson(`http://127.0.0.1:${PORT}/api/gateway/config`, { rotation: strategy });
+  await patchJson(`${baseUrl()}/api/gateway/config`, { rotation: strategy });
   console.log(c.g(`✓ Đã đổi rotation → ${strategy}`));
 }
 
 // ---------- bật/tắt nhanh ----------
 async function gatewayToggle(on) {
-  await patchJson(`http://127.0.0.1:${PORT}/api/gateway/config`, { enabled: on });
+  await patchJson(`${baseUrl()}/api/gateway/config`, { enabled: on });
   console.log(on ? c.g('✓ Gateway BẬT') : c.y('✓ Gateway TẮT — mọi request suy luận bị chặn (server vẫn chạy)'));
 }
 
 /** Đổi model mặc định cho Claude Code (big/small). Không truyền gì → chỉ xem. */
 async function modelCmd(big, small) {
   if (!big && !small) {
-    const g = await httpJson(`http://127.0.0.1:${PORT}/api/gateway/config`);
+    const g = await httpJson(`${baseUrl()}/api/gateway/config`);
     console.log(`  rotation    ${c.b(g.rotation)}`);
     console.log(`  cooldownSec ${c.b(g.cooldownSec)}`);
     console.log(`  gateway     ${g.enabled ? c.g('BẬT') : c.y('TẮT')}`);
@@ -677,7 +762,7 @@ async function modelCmd(big, small) {
   const patch = {};
   if (big) patch.anthropicBigModel = big;
   if (small) patch.anthropicSmallModel = small;
-  const r = await patchJson(`http://127.0.0.1:${PORT}/api/settings`, patch);
+  const r = await patchJson(`${baseUrl()}/api/settings`, patch);
   console.log(c.g(`✓ Đã đổi: ${(r.changed ?? Object.keys(patch)).join(', ')}`));
   if (big) console.log(c.d(`  big   = ${big}`));
   if (small) console.log(c.d(`  small = ${small}`));
@@ -687,19 +772,19 @@ async function modelCmd(big, small) {
 async function accountsCmd(action, provider) {
   const p = provider || 'agy';
   if (action === 'wake') {
-    const r = await postJson(`http://127.0.0.1:${PORT}/api/gateway/accounts/wake`, { provider: p });
+    const r = await postJson(`${baseUrl()}/api/gateway/accounts/wake`, { provider: p });
     console.log(r.woken ? c.g(`✓ Đã gỡ cooldown ${r.woken} account ${p}`) : c.g(`Không có account ${p} nào đang cooldown.`));
     return;
   }
   if (action === 'on' || action === 'off') {
-    const j = await httpJson(`http://127.0.0.1:${PORT}/api/gateway/accounts?provider=${p}`);
+    const j = await httpJson(`${baseUrl()}/api/gateway/accounts?provider=${p}`);
     const keys = (j.accounts ?? []).map((a) => a.key ?? a.email);
-    const r = await postJson(`http://127.0.0.1:${PORT}/api/gateway/accounts/bulk`, { emails: keys, enabled: action === 'on' });
+    const r = await postJson(`${baseUrl()}/api/gateway/accounts/bulk`, { emails: keys, enabled: action === 'on' });
     console.log(c.g(`✓ Đã ${action === 'on' ? 'BẬT' : 'TẮT'} ${r.updated ?? keys.length} account ${p}`));
     return;
   }
   // mặc định: xem trạng thái
-  const j = await httpJson(`http://127.0.0.1:${PORT}/api/gateway/accounts?provider=${p}`);
+  const j = await httpJson(`${baseUrl()}/api/gateway/accounts?provider=${p}`);
   const now = Date.now();
   const a = j.accounts ?? [];
   const dead = a.filter((x) => x.health === 'dead').length;
@@ -773,6 +858,153 @@ function interactiveMenu() {
   });
 }
 
+// ---------- điều khiển từ tool ngoài ----------
+
+/**
+ * `agyproxy token` — in token CLI, chạy TRÊN MÁY CHỦ.
+ *
+ * Tách khỏi `connect` vì hai lệnh chạy ở hai máy khác nhau: `token` cần đọc SQLite nên
+ * chỉ chạy được tại chỗ, còn `connect` chạy ở máy tool. Token sinh tự động nếu chưa có.
+ */
+function tokenCmd() {
+  if (isRemote()) die('`token` phải chạy TRÊN MÁY CHỦ (nó đọc SQLite cục bộ).');
+  const { pass } = dashCreds();
+  if (has('--json')) { console.log(JSON.stringify({ url: baseUrl(), token: pass })); return; }
+  const ip = lanIp();
+  console.log(`${c.b('Token CLI:')} ${pass}\n`);
+  console.log(c.d('Trên máy tool:'));
+  console.log(`  agyproxy connect http://${ip || '<ip-máy-chủ>'}:${PORT} --token ${pass}\n`);
+  console.log(c.d('Hoặc không cần cài CLI — dùng thẳng HTTP:'));
+  console.log(c.d(`  curl -u :${pass} http://${ip || '<ip>'}:${PORT}/api/overview`));
+}
+
+/**
+ * `agyproxy connect <url> --token <tok>` — lưu vào ~/.agyproxy/cli.json.
+ *
+ * Kiểm tra ngay bằng /api/auth/me thay vì lưu mù: sai token mà vẫn ghi file thì lỗi chỉ
+ * lộ ra ở lệnh sau đó, và người dùng sẽ đi tìm nhầm chỗ.
+ */
+async function connectCmd(url) {
+  if (!url) die('Dùng: agyproxy connect <url> --token <token>\n  vd: agyproxy connect http://100.112.240.4:7788 --token abc123');
+  const clean = String(url).replace(/\/+$/, '');
+  const token = flagVal('--token') || process.env.AGY_TOKEN;
+  if (!token) die('Thiếu --token. Lấy bằng cách chạy `agyproxy token` trên máy chủ.');
+  const user = flagVal('--user') || '';
+
+  const basic = 'Basic ' + Buffer.from(`${user}:${token}`).toString('base64');
+  let me;
+  try {
+    const r = await fetch(`${clean}/api/auth/me`, {
+      headers: { authorization: basic, accept: 'application/json', 'user-agent': 'agyproxy-cli' },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (r.status === 401) die(`Token bị từ chối bởi ${clean}. Kiểm lại bằng \`agyproxy token\` trên máy chủ.`);
+    if (!r.ok) die(`${clean} trả HTTP ${r.status}.`);
+    me = await r.json().catch(() => ({}));
+  } catch (e) {
+    if (e?.name === 'TimeoutError') die(`Không kết nối được ${clean} (quá hạn 15s). Server có đang chạy và mở cổng ra ngoài không?`);
+    die(`Không kết nối được ${clean}: ${e.message}`);
+  }
+
+  writeCliConfig({ url: clean, token, ...(user ? { user } : {}) });
+  console.log(c.g('✓ Đã kết nối ') + clean + (me?.user ? c.d(`  (user: ${me.user})`) : ''));
+  console.log(c.d(`  Lưu tại ${CONFIG_FILE} (chmod 600)`));
+}
+
+/** `agyproxy ping` — server sống không, phiên bản nào, mất bao lâu. */
+async function pingCmd() {
+  const t0 = Date.now();
+  try {
+    const h = await httpJson(`${baseUrl()}/api/health`);
+    const ms = Date.now() - t0;
+    if (has('--json')) { console.log(JSON.stringify({ ok: true, url: baseUrl(), ms, ...h })); return; }
+    console.log(`${c.g('✓')} ${baseUrl()}  ${c.d(`${ms}ms`)}  v${h.version ?? '?'}  ${c.d(`${h.accounts ?? 0} account`)}`);
+  } catch (e) {
+    if (has('--json')) { console.log(JSON.stringify({ ok: false, url: baseUrl(), error: e.message })); process.exit(1); }
+    die(`${baseUrl()} không trả lời: ${e.message}`);
+  }
+}
+
+/**
+ * `agyproxy api <METHOD> <đường-dẫn> [body-json]` — gọi thẳng bất kỳ endpoint nào.
+ *
+ * Đây là lý do CLI không cần 89 lệnh con: bọc tay từng route thì mỗi lần backend thêm
+ * endpoint là CLI lại tụt lại phía sau, và tool ngoài phải chờ mình bọc. Passthrough
+ * phủ toàn bộ API ngay lập tức, kể cả route thêm sau này.
+ *
+ * Luôn in JSON thô ra stdout để `jq` xử lý được; lỗi ra stderr + exit≠0 để script
+ * `set -e` dừng đúng chỗ.
+ */
+async function apiCmd(args) {
+  const METHODS = new Set(['GET', 'POST', 'PATCH', 'PUT', 'DELETE']);
+  let method = 'GET', i = 0;
+  if (args[0] && METHODS.has(args[0].toUpperCase())) { method = args[0].toUpperCase(); i = 1; }
+  const path = args[i];
+  if (!path) {
+    die('Dùng: agyproxy api [GET|POST|PATCH|DELETE] <đường-dẫn> [json]\n' +
+        '  vd: agyproxy api /api/overview\n' +
+        '      agyproxy api PATCH /api/gateway/config \'{"rotation":"smart"}\'\n' +
+        '  Xem danh sách endpoint: agyproxy routes');
+  }
+  const url = `${baseUrl()}${path.startsWith('/') ? path : '/' + path}`;
+
+  // Body: tham số kế tiếp, hoặc `-` để đọc stdin (payload lớn khỏi vướng giới hạn argv).
+  let body;
+  const raw = args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : undefined;
+  if (raw === '-') {
+    body = JSON.parse(readFileSync(0, 'utf8') || '{}');
+  } else if (raw) {
+    try { body = JSON.parse(raw); } catch { die(`Body không phải JSON hợp lệ: ${raw}`); }
+  }
+
+  const { user, pass } = dashCreds();
+  const r = await fetch(url, {
+    method,
+    headers: {
+      'user-agent': 'agyproxy-cli', accept: 'application/json',
+      authorization: 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64'),
+      ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    signal: AbortSignal.timeout(Number(flagVal('--timeout')) || 60000),
+  }).catch((e) => die(`Không gọi được ${url}: ${e.message}`));
+
+  const text = await r.text();
+  // Không phải endpoint nào cũng trả JSON (vd usage/export.csv) — cứ in thô.
+  if (!r.ok) {
+    console.error(c.r(`HTTP ${r.status}`) + ' ' + url);
+    if (text) console.error(text);
+    process.exit(1);
+  }
+  if (!text) { console.log('{}'); return; }
+  try { console.log(JSON.stringify(JSON.parse(text), null, has('--compact') ? 0 : 2)); }
+  catch { console.log(text); }
+}
+
+/** `agyproxy routes` — liệt kê endpoint bằng cách đọc chính mã nguồn server. */
+function routesCmd() {
+  const found = new Set();
+  const walk = (dir) => {
+    for (const n of readdirSync(dir, { withFileTypes: true })) {
+      const p = resolve(dir, n.name);
+      if (n.isDirectory()) { walk(p); continue; }
+      if (!n.name.endsWith('.ts')) continue;
+      const src = readFileSync(p, 'utf8');
+      for (const m of src.matchAll(/\.(get|post|patch|put|delete)\(\s*['"`](\/(api|proxy|events)[^'"`]*)/g)) {
+        found.add(`${m[1].toUpperCase().padEnd(6)} ${m[2]}`);
+      }
+    }
+  };
+  try { walk(resolve(ROOT, 'src')); } catch { die('Không đọc được src/ — lệnh này cần chạy trong thư mục cài đặt.'); }
+  const list = [...found].sort((a, b) => a.slice(7).localeCompare(b.slice(7)));
+  if (has('--json')) {
+    console.log(JSON.stringify(list.map((s) => ({ method: s.slice(0, 6).trim(), path: s.slice(7) })), null, 2));
+    return;
+  }
+  for (const r of list) console.log(`  ${c.b(r.slice(0, 6))} ${r.slice(7)}`);
+  console.log(c.d(`\n  ${list.length} endpoint · gọi bằng: agyproxy api <METHOD> <đường-dẫn> [json]`));
+}
+
 // ---------- main ----------
 const [cmd, ...rest] = process.argv.slice(2);
 const has = (f) => rest.includes(f);
@@ -782,10 +1014,24 @@ if (cmd === undefined) {
   const choice = await interactiveMenu();
   if (choice) await choice.action();
 } else {
+// Lệnh thao tác tiến trình CỤC BỘ. Khi đang trỏ sang server máy khác thì chúng sẽ
+// start/stop nhầm tiến trình trên máy đang gõ — im lặng làm sai còn tệ hơn báo lỗi.
+// `restart` có lối đi từ xa qua API nên xử lý riêng bên dưới.
+const LOCAL_ONLY = new Set(['start', 'stop', 'logs', 'log', 'service', 'svc', 'update', 'upgrade']);
+if (LOCAL_ONLY.has(cmd) && isRemote()) {
+  die(`\`${cmd}\` chỉ chạy được trên máy chủ (đang trỏ tới ${baseUrl()}).\n` +
+      `  Khởi động lại từ xa:  agyproxy api POST /api/system/restart\n` +
+      `  Cập nhật từ xa:       agyproxy api POST /api/system/update`);
+}
+
 switch (cmd) {
   case 'start': start(has('-d') || has('--detach') || has('--daemon')); break;
   case 'stop': stop(); break;
-  case 'restart': stop(); setTimeout(() => start(true), 600); break;
+  case 'restart':
+    // Từ xa: nhờ chính server tự khởi động lại. Tại chỗ: dừng rồi chạy lại.
+    if (isRemote()) { await postJson(`${baseUrl()}/api/system/restart`, {}); console.log(c.g('✓ Đã yêu cầu server khởi động lại')); }
+    else { stop(); setTimeout(() => start(true), 600); }
+    break;
   case 'status': case 'st': await status(); break;
   case 'logs': case 'log': logs(has('-f') || has('--follow')); break;
   case 'update': case 'upgrade': await update(has('--check')); break;
@@ -845,10 +1091,10 @@ switch (cmd) {
         break;
       }
       const targets = models.map((m) => ({ model: m.startsWith('combo/') || m.includes('/') ? m : `combo/${m}` }));
-      await postJson(`http://127.0.0.1:${PORT}/api/combos`, { id, name: id, strategy: 'priority', targets, enabled: true });
+      await postJson(`${baseUrl()}/api/combos`, { id, name: id, strategy: 'priority', targets, enabled: true });
       console.log(c.g(`✓ Đã tạo combo/${id}:`) + ' ' + models.join(' → '));
     } else {
-      const d = await httpJson(`http://127.0.0.1:${PORT}/api/combos`);
+      const d = await httpJson(`${baseUrl()}/api/combos`);
       console.log(c.b('Combos:'));
       for (const cmb of d.combos) {
         const models = (cmb.targets || []).map((t) => t.model).join(' → ');
@@ -858,6 +1104,13 @@ switch (cmd) {
     }
     break;
   }
+  // ── Điều khiển từ tool ngoài ──────────────────────────────────────────────
+  case 'connect': await connectCmd(rest[0]); break;
+  case 'token': tokenCmd(); break;
+  case 'ping': await pingCmd(); break;
+  case 'api': await apiCmd(rest); break;
+  case 'routes': routesCmd(); break;
+
   case 'version': case '-v': case '--version': console.log(PKG.version); break;
   case 'help': case '-h': case '--help': help(); break;
   default: console.log(c.r(`Lệnh không hợp lệ: ${cmd}`)); help(); process.exit(1);

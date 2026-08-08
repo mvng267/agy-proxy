@@ -130,6 +130,88 @@ agyproxy setup-codex      # cấu hình Codex
 
 ---
 
+## Điều khiển agyproxy từ tool ngoài
+
+Toàn bộ agyproxy điều khiển được qua CLI hoặc HTTP, kể cả từ máy khác.
+
+### Kết nối — 2 bước
+
+```bash
+# 1. TRÊN MÁY CHỦ: lấy token
+agyproxy token
+
+# 2. TRÊN MÁY TOOL: lưu lại (kiểm tra ngay, sai token là báo liền)
+agyproxy connect http://100.112.240.4:7788 --token <token>
+
+agyproxy ping        # ✓ http://100.112.240.4:7788  23ms  v2.18.1  700 account
+```
+
+Lưu ở `~/.agyproxy/cli.json` (chmod 600). Từ đây mọi lệnh đều chạy trên server đó.
+
+Không muốn lưu file thì dùng biến môi trường — hợp với CI/container:
+
+```bash
+export AGY_URL=http://100.112.240.4:7788
+export AGY_TOKEN=<token>
+```
+
+Thứ tự ưu tiên: `--url/--token` › `AGY_URL/AGY_TOKEN` › `cli.json` › local.
+
+### Gọi bất kỳ endpoint nào
+
+`agyproxy api` là đường đi tới **toàn bộ ~88 endpoint**, kể cả endpoint thêm sau này —
+không phải chờ CLI bọc thêm lệnh con:
+
+```bash
+agyproxy routes                      # liệt kê endpoint (--json để máy đọc)
+
+agyproxy api /api/overview           # GET là mặc định
+agyproxy api /api/gateway/accounts?provider=agy
+
+agyproxy api PATCH /api/gateway/config '{"rotation":"smart"}'
+agyproxy api POST  /api/gateway/accounts/wake '{"provider":"agy"}'
+agyproxy api POST  /api/system/update        # cập nhật server từ xa
+agyproxy api POST  /api/system/restart       # khởi động lại từ xa
+
+cat accounts.json | agyproxy api POST /api/accounts/import -   # `-` = đọc stdin
+```
+
+Kết quả luôn là JSON thô trên stdout (lỗi ra stderr + exit≠0), nên ghép `jq` và
+`set -e` được:
+
+```bash
+agyproxy api /api/overview | jq '.gateway.enabled'
+agyproxy status --json | jq -e '.up'      # exit≠0 nếu server chết → dùng cho healthcheck
+```
+
+### Không cài CLI cũng được
+
+Token đi qua HTTP Basic, nên bất cứ thứ gì gọi được HTTP đều điều khiển được:
+
+```bash
+curl -u ":$AGY_TOKEN" http://100.112.240.4:7788/api/overview
+
+curl -u ":$AGY_TOKEN" -X PATCH http://100.112.240.4:7788/api/gateway/config \
+  -H 'content-type: application/json' -d '{"rotation":"smart"}'
+```
+
+```python
+import requests
+r = requests.get("http://100.112.240.4:7788/api/overview", auth=("", TOKEN))
+```
+
+### Lệnh chỉ chạy được tại máy chủ
+
+`start` · `stop` · `logs` · `update` · `service` thao tác tiến trình cục bộ. Khi đang trỏ
+sang máy khác, CLI **chặn và chỉ đường** thay vì lặng lẽ tác động nhầm server trên máy
+đang gõ. Từ xa dùng `agyproxy api POST /api/system/restart` (hoặc `/api/system/update`).
+
+> ⚠ Token cho **toàn quyền** điều khiển gateway. Chỉ truyền qua mạng tin cậy
+> (Tailscale/VPN) hoặc HTTPS. Đổi token: xoá khoá `cliToken` trong bảng `settings`
+> rồi chạy lại `agyproxy token`.
+
+---
+
 ## Cấu trúc dự án
 
 ```
