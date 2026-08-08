@@ -10,6 +10,7 @@ import {
   Edit3,
   Copy,
 } from "lucide-react"
+import { DataTable } from "@/components/common/DataTable"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,14 +27,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -423,112 +416,107 @@ export function Combo() {
             Combos ({filtered.length})
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
-                <TableHead>ID</TableHead>
-                <TableHead>Targets</TableHead>
-                <TableHead>Strategy</TableHead>
-                <TableHead className="text-center">Enabled</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow className="border-border">
-                  <TableCell colSpan={5} className="text-center text-muted-foreground text-xs py-8">
-                    {search ? "Không tìm thấy combo" : "Chưa có combo nào"}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((combo) => (
-                  <TableRow key={combo.id} className="border-border hover:bg-muted/50">
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm text-foreground font-mono">{combo.id}</span>
-                        <button
-                          onClick={() => copyId(combo.id)}
-                          className="text-muted-foreground hover:text-muted-foreground transition-colors"
-                          title="Copy ID"
-                        >
-                          <Copy className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {combo.targets.map((t) => (
-                          <Badge
-                            key={t.model}
-                            className="bg-muted text-foreground border-none text-[10px] font-mono"
-                          >
-                            {t.model}
-                            {t.weight != null ? ` ×${t.weight}` : ""}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className="bg-info/15 text-info border-none text-[10px]">
-                        {combo.strategy}
+        <CardContent className="p-0">
+          <DataTable
+            rows={filtered}
+            rowKey={(c) => c.id}
+            pageSize={25}
+            empty={search ? "Không tìm thấy combo" : "Chưa có combo nào"}
+            initialSort={{ key: "id", dir: "asc" }}
+            columns={[
+              {
+                key: "id",
+                header: "ID",
+                sort: (c) => c.id,
+                render: (c) => (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-sm text-foreground">{c.id}</span>
+                    <button
+                      onClick={() => copyId(c.id)}
+                      className="text-muted-foreground transition-colors hover:text-foreground"
+                      title="Copy ID"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                  </div>
+                ),
+              },
+              {
+                key: "targets",
+                header: "Targets",
+                render: (c) => (
+                  <div className="flex flex-wrap gap-1">
+                    {c.targets.map((t) => (
+                      <Badge key={t.model} className="border-none bg-muted font-mono text-[10px] text-foreground">
+                        {t.model}{t.weight != null ? ` ×${t.weight}` : ""}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Switch
-                        checked={combo.enabled}
-                        onCheckedChange={() => handleToggle(combo)}
-                        size="sm"
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
+                    ))}
+                  </div>
+                ),
+              },
+              {
+                key: "strategy",
+                header: "Strategy",
+                sort: (c) => c.strategy,
+                render: (c) => <Badge className="border-none bg-info/15 text-[10px] text-info">{c.strategy}</Badge>,
+              },
+              {
+                key: "enabled",
+                header: "Enabled",
+                align: "center",
+                sort: (c) => (c.enabled ? 1 : 0),
+                render: (c) => <Switch checked={c.enabled} onCheckedChange={() => handleToggle(c)} size="sm" />,
+              },
+              {
+                key: "actions",
+                header: "",
+                align: "right",
+                render: (c) => (
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(c)}
+                      className="h-7 w-7 border-border p-0 text-muted-foreground hover:text-info"
+                      title="Sửa"
+                    >
+                      <Edit3 className="h-3 w-3" />
+                    </Button>
+                    {/* Xoá 2 bước — giữ nguyên: combo bị xoá không khôi phục được. */}
+                    {deleteConfirm === c.id ? (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          onClick={() => handleDelete(c.id)}
+                          className="h-7 bg-destructive px-2 text-[10px] text-destructive-foreground hover:bg-destructive"
+                        >
+                          Xoá
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleEdit(combo)}
-                          className="border-border text-muted-foreground hover:text-info h-7 w-7 p-0"
-                          title="Sửa"
+                          onClick={() => setDeleteConfirm(null)}
+                          className="h-7 border-border px-2 text-[10px] text-muted-foreground"
                         >
-                          <Edit3 className="h-3 w-3" />
+                          Huỷ
                         </Button>
-
-                        {deleteConfirm === combo.id ? (
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="sm"
-                              onClick={() => handleDelete(combo.id)}
-                              className="bg-destructive hover:bg-destructive text-destructive-foreground h-7 text-[10px] px-2"
-                            >
-                              Xoá
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setDeleteConfirm(null)}
-                              className="border-border text-muted-foreground h-7 text-[10px] px-2"
-                            >
-                              Huỷ
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setDeleteConfirm(combo.id)}
-                            className="border-border text-muted-foreground hover:text-destructive h-7 w-7 p-0"
-                            title="Xoá"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        )}
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDeleteConfirm(c.id)}
+                        className="h-7 w-7 border-border p-0 text-muted-foreground hover:text-destructive"
+                        title="Xoá"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+          />
         </CardContent>
       </Card>
     </div>

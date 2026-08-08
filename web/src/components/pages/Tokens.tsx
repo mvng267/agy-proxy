@@ -10,6 +10,7 @@ import {
   Download,
   ShieldCheck,
 } from "lucide-react"
+import { DataTable } from "@/components/common/DataTable"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,14 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -121,7 +114,12 @@ function TargetBadge({ target }: { target: string }) {
 
 // ── Row component ──────────────────────────────────────────────────────
 
-function TokenRow({ cred }: { cred: Credential }) {
+/**
+ * Ô "Token" — TÁCH RIÊNG vì mang state cục bộ (đang hiện hay ẩn, vừa copy chưa).
+ * DataTable render ô qua `column.render`, mà hook không gọi được trong hàm đó, nên phải
+ * là component thật.
+ */
+function TokenCell({ cred }: { cred: Credential }) {
   const [shown, setShown] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -151,52 +149,30 @@ function TokenRow({ cred }: { cred: Credential }) {
   }
 
   return (
-    <TableRow className="border-border hover:bg-muted/40">
-      <TableCell className="text-sm text-foreground font-mono max-w-[200px] truncate" title={cred.email}>
-        {cred.email}
-      </TableCell>
-      <TableCell>
-        <TargetBadge target={cred.target} />
-      </TableCell>
-      <TableCell>
-        <HealthBadge health={cred.health} />
-      </TableCell>
-      <TableCell className="font-mono text-xs text-muted-foreground max-w-[220px]">
-        <span
-          className="select-all"
-          title={shown ? rawVal : undefined}
-          style={{ wordBreak: "break-all" }}
-        >
-          {displayValue}
+    <div className="max-w-[260px] font-mono text-xs text-muted-foreground">
+      <span className="select-all" title={shown ? rawVal : undefined} style={{ wordBreak: "break-all" }}>
+        {displayValue}
+      </span>
+      {isReal && (
+        <span className="ml-1.5 inline-flex gap-1 align-middle">
+          <button
+            onClick={() => setShown(!shown)}
+            className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+            title={shown ? "Ẩn" : "Hiện"}
+          >
+            {shown ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+          </button>
+          <button
+            onClick={handleCopy}
+            className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+            title="Copy token"
+          >
+            {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
+          </button>
         </span>
-        {isReal && (
-          <span className="inline-flex gap-1 ml-1.5 align-middle">
-            <button
-              onClick={() => setShown(!shown)}
-              className="p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
-              title={shown ? "Ẩn" : "Hiện"}
-            >
-              {shown ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-            </button>
-            <button
-              onClick={handleCopy}
-              className="p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
-              title="Copy token"
-            >
-              {copied ? (
-                <Check className="h-3 w-3 text-success" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
-            </button>
-          </span>
-        )}
-        {info && <span className="block text-muted-foreground text-[10px] mt-0.5">{info}</span>}
-      </TableCell>
-      <TableCell className="text-xs text-muted-foreground">
-        {cred.updated_at ? new Date(cred.updated_at).toLocaleString("vi-VN") : "—"}
-      </TableCell>
-    </TableRow>
+      )}
+      {info && <span className="mt-0.5 block text-[10px] text-muted-foreground">{info}</span>}
+    </div>
   )
 }
 
@@ -458,32 +434,38 @@ export function Tokens() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
-                <TableHead>Email</TableHead>
-                <TableHead>Target</TableHead>
-                <TableHead>Health</TableHead>
-                <TableHead>Token</TableHead>
-                <TableHead>Updated</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow className="border-border">
-                  <TableCell colSpan={5} className="text-center text-muted-foreground text-xs py-10">
-                    {creds.length === 0
-                      ? "Chưa có credential nào"
-                      : "Không khớp bộ lọc"}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((c, i) => (
-                  <TokenRow key={`${c.email}-${c.target}-${i}`} cred={c} />
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <DataTable
+            rows={filtered}
+            rowKey={(c) => `${c.email}-${c.target}`}
+            pageSize={25}
+            empty={creds.length === 0 ? "Chưa có credential nào" : "Không khớp bộ lọc"}
+            initialSort={{ key: "email", dir: "asc" }}
+            columns={[
+              {
+                key: "email",
+                header: "Email",
+                sort: (c) => c.email,
+                render: (c) => (
+                  <span className="block max-w-[220px] truncate font-mono text-sm text-foreground" title={c.email}>
+                    {c.email}
+                  </span>
+                ),
+              },
+              { key: "target", header: "Target", sort: (c) => c.target, render: (c) => <TargetBadge target={c.target} /> },
+              { key: "health", header: "Health", sort: (c) => c.health ?? "", render: (c) => <HealthBadge health={c.health} /> },
+              { key: "value", header: "Token", render: (c) => <TokenCell cred={c} /> },
+              {
+                key: "updated_at",
+                header: "Updated",
+                sort: (c) => c.updated_at ?? 0,
+                render: (c) => (
+                  <span className="text-xs text-muted-foreground">
+                    {c.updated_at ? new Date(c.updated_at).toLocaleString("vi-VN") : "—"}
+                  </span>
+                ),
+              },
+            ]}
+          />
         </CardContent>
       </Card>
     </div>

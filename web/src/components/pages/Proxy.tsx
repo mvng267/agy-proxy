@@ -11,18 +11,11 @@ import {
   Download,
   Link2,
 } from "lucide-react"
+import { DataTable } from "@/components/common/DataTable"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -359,137 +352,134 @@ export function Proxy() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
-                <TableHead>Label / Host</TableHead>
-                <TableHead>Protocol</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Latency</TableHead>
-                <TableHead>Country</TableHead>
-                <TableHead>Tested</TableHead>
-                <TableHead className="w-36" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {proxies.length === 0 ? (
-                <TableRow className="border-border">
-                  <TableCell
-                    colSpan={7}
-                    className="text-center text-muted-foreground text-xs py-10"
-                  >
-                    Chưa có proxy nào — import proxy bên trên để bắt đầu
-                  </TableCell>
-                </TableRow>
-              ) : (
-                proxies.map((proxy) => {
-                  const testRes = testResults[proxy.label]
-                  const isTestLoading = testRes === "loading"
-                  const testResultObj = testRes !== undefined && testRes !== "loading" ? testRes : null
-                  const isConfirmDelete = deletingLabel === proxy.label
-
-                  // Effective latency: from test result or stored
-                  const latency = testResultObj?.ms ?? proxy.latency
-
-                  // Effective status: override from test result
-                  const displayStatus = testResultObj
-                    ? testResultObj.ok
-                      ? "ok"
-                      : "error"
-                    : proxy.status
-
-                  // Country from test result or stored
-                  const country = testResultObj?.country ?? proxy.country
-
+          <DataTable
+            rows={proxies}
+            rowKey={(p) => p.label}
+            pageSize={25}
+            empty="Chưa có proxy nào — import proxy bên trên để bắt đầu"
+            columns={[
+              {
+                key: "label",
+                header: "Label / Host",
+                sort: (p) => p.label,
+                render: (p) => (
+                  <div className="font-mono text-sm text-foreground">
+                    {p.label}
+                    {p.host && p.host !== p.label && (
+                      <span className="block text-xs text-muted-foreground">{p.host}</span>
+                    )}
+                  </div>
+                ),
+              },
+              {
+                key: "protocol",
+                header: "Protocol",
+                sort: (p) => p.protocol ?? "http",
+                render: (p) => (
+                  <Badge className="border-none bg-muted text-[10px] text-muted-foreground">{p.protocol ?? "http"}</Badge>
+                ),
+              },
+              {
+                key: "status",
+                header: "Status",
+                sort: (p) => p.status ?? "",
+                render: (p) => {
+                  const t = testResults[p.label]
+                  const obj = t !== undefined && t !== "loading" ? t : null
+                  if (t === "loading") {
+                    return (
+                      <Badge className="border-none bg-muted text-[10px] text-muted-foreground">
+                        <RefreshCw className="mr-1 inline h-2.5 w-2.5 animate-spin" />testing…
+                      </Badge>
+                    )
+                  }
+                  if (obj && !obj.ok) {
+                    return (
+                      <Badge className="border-none bg-destructive/15 text-[10px] text-destructive">
+                        ✕ {obj.error?.slice(0, 20) ?? "fail"}
+                      </Badge>
+                    )
+                  }
+                  return <StatusBadge status={obj ? (obj.ok ? "ok" : "error") : p.status} />
+                },
+              },
+              {
+                key: "latency",
+                header: "Latency",
+                sort: (p) => {
+                  const t = testResults[p.label]
+                  const obj = t !== undefined && t !== "loading" ? t : null
+                  return obj?.ms ?? p.latency ?? Number.MAX_SAFE_INTEGER
+                },
+                render: (p) => {
+                  const t = testResults[p.label]
+                  const obj = t !== undefined && t !== "loading" ? t : null
+                  const ms = obj?.ms ?? p.latency
+                  return <span className="text-sm tabular-nums text-muted-foreground">{ms != null ? `${ms}ms` : "—"}</span>
+                },
+              },
+              {
+                key: "country",
+                header: "Country",
+                sort: (p) => p.country ?? "",
+                render: (p) => {
+                  const t = testResults[p.label]
+                  const obj = t !== undefined && t !== "loading" ? t : null
+                  return <span className="text-xs text-muted-foreground">{obj?.country ?? p.country ?? "—"}</span>
+                },
+              },
+              {
+                key: "lastTested",
+                header: "Tested",
+                sort: (p) => p.lastTested ?? 0,
+                render: (p) => (
+                  <span className="text-xs text-muted-foreground">
+                    {p.lastTested
+                      ? new Date(p.lastTested).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                      : "—"}
+                  </span>
+                ),
+              },
+              {
+                key: "actions",
+                header: "",
+                align: "right",
+                render: (p) => {
+                  const isLoading = testResults[p.label] === "loading"
+                  const confirming = deletingLabel === p.label
                   return (
-                    <TableRow
-                      key={proxy.label}
-                      className="border-border hover:bg-muted/40"
-                    >
-                      <TableCell className="text-sm text-foreground font-mono">
-                        {proxy.label}
-                        {proxy.host && proxy.host !== proxy.label && (
-                          <span className="text-muted-foreground text-xs block">{proxy.host}</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className="bg-muted text-muted-foreground border-none text-[10px]">
-                          {proxy.protocol ?? "http"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {isTestLoading ? (
-                          <Badge className="bg-muted text-muted-foreground border-none text-[10px]">
-                            <RefreshCw className="h-2.5 w-2.5 animate-spin mr-1 inline" />
-                            testing…
-                          </Badge>
-                        ) : testResultObj && !testResultObj.ok ? (
-                          <Badge className="bg-destructive/15 text-destructive border-none text-[10px]">
-                            ✕ {testResultObj.error?.slice(0, 20) ?? "fail"}
-                          </Badge>
-                        ) : (
-                          <StatusBadge status={displayStatus} />
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground tabular-nums">
-                        {latency != null ? `${latency}ms` : "—"}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {country || "—"}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {proxy.lastTested
-                          ? new Date(proxy.lastTested).toLocaleString("vi-VN", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 justify-end pr-2">
-                          {/* Test */}
-                          <button
-                            onClick={() => handleTest(proxy.label)}
-                            disabled={isTestLoading}
-                            className="p-1.5 rounded text-muted-foreground hover:text-warning hover:bg-muted transition-colors disabled:opacity-50"
-                            title="Test proxy"
-                          >
-                            <Zap className="h-3.5 w-3.5" />
-                          </button>
-                          {/* Copy */}
-                          <button
-                            onClick={() => handleCopy(proxy.label)}
-                            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                            title="Copy label"
-                          >
-                            {copiedLabel === proxy.label ? (
-                              <Check className="h-3.5 w-3.5 text-success" />
-                            ) : (
-                              <Copy className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                          {/* Delete (2-click confirm) */}
-                          <button
-                            onClick={() => handleDelete(proxy.label)}
-                            className={`p-1.5 rounded transition-colors ${
-                              isConfirmDelete
-                                ? "bg-destructive/20 text-destructive"
-                                : "text-muted-foreground hover:text-destructive hover:bg-muted"
-                            }`}
-                            title={isConfirmDelete ? "Bấm lần nữa để xác nhận xoá" : "Xoá proxy"}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => handleTest(p.label)}
+                        disabled={isLoading}
+                        className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-warning disabled:opacity-50"
+                        title="Test proxy"
+                      >
+                        <Zap className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleCopy(p.label)}
+                        className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        title="Copy label"
+                      >
+                        {copiedLabel === p.label ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                      </button>
+                      {/* Xoá 2 lần bấm — giữ nguyên. */}
+                      <button
+                        onClick={() => handleDelete(p.label)}
+                        className={`rounded p-1.5 transition-colors ${
+                          confirming ? "bg-destructive/20 text-destructive" : "text-muted-foreground hover:bg-muted hover:text-destructive"
+                        }`}
+                        title={confirming ? "Bấm lần nữa để xác nhận xoá" : "Xoá proxy"}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   )
-                })
-              )}
-            </TableBody>
-          </Table>
+                },
+              },
+            ]}
+          />
         </CardContent>
       </Card>
 
