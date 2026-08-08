@@ -43,14 +43,12 @@ describe('checkUpdate', () => {
 describe('runUpdate — build web trong môi trường production', () => {
   const SRC = readFileSync(new URL('../src/updater.ts', import.meta.url), 'utf8');
 
-  test('ép NODE_ENV=development cho bước web', () => {
+  test('npm install (web) ép NODE_ENV=development để có devDeps', () => {
     // systemd đặt NODE_ENV=production, tiến trình server kế thừa, và npm TỰ BỎ
     // devDependencies khi thấy biến đó — vite/@types/node biến mất, `tsc -b` chết.
     // Bắt được trên máy production thật bằng cách bấm nút Cập nhật.
-    assert.match(SRC, /NODE_ENV: 'development'/, 'thiếu ép NODE_ENV → web build hỏng trên production');
     const webPart = SRC.slice(SRC.indexOf('web/package.json'));
-    assert.match(webPart, /npm install \(web\)[\s\S]{0,200}devEnv/, 'npm install (web) phải dùng devEnv');
-    assert.match(webPart, /build web[\s\S]{0,200}devEnv/, 'build web phải dùng devEnv');
+    assert.match(webPart.slice(0, 900), /npm install \(web\)[\s\S]{0,220}NODE_ENV: 'development'/);
   });
 
   test('build web lỗi thì KHÔNG báo "xong" thành công', () => {
@@ -97,9 +95,17 @@ describe('CLI và dashboard phải làm CÙNG một việc', () => {
     }
   });
 
-  test('cả hai đều ép NODE_ENV=development khi build web', () => {
-    // systemd đặt NODE_ENV=production → npm bỏ devDeps → vite biến mất → tsc chết.
-    assert.match(CLI, /NODE_ENV: 'development'/, 'CLI thiếu ép NODE_ENV');
-    assert.match(SRV, /NODE_ENV: 'development'/, 'dashboard thiếu ép NODE_ENV');
+  test('install dùng development, build dùng production — KHÔNG trộn', () => {
+    // Hai bước cần hai giá trị NGƯỢC NHAU, trộn làm một là hỏng một trong hai:
+    //  · install với production → npm bỏ devDeps → vite biến mất → `tsc -b` chết
+    //  · build với development → Vite BỎ MINIFY → chunk 477 KB thay vì 281 KB
+    // Cả hai lỗi đều đã xảy ra thật trên production.
+    for (const [name, src] of [['CLI', CLI], ['dashboard', SRV]] as const) {
+      assert.match(src, /NODE_ENV: 'development'/, `${name} thiếu development cho install`);
+      assert.match(src, /NODE_ENV: 'production'/, `${name} thiếu production cho build`);
+      // Bước build phải đi kèm production, không phải development
+      const buildPart = src.slice(src.indexOf("'build web'") >= 0 ? src.indexOf("'build web'") : src.indexOf("'run', 'build'"));
+      assert.match(buildPart.slice(0, 300), /NODE_ENV: 'production'/, `${name}: bước build phải dùng production`);
+    }
   });
 });

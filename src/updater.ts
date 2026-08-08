@@ -177,9 +177,15 @@ export async function runUpdate(onStep?: (s: UpdateStep) => void): Promise<Updat
   let webOk = true;
   if (existsSync(resolve(ROOT, 'web/package.json'))) {
     const webDir = resolve(ROOT, 'web');
-    const devEnv = { NODE_ENV: 'development' };
-    webOk = await run('npm install (web)', 'npm', ['install', '--no-fund', '--no-audit'], webDir, devEnv);
-    if (webOk) webOk = await run('build web', 'npm', ['run', 'build'], webDir, devEnv);
+    // HAI biến môi trường KHÁC NHAU cho hai bước — trộn làm một là hỏng một trong hai:
+    //  · install cần NODE_ENV=development, nếu không npm bỏ devDependencies (vite,
+    //    @types/node) và `tsc -b` chết với "Cannot find type definition for 'vite/client'".
+    //  · build cần NODE_ENV=production, nếu không Vite BỎ MINIFY — đo thật trên production:
+    //    chunk khởi động 477 KB / 218 dòng thay vì 281 KB / 9 dòng.
+    webOk = await run('npm install (web)', 'npm', ['install', '--no-fund', '--no-audit'], webDir, {
+      NODE_ENV: 'development',
+    });
+    if (webOk) webOk = await run('build web', 'npm', ['run', 'build'], webDir, { NODE_ENV: 'production' });
   }
 
   // Build web hỏng = dashboard sẽ chạy bản dist CŨ. Trước đây bước này vẫn báo "xong"

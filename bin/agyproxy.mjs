@@ -340,9 +340,13 @@ async function update(check) {
       // Web build cần devDeps (vite, @types/node); NODE_ENV=production khiến npm bỏ chúng.
       if (existsSync(resolve(ROOT, 'web/package.json'))) {
         console.log(c.d('  build web…'));
-        const env = { ...process.env, NODE_ENV: 'development' };
-        execFileSync('npm', ['install', '--no-fund', '--no-audit'], { cwd: resolve(ROOT, 'web'), stdio: 'inherit', env });
-        execFileSync('npm', ['run', 'build'], { cwd: resolve(ROOT, 'web'), stdio: 'inherit', env });
+        const webDir = resolve(ROOT, 'web');
+        // install cần development (để có devDeps: vite, @types/node);
+        // build cần production (nếu không Vite bỏ minify — 477KB thay vì 281KB).
+        execFileSync('npm', ['install', '--no-fund', '--no-audit'],
+          { cwd: webDir, stdio: 'inherit', env: { ...process.env, NODE_ENV: 'development' } });
+        execFileSync('npm', ['run', 'build'],
+          { cwd: webDir, stdio: 'inherit', env: { ...process.env, NODE_ENV: 'production' } });
       }
     } else {
       console.log(c.d(`  npm install -g github:${REPO}…`));
