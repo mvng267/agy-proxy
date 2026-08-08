@@ -339,6 +339,13 @@ export interface UsageRow {
   requestId?: string;
   stream?: boolean;
 }
+/**
+ * Cache 60s cho creditsUsedThisMonth + invalidate khi usage đổi. Khai báo TRƯỚC
+ * recordGatewayUsage (nơi gán đầu tiên) để không tạo bẫy TDZ nếu sau này có caller
+ * chạy lúc module-init.
+ */
+let creditsCache: { at: number; prefix: string; data: Record<string, number> } | null = null;
+
 export function recordGatewayUsage(r: UsageRow): void {
   creditsCache = null; // usage mới → số credit Kiro tháng này đổi
   prep(
@@ -454,6 +461,7 @@ export function attributionSince(): number | null {
  */
 export function pruneUsage(days = 90): number {
   if (days <= 0) return 0;
+  creditsCache = null; // retention < 1 tháng có thể xoá cả dòng tháng này
   const cutoff = Date.now() - days * 86400_000;
   let total = 0;
   for (;;) {
@@ -606,12 +614,9 @@ export function providerStats(sinceMs: number): { provider: string; n: number; o
  * Gói KIRO FREE = 50 credit/tháng (lấy từ listAvailableSubscriptions).
  */
 /**
- * Cache 60s + invalidate khi có usage mới (recordGatewayUsage): trang Pool poll
- * /api/gateway/accounts mỗi 10s và mỗi lần đều GROUP BY cả tháng usage — trong khi
- * kết quả chỉ đổi khi có request Kiro mới.
+ * Trang Pool poll /api/gateway/accounts mỗi 10s và mỗi lần đều GROUP BY cả tháng
+ * usage — trong khi kết quả chỉ đổi khi có request Kiro mới → cache (xem creditsCache).
  */
-let creditsCache: { at: number; prefix: string; data: Record<string, number> } | null = null;
-
 export function creditsUsedThisMonth(prefix = 'kr/'): Record<string, number> {
   if (creditsCache && creditsCache.prefix === prefix && Date.now() - creditsCache.at < 60_000) {
     return creditsCache.data;

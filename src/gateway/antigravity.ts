@@ -229,7 +229,12 @@ const proxyAgents = new Map<string, Dispatcher>();
 export function proxyDispatcher(url?: string): Dispatcher | undefined {
   if (!url) return undefined;
   const hit = proxyAgents.get(url);
-  if (hit) return hit;
+  if (hit) {
+    // LRU: làm mới thứ tự chèn để eviction (xoá phần tử ĐẦU Map) không trúng proxy nóng.
+    proxyAgents.delete(url);
+    proxyAgents.set(url, hit);
+    return hit;
+  }
   try {
     const agent = new ProxyAgent(url);
     if (proxyAgents.size >= PROXY_AGENT_CAP) {
@@ -716,8 +721,10 @@ export async function* generateStream(
         lastErr = e;
         res = null;
         // Backoff trước khi thử host kế: giảm xác suất bị 429 liên tục khi
-        // nhiều request song song cùng đập vào cùng lúc.
-        await new Promise((r) => setTimeout(r, hostBackoffMs(BASE_HOSTS.indexOf(host))));
+        // nhiều request song song cùng đập vào cùng lúc. Host CUỐI thì khỏi ngủ —
+        // không còn ai để thử, ngủ 5s chỉ giữ client chờ thêm vô ích.
+        const hi = BASE_HOSTS.indexOf(host);
+        if (hi < BASE_HOSTS.length - 1) await new Promise((r) => setTimeout(r, hostBackoffMs(hi)));
         continue;
       }
       const t = await res.text().catch(() => '');
