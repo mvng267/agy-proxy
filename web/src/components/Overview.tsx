@@ -579,7 +579,7 @@ export function Overview() {
   const maxProxyLoad = Math.max(1, ...proxyLoadEntries.map((x) => x.n))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ── KPI Row ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard

@@ -79,8 +79,8 @@ interface AppSidebarProps {
   poolCount?: number
 }
 
-/** Xoá phiên ở server rồi về trang đăng nhập. Trước đây nút này không có handler. */
-async function handleLogout() {
+/** Xoá phiên ở server rồi về trang đăng nhập. Dùng chung cho sidebar và user menu trên topbar. */
+export async function handleLogout() {
   try {
     await fetch('/api/auth/logout', { method: 'POST' })
   } catch {

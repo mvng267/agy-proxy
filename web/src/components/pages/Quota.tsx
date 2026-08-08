@@ -331,7 +331,7 @@ export function Quota() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {toast && (
         <div className="fixed bottom-4 right-4 z-50 bg-slate-800 border border-slate-700 text-slate-200 text-sm px-4 py-2 rounded-lg shadow-lg">
           {toast}

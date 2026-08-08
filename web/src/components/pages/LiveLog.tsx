@@ -186,7 +186,7 @@ export function LiveLog() {
           <h2 className="text-sm font-medium text-slate-300">Live Log</h2>
           <div
             className={`h-2 w-2 rounded-full ml-1 ${
-              connected ? "bg-emerald-400 animate-pulse" : "bg-slate-600"
+              connected ? "bg-emerald-400 ring-2 ring-emerald-400/25" : "bg-slate-600"
             }`}
           />
           <span className="text-xs text-slate-500">

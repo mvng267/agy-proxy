@@ -263,7 +263,7 @@ export function Usage() {
   const maxAccReq = Math.max(1, ...byAccount.map(reqOf))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header + controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">

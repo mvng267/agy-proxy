@@ -346,7 +346,7 @@ export function Settings() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-4 max-w-3xl">
       {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
 
       {/* Header */}

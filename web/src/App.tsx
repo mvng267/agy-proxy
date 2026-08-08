@@ -1,10 +1,28 @@
 import { useState, useEffect, lazy, Suspense } from "react"
-import { QueryClientProvider, useQueryClient } from "@tanstack/react-query"
+import { QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query"
 import { queryClient } from "@/lib/queryClient"
-import { RefreshCw } from "lucide-react"
+import { api } from "@/lib/api"
+import {
+  RefreshCw,
+  BookOpen,
+  ExternalLink,
+  ChevronDown,
+  CircleUser,
+  Settings,
+  LogOut,
+} from "lucide-react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { AppSidebar } from "@/components/AppSidebar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { AppSidebar, handleLogout } from "@/components/AppSidebar"
 import { ToastProvider } from "@/components/ui/toast"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 
@@ -46,6 +64,8 @@ const tabTitles: Record<string, string> = {
   settings: "Cấu hình",
   keys: "API Keys",
 }
+
+const REPO_URL = "https://github.com/mvng267/agy-proxy"
 
 // ── Page router ────────────────────────────────────────────────────────
 
@@ -92,6 +112,74 @@ function PageContent({ tab }: { tab: string }) {
   }
 }
 
+// ── Header widgets ─────────────────────────────────────────────────────
+
+/**
+ * Trạng thái server trên topbar: chấm xanh khi /api/health trả lời, đỏ khi mất
+ * kết nối. Cổng lấy từ location — chính là cổng đang phục vụ dashboard.
+ */
+function ServerStatus() {
+  const { isError, isPending } = useQuery({
+    queryKey: ["health"],
+    queryFn: () => api.get<{ status: string; uptime: number; version: string }>("/api/health"),
+    refetchInterval: 30_000,
+    retry: 1,
+  })
+  const port = window.location.port || (window.location.protocol === "https:" ? "443" : "80")
+  const down = isError
+  return (
+    <div
+      className={`flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs ${
+        down
+          ? "border-red-500/30 bg-red-500/10 text-red-400"
+          : "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+      }`}
+      title={down ? "Không gọi được /api/health" : `Server OK — cổng ${port}`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${down ? "bg-red-400" : "bg-emerald-400"}`} />
+      <span className="hidden sm:inline">{isPending ? "Đang kiểm tra…" : down ? "Mất kết nối" : "Đang chạy"}</span>
+      <span className="font-mono text-[11px] opacity-70">:{port}</span>
+    </div>
+  )
+}
+
+/** Menu người dùng: tên đăng nhập từ /api/auth/me + lối tắt Cấu hình / Đăng xuất. */
+function UserMenu({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const { data } = useQuery({
+    queryKey: ["auth-me"],
+    queryFn: () => api.get<{ ok: boolean; user: string }>("/api/auth/me"),
+    staleTime: 5 * 60_000,
+  })
+  const user = data?.user ?? "admin"
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100">
+        <CircleUser className="h-4 w-4 text-slate-400" />
+        <span className="hidden max-w-28 truncate md:inline">{user}</span>
+        <ChevronDown className="h-3 w-3 text-slate-500" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-44">
+        {/* GroupLabel của Base UI bắt buộc nằm trong Group — thiếu là crash khi mở menu */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="flex items-center gap-2">
+            <CircleUser className="h-4 w-4" />
+            <span className="truncate">{user}</span>
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onOpenSettings}>
+          <Settings className="h-4 w-4" />
+          Cấu hình
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onClick={handleLogout}>
+          <LogOut className="h-4 w-4" />
+          Đăng xuất
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 // ── App ────────────────────────────────────────────────────────────────
 
 /**
@@ -129,32 +217,74 @@ function AppShell() {
             onTabChange={setActiveTab}
           />
           <SidebarInset>
-            {/* Topbar */}
-            <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm px-4">
+            {/* Topbar — h-14, px-4/lg:px-6: footer dùng đúng cặp số này để hai thanh cân nhau */}
+            <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-950/80 px-4 backdrop-blur-sm lg:px-6">
               <SidebarTrigger className="-ml-1 text-slate-400 hover:text-slate-200" />
               <Separator orientation="vertical" className="h-5 bg-slate-800" />
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm font-medium text-slate-200">
-                  {tabTitles[activeTab] ?? activeTab}
-                </h1>
-              </div>
+              {/* Logo + tên app: sidebar mobile là offcanvas nên topbar phải tự nhận diện app */}
+              <button
+                onClick={() => setActiveTab("overview")}
+                className="flex shrink-0 items-center gap-2"
+                title="Về Dashboard"
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500 text-xs font-bold text-white">
+                  A
+                </span>
+                <span className="hidden text-sm font-semibold text-slate-100 sm:inline">agyproxy</span>
+              </button>
+              <span className="text-slate-700">/</span>
+              <h1 className="truncate text-sm font-medium text-slate-300">
+                {tabTitles[activeTab] ?? activeTab}
+              </h1>
               <div className="ml-auto flex items-center gap-2">
+                <ServerStatus />
                 <button
                   onClick={() => qc.invalidateQueries()}
-                  className="p-1.5 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
                   title="Làm mới dữ liệu"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
+                <Separator orientation="vertical" className="h-5 bg-slate-800" />
+                <UserMenu onOpenSettings={() => setActiveTab("settings")} />
               </div>
             </header>
 
             {/* Content */}
-            <main className="flex-1 p-4 lg:p-6 bg-slate-950">
+            <main className="flex-1 bg-slate-950 p-4 lg:p-6">
               <Suspense fallback={<div className="flex h-64 items-center justify-center text-sm text-slate-500">Đang tải…</div>}>
                 <PageContent tab={activeTab} />
               </Suspense>
             </main>
+
+            {/* Footer — cùng chiều cao/padding với topbar để khung trên–dưới đối xứng */}
+            <footer className="flex h-14 shrink-0 items-center justify-between gap-3 border-t border-slate-800 bg-slate-950 px-4 lg:px-6">
+              <p className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
+                <span className="truncate">© 2026 agyproxy</span>
+                <span className="hidden sm:inline text-slate-700">·</span>
+                <span className="hidden font-mono sm:inline">v{__APP_VERSION__}</span>
+              </p>
+              <nav className="flex items-center gap-1">
+                <a
+                  href={`${REPO_URL}#readme`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Tài liệu</span>
+                </a>
+                <a
+                  href={REPO_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">GitHub</span>
+                </a>
+              </nav>
+            </footer>
           </SidebarInset>
         </SidebarProvider>
       </ErrorBoundary>

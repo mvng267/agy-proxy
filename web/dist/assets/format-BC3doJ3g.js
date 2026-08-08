@@ -1,0 +1,1 @@
+function e(e){return e==null?`—`:e>=1e6?`${(e/1e6).toFixed(1)}M`:e>=1e3?`${(e/1e3).toFixed(1)}k`:String(e)}function t(e){if(!e)return`—`;let t=Date.now()-e;return t<0?`vừa xong`:t<6e4?`${Math.max(1,Math.round(t/1e3))}s`:t<36e5?`${Math.round(t/6e4)}m`:t<864e5?`${Math.round(t/36e5)}h`:`${Math.round(t/864e5)}d`}export{e as n,t};

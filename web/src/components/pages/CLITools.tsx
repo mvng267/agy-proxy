@@ -98,7 +98,7 @@ function Section({
 
 export function CLITools() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2">
         <Terminal className="h-4 w-4 text-slate-500" />
