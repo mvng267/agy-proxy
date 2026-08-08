@@ -89,7 +89,11 @@ function scan() {
   for (const f of files) {
     const rel = relative(ROOT, f);
     if (isExempt(rel)) continue;
-    const src = readFileSync(f, 'utf8');
+    let src = readFileSync(f, 'utf8');
+    // Hex nằm trong SELECTOR thuộc tính — vd `[&_.recharts-cartesian-grid_line[stroke='#ccc']]`
+    // — là cách CHỌN phần tử Recharts tô mặc định để ghi đè bằng token, không phải màu được
+    // áp dụng. Bỏ qua, nếu không thước đo báo nhầm chính thứ đang sửa vấn đề.
+    src = src.replace(/\[(?:stroke|fill)=['"]#[0-9a-fA-F]{3,8}['"]\]/g, '');
     const hits = [];
     if (!hexOnly) for (const m of src.matchAll(RE_CLASS)) hits.push(m[0]);
     for (const m of src.matchAll(RE_HEX)) hits.push(m[0]);
