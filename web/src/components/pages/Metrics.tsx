@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Activity, AlertTriangle, Clock, Cpu, Gauge, Zap } from "lucide-react"
 import { api } from "@/lib/api"
@@ -6,14 +6,19 @@ import { fmtMs, fmtNum } from "@/lib/format"
 import { KpiCard, PageHeader, ChartCard, ErrorState, StatusBadge } from "@/components/common"
 
 /**
- * Trang Metrics — sức khoẻ gateway THỜI GIAN THỰC (poll /api/metrics mỗi 5s).
+ * Trang Metrics — sức khoẻ gateway, hai nguồn ghép lại:
  *
- * Backend chỉ trả ảnh chụp cửa sổ trượt 5 phút (không lưu chuỗi thời gian —
- * /api/metrics cố ý không đụng DB), nên LỊCH SỬ được tích luỹ phía client:
- * mỗi lần poll đẩy 1 điểm vào bộ nhớ trang, giữ tối đa 120 điểm (~10 phút).
- * Rời trang/F5 là mất lịch sử, và trục x cách đều theo THỨ TỰ điểm (tab ẩn thì
- * poll dừng → khoảng trống bị nén) — chấp nhận được cho màn hình "đang khoẻ
- * không"; xu hướng dài hạn đã có trang Báo cáo (đọc DB).
+ *  1. `/api/metrics/history` (DB, job nền ghi mỗi 60s) — LỊCH SỬ, sống qua F5 và qua
+ *     restart server. Đây là nguồn chính.
+ *  2. `/api/metrics` (poll 5s) — ảnh chụp cửa sổ trượt 5 phút cho các thẻ KPI, đồng thời
+ *     bồi thêm phần đuôi để đường vẫn nhúc nhích giữa hai lần ghi DB.
+ *
+ * Trước đây CHỈ có nguồn 2 và lịch sử tích luỹ trong RAM trang: F5 là trắng, phải chờ
+ * ≥2 nhịp poll mới vẽ được gì — trên production ba khung chart chiếm hơn nửa màn hình
+ * chỉ để hiện "Đang thu thập…".
+ *
+ * Trục x vẫn cách đều theo THỨ TỰ điểm chứ không theo thời gian thực; với dữ liệu DB
+ * đều nhịp 1 phút thì hai thứ đó trùng nhau.
  */
 
 interface MetricsResp {
@@ -33,12 +38,29 @@ interface MetricsResp {
   breaker: Record<string, { state: "closed" | "open" | "half-open"; consecutiveFails: number }>
 }
 
+interface HistoryResp {
+  series: Array<{
+    ts: number
+    rps: number | null
+    errorRate: number | null
+    p50: number | null
+    p95: number | null
+    p99: number | null
+    accTotal: number | null
+    accAvailable: number | null
+  }>
+  groupBy: "raw" | "minute" | "hour"
+  total: number
+}
+
 interface Point {
   t: number
   rps: number
   errPct: number
   p50: number | null
   p99: number | null
+  /** Số account khả dụng — chỉ có từ DB (poll 5s không mang theo con số này). */
+  avail?: number | null
 }
 
 const MAX_POINTS = 120 // 120 × 5s = 10 phút lịch sử trong RAM trang
@@ -50,6 +72,7 @@ const C_RPS = "var(--chart-1)"
 const C_ERR = "var(--chart-danger)"
 const C_P50 = "var(--chart-info)"
 const C_P99 = "var(--chart-warning)"
+const C_AVAIL = "var(--chart-success)"
 
 const fmtClock = (t: number) =>
   new Date(t).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
@@ -121,7 +144,7 @@ function LineChart({
   if (n < 2 || all.length === 0) {
     return (
       <div className="flex items-center justify-center text-sm text-muted-foreground" style={{ height }}>
-        {n < 2 ? "Đang thu thập… cần ≥ 2 lần poll (10s) để vẽ" : "Chưa có mẫu nào trong cửa sổ — gateway chưa nhận request"}
+        {n < 2 ? "Chưa đủ điểm để vẽ — job nền ghi mỗi 60s, chờ khoảng 2 phút" : "Chưa có mẫu nào trong cửa sổ — gateway chưa nhận request"}
       </div>
     )
   }
@@ -220,11 +243,36 @@ export function Metrics() {
     refetchInterval: 5_000,
   })
 
-  const [history, setHistory] = useState<Point[]>([])
+  // Cửa sổ lịch sử. 6h là mặc định vừa đủ nhìn một ca làm việc mà vẫn giữ độ mịn 1 phút
+  // (backend trả `raw` khi ≤6h, gộp dần khi dài hơn).
+  const [histHours, setHistHours] = useState(6)
+
+  /**
+   * Lịch sử NẠP TỪ DB, không còn dựng lại từ đầu mỗi lần mở trang.
+   *
+   * Trước đây trang tự tích luỹ điểm trong RAM trình duyệt, nên F5 là trắng và phải chờ
+   * ≥2 nhịp poll (10s) mới vẽ được gì — trên production ba khung chart chiếm hơn nửa màn
+   * hình chỉ để hiện chữ "Đang thu thập…". Job nền ghi mỗi 60s xuống `metrics_history`,
+   * endpoint này đọc ra, nên mở trang là có ngay.
+   */
+  const hist = useQuery({
+    queryKey: ["metrics-history", histHours],
+    queryFn: () => api.get<HistoryResp>(`/api/metrics/history?hours=${histHours}`),
+    refetchInterval: 60_000,
+  })
+
+  /**
+   * Điểm bồi thêm từ nhịp poll 5s.
+   *
+   * DB chỉ có độ mịn 1 phút; giữ thêm phần đuôi này để đường vẫn nhúc nhích theo thời
+   * gian thực giữa hai lần ghi. Chỉ là phần bổ sung — mất nó (F5) không còn làm trắng
+   * chart nữa.
+   */
+  const [live, setLive] = useState<Point[]>([])
   useEffect(() => {
     const d = q.data
     if (!d) return
-    setHistory((h) => {
+    setLive((h) => {
       // refetch thủ công/focus xen giữa nhịp poll → điểm dày đặc làm méo trục x
       // (x cách đều theo index); bỏ điểm đến sớm hơn 2s so với điểm trước.
       if (h.length && d.now - h[h.length - 1]!.t < 2_000) return h
@@ -238,6 +286,24 @@ export function Metrics() {
       return next.length > MAX_POINTS ? next.slice(next.length - MAX_POINTS) : next
     })
   }, [q.data])
+
+  /**
+   * Ghép DB + đuôi thời gian thực. Bỏ điểm live trùng khoảng thời gian đã có trong DB
+   * để đoạn nối không bị gấp khúc hay vẽ hai lần cùng một lúc.
+   */
+  const history = useMemo<Point[]>(() => {
+    const fromDb: Point[] = (hist.data?.series ?? []).map((r) => ({
+      t: r.ts,
+      rps: r.rps ?? 0,
+      errPct: (r.errorRate ?? 0) * 100,
+      p50: r.p50 ?? null,
+      p99: r.p99 ?? null,
+      avail: r.accAvailable ?? null,
+    }))
+    if (!fromDb.length) return live
+    const lastDb = fromDb[fromDb.length - 1]!.t
+    return [...fromDb, ...live.filter((p) => p.t > lastDb)]
+  }, [hist.data, live])
 
   if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />
 
@@ -256,7 +322,24 @@ export function Metrics() {
     <div className="space-y-4">
       <PageHeader
         title="Metrics"
-        desc={`Cửa sổ trượt ${w?.windowSec ?? 300}s trong RAM server · poll 5s · lịch sử ${history.length}/${MAX_POINTS} điểm phía trình duyệt`}
+        desc={`Cửa sổ trượt ${w?.windowSec ?? 300}s · poll 5s · ${history.length} điểm lịch sử${hist.data?.groupBy && hist.data.groupBy !== "raw" ? ` (gộp theo ${hist.data.groupBy === "hour" ? "giờ" : "phút"})` : ""}`}
+        actions={
+          <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
+            {([[1, "1h"], [6, "6h"], [24, "24h"], [168, "7d"]] as const).map(([h, lbl]) => (
+              <button
+                key={h}
+                onClick={() => setHistHours(h)}
+                className={`rounded-md px-2 py-1 text-xs transition-colors ${
+                  histHours === h
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+        }
       />
 
       {openBreaker.length > 0 && (
@@ -309,6 +392,19 @@ export function Metrics() {
         />
       </ChartCard>
 
+      {/* Pool khả dụng theo thời gian — chỉ vẽ được từ khi có bảng metrics_history.
+          Đây là thứ cho biết pool đang cạn dần hay đã hồi, mà trước đây không nhìn được. */}
+      {history.some((p) => p.avail != null) && (
+        <ChartCard title="Account khả dụng theo thời gian">
+          <LineChart
+            points={history}
+            height={150}
+            series={[{ name: "khả dụng", color: C_AVAIL, values: history.map((p) => p.avail ?? null) }]}
+            fmt={(v) => fmtNum(Math.round(v))}
+          />
+        </ChartCard>
+      )}
+
       <ChartCard title="Pool theo provider">
         <table className="w-full text-sm">
           <thead>
@@ -326,9 +422,22 @@ export function Metrics() {
               return (
                 <tr key={pid} className="border-b border-border/50 last:border-0">
                   <td className="py-2 font-mono">{pid}</td>
-                  <td className="py-2 tabular-nums">
-                    {a.available}/{a.total}
-                    {a.total > 0 && a.available === 0 && <span className="ml-1.5 text-xs text-destructive">cạn pool</span>}
+                  {/* Thanh tỉ lệ thay vì chỉ hai con số: "348/350" và "12/350" đọc lướt
+                      trông giống nhau, còn thanh gần đầy so với thanh gần rỗng thì thấy ngay. */}
+                  <td className="py-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${a.total ? (a.available / a.total) * 100 : 0}%`,
+                            background: `var(--chart-${a.available === 0 ? "danger" : a.available / Math.max(1, a.total) < 0.2 ? "warning" : "success"})`,
+                          }}
+                        />
+                      </div>
+                      <span className="tabular-nums">{a.available}/{a.total}</span>
+                      {a.total > 0 && a.available === 0 && <span className="text-xs text-destructive">cạn pool</span>}
+                    </div>
                   </td>
                   <td className="py-2 tabular-nums">{a.inflight}</td>
                   <td className="py-2">
