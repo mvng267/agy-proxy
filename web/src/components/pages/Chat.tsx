@@ -235,7 +235,7 @@ export function Chat() {
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-shrink-0">
         <div className="flex items-center gap-2">
           <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-medium text-foreground">Chat thử</h2>
+          <h2 className="text-base font-semibold text-foreground">Chat thử</h2>
         </div>
 
         {/* Selectors */}

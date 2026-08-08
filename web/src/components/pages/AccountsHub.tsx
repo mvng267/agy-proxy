@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react"
 import { KeyRound, UserPlus, Users } from "lucide-react"
 import { TabShell } from "@/components/common/TabShell"
+import { PageHeader } from "@/components/common"
 
 /**
  * Trang "Tài khoản" gộp: Accounts + Tokens + Thêm tài khoản.
@@ -20,6 +21,8 @@ const Loading = () => (
 
 export function AccountsHub({ initial }: { initial?: string }) {
   return (
+    <div className="space-y-4">
+      <PageHeader title="Tài khoản" desc="Danh sách account, trạng thái token và thêm account mới" />
     <TabShell
       storageKey="Tài khoản"
       initial={initial}
@@ -56,5 +59,6 @@ export function AccountsHub({ initial }: { initial?: string }) {
         },
       ]}
     />
+    </div>
   )
 }

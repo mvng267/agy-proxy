@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react"
+import { PageHeader } from "@/components/common"
 import {
   Shuffle,
   RefreshCw,
@@ -209,6 +210,7 @@ export function Combo() {
   if (loading) {
     return (
       <div className="space-y-4">
+        <PageHeader title="Combo" desc="Nhóm nhiều model thành một tên gọi, có thứ tự ưu tiên" />
         <Skeleton className="h-10 w-full bg-muted" />
         <Skeleton className="h-64 w-full bg-muted" />
       </div>
@@ -244,6 +246,7 @@ export function Combo() {
 
   return (
     <div className="space-y-4">
+      <PageHeader title="Combo" desc="Nhóm nhiều model thành một tên gọi, có thứ tự ưu tiên" />
       {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="bg-card border-border">

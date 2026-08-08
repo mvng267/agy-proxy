@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react"
+import { PageHeader } from "@/components/common"
 import {
   Globe,
   RefreshCw,
@@ -227,6 +228,7 @@ export function Proxy() {
   if (loading) {
     return (
       <div className="space-y-4">
+        <PageHeader title="Proxy" desc="Danh sách proxy và kết quả kiểm tra kết nối" />
         <Skeleton className="h-10 w-full bg-muted" />
         <Skeleton className="h-64 w-full bg-muted" />
       </div>
@@ -252,6 +254,7 @@ export function Proxy() {
 
   return (
     <div className="space-y-4">
+      <PageHeader title="Proxy" desc="Danh sách proxy và kết quả kiểm tra kết nối" />
       {/* Import form */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">

@@ -16,7 +16,7 @@ import {
   ChevronRight,
   CheckCheck,
 } from "lucide-react"
-import { KpiCard } from "@/components/common"
+import { KpiCard, PageHeader } from "@/components/common"
 import { PoolDonut } from "@/components/common/charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -365,6 +365,7 @@ export function Pool() {
 
   return (
     <div className="space-y-5">
+      <PageHeader title="Pool" desc="Account trong pool, sức khoẻ và hạn mức từng provider" />
       {/* Provider Tabs */}
       <div className="flex items-center gap-2">
         {([["agy", "Antigravity"], ["kr", "Kiro"]] as const).map(([key, label]) => (

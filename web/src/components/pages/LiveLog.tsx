@@ -199,7 +199,7 @@ export function LiveLog() {
       {/* ── Thanh trạng thái + hành động ─────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         <ScrollText className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-medium text-foreground">Live Log</h2>
+        <h2 className="text-base font-semibold text-foreground">Live Log</h2>
         <span
           className={`ml-1 h-2 w-2 rounded-full ${
             connected ? "bg-success ring-2 ring-success/25" : "bg-muted-foreground/40"

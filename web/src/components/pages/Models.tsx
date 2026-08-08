@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react"
+import { PageHeader } from "@/components/common"
 import {
   Cpu,
   RefreshCw,
@@ -326,6 +327,7 @@ export function Models() {
 
   return (
     <div className="space-y-5">
+      <PageHeader title="Models" desc="Model khả dụng của từng provider và trạng thái kiểm tra" />
       {/* Header + actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">

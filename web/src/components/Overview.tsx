@@ -10,7 +10,7 @@ import {
   Cpu,
   Globe,
 } from "lucide-react"
-import { KpiCard } from "@/components/common"
+import { KpiCard, PageHeader } from "@/components/common"
 import { PoolDonut, RankBar, SegmentBar, TimeSeries } from "@/components/common/charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -453,6 +453,7 @@ export function Overview() {
 
   return (
     <div className="space-y-4">
+      <PageHeader title="Dashboard" desc="Tổng quan pool, lưu lượng và sức khoẻ hệ thống" />
       {/* ── KPI Row ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
