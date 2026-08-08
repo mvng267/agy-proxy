@@ -39,6 +39,7 @@ const Proxy = lazy(() => import("@/components/pages/Proxy").then((m) => ({ defau
 const Quota = lazy(() => import("@/components/pages/Quota").then((m) => ({ default: m.Quota })))
 // Trang Usage cũ được thay bằng Reports (lọc theo key/combo). Giữ tab "usage" để link cũ vẫn chạy.
 const Reports = lazy(() => import("@/components/pages/Reports").then((m) => ({ default: m.Reports })))
+const Metrics = lazy(() => import("@/components/pages/Metrics").then((m) => ({ default: m.Metrics })))
 const Chat = lazy(() => import("@/components/pages/Chat").then((m) => ({ default: m.Chat })))
 const LiveLog = lazy(() => import("@/components/pages/LiveLog").then((m) => ({ default: m.LiveLog })))
 const ApiKeys = lazy(() => import("@/components/pages/ApiKeys").then((m) => ({ default: m.ApiKeys })))
@@ -63,6 +64,7 @@ const tabTitles: Record<string, string> = {
   connections: "Cấu hình",
   usage: "Báo cáo",
   reports: "Báo cáo",
+  metrics: "Metrics",
   chat: "Chat thử",
   gwlog: "Live Log",
   tools: "Cấu hình",
@@ -102,6 +104,8 @@ function PageContent({ tab }: { tab: string }) {
     case "usage":
     case "reports":
       return <Reports />
+    case "metrics":
+      return <Metrics />
     case "chat":
       return <Chat />
     case "gwlog":

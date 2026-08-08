@@ -105,7 +105,7 @@ test('login đúng vào dashboard, health badge + sidebar render', async () => {
 });
 
 test('mọi route render không pageerror', async () => {
-  const routes = ['/', '/accounts', '/proxies', '/agy', '/models', '/combo', '/quota', '/keys', '/usage', '/chat', '/gwlog', '/settings', '/scheduler', '/runs', '/pending', '/omniroute', '/security'];
+  const routes = ['/', '/accounts', '/proxies', '/agy', '/models', '/combo', '/quota', '/keys', '/usage', '/metrics', '/chat', '/gwlog', '/settings', '/scheduler', '/runs', '/pending', '/omniroute', '/security'];
   for (const r of routes) {
     pageErrors.length = 0;
     await page.goto(`${BASE}${r}`, { waitUntil: 'networkidle' });

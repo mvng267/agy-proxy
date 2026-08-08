@@ -8,6 +8,7 @@ import {
   Cpu,
   Shuffle,
   Gauge,
+  Activity,
   BarChart3,
   MessageSquare,
   ScrollText,
@@ -66,6 +67,7 @@ const navGroups = [
     label: "Công cụ",
     items: [
       { title: "API Keys", icon: KeyRound, tab: "keys", badge: null },
+      { title: "Metrics", icon: Activity, tab: "metrics", badge: null },
       { title: "Báo cáo", icon: BarChart3, tab: "usage", badge: null },
       { title: "Chat thử", icon: MessageSquare, tab: "chat", badge: null },
       { title: "Live Log", icon: ScrollText, tab: "gwlog", badge: null },
