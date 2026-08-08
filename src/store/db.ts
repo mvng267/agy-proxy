@@ -229,6 +229,22 @@ try {
   console.error('[migration] lỗi:', e instanceof Error ? e.message : e);
 }
 
+/**
+ * Cache prepared statement cho ĐƯỜNG NÓNG (mỗi request đều chạy): recordGatewayUsage,
+ * auth theo prefix, setSetting… `db.prepare()` biên dịch lại SQL mỗi lần gọi — với SQL
+ * cố định thì đó là chi phí bỏ đi. Chỉ dùng cho SQL TĨNH; SQL dựng động (usageWhere)
+ * vẫn prepare trực tiếp để cache không phình theo tổ hợp filter.
+ */
+const stmtCache = new Map<string, ReturnType<DatabaseSync['prepare']>>();
+function prep(sql: string): ReturnType<DatabaseSync['prepare']> {
+  let s = stmtCache.get(sql);
+  if (!s) {
+    s = db.prepare(sql);
+    stmtCache.set(sql, s);
+  }
+  return s;
+}
+
 export interface RunRow {
   id: number;
   email: string;
@@ -324,7 +340,7 @@ export interface UsageRow {
   stream?: boolean;
 }
 export function recordGatewayUsage(r: UsageRow): void {
-  db.prepare(
+  prep(
     `INSERT INTO gateway_usage
        (ts, email, model, prompt_tokens, completion_tokens, ok, ms,
         api_key_id, combo, endpoint, status, request_id, stream)
@@ -468,7 +484,7 @@ export function listApiKeys(): ApiKeyRow[] {
 
 /** Tra theo prefix — index UNIQUE nên O(1) và tối đa 1 hàng, không quét cả bảng. */
 export function getApiKeyByPrefix(prefix: string): ApiKeyRow | undefined {
-  return db.prepare(`SELECT * FROM api_keys WHERE prefix = ?`).get(prefix) as any;
+  return prep(`SELECT * FROM api_keys WHERE prefix = ?`).get(prefix) as any;
 }
 
 export function getApiKey(id: string): ApiKeyRow | undefined {
@@ -506,11 +522,22 @@ const lastUsedWrite = new Map<string, number>();
 export function touchApiKey(id: string, now = Date.now()): void {
   if (now - (lastUsedWrite.get(id) ?? 0) < 60_000) return;
   lastUsedWrite.set(id, now);
-  db.prepare(`UPDATE api_keys SET last_used = ? WHERE id = ?`).run(now, id);
+  prep(`UPDATE api_keys SET last_used = ? WHERE id = ?`).run(now, id);
 }
 
 // ---------- combos ----------
 export interface ComboRow { id: string; name: string; strategy: string; targets_json: string; enabled: number; created_at: number; updated_at: number }
+
+/**
+ * Revision tăng mỗi lần combo đổi TRONG process này — cho tầng trên (engine.listCombos)
+ * cache kết quả parse mà vẫn thấy thay đổi ngay lập tức. Process khác ghi DB (CLI)
+ * không bump được số này → tầng cache phải kèm TTL ngắn làm lưới an toàn.
+ */
+let comboRev = 0;
+export function comboRevision(): number {
+  return comboRev;
+}
+
 export function listComboRows(): ComboRow[] {
   return db.prepare(`SELECT * FROM combos ORDER BY id`).all() as any[];
 }
@@ -524,12 +551,14 @@ export function upsertComboRow(r: { id: string; name: string; strategy: string; 
      ON CONFLICT(id) DO UPDATE SET name=excluded.name, strategy=excluded.strategy,
        targets_json=excluded.targets_json, enabled=excluded.enabled, updated_at=excluded.updated_at`,
   ).run(r.id, r.name, r.strategy, JSON.stringify(r.targets ?? []), r.enabled === false ? 0 : 1, now, now);
+  comboRev++;
 }
 export function deleteComboRow(id: string): void {
   db.prepare(`DELETE FROM combos WHERE id = ?`).run(id);
+  comboRev++;
 }
 export function recordComboRun(r: { combo: string; step: number; model: string; ok: boolean; status?: number; ms?: number; reason?: string }): void {
-  db.prepare(`INSERT INTO combo_runs (ts,combo,step,model,ok,status,ms,reason) VALUES (?,?,?,?,?,?,?,?)`)
+  prep(`INSERT INTO combo_runs (ts,combo,step,model,ok,status,ms,reason) VALUES (?,?,?,?,?,?,?,?)`)
     .run(Date.now(), r.combo, r.step, r.model, r.ok ? 1 : 0, r.status ?? null, r.ms ?? null, (r.reason ?? '').slice(0, 200));
 }
 export function comboStatsRows(sinceMs: number): { combo: string; calls: number; fallbacks: number }[] {
@@ -602,7 +631,7 @@ export function getSetting(key: string): string | undefined {
   return r?.value;
 }
 export function setSetting(key: string, value: string): void {
-  db.prepare(
+  prep(
     `INSERT INTO settings (key, value, updated_at) VALUES (?,?,?)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
   ).run(key, value, Date.now());
@@ -668,7 +697,7 @@ export function clearFailedLogins(ip: string): void {
 // ---------- lịch sử hạn mức ----------
 export interface QuotaHistoryRow { ts: number; email: string; tier: string | null; gemini_pct: number | null; third_pct: number | null }
 export function recordQuota(r: { ts: number; email: string; tier?: string | null; geminiPct?: number | null; thirdPct?: number | null; models?: unknown; probeOk?: boolean }): void {
-  db.prepare(`INSERT INTO quota_history (ts, email, tier, gemini_pct, third_pct, models_json, probe_ok) VALUES (?,?,?,?,?,?,?)`)
+  prep(`INSERT INTO quota_history (ts, email, tier, gemini_pct, third_pct, models_json, probe_ok) VALUES (?,?,?,?,?,?,?)`)
     .run(
       r.ts, r.email, r.tier ?? null, r.geminiPct ?? null, r.thirdPct ?? null,
       r.models ? JSON.stringify(r.models) : null,

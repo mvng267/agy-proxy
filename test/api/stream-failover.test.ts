@@ -130,6 +130,34 @@ test('stream: MỌI account lỗi → JSON lỗi sạch, không phải SSE 200 n
   assert.match(r.headers['content-type'] ?? '', /application\/json/, 'lỗi trước byte đầu phải là JSON, không phải SSE');
 });
 
+test('stream: account HẾT QUOTA giữa chừng (đã gửi byte) → đóng stream sạch + cooldown đúng bể', async () => {
+  // 429 sau delta đầu: không phát lại được, nhưng client KHÔNG được treo (phải có
+  // frame lỗi in-band + [DONE]) và account phải bị khoá đúng bể quota để request sau né.
+  const quotaMidway: Provider = {
+    ...fakeAgy,
+    async *generateStream(args: GenArgs) {
+      calls.push(args.session.accessToken);
+      yield { delta: 'dang chay' };
+      throw Object.assign(new Error('fake stream 429 (het quota)'), { status: 429 });
+    },
+  } as Provider;
+  PROVIDERS.agy = quotaMidway;
+  try {
+    const r = await app.inject({ method: 'POST', url: '/proxy/v1/chat/completions', headers: KEY(), payload });
+    assert.equal(r.statusCode, 200, 'header đã gửi → status vẫn 200');
+    assert.equal(calls.length, 1, 'đã gửi byte thì không thử account khác');
+    assert.match(r.body, /dang chay/);
+    assert.match(r.body, /"error"/, 'phải có frame lỗi in-band cho client biết');
+    assert.match(r.body, /data: \[DONE\]/, 'phải kết thúc bằng [DONE] — thiếu là client treo');
+    // engine truyền bucket của model vừa gọi → 429 chỉ khoá bể gemini, không khoá cả account
+    const used = pool.get(calls[0]!, 'agy')!;
+    assert.ok((used.bucketCooldown?.gemini ?? 0) > Date.now(), 'account phải bị cooldown đúng bể gemini');
+    assert.equal(used.cooldownUntil, 0, 'không được khoá toàn cục khi đã biết bể');
+  } finally {
+    PROVIDERS.agy = fakeAgy;
+  }
+});
+
 test('stream: lỗi SAU khi đã gửi byte → không phát lại, không đổi account (giới hạn đã biết)', async () => {
   // Lượt 1: phát 1 delta rồi chết giữa chừng → đã gửi byte, không cứu được nữa.
   const dyingOnce: Provider = {

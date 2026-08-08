@@ -37,6 +37,44 @@ export const BASE_HOSTS = [
   'https://daily-cloudcode-pa.sandbox.googleapis.com',
 ];
 
+/**
+ * Nhịp chờ trước khi thử host kế khi 429/5xx — tăng dần theo vị trí host.
+ * Dùng CHUNG cho stream lẫn non-stream: trước đây chỉ stream có backoff, còn apiCall
+ * đập 3 host liên tiếp không nghỉ — khi Google chặn tốc độ thì tự đổ thêm dầu.
+ */
+export const HOST_BACKOFF_MS = [1000, 3000, 5000] as const;
+export function hostBackoffMs(hostIdx: number): number {
+  return HOST_BACKOFF_MS[hostIdx] ?? HOST_BACKOFF_MS[HOST_BACKOFF_MS.length - 1]!;
+}
+
+/**
+ * Chờ promise nhưng bỏ cuộc sau `idleMs` — chống stream TREO GIỮA CHỪNG: upstream giữ
+ * kết nối mở mà ngừng gửi dữ liệu thì `reader.read()` chờ vô hạn, còn AbortSignal.timeout
+ * 300s là trần TỔNG THỜI GIAN chứ không phải trần im lặng, nên request kẹt tới 5 phút
+ * dù upstream đã chết từ giây thứ 10.
+ *
+ * Message chứa "idle timeout" khớp isTransientError (pool.ts) → account chỉ bị cooldown
+ * ngắn, không bị phạt như hết hạn mức.
+ */
+export async function withIdleTimeout<T>(p: Promise<T>, idleMs: number, onTimeout?: () => void): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      p,
+      new Promise<never>((_, reject) => {
+        // KHÔNG unref: timer sống rất ngắn (clear ngay khi read xong). Unref làm event
+        // loop cạn sớm khi không còn gì khác giữ — promise chờ sẽ không bao giờ settle.
+        timer = setTimeout(() => {
+          onTimeout?.();
+          reject(new Error(`stream idle timeout: upstream im lặng quá ${Math.round(idleMs / 1000)}s`));
+        }, idleMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ---------- types ----------
 export interface TokenInfo {
   accessToken: string;
@@ -178,11 +216,31 @@ export function isImageModel(model: string): boolean {
   return !!model && model.toLowerCase().includes('image');
 }
 
-/** Tạo ProxyAgent từ URL proxy (http://user:pass@host:port). '' | undefined → undefined (direct). */
+/**
+ * ProxyAgent theo URL — MEMOIZE. Trước đây mỗi request tạo ProxyAgent MỚI, nghĩa là:
+ *  (a) không bao giờ tái dùng kết nối (mỗi request một lượt TCP+TLS handshake qua proxy),
+ *  (b) agent cũ không được close → rò socket/FD tăng dần theo lưu lượng.
+ * Số proxy hữu hạn (proxies.csv) nên cache theo URL; cap phòng URL bịa qua API override.
+ */
+const PROXY_AGENT_CAP = 128;
+const proxyAgents = new Map<string, Dispatcher>();
+
+/** Tạo/lấy ProxyAgent từ URL proxy (http://user:pass@host:port). '' | undefined → undefined (direct). */
 export function proxyDispatcher(url?: string): Dispatcher | undefined {
   if (!url) return undefined;
+  const hit = proxyAgents.get(url);
+  if (hit) return hit;
   try {
-    return new ProxyAgent(url);
+    const agent = new ProxyAgent(url);
+    if (proxyAgents.size >= PROXY_AGENT_CAP) {
+      // Đầy cache → đóng agent cũ nhất (thứ tự chèn của Map). Request đang bay trên
+      // agent đó vẫn chạy nốt: undici close() là graceful, chỉ chặn request mới.
+      const [oldUrl, old] = proxyAgents.entries().next().value as [string, Dispatcher];
+      proxyAgents.delete(oldUrl);
+      Promise.resolve(old.close()).catch(() => {});
+    }
+    proxyAgents.set(url, agent);
+    return agent;
   } catch {
     return undefined;
   }
@@ -231,7 +289,8 @@ async function apiCall(accessToken: string, method: string, body: unknown, o: Ap
   };
   if (control) headers['x-goog-api-client'] = GOOG_API_CLIENT;
   let lastErr: unknown;
-  for (const host of BASE_HOSTS) {
+  for (let hi = 0; hi < BASE_HOSTS.length; hi++) {
+    const host = BASE_HOSTS[hi]!;
     try {
       const res = await fetch(`${host}/${API_VERSION}:${method}`, {
         method: 'POST',
@@ -247,9 +306,10 @@ async function apiCall(accessToken: string, method: string, body: unknown, o: Ap
         };
         err.status = res.status;
         err.retryAfterMs = parseRetryAfterMs(res.headers.get('retry-after'), text);
-        // 429/5xx → thử host kế; 4xx khác → ném ngay
+        // 429/5xx → backoff rồi thử host kế (cùng nhịp với stream); 4xx khác → ném ngay
         if (res.status === 429 || res.status >= 500) {
           lastErr = err;
+          if (hi < BASE_HOSTS.length - 1) await new Promise((r) => setTimeout(r, hostBackoffMs(hi)));
           continue;
         }
         throw err;
@@ -657,9 +717,7 @@ export async function* generateStream(
         res = null;
         // Backoff trước khi thử host kế: giảm xác suất bị 429 liên tục khi
         // nhiều request song song cùng đập vào cùng lúc.
-        const hostIdx = BASE_HOSTS.indexOf(host);
-        const backoffMs = [1000, 3000, 5000][hostIdx] ?? 5000;
-        await new Promise((r) => setTimeout(r, backoffMs));
+        await new Promise((r) => setTimeout(r, hostBackoffMs(BASE_HOSTS.indexOf(host))));
         continue;
       }
       const t = await res.text().catch(() => '');
@@ -678,8 +736,13 @@ export async function* generateStream(
   let buf = '';
   let usage: Usage | undefined;
   let finishReason: string | undefined;
+  // Trần IM LẶNG giữa 2 chunk (khác trần tổng 300s ở trên): upstream ngừng gửi mà giữ
+  // kết nối → cắt sớm để engine còn báo lỗi/failover thay vì treo hết 5 phút.
+  const idleMs = Number(process.env.AGY_STREAM_IDLE_MS) || 90_000;
   for (;;) {
-    const { value, done } = await reader.read();
+    const { value, done } = await withIdleTimeout(reader.read(), idleMs, () => {
+      reader.cancel().catch(() => {});
+    });
     if (done) break;
     buf += dec.decode(value, { stream: true });
     let nl: number;

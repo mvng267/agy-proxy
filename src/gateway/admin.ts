@@ -26,6 +26,7 @@ import {
   listCombos, testAccount, checkLiveAccount, emitCheck,
 } from './engine.js';
 import { toMessages } from './dialects/wire.js';
+import { gatewayMetrics } from './metrics.js';
 
 /**
  * Admin API cho dashboard: quản lý account/key/config/combo, báo cáo usage & quota,
@@ -333,6 +334,32 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     } catch (e: any) {
       return reply.code(502).send({ ok: false, error: e?.message ?? String(e) });
     }
+  });
+
+  /**
+   * Health/metrics tức thời cho monitoring poll dày (dashboard KPI, alerting):
+   * cửa sổ trượt 5 phút trong RAM (không quét DB) + trạng thái pool hiện tại.
+   * Khác /api/gateway/stats (xu hướng dài hạn, đọc DB) — xem ghi chú ở metrics.ts.
+   */
+  app.get('/api/metrics', async () => {
+    const now = Date.now();
+    const accounts = Object.fromEntries(
+      PROVIDER_IDS.map((pid) => {
+        const all = pool.list(pid);
+        return [pid, {
+          total: all.length,
+          available: pool.candidates(now, pid).length,
+          inflight: all.reduce((s, a) => s + a.inflight, 0),
+        }];
+      }),
+    );
+    return {
+      now,
+      uptimeSec: Math.round(process.uptime()),
+      window: gatewayMetrics.snapshot(now),
+      accounts,
+      rssMb: Math.round(process.memoryUsage.rss() / 1024 / 1024),
+    };
   });
 
   /**

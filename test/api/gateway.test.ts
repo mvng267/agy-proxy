@@ -54,6 +54,21 @@ test('GET /proxy/v1/models đúng OpenAI shape + id CÓ prefix provider', async 
   assert.ok(j.data.some((m: any) => m.id === 'auto'), 'phải có combo ảo auto');
 });
 
+test('GET /api/metrics đúng shape (cửa sổ + pool + uptime)', async () => {
+  const r = await app.inject({ method: 'GET', url: '/api/metrics' });
+  assert.equal(r.statusCode, 200);
+  const j = r.json();
+  assert.ok(typeof j.uptimeSec === 'number');
+  assert.ok(typeof j.rssMb === 'number' && j.rssMb > 0);
+  for (const k of ['windowSec', 'requests', 'errors', 'errorRate', 'rps', 'totals']) {
+    assert.ok(k in j.window, `thiếu window.${k}`);
+  }
+  assert.ok(j.accounts.agy && j.accounts.kr, 'phải có số liệu pool từng provider');
+  for (const k of ['total', 'available', 'inflight']) {
+    assert.ok(typeof j.accounts.agy[k] === 'number', `thiếu accounts.agy.${k}`);
+  }
+});
+
 test('GET /api/gateway/accounts đúng shape', async () => {
   const r = await app.inject({ method: 'GET', url: '/api/gateway/accounts' });
   assert.equal(r.statusCode, 200);

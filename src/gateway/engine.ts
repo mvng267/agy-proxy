@@ -7,6 +7,7 @@ import { emitLog } from '../events.js';
 import { store } from '../store/index.js';
 import {
   recordGatewayUsage, listComboRows, recordComboRun, providerStats, recordQuota, setSetting,
+  comboRevision,
 } from '../store/db.js';
 import {
   PROVIDERS, PROVIDER_IDS, parseModelId,
@@ -30,6 +31,7 @@ import {
 } from './pool.js';
 import { refreshAccessToken, type ChatMessage, type GenResult, type ToolCall, type ToolDef } from './antigravity.js';
 import { openaiCompletion, sseChunk } from './dialects/wire.js';
+import { gatewayMetrics } from './metrics.js';
 
 /**
  * Engine: business logic của gateway — chọn account, gọi provider với failover,
@@ -96,6 +98,7 @@ export function afterCall(
   r: { ok: boolean; promptTokens?: number; completionTokens?: number; ms: number; status?: number },
   ctx?: UsageCtx,
 ) {
+  gatewayMetrics.record(r.ok, r.ms);
   recordGatewayUsage({
     ts: Date.now(),
     email: account.email,
@@ -188,14 +191,27 @@ export async function pickReady(
 }
 
 // ---------------- Combo helpers ----------------
+/**
+ * Cache combo đã parse — trước đây MỖI request combo đều query DB + JSON.parse toàn bộ
+ * targets. Revision (bump trong upsert/deleteComboRow) làm thay đổi trong process thấy
+ * NGAY; TTL 10s là lưới an toàn cho process khác ghi DB (CLI) mà không bump được rev.
+ */
+let comboCache: { rev: number; at: number; combos: Combo[] } | null = null;
+
 export function listCombos(): Combo[] {
-  return listComboRows().map((r) => ({
+  const rev = comboRevision();
+  if (comboCache && comboCache.rev === rev && Date.now() - comboCache.at < 10_000) {
+    return comboCache.combos;
+  }
+  const combos = listComboRows().map((r) => ({
     id: r.id,
     name: r.name,
     strategy: r.strategy as ComboStrategy,
     targets: JSON.parse(r.targets_json) as ComboTarget[],
     enabled: r.enabled !== 0,
   }));
+  comboCache = { rev, at: Date.now(), combos };
+  return combos;
 }
 
 let statsCache: { at: number; snap: PoolSnapshot } | null = null;
@@ -401,6 +417,13 @@ export async function runProviderCall(opts: {
   let tries = 0;
   let skips = 0;
 
+  // Kích thước prompt + số tool đi kèm mọi dòng req-log: khi 429 hàng loạt, đây là thứ
+  // duy nhất phân biệt được request của client thật với request thử nghiệm. Tính MỘT lần
+  // ngoài vòng failover — stringify cả messages (có thể hàng MB) mỗi attempt × tối đa
+  // 32 lượt skip là chi phí O(n²) vô ích trên cùng một payload bất biến.
+  const promptKB = Math.round(JSON.stringify(messages).length / 1024);
+  const nTools = opts.tools?.length ?? 0;
+
   for (let attempt = 0; tries < maxTry && skips <= maxSkip; attempt++) {
     // `avail` là ảnh chụp TRƯỚC vòng lặp. Trong một đợt 429 diện rộng, số account khả
     // dụng đổi rất nhanh (cooldown hết hạn, account khác được release) nhưng ngân sách
@@ -436,11 +459,6 @@ export async function runProviderCall(opts: {
     if (stream) releaseLimiter = await streamLimiter.acquire();
     const t0 = Date.now();
     const plabel = proxyLabelOf(ctx.account);
-    // Kích thước prompt + số tool đi kèm mọi dòng req: khi 429 hàng loạt, đây là thứ
-    // duy nhất phân biệt được request của client thật với request thử nghiệm — không có
-    // nó thì log chỉ nói "đổi account" mà không cho biết request nào gây ra.
-    const promptKB = Math.round(JSON.stringify(messages).length / 1024);
-    const nTools = opts.tools?.length ?? 0;
     emitGw({
       kind: 'req', account: ctx.account.email, model: labelModel, proxy: plabel,
       endpoint: opts.endpoint ?? '/proxy/v1', attempt: attempt + 1,
