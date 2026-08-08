@@ -157,7 +157,7 @@ export function ApiKeys() {
         actions={
           <button
             onClick={() => setShowForm((v) => !v)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-white hover:opacity-90"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
             <Plus className="h-3.5 w-3.5" />
             Tạo key mới
@@ -237,7 +237,7 @@ export function ApiKeys() {
             <div className="mt-4 flex justify-end">
               <button
                 onClick={() => setNewKey(null)}
-                className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-white hover:opacity-90"
+                className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
               >
                 Đã lưu
               </button>

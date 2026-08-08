@@ -17,6 +17,7 @@ import {
   CheckCheck,
 } from "lucide-react"
 import { KpiCard } from "@/components/common"
+import { PoolDonut } from "@/components/common/charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -89,47 +90,6 @@ function fmtCooldown(until?: number) {
 
 // ── Donut Chart ────────────────────────────────────────────────────────
 
-function DonutChart({ total, active, cooldown, size = 120, strokeWidth = 12 }: {
-  total: number; active: number; cooldown: number; size?: number; strokeWidth?: number
-}) {
-  const radius = (size - strokeWidth) / 2
-  const circumference = 2 * Math.PI * radius
-  const center = size / 2
-  if (total === 0) {
-    return (
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="transform -rotate-90">
-          <circle cx={center} cy={center} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-border" />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-lg font-bold text-muted-foreground">0</span>
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">total</span>
-        </div>
-      </div>
-    )
-  }
-  const activeRatio = active / total
-  const cooldownRatio = cooldown / total
-  const inactiveRatio = 1 - activeRatio - cooldownRatio
-  const activeLen = circumference * activeRatio
-  const cooldownLen = circumference * cooldownRatio
-  const inactiveLen = circumference * inactiveRatio
-  const cooldownOffset = -(activeLen)
-  const inactiveOffset = -(activeLen + cooldownLen)
-  return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="transform -rotate-90">
-        {active > 0 && <circle cx={center} cy={center} r={radius} fill="none" stroke="#22c55e" strokeWidth={strokeWidth} strokeDasharray={`${activeLen} ${circumference - activeLen}`} strokeDashoffset={0} strokeLinecap="round" className="transition-all duration-700" />}
-        {cooldown > 0 && <circle cx={center} cy={center} r={radius} fill="none" stroke="#f97316" strokeWidth={strokeWidth} strokeDasharray={`${cooldownLen} ${circumference - cooldownLen}`} strokeDashoffset={cooldownOffset} strokeLinecap="round" className="transition-all duration-700" />}
-        {inactiveRatio > 0 && <circle cx={center} cy={center} r={radius} fill="none" stroke="#334155" strokeWidth={strokeWidth} strokeDasharray={`${inactiveLen} ${circumference - inactiveLen}`} strokeDashoffset={inactiveOffset} className="transition-all duration-700" />}
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold text-foreground">{active}</span>
-        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">active</span>
-      </div>
-    </div>
-  )
-}
 
 // ── KPI Card ───────────────────────────────────────────────────────────
 
@@ -359,22 +319,22 @@ export function Pool() {
 
   const statusBadge = (acc: PoolAccount) => {
     if (!acc.enabled) return <Badge className="bg-muted text-muted-foreground border-none text-[10px]">Off</Badge>
-    if (acc.cooldown) return <Badge className="bg-orange-500/15 text-orange-400 border-none text-[10px]">Cooldown</Badge>
-    if (acc.health === "alive") return <Badge className="bg-emerald-500/15 text-emerald-400 border-none text-[10px]">Active</Badge>
-    if (acc.health === "dead") return <Badge className="bg-red-500/15 text-red-400 border-none text-[10px]">Dead</Badge>
+    if (acc.cooldown) return <Badge className="bg-warning/15 text-warning border-none text-[10px]">Cooldown</Badge>
+    if (acc.health === "alive") return <Badge className="bg-success/15 text-success border-none text-[10px]">Active</Badge>
+    if (acc.health === "dead") return <Badge className="bg-destructive/15 text-destructive border-none text-[10px]">Dead</Badge>
     return <Badge className="bg-muted text-muted-foreground border-none text-[10px]">—</Badge>
   }
 
   const healthBadge = (h?: string) => {
-    if (h === "alive") return <span className="text-emerald-400 text-xs">● alive</span>
-    if (h === "dead") return <span className="text-red-400 text-xs">● dead</span>
+    if (h === "alive") return <span className="text-success text-xs">● alive</span>
+    if (h === "dead") return <span className="text-destructive text-xs">● dead</span>
     return <span className="text-muted-foreground text-xs">—</span>
   }
 
   const liveBadge = (s?: string) => {
-    if (s === "ok") return <span className="text-emerald-400 text-xs">✓ live</span>
-    if (s === "quota") return <span className="text-amber-400 text-xs">⏳ quota</span>
-    if (s === "error") return <span className="text-red-400 text-xs">✗ error</span>
+    if (s === "ok") return <span className="text-success text-xs">✓ live</span>
+    if (s === "quota") return <span className="text-warning text-xs">⏳ quota</span>
+    if (s === "error") return <span className="text-destructive text-xs">✗ error</span>
     return <span className="text-muted-foreground text-xs">—</span>
   }
 
@@ -394,9 +354,9 @@ export function Pool() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <AlertTriangle className="h-8 w-8 text-red-500" />
+        <AlertTriangle className="h-8 w-8 text-destructive" />
         <p className="text-sm text-muted-foreground">Error: {error}</p>
-        <button onClick={fetchData} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5">
+        <button onClick={fetchData} className="text-xs text-primary hover:text-primary/80 flex items-center gap-1.5">
           <RefreshCw className="h-3 w-3" /> Retry
         </button>
       </div>
@@ -413,7 +373,7 @@ export function Pool() {
             size="sm"
             onClick={() => setProvider(key)}
             className={provider === key
-              ? "bg-orange-500 hover:bg-orange-600 text-white h-8 text-xs"
+              ? "bg-primary hover:bg-primary/90 text-primary-foreground h-8 text-xs"
               : "border border-border bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted h-8 text-xs"}
           >
             {label}
@@ -443,11 +403,21 @@ export function Pool() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-6">
-              <DonutChart total={poolTotal} active={poolActive} cooldown={poolCooldown} size={110} strokeWidth={10} />
+              <PoolDonut
+                center={poolActive}
+                sub="sẵn sàng"
+                size={110}
+                strokeWidth={10}
+                segments={[
+                  { label: "Sẵn sàng", value: poolActive, tone: "success" },
+                  { label: "Cooldown", value: poolCooldown, tone: "warning" },
+                  { label: "Không dùng được", value: Math.max(0, poolTotal - poolActive - poolCooldown), tone: "danger" },
+                ]}
+              />
               <div className="flex-1 space-y-2 text-xs">
                 {[
-                  { label: "Active", color: "bg-emerald-500", val: poolActive },
-                  { label: "Cooldown", color: "bg-orange-500", val: poolCooldown },
+                  { label: "Active", color: "bg-success", val: poolActive },
+                  { label: "Cooldown", color: "bg-warning", val: poolCooldown },
                   { label: "Inactive", color: "bg-muted-foreground/40", val: poolInactive },
                 ].map(({ label, color, val }) => (
                   <div key={label} className="flex items-center justify-between">
@@ -473,19 +443,19 @@ export function Pool() {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Active</span>
-                <span className="text-emerald-400 font-medium tabular-nums">{poolActive} / {poolTotal} ({pctActive}%)</span>
+                <span className="text-success font-medium tabular-nums">{poolActive} / {poolTotal} ({pctActive}%)</span>
               </div>
               <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div className="h-full bg-emerald-500 transition-all duration-500 rounded-full" style={{ width: `${pctActive}%` }} />
+                <div className="h-full bg-success transition-all duration-500 rounded-full" style={{ width: `${pctActive}%` }} />
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Cooldown</span>
-                <span className="text-orange-400 font-medium tabular-nums">{poolCooldown} / {poolTotal} ({pctCooldown}%)</span>
+                <span className="text-warning font-medium tabular-nums">{poolCooldown} / {poolTotal} ({pctCooldown}%)</span>
               </div>
               <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div className="h-full bg-orange-500 transition-all duration-500 rounded-full" style={{ width: `${pctCooldown}%` }} />
+                <div className="h-full bg-warning transition-all duration-500 rounded-full" style={{ width: `${pctCooldown}%` }} />
               </div>
             </div>
           </CardContent>
@@ -495,11 +465,11 @@ export function Pool() {
       {/* Check progress bar */}
       {checkProgress && (
         <div className="flex items-center gap-3 bg-muted/60 rounded-lg px-4 py-2">
-          <RefreshCw className="h-3.5 w-3.5 text-orange-400 animate-spin" />
+          <RefreshCw className="h-3.5 w-3.5 text-warning animate-spin" />
           <span className="text-xs text-foreground">Đang check…</span>
           <div className="flex-1 h-1.5 rounded-full bg-muted">
             <div
-              className="h-full bg-orange-500 rounded-full transition-all"
+              className="h-full bg-warning rounded-full transition-all"
               style={{ width: `${checkProgress.total ? Math.round((checkProgress.done / checkProgress.total) * 100) : 0}%` }}
             />
           </div>
@@ -511,7 +481,7 @@ export function Pool() {
       {selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 bg-muted/50 rounded-lg px-4 py-2">
           <span className="text-xs text-muted-foreground mr-1">{selected.size} đã chọn</span>
-          <Button size="sm" onClick={() => handleBulkEnable(true, [...selected])} className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-xs gap-1">
+          <Button size="sm" onClick={() => handleBulkEnable(true, [...selected])} className="bg-success hover:bg-success text-white h-7 text-xs gap-1">
             <Power className="h-3 w-3" /> Bật
           </Button>
           <Button size="sm" onClick={() => handleBulkEnable(false, [...selected])} className="bg-muted hover:bg-muted-foreground/40 text-foreground h-7 text-xs gap-1">
@@ -571,13 +541,13 @@ export function Pool() {
                 <option value="quota">Quota</option>
               </select>
               {/* Bulk: Enable all / Disable all / Wake / Check all / Refresh quota all */}
-              <Button size="sm" onClick={() => handleBulkEnable(true)} className="border border-border bg-transparent text-emerald-400 hover:bg-muted h-8 text-xs gap-1">
+              <Button size="sm" onClick={() => handleBulkEnable(true)} className="border border-border bg-transparent text-success hover:bg-muted h-8 text-xs gap-1">
                 <Power className="h-3 w-3" /> All On
               </Button>
               <Button size="sm" onClick={() => handleBulkEnable(false)} className="border border-border bg-transparent text-muted-foreground hover:bg-muted h-8 text-xs gap-1">
                 <PowerOff className="h-3 w-3" /> All Off
               </Button>
-              <Button size="sm" onClick={handleWake} className="border border-border bg-transparent text-orange-400 hover:bg-muted h-8 text-xs gap-1">
+              <Button size="sm" onClick={handleWake} className="border border-border bg-transparent text-warning hover:bg-muted h-8 text-xs gap-1">
                 <Snowflake className="h-3 w-3" /> Wake
               </Button>
               <Button size="sm" onClick={() => startCheck("live")} className="border border-border bg-transparent text-muted-foreground hover:bg-muted h-8 text-xs gap-1">
@@ -586,7 +556,7 @@ export function Pool() {
               <Button size="sm" onClick={() => handleBulkQuota()} className="border border-border bg-transparent text-muted-foreground hover:bg-muted h-8 text-xs gap-1">
                 <Gauge className="h-3 w-3" /> Quota All
               </Button>
-              <Button size="sm" onClick={fetchData} className="border border-border bg-transparent text-muted-foreground hover:text-orange-400 h-8 text-xs gap-1">
+              <Button size="sm" onClick={fetchData} className="border border-border bg-transparent text-muted-foreground hover:text-warning h-8 text-xs gap-1">
                 <RefreshCw className="h-3 w-3" /> Refresh
               </Button>
             </div>
@@ -629,7 +599,7 @@ export function Pool() {
                     return (
                       <TableRow
                         key={acc.email}
-                        className={`border-border hover:bg-muted/50 ${!acc.enabled ? "opacity-50" : ""} ${acc.cooldown ? "bg-orange-500/5" : ""}`}
+                        className={`border-border hover:bg-muted/50 ${!acc.enabled ? "opacity-50" : ""} ${acc.cooldown ? "bg-warning/5" : ""}`}
                       >
                         <TableCell>
                           <input
@@ -644,7 +614,7 @@ export function Pool() {
                           <button
                             onClick={() => handleToggle(acc, !acc.enabled)}
                             disabled={sp.toggle}
-                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${acc.enabled ? "bg-orange-500" : "bg-muted"}`}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${acc.enabled ? "bg-primary" : "bg-muted"}`}
                           >
                             <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${acc.enabled ? "translate-x-4" : "translate-x-1"}`} />
                           </button>
@@ -652,7 +622,7 @@ export function Pool() {
                         <TableCell className="text-sm text-foreground font-mono max-w-[220px] truncate">{acc.email}</TableCell>
                         <TableCell className="text-xs text-muted-foreground tabular-nums">
                           {acc.geminiPct != null ? (
-                            <span className={acc.geminiPct >= 50 ? "text-emerald-400" : acc.geminiPct >= 20 ? "text-amber-400" : "text-red-400"}>
+                            <span className={acc.geminiPct >= 50 ? "text-success" : acc.geminiPct >= 20 ? "text-warning" : "text-destructive"}>
                               {acc.geminiPct}%
                             </span>
                           ) : "—"}
@@ -664,7 +634,7 @@ export function Pool() {
                             {liveBadge(acc.liveStatus)}
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs text-orange-400 tabular-nums">
+                        <TableCell className="text-xs text-warning tabular-nums">
                           {acc.cooldown ? fmtCooldown(acc.cooldownUntil) : "—"}
                         </TableCell>
                         <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
@@ -680,7 +650,7 @@ export function Pool() {
                               title="Test token"
                               onClick={() => handleTest(acc.email)}
                               disabled={sp.test}
-                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-emerald-400 disabled:opacity-50"
+                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-success disabled:opacity-50"
                             >
                               {sp.test
                                 ? <RefreshCw className="h-3 w-3 animate-spin" />
@@ -691,7 +661,7 @@ export function Pool() {
                               title="Check live"
                               onClick={() => handleCheckLive(acc.email)}
                               disabled={sp.live}
-                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-orange-400 disabled:opacity-50"
+                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-warning disabled:opacity-50"
                             >
                               {sp.live
                                 ? <RefreshCw className="h-3 w-3 animate-spin" />
@@ -702,7 +672,7 @@ export function Pool() {
                               title="Refresh quota"
                               onClick={() => handleRefreshQuota(acc.email)}
                               disabled={sp.quota}
-                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-blue-400 disabled:opacity-50"
+                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-info disabled:opacity-50"
                             >
                               {sp.quota
                                 ? <RefreshCw className="h-3 w-3 animate-spin" />
@@ -745,7 +715,7 @@ export function Pool() {
                     <button
                       key={p}
                       onClick={() => setPage(p)}
-                      className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-orange-500 text-white" : "text-muted-foreground hover:bg-muted"}`}
+                      className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
                     >
                       {p}
                     </button>
