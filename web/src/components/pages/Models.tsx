@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react"
-import { PageHeader } from "@/components/common"
+import { KpiCard, PageHeader } from "@/components/common"
+import { SegmentBar } from "@/components/common/charts"
 import {
   Cpu,
   RefreshCw,
@@ -385,22 +386,25 @@ export function Models() {
         </div>
       )}
 
-      {/* KPI row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: "Live", count: statusCounts.ok, color: "text-success" },
-          { label: "Quota", count: statusCounts.quota, color: "text-warning" },
-          { label: "Error", count: statusCounts.error, color: "text-destructive" },
-          { label: "Chưa kiểm", count: statusCounts.unknown, color: "text-muted-foreground" },
-        ].map((s) => (
-          <Card key={s.label} className="bg-card border-border">
-            <CardContent className="pt-3 pb-3">
-              <p className="text-xs text-muted-foreground mb-0.5">{s.label}</p>
-              <p className={`text-xl font-bold tabular-nums ${s.color}`}>{s.count}</p>
-            </CardContent>
-          </Card>
-        ))}
+      {/* KPI row — KpiCard chung (text-xl/bold tay trước đây khác cỡ với các trang khác). */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard label="Live" value={statusCounts.ok} tone="success" icon={Cpu} loading={loading} />
+        <KpiCard label="Quota" value={statusCounts.quota} tone="warning" icon={Cpu} loading={loading} />
+        <KpiCard label="Error" value={statusCounts.error} tone="danger" icon={Cpu} loading={loading} />
+        <KpiCard label="Chưa kiểm" value={statusCounts.unknown} icon={Cpu} loading={loading} />
       </div>
+
+      {/* Bốn trạng thái cộng lại = tổng số model → SegmentBar. */}
+      {models.length > 0 && (
+        <SegmentBar
+          segments={[
+            { label: "Live", value: statusCounts.ok, tone: "success" },
+            { label: "Quota", value: statusCounts.quota, tone: "warning" },
+            { label: "Error", value: statusCounts.error, tone: "danger" },
+            { label: "Chưa kiểm", value: statusCounts.unknown, tone: "muted" },
+          ]}
+        />
+      )}
 
       {/* Provider tabs */}
       {providerKeys.length > 1 && (

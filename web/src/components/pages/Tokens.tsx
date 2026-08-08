@@ -11,6 +11,8 @@ import {
   ShieldCheck,
 } from "lucide-react"
 import { DataTable } from "@/components/common/DataTable"
+import { KpiCard } from "@/components/common"
+import { SegmentBar } from "@/components/common/charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -306,55 +308,24 @@ export function Tokens() {
 
   return (
     <div className="space-y-4">
-      {/* KPI row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="bg-card border-border">
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Tổng</p>
-            <p className="text-2xl font-bold text-foreground tabular-nums">{creds.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Alive</p>
-            <p className="text-2xl font-bold text-success tabular-nums">{alive}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Dead</p>
-            <p className="text-2xl font-bold text-destructive tabular-nums">{dead}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Chưa rõ</p>
-            <p className="text-2xl font-bold text-muted-foreground tabular-nums">{unknown}</p>
-          </CardContent>
-        </Card>
+      {/* KPI row — KpiCard chung: 4 dấu góc + nền lưới + cỡ chữ chuẩn Atlas. Trước
+          đây là Card tay dùng text-2xl/bold nên trang này trông khác phần còn lại. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard label="Tổng" value={creds.length} icon={KeyRound} loading={loading} />
+        <KpiCard label="Alive" value={alive} tone="success" sub={creds.length ? `${Math.round((alive / creds.length) * 100)}% tổng` : undefined} loading={loading} />
+        <KpiCard label="Dead" value={dead} tone="danger" loading={loading} />
+        <KpiCard label="Chưa rõ" value={unknown} loading={loading} />
       </div>
 
-      {/* Health bar */}
+      {/* Ba trạng thái cộng lại đúng 100% → SegmentBar, thay stacked bar tự dựng bằng div. */}
       {creds.length > 0 && (
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-2 rounded-full overflow-hidden bg-muted flex">
-            <div
-              className="h-full bg-success transition-all"
-              style={{ width: `${(alive / creds.length) * 100}%` }}
-            />
-            <div
-              className="h-full bg-destructive transition-all"
-              style={{ width: `${(dead / creds.length) * 100}%` }}
-            />
-            <div
-              className="h-full bg-muted-foreground/40 transition-all"
-              style={{ width: `${(unknown / creds.length) * 100}%` }}
-            />
-          </div>
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
-            {Math.round((alive / creds.length) * 100)}% alive
-          </span>
-        </div>
+        <SegmentBar
+          segments={[
+            { label: "Alive", value: alive, tone: "success" },
+            { label: "Dead", value: dead, tone: "danger" },
+            { label: "Chưa rõ", value: unknown, tone: "muted" },
+          ]}
+        />
       )}
 
       {/* Toolbar */}

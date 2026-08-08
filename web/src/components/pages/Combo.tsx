@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react"
-import { PageHeader } from "@/components/common"
+import { KpiCard, PageHeader } from "@/components/common"
+import { SegmentBar } from "@/components/common/charts"
 import {
   Shuffle,
   RefreshCw,
@@ -240,48 +241,30 @@ export function Combo() {
   return (
     <div className="space-y-4">
       <PageHeader title="Combo" desc="Nhóm nhiều model thành một tên gọi, có thứ tự ưu tiên" />
-      {/* Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-card border-border">
-          <CardContent className="pt-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Combos</p>
-                <p className="text-2xl font-bold text-foreground tabular-nums">{combos.length}</p>
-              </div>
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                <Shuffle className="h-4 w-4" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="pt-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Enabled</p>
-                <p className="text-2xl font-bold text-success tabular-nums">{enabledCount}</p>
-              </div>
-              <div className="p-2 rounded-lg bg-success/10 text-success">
-                <Shuffle className="h-4 w-4" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="pt-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Auto Variants</p>
-                <p className="text-2xl font-bold text-foreground">{autoVariants ? "On" : "Off"}</p>
-              </div>
-              <div className="p-2 rounded-lg bg-info/10 text-info">
-                <Shuffle className="h-4 w-4" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Summary — KpiCard chung thay 3 Card tay (text-2xl/bold, thiếu dấu góc + nền lưới). */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <KpiCard label="Tổng combo" value={combos.length} icon={Shuffle} loading={loading} />
+        <KpiCard
+          label="Đang bật"
+          value={enabledCount}
+          tone="success"
+          sub={combos.length ? `${Math.round((enabledCount / combos.length) * 100)}% tổng` : undefined}
+          icon={Shuffle}
+          loading={loading}
+        />
+        <KpiCard label="Auto variants" value={autoVariants ? "On" : "Off"} icon={Shuffle} loading={loading} />
       </div>
+
+      {/* Bật/tắt cộng lại đúng 100% → SegmentBar. */}
+      {combos.length > 0 && (
+        <SegmentBar
+          segments={[
+            { label: "Bật", value: enabledCount, tone: "success" },
+            { label: "Tắt", value: combos.length - enabledCount, tone: "muted" },
+          ]}
+        />
+      )}
+
 
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">

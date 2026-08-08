@@ -13,6 +13,8 @@ import {
   WifiOff,
   Zap,
 } from "lucide-react"
+import { KpiCard } from "@/components/common"
+import { SegmentBar } from "@/components/common/charts"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -237,6 +239,10 @@ export function Connections() {
     (a.provider ?? "").localeCompare(b.provider ?? "")
   )
 
+  // Gom điều kiện phân loại về một chỗ — trước đây lặp inline trong 2 thẻ KPI.
+  const statusOf = (c: Connection) => (c.status ?? c.testStatus ?? "").toLowerCase()
+  const connActive = connections.filter((c) => ["active", "ok", "online"].includes(statusOf(c))).length
+  const connFailed = connections.filter((c) => ["failed", "offline", "error"].includes(statusOf(c))).length
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -258,37 +264,23 @@ export function Connections() {
         </Button>
       </div>
 
-      {/* Summary KPIs */}
+      {/* Summary KPIs — KpiCard chung thay 3 Card tay. */}
       <div className="grid grid-cols-3 gap-3">
-        <Card className="bg-card border-border">
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground mb-1">Tổng connections</p>
-            <p className="text-2xl font-bold text-foreground tabular-nums">{connections.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground mb-1">Active</p>
-            <p className="text-2xl font-bold text-success tabular-nums">
-              {connections.filter((c) => {
-                const s = (c.status ?? c.testStatus ?? "").toLowerCase()
-                return s === "active" || s === "ok" || s === "online"
-              }).length}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground mb-1">Offline/Lỗi</p>
-            <p className="text-2xl font-bold text-destructive tabular-nums">
-              {connections.filter((c) => {
-                const s = (c.status ?? c.testStatus ?? "").toLowerCase()
-                return s === "failed" || s === "offline" || s === "error"
-              }).length}
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard label="Tổng connections" value={connections.length} icon={Wifi} loading={loading} />
+        <KpiCard label="Active" value={connActive} tone="success" icon={Wifi} loading={loading} />
+        <KpiCard label="Offline/Lỗi" value={connFailed} tone="danger" icon={Wifi} loading={loading} />
       </div>
+
+      {/* Ba trạng thái cộng lại thành tổng → SegmentBar. */}
+      {connections.length > 0 && (
+        <SegmentBar
+          segments={[
+            { label: "Active", value: connActive, tone: "success" },
+            { label: "Offline/Lỗi", value: connFailed, tone: "danger" },
+            { label: "Khác", value: Math.max(0, connections.length - connActive - connFailed), tone: "muted" },
+          ]}
+        />
+      )}
 
       {/* Connection List */}
       {sorted.length === 0 ? (

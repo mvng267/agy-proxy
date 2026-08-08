@@ -6,6 +6,7 @@ import { fmtNum } from "@/lib/format"
 import type { ApiKey, UsageResponse } from "@/lib/types"
 import { POLL } from "@/lib/queryClient"
 import { DataTable, KpiCard, PageHeader, ChartCard, ErrorState, type Column } from "@/components/common"
+import { BarSeries } from "@/components/common/charts"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 
@@ -68,7 +69,6 @@ export function Reports() {
 
   const d = usage.data
   const series = d?.series ?? []
-  const max = Math.max(1, ...series.map((s) => (metric === "requests" ? s.requests : s.tokIn + s.tokOut)))
   const days = f.range === "90d" ? 90 : f.range === "30d" ? 30 : 7
 
   const modelCols: Column<{ model: string; requests: number; tokIn: number; tokOut: number }>[] = [
@@ -182,40 +182,15 @@ export function Reports() {
         }
       >
         {series.length ? (
-          <div className="space-y-1">
-            {/* Trục Y tối giản: mốc cao nhất + 0, để đọc được độ lớn thay vì chỉ so bằng mắt. */}
-            <div className="flex items-end gap-2">
-              <div className="flex h-40 w-12 shrink-0 flex-col justify-between py-0.5 text-right text-[11px] tabular-nums text-muted-foreground">
-                <span>{fmtNum(max)}</span>
-                <span>{fmtNum(Math.round(max / 2))}</span>
-                <span>0</span>
-              </div>
-              <div className="relative flex h-40 flex-1 items-end gap-1">
-                {[0, 0.5, 1].map((t) => (
-                  <div key={t} className="pointer-events-none absolute inset-x-0 border-t border-border/40" style={{ bottom: `${t * 100}%` }} />
-                ))}
-                {series.map((s) => {
-                  const v = metric === "requests" ? s.requests : s.tokIn + s.tokOut
-                  return (
-                    <div key={s.bucket} className="group relative flex-1" title={`${s.bucket}: ${fmtNum(v)}`}>
-                      <div className="w-full rounded-t bg-primary/70 transition-all group-hover:bg-primary" style={{ height: `${Math.max(2, (v / max) * 150)}px` }} />
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-            {/* Nhãn ngày: dày quá thì bỏ bớt cho khỏi chồng chữ. */}
-            <div className="flex gap-1 pl-14">
-              {series.map((s, i) => {
-                const step = Math.ceil(series.length / 10)
-                return (
-                  <span key={s.bucket} className="flex-1 truncate text-center text-[10px] text-muted-foreground">
-                    {i % step === 0 ? s.bucket.slice(5) : ""}
-                  </span>
-                )
-              })}
-            </div>
-          </div>
+          <BarSeries
+            data={series.map((x) => ({
+              bucket: x.bucket.slice(5),
+              value: metric === "requests" ? x.requests : x.tokIn + x.tokOut,
+            }))}
+            xKey="bucket"
+            height={200}
+            series={[{ key: "value", label: metric === "requests" ? "Requests" : "Tokens" }]}
+          />
         ) : (
           <p className="py-8 text-center text-sm text-muted-foreground">Chưa có dữ liệu trong khoảng này</p>
         )}

@@ -134,15 +134,8 @@ function reqOf(item: { requests?: number; count?: number }): number {
   return item.requests ?? item.count ?? 0
 }
 
-// ── SVG Bars ───────────────────────────────────────────────────────────
-
-
-// ── SVG Donut ──────────────────────────────────────────────────────────
-
 // ── Stacked health bar ─────────────────────────────────────────────────
 
-
-// ── H-Bar row ──────────────────────────────────────────────────────────
 
 
 // ── DonutChart for pool health (existing) ─────────────────────────────

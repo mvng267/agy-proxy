@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react"
-import { PageHeader } from "@/components/common"
+import { KpiCard, PageHeader } from "@/components/common"
 import { DonutStat, Sparkline, TimeSeries } from "@/components/common/charts"
 import {
   Gauge,
@@ -330,12 +330,14 @@ export function Quota() {
 
       {/* Stats KPI */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-card border-border">
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Đã nạp</p>
-            <p className="text-2xl font-bold text-foreground tabular-nums mt-1">{withQ.length} <span className="text-sm text-muted-foreground">/ {accounts.length}</span></p>
-          </CardContent>
-        </Card>
+        {/* KpiCard chung — hai thẻ bên phải giữ Card tay vì chứa donut, không phải KPI thuần. */}
+        <KpiCard
+          label="Đã nạp"
+          value={`${withQ.length} / ${accounts.length}`}
+          sub={accounts.length ? `${Math.round((withQ.length / accounts.length) * 100)}% pool` : undefined}
+          icon={Gauge}
+          loading={loading}
+        />
         <Card className="bg-card border-border">
           <CardContent className="pt-4 flex items-center gap-4">
             {avgGemini != null && <DonutStat label="Gemini TB" pct={avgGemini} tone="success" size={80} strokeWidth={8} />}
