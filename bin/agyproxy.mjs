@@ -46,11 +46,52 @@ const c = process.env.NO_COLOR
   ? { g: (s) => `${s}`, r: (s) => `${s}`, y: (s) => `${s}`, d: (s) => `${s}`, b: (s) => `${s}` }
   : { g: (s) => `\x1b[32m${s}\x1b[0m`, r: (s) => `\x1b[31m${s}\x1b[0m`, y: (s) => `\x1b[33m${s}\x1b[0m`, d: (s) => `\x1b[90m${s}\x1b[0m`, b: (s) => `\x1b[1m${s}\x1b[0m` };
 
+/**
+ * PID của tiến trình đang PHỤC VỤ, không phải PID mình đã ghi ra.
+ *
+ * Chỉ tin PID_FILE là sai: tiến trình thật có thể mang PID khác (loader/wrapper ở
+ * giữa), khiến `status` báo "đã dừng" và `stop` không dừng được gì trong khi gateway
+ * vẫn nhận request — đúng lỗi đã gặp. Cổng đang LISTEN mới là nguồn sự thật, nên khi
+ * PID_FILE trượt thì dò theo cổng rồi ghi lại file cho lần sau.
+ */
 function readPid() {
-  if (!existsSync(PID_FILE)) return null;
-  const pid = Number(readFileSync(PID_FILE, 'utf8').trim());
-  if (!pid) return null;
-  try { process.kill(pid, 0); return pid; } catch { unlinkSync(PID_FILE); return null; }
+  const fromFile = (() => {
+    if (!existsSync(PID_FILE)) return null;
+    const pid = Number(readFileSync(PID_FILE, 'utf8').trim());
+    if (!pid) return null;
+    try { process.kill(pid, 0); return pid; } catch { return null; }
+  })();
+  if (fromFile) return fromFile;
+
+  const onPort = pidOnPort();
+  if (onPort) {
+    try { writeFileSync(PID_FILE, String(onPort)); } catch { /* chỉ là cache, thiếu không sao */ }
+    return onPort;
+  }
+  try { if (existsSync(PID_FILE)) unlinkSync(PID_FILE); } catch {}
+  return null;
+}
+
+/** Đợi server chiếm cổng rồi trả PID thật (ghi luôn vào PID_FILE). */
+function waitPortPid(timeoutMs) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    const pid = pidOnPort();
+    if (pid) { try { writeFileSync(PID_FILE, String(pid)); } catch {} return pid; }
+    try { execFileSync('sleep', ['0.3'], { stdio: 'ignore' }); } catch { break; }
+  }
+  return null;
+}
+
+/** PID đang LISTEN trên PORT. null nếu không ai nghe (hoặc thiếu lsof). */
+function pidOnPort() {
+  try {
+    const out = execFileSync('lsof', ['-ti', `:${PORT}`, '-sTCP:LISTEN'], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    const pid = Number(out.split('\n')[0]);
+    return Number.isFinite(pid) && pid > 0 ? pid : null;
+  } catch { return null; }
 }
 
 function lanIp() {
@@ -61,9 +102,19 @@ function lanIp() {
   return null;
 }
 
-function tsxBin() {
-  const local = resolve(ROOT, 'node_modules/.bin/tsx');
-  return existsSync(local) ? local : 'tsx';
+/**
+ * Lệnh chạy server: `node --import tsx src/index.ts`.
+ *
+ * KHÔNG dùng `node_modules/.bin/tsx` — đó là shell wrapper, nó `exec` node rồi tự
+ * thoát, để lại tiến trình phục vụ mồ côi (ppid=1) với PID KHÁC. `start -d` ghi PID
+ * của wrapper (đã chết) vào agyproxy.pid → `readPid()` xoá file, `status` báo "đã
+ * dừng" và `stop` không dừng được gì trong khi gateway vẫn đang chạy.
+ * Gọi thẳng node thì PID ghi ra chính là tiến trình đang nghe cổng.
+ */
+function serverCmd() {
+  const localTsx = resolve(ROOT, 'node_modules/tsx');
+  // tsx cài local → nạp làm loader; không có thì để node tự phân giải trên PATH.
+  return [process.execPath, ['--import', existsSync(localTsx) ? 'tsx' : 'tsx', ENTRY]];
 }
 
 /**
@@ -189,15 +240,20 @@ function start(detached) {
   if (running) { console.log(c.y(`Đang chạy sẵn (PID ${running}) · http://localhost:${PORT}`)); return; }
   if (!detached) {
     console.log(c.d(`agyproxy v${PKG.version} · data: ${HOME}`));
-    const p = spawn(tsxBin(), [ENTRY], { stdio: 'inherit', env: { ...process.env, ...hostEnv }, cwd: ROOT });
+    const [bin, argv] = serverCmd();
+    const p = spawn(bin, argv, { stdio: 'inherit', env: { ...process.env, ...hostEnv }, cwd: ROOT });
     p.on('exit', (code) => process.exit(code ?? 0));
     return;
   }
   const out = openSync(LOG_FILE, 'a');
-  const p = spawn(tsxBin(), [ENTRY], { detached: true, stdio: ['ignore', out, out], env: { ...process.env, ...hostEnv }, cwd: ROOT });
+  const [bin, argv] = serverCmd();
+  const p = spawn(bin, argv, { detached: true, stdio: ['ignore', out, out], env: { ...process.env, ...hostEnv }, cwd: ROOT });
   p.unref();
+  // Ghi tạm PID spawn; sau khi server lên thì ghi đè bằng PID ĐANG NGHE CỔNG — hai
+  // giá trị này có thể khác nhau và chỉ cái sau mới `stop` được.
   writeFileSync(PID_FILE, String(p.pid));
-  console.log(c.g('✓ Đã chạy nền') + ` · PID ${p.pid} · http://localhost:${PORT}`);
+  const shown = waitPortPid(8000) ?? p.pid;
+  console.log(c.g('✓ Đã chạy nền') + ` · PID ${shown} · http://localhost:${PORT}`);
   if (OPEN) console.log(c.y(`  ⚠ Mở cho máy khác (HOST=${HOST}) — nên đặt DASHBOARD_PASSWORD trong .env`));
   console.log(c.d(`  log:  agyproxy logs -f   (${LOG_FILE})`));
   console.log(c.d(`  data: ${HOME}`));

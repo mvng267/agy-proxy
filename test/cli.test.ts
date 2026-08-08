@@ -1,4 +1,4 @@
-import { test, before, after } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -132,4 +132,31 @@ test('rotation sai tên: từ chối kèm danh sách hợp lệ, KHÔNG gọi se
     (e: any) => e.code === 1 && /không hợp lệ/.test(e.stdout) && /round-robin, full-first/.test(e.stdout),
   );
   assert.equal(lastReq, null, 'không được gửi request nào');
+});
+
+describe('daemon: PID phải là tiến trình ĐANG PHỤC VỤ', () => {
+  test('readPid dò theo cổng khi PID_FILE trượt', () => {
+    // Bug thật: launchd (KeepAlive) dựng lại server với PID khác PID mà `start -d`
+    // spawn ra, nên PID_FILE trỏ vào tiến trình đã chết → `status` báo "đã dừng" và
+    // `stop` không dừng được gì trong khi gateway vẫn nhận request.
+    const src = readFileSync(new URL('../bin/agyproxy.mjs', import.meta.url), 'utf8');
+    assert.match(src, /function pidOnPort\(\)/, 'phải có đường dò theo cổng');
+    assert.match(src, /lsof/, 'pidOnPort dùng lsof để tìm tiến trình LISTEN');
+    // readPid không được chỉ tin PID_FILE
+    const body = src.slice(src.indexOf('function readPid()'), src.indexOf('function pidOnPort()'));
+    assert.match(body, /pidOnPort\(\)/, 'readPid phải fallback sang pidOnPort khi file trượt');
+  });
+
+  test('start -d in ra PID đang nghe cổng, không phải PID spawn', () => {
+    const src = readFileSync(new URL('../bin/agyproxy.mjs', import.meta.url), 'utf8');
+    assert.match(src, /waitPortPid\(/, 'phải đợi server chiếm cổng rồi lấy PID thật');
+  });
+
+  test('serverCmd gọi thẳng node, không qua wrapper .bin/tsx', () => {
+    const src = readFileSync(new URL('../bin/agyproxy.mjs', import.meta.url), 'utf8');
+    const fn = src.slice(src.indexOf('function serverCmd()'), src.indexOf('function serverCmd()') + 400);
+    // Chỉ xét THÂN HÀM: comment phía trên có nhắc tên wrapper để giải thích lý do.
+    assert.doesNotMatch(fn, /\.bin\/tsx/, 'wrapper shell tự thoát, để lại tiến trình mồ côi PID khác');
+    assert.match(fn, /process\.execPath/, 'spawn thẳng node để PID khớp tiến trình phục vụ');
+  });
 });
