@@ -11,6 +11,7 @@ import {
   Globe,
 } from "lucide-react"
 import { KpiCard } from "@/components/common"
+import { PoolDonut, RankBar, SegmentBar, TimeSeries } from "@/components/common/charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -135,36 +136,6 @@ function reqOf(item: { requests?: number; count?: number }): number {
 
 // ── SVG Bars ───────────────────────────────────────────────────────────
 
-function SvgBars({
-  items,
-  height = 90,
-  color = "#f97316",
-}: {
-  items: Array<{ label: string; value: number }>
-  height?: number
-  color?: string
-}) {
-  if (!items.length) return <p className="text-xs text-muted-foreground text-center py-4">Chưa có dữ liệu</p>
-  const w = 300
-  const pad = 8
-  const gap = items.length > 20 ? 1 : 2
-  const max = Math.max(1, ...items.map((i) => i.value))
-  const bw = Math.max(2, (w - 2 * pad) / items.length - gap)
-  return (
-    <svg viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" className="w-full" style={{ height }}>
-      {items.map((item, i) => {
-        const bh = ((item.value / max) * (height - 2 * pad))
-        const x = pad + i * ((w - 2 * pad) / items.length)
-        const y = height - pad - bh
-        return bh <= 0 ? null : (
-          <rect key={i} x={x.toFixed(1)} y={y.toFixed(1)} width={bw.toFixed(1)} height={bh.toFixed(1)} fill={color} rx="1" opacity="0.85">
-            <title>{item.label}: {item.value}</title>
-          </rect>
-        )
-      })}
-    </svg>
-  )
-}
 
 // ── SVG Donut ──────────────────────────────────────────────────────────
 
@@ -173,21 +144,23 @@ function Donut({ pct, label }: { pct?: number; label: string }) {
   const r = 34
   const c = 2 * Math.PI * r
   const off = c * (1 - p / 100)
-  const col = p >= 50 ? "#22c55e" : p >= 20 ? "#f97316" : "#ef4444"
+  // Ngưỡng quota: nhiều → khoẻ, ít → cảnh báo, cạn → nguy hiểm.
+  const col = p >= 50 ? "var(--chart-success)" : p >= 20 ? "var(--chart-warning)" : "var(--chart-danger)"
   return (
     <div className="flex flex-col items-center gap-1.5">
       <svg viewBox="0 0 90 90" className="w-20 h-20">
-        <circle cx="45" cy="45" r={r} fill="none" stroke="#1e293b" strokeWidth="9" />
+        <circle cx="45" cy="45" r={r} fill="none" stroke="var(--muted)" strokeWidth="9" />
         <circle
           cx="45" cy="45" r={r} fill="none"
-          stroke={pct == null ? "#475569" : col} strokeWidth="9"
+          stroke={pct == null ? "var(--chart-muted)" : col} strokeWidth="9"
           strokeLinecap="round"
           strokeDasharray={`${c.toFixed(1)}`}
           strokeDashoffset={off.toFixed(1)}
           transform="rotate(-90 45 45)"
           className="transition-all duration-700"
         />
-        <text x="45" y="50" textAnchor="middle" fill="#f1f5f9" fontSize="14" fontWeight="600">
+        {/* Trước đây fill là màu sáng cố định — trên nền sáng chữ gần như vô hình. */}
+        <text x="45" y="50" textAnchor="middle" fill="var(--foreground)" fontSize="14" fontWeight="600">
           {pct == null ? "—" : `${p}%`}
         </text>
       </svg>
@@ -198,106 +171,12 @@ function Donut({ pct, label }: { pct?: number; label: string }) {
 
 // ── Stacked health bar ─────────────────────────────────────────────────
 
-function StackedBar({
-  segments,
-}: {
-  segments: Array<{ label: string; value: number; color: string }>
-}) {
-  const total = segments.reduce((s, x) => s + (x.value || 0), 0)
-  if (!total) return <div className="h-3 rounded-full bg-muted w-full" />
-  return (
-    <div className="space-y-1.5">
-      <div className="flex h-3 rounded-full overflow-hidden">
-        {segments.filter((s) => s.value > 0).map((s, i) => (
-          <div
-            key={i}
-            className="transition-all duration-500"
-            style={{ width: `${(s.value / total) * 100}%`, background: s.color }}
-            title={`${s.label}: ${s.value}`}
-          />
-        ))}
-      </div>
-      <div className="flex items-center gap-3 flex-wrap">
-        {segments.map((s, i) => (
-          <span key={i} className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <span className="h-2 w-2 rounded-sm" style={{ background: s.color }} />
-            {s.label} {s.value}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 // ── H-Bar row ──────────────────────────────────────────────────────────
 
-function HBar({ label, value, max, color = "bg-orange-500" }: { label: string; value: number; max: number; color?: string }) {
-  const pct = max > 0 ? (value / max) * 100 : 0
-  return (
-    <div className="space-y-0.5">
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-muted-foreground font-mono truncate max-w-[200px]" title={label}>{label}</span>
-        <span className="text-foreground tabular-nums ml-4 flex-shrink-0">{fmtNum(value)}</span>
-      </div>
-      <div className="h-1 rounded-full bg-muted overflow-hidden">
-        <div className={`h-full rounded-full ${color} transition-all duration-500`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  )
-}
 
 // ── DonutChart for pool health (existing) ─────────────────────────────
 
-function DonutChart({
-  total, active, cooldown, size = 100, strokeWidth = 10,
-}: {
-  total: number; active: number; cooldown: number; size?: number; strokeWidth?: number
-}) {
-  const radius = (size - strokeWidth) / 2
-  const circumference = 2 * Math.PI * radius
-  const center = size / 2
-
-  if (total === 0) {
-    return (
-      <svg width={size} height={size} className="transform -rotate-90">
-        <circle cx={center} cy={center} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-border" />
-      </svg>
-    )
-  }
-
-  const activeRatio = active / total
-  const cooldownRatio = cooldown / total
-  const inactiveRatio = 1 - activeRatio - cooldownRatio
-  const activeLen = circumference * activeRatio
-  const cooldownLen = circumference * cooldownRatio
-  const inactiveLen = circumference * inactiveRatio
-
-  return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="transform -rotate-90">
-        {active > 0 && (
-          <circle cx={center} cy={center} r={radius} fill="none" stroke="#22c55e" strokeWidth={strokeWidth}
-            strokeDasharray={`${activeLen} ${circumference - activeLen}`} strokeDashoffset={0}
-            strokeLinecap="round" className="transition-all duration-700" />
-        )}
-        {cooldown > 0 && (
-          <circle cx={center} cy={center} r={radius} fill="none" stroke="#f97316" strokeWidth={strokeWidth}
-            strokeDasharray={`${cooldownLen} ${circumference - cooldownLen}`} strokeDashoffset={-(activeLen)}
-            strokeLinecap="round" className="transition-all duration-700" />
-        )}
-        {inactiveRatio > 0 && (
-          <circle cx={center} cy={center} r={radius} fill="none" stroke="#334155" strokeWidth={strokeWidth}
-            strokeDasharray={`${inactiveLen} ${circumference - inactiveLen}`} strokeDashoffset={-(activeLen + cooldownLen)}
-            className="transition-all duration-700" />
-        )}
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-xl font-bold text-foreground">{active}</span>
-        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">active</span>
-      </div>
-    </div>
-  )
-}
 
 // ── KPI Card ───────────────────────────────────────────────────────────
 
@@ -318,18 +197,27 @@ function ProviderHealthCard({
             <Server className="h-4 w-4 text-muted-foreground" />
             {name}
           </CardTitle>
-          <Badge variant={active > 0 ? "default" : "destructive"} className={active > 0 ? "bg-emerald-500/15 text-emerald-400 border-none text-[10px]" : "text-[10px]"}>
+          <Badge variant={active > 0 ? "default" : "destructive"} className={active > 0 ? "bg-success/15 text-success border-none text-[10px]" : "text-[10px]"}>
             {active > 0 ? "Online" : "Offline"}
           </Badge>
         </div>
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-6">
-          <DonutChart total={total} active={active} cooldown={cooldown} size={90} strokeWidth={8} />
+          <PoolDonut
+            center={active}
+            size={90}
+            strokeWidth={8}
+            segments={[
+              { label: "Active", value: active, tone: "success" },
+              { label: "Cooldown", value: cooldown, tone: "warning" },
+              { label: "Inactive", value: Math.max(0, total - active - cooldown), tone: "danger" },
+            ]}
+          />
           <div className="flex-1 space-y-2 text-xs">
             {[
-              { label: "Active", value: active, color: "bg-emerald-500" },
-              { label: "Cooldown", value: cooldown, color: "bg-orange-500" },
+              { label: "Active", value: active, color: "bg-success" },
+              { label: "Cooldown", value: cooldown, color: "bg-warning" },
               { label: "Inactive", value: inactive, color: "bg-muted-foreground/40" },
             ].map((row) => (
               <div key={row.label} className="flex items-center justify-between">
@@ -364,22 +252,22 @@ function PoolHealthCard({ total, active, cooldown }: { total: number; active: nu
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Active</span>
-            <span className="text-emerald-400 font-medium tabular-nums">{active} / {total} ({pctActive}%)</span>
+            <span className="text-success font-medium tabular-nums">{active} / {total} ({pctActive}%)</span>
           </div>
           <Progress value={pctActive}>
             <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
-              <div className="h-full bg-emerald-500 transition-all duration-500 rounded-full" style={{ width: `${pctActive}%` }} />
+              <div className="h-full bg-success transition-all duration-500 rounded-full" style={{ width: `${pctActive}%` }} />
             </div>
           </Progress>
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Cooldown</span>
-            <span className="text-orange-400 font-medium tabular-nums">{cooldown} / {total} ({pctCooldown}%)</span>
+            <span className="text-warning font-medium tabular-nums">{cooldown} / {total} ({pctCooldown}%)</span>
           </div>
           <Progress value={pctCooldown}>
             <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
-              <div className="h-full bg-orange-500 transition-all duration-500 rounded-full" style={{ width: `${pctCooldown}%` }} />
+              <div className="h-full bg-warning transition-all duration-500 rounded-full" style={{ width: `${pctCooldown}%` }} />
             </div>
           </Progress>
         </div>
@@ -412,7 +300,7 @@ function TopModelsCard({ models }: { models: Array<{ model: string; count: numbe
                   <span className="text-foreground font-medium tabular-nums">{(m.requests ?? m.count).toLocaleString()}</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                  <div className="h-full rounded-full bg-orange-500/70 transition-all duration-500"
+                  <div className="h-full rounded-full bg-chart-2/70 transition-all duration-500"
                     style={{ width: `${((m.requests ?? m.count) / maxCount) * 100}%` }} />
                 </div>
               </div>
@@ -477,9 +365,9 @@ export function Overview() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <AlertTriangle className="h-8 w-8 text-red-500" />
+        <AlertTriangle className="h-8 w-8 text-destructive" />
         <p className="text-sm text-muted-foreground">Error: {error}</p>
-        <button onClick={fetchData} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5">
+        <button onClick={fetchData} className="text-xs text-warning hover:text-warning flex items-center gap-1.5">
           <RefreshCw className="h-3 w-3" /> Retry
         </button>
       </div>
@@ -543,10 +431,10 @@ export function Overview() {
   const poolOff = Math.max(0, poolTotal - poolEnabled)
 
   const poolSegments = [
-    { label: "Sẵn sàng", value: poolReady, color: "#22c55e" },
-    { label: "Cooldown", value: poolCooldown, color: "#f97316" },
-    { label: "Chết", value: poolDead, color: "#ef4444" },
-    { label: "Tắt", value: poolOff, color: "#334155" },
+    { label: "Sẵn sàng", value: poolReady, tone: "success" as const },
+    { label: "Cooldown", value: poolCooldown, tone: "warning" as const },
+    { label: "Chết", value: poolDead, tone: "danger" as const },
+    { label: "Tắt", value: poolOff, tone: "muted" as const },
   ]
 
   // "Hôm nay" trên KPI Requests: API không có trường riêng — lấy bucket cuối
@@ -623,7 +511,7 @@ export function Overview() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <StackedBar segments={poolSegments} />
+            <SegmentBar segments={poolSegments} />
           </CardContent>
         </Card>
       )}
@@ -677,13 +565,12 @@ export function Overview() {
           </CardHeader>
           <CardContent>
             {seriesItems.length > 0 ? (
-              <>
-                <SvgBars items={seriesItems} height={90} color="#f97316" />
-                <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
-                  <span>{usageSeries[0]?.bucket?.slice(5)}</span>
-                  <span>{usageSeries[usageSeries.length - 1]?.bucket?.slice(5)}</span>
-                </div>
-              </>
+              <TimeSeries
+                data={usageSeries.map((x) => ({ ngay: x.bucket?.slice(5) ?? "", requests: x.requests ?? 0 }))}
+                xKey="ngay"
+                series={[{ key: "requests", label: "Request" }]}
+                height={180}
+              />
             ) : (
               <p className="text-xs text-muted-foreground text-center py-8">Chưa có dữ liệu</p>
             )}
@@ -711,7 +598,7 @@ export function Overview() {
                 {perfProviders.map((p) => {
                   const okRate = p.okRate ?? 0
                   const p95s = (p.p95 ?? p.latency ?? 0) / 1000
-                  const okColor = okRate >= 0.95 ? "bg-emerald-500" : okRate >= 0.8 ? "bg-amber-500" : "bg-red-500"
+                  const okColor = okRate >= 0.95 ? "bg-success" : okRate >= 0.8 ? "bg-warning" : "bg-destructive"
                   return (
                     <div key={p.label} className="space-y-2">
                       <div className="flex items-center justify-between text-xs">
@@ -729,7 +616,7 @@ export function Overview() {
                         <div className="flex items-center gap-2 text-xs">
                           <span className="text-muted-foreground w-14 flex-shrink-0">p95 độ trễ</span>
                           <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                            <div className="h-full rounded-full bg-purple-500 transition-all duration-500" style={{ width: `${Math.min(100, p95s / 3 * 100)}%` }} />
+                            <div className="h-full rounded-full bg-info transition-all duration-500" style={{ width: `${Math.min(100, p95s / 3 * 100)}%` }} />
                           </div>
                           <span className="text-foreground w-12 text-right tabular-nums">{p95s.toFixed(1)}s</span>
                         </div>
@@ -756,7 +643,7 @@ export function Overview() {
             ) : (
               <div className="space-y-3">
                 {usageByAccount.slice(0, 6).map((a) => (
-                  <HBar key={a.email} label={a.email} value={reqOf(a)} max={maxAccReq} color="bg-blue-500" />
+                  <RankBar key={a.email} label={a.email} value={reqOf(a)} max={maxAccReq} tone="chart-info" />
                 ))}
               </div>
             )}
@@ -776,11 +663,11 @@ export function Overview() {
           <CardContent>
             <div className="space-y-3">
               {proxyLoadEntries.map((entry) => (
-                <HBar key={entry.label} label={entry.label} value={entry.n} max={maxProxyLoad} color="bg-muted-foreground/50" />
+                <RankBar key={entry.label} label={entry.label} value={entry.n} max={maxProxyLoad} tone="chart-muted" />
               ))}
             </div>
             {proxyLoadEntries[0]?.label === "(direct)" && proxyLoadEntries[0]?.n > 20 && (
-              <p className="text-xs text-amber-400 mt-3">
+              <p className="text-xs text-warning mt-3">
                 ⚠ {proxyLoadEntries[0].n} account dùng chung IP máy này — cân nhắc gán proxy
               </p>
             )}

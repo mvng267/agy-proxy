@@ -1,1 +1,0 @@
-import{t as e}from"./createLucideIcon-Ct0G_dhG.js";var t=e(`chevron-right`,[[`path`,{d:`m9 18 6-6-6-6`,key:`mthhwq`}]]);export{t};

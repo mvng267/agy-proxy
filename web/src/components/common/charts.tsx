@@ -224,21 +224,46 @@ export function RankBar({
   )
 }
 
-/** Thanh ngang chia đoạn theo tỉ lệ (phân bổ pool). */
-export function SegmentBar({ segments, height = 8 }: { segments: Segment[]; height?: number }) {
+/**
+ * Thanh ngang chia đoạn theo tỉ lệ (phân bổ pool), kèm chú thích.
+ *
+ * `legend` mặc định BẬT: thanh màu không có nhãn thì người xem phải đoán đâu là
+ * cooldown đâu là chết — nhất là khi các đoạn quá nhỏ để phân biệt.
+ */
+export function SegmentBar({
+  segments,
+  height = 8,
+  legend = true,
+}: {
+  segments: Segment[]
+  height?: number
+  legend?: boolean
+}) {
   const total = segments.reduce((s, x) => s + x.value, 0) || 1
   return (
-    <div className="flex w-full overflow-hidden rounded-full bg-muted" style={{ height }}>
-      {segments.map((s) =>
-        s.value > 0 ? (
-          <div
-            key={s.label}
-            className="h-full transition-all duration-500"
-            style={{ width: `${(s.value / total) * 100}%`, background: `var(--chart-${s.tone})` }}
-            title={`${s.label}: ${s.value}`}
-          />
-        ) : null,
-      )}
+    <div className="space-y-2">
+      <div className="flex w-full overflow-hidden rounded-full bg-muted" style={{ height }}>
+        {segments.map((s) =>
+          s.value > 0 ? (
+            <div
+              key={s.label}
+              className="h-full transition-all duration-500"
+              style={{ width: `${(s.value / total) * 100}%`, background: `var(--chart-${s.tone})` }}
+              title={`${s.label}: ${s.value}`}
+            />
+          ) : null,
+        )}
+      </div>
+      {legend ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {segments.map((s) => (
+            <span key={s.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="size-2 rounded-full" style={{ background: `var(--chart-${s.tone})` }} />
+              {s.label} <span className="tabular-nums text-foreground">{s.value}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
