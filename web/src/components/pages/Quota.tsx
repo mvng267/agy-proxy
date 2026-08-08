@@ -12,22 +12,13 @@ import {
   Table2,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
-  ChevronRight as ChevronRt,
 } from "lucide-react"
+import { DataTable } from "@/components/common/DataTable"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -78,8 +69,6 @@ function claudePct(a: PoolAccount): number | null {
   const g = a.quota?.groups?.find(x => !/gemini/i.test(x.name))
   return g ? g.pct : null
 }
-
-const PAGE_SIZES = [25, 50, 100]
 
 // ── Donut Chart ────────────────────────────────────────────────────────
 
@@ -143,9 +132,8 @@ export function Quota() {
     (localStorage.getItem("vs_quotaSort") ?? "quota-high") as "email" | "quota-high" | "quota-low"
   )
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<number>(() =>
-    Number(localStorage.getItem("vs_quotaSize") || 25)
-  )
+  // DataTable tự quản số dòng/trang ở chế độ bảng; chế độ thẻ vẫn dùng con số này.
+  const [pageSize] = useState<number>(() => Number(localStorage.getItem("vs_quotaSize") || 25))
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   // Per-account refresh spinning
@@ -248,16 +236,6 @@ export function Quota() {
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const safePage = Math.min(page, totalPages)
   const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize)
-
-  const toggleSelect = (email: string) => {
-    setSelected(prev => {
-      const next = new Set(prev); if (next.has(email)) next.delete(email); else next.add(email); return next
-    })
-  }
-  const toggleAll = () => {
-    if (selected.size === pageRows.length) setSelected(new Set())
-    else setSelected(new Set(pageRows.map(a => a.email)))
-  }
 
   const toggleExpand = (email: string) => {
     setExpandedRows(prev => {
@@ -509,163 +487,93 @@ export function Quota() {
       {viewMode === "table" && (
         <Card className="bg-card border-border">
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border hover:bg-transparent">
-                    <TableHead className="w-8">
-                      <input
-                        type="checkbox"
-                        checked={pageRows.length > 0 && selected.size === pageRows.length}
-                        onChange={toggleAll}
-                        className="rounded border-border bg-muted"
-                      />
-                    </TableHead>
-                    <TableHead className="w-8" />
-                    <TableHead>Email</TableHead>
-                    <TableHead>Tier</TableHead>
-                    <TableHead>Gemini</TableHead>
-                    <TableHead>Claude/GPT</TableHead>
-                    <TableHead>Reset</TableHead>
-                    <TableHead className="text-right">Nạp</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pageRows.length === 0 ? (
-                    <TableRow className="border-border">
-                      <TableCell colSpan={8} className="text-center text-muted-foreground text-xs py-8">
-                        Không có account. Bấm Refresh để nạp hạn mức.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    pageRows.flatMap(acc => {
-                      const q = acc.quota
-                      const cpct = claudePct(acc)
-                      const reset = q?.groups?.[0] ? fmtReset(q.groups[0].resetTime) : "—"
-                      const tier = String(q?.tier ?? "—").replace(/^Antigravity\s+/, "")
-                      const isExpanded = expandedRows.has(acc.email)
-                      return [
-                        <TableRow
-                          key={acc.email}
-                          className={`border-border hover:bg-muted/40 ${selected.has(acc.email) ? "bg-warning/5" : ""}`}
-                        >
-                          <TableCell>
-                            <input
-                              type="checkbox"
-                              checked={selected.has(acc.email)}
-                              onChange={() => toggleSelect(acc.email)}
-                              className="rounded border-border bg-muted"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <button
-                              onClick={() => toggleExpand(acc.email)}
-                              className="text-muted-foreground hover:text-foreground"
-                            >
-                              {isExpanded
-                                ? <ChevronDown className="h-3.5 w-3.5" />
-                                : <ChevronRt className="h-3.5 w-3.5" />}
-                            </button>
-                          </TableCell>
-                          <TableCell>
-                            <button
-                              className="text-sm text-foreground font-mono hover:text-warning text-left"
-                              onClick={() => { setHistEmail(acc.email) }}
-                              title="Xem lịch sử hạn mức"
-                            >
-                              {acc.email}
-                            </button>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{tier}</TableCell>
-                          <TableCell><QuotaBar pct={acc.geminiPct} /></TableCell>
-                          <TableCell><QuotaBar pct={cpct ?? undefined} /></TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{reset}</TableCell>
-                          <TableCell className="text-right">
-                            <button
-                              onClick={() => handleRefreshOne(acc.email)}
-                              disabled={refreshing[acc.email]}
-                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-warning ml-auto"
-                              title="Nạp hạn mức"
-                            >
-                              <RefreshCw className={`h-3 w-3 ${refreshing[acc.email] ? "animate-spin" : ""}`} />
-                            </button>
-                          </TableCell>
-                        </TableRow>,
-                        // Expanded detail row
-                        isExpanded && (
-                          <TableRow key={acc.email + "_detail"} className="border-border bg-muted/20">
-                            <TableCell colSpan={8} className="px-8 py-3">
-                              {!q ? (
-                                <p className="text-xs text-muted-foreground">Chưa nạp hạn mức — bấm ⟳</p>
-                              ) : (
-                                <div className="space-y-3">
-                                  {q.groups?.map(g => (
-                                    <div key={g.name} className="flex items-center gap-4">
-                                      <span className="text-xs text-foreground w-32 truncate">{g.name}</span>
-                                      <QuotaBar pct={g.pct} />
-                                      <span className="text-xs text-muted-foreground">reset {fmtReset(g.resetTime)}</span>
-                                    </div>
-                                  ))}
-                                  {q.models && q.models.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5 mt-2">
-                                      {q.models.filter(m => !/^(chat|tab)[-_]/i.test(m.id)).sort((a, b) => a.pct - b.pct).map(m => (
-                                        <span key={m.id} className="text-[10px] bg-muted border border-border rounded px-1.5 py-0.5">
-                                          <span className={qColor(m.pct)}>{m.pct}%</span> {m.id}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        )
-                      ].filter(Boolean)
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Pager */}
-            {sorted.length > 0 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Trang {safePage}/{totalPages} · {sorted.length} rows</span>
-                  <select
-                    value={pageSize}
-                    onChange={e => { setPageSize(Number(e.target.value)); setPage(1); localStorage.setItem("vs_quotaSize", e.target.value) }}
-                    className="h-7 px-2 rounded bg-muted border border-border text-foreground text-xs focus:outline-none"
-                  >
-                    {PAGE_SIZES.map(s => <option key={s} value={s}>{s}/trang</option>)}
-                  </select>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={safePage <= 1}
-                    className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground disabled:opacity-30"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </button>
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    const p = Math.max(1, Math.min(totalPages - 4, safePage - 2)) + i
-                    return (
-                      <button key={p} onClick={() => setPage(p)}
-                        className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-warning text-warning-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                      >{p}</button>
-                    )
-                  })}
-                  <button
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    disabled={safePage >= totalPages}
-                    className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground disabled:opacity-30"
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            )}
+            <DataTable
+              rows={sorted}
+              rowKey={(a) => a.email}
+              pageSize={pageSize}
+              selection={{ selected, onChange: setSelected }}
+              expand={{
+                expanded: expandedRows,
+                onToggle: toggleExpand,
+                render: (a) => {
+                  const q = a.quota
+                  if (!q) return <p className="text-xs text-muted-foreground">Chưa nạp hạn mức — bấm ⟳</p>
+                  return (
+                    <div className="space-y-3">
+                      {q.groups?.map((g) => (
+                        <div key={g.name} className="flex items-center gap-4">
+                          <span className="w-32 truncate text-xs text-foreground">{g.name}</span>
+                          <QuotaBar pct={g.pct} />
+                          <span className="text-xs text-muted-foreground">reset {fmtReset(g.resetTime)}</span>
+                        </div>
+                      ))}
+                      {q.models && q.models.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {q.models.filter((m) => !/^(chat|tab)[-_]/i.test(m.id)).sort((x, y) => x.pct - y.pct).map((m) => (
+                            <span key={m.id} className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px]">
+                              <span className={qColor(m.pct)}>{m.pct}%</span> {m.id}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                },
+              }}
+              empty="Không có account. Bấm Refresh để nạp hạn mức."
+              columns={[
+                {
+                  key: "email",
+                  header: "Email",
+                  sort: (a) => a.email,
+                  render: (a) => (
+                    <button
+                      className="max-w-[220px] truncate text-left font-mono text-sm text-foreground hover:text-warning"
+                      onClick={() => setHistEmail(a.email)}
+                      title="Xem lịch sử hạn mức"
+                    >
+                      {a.email}
+                    </button>
+                  ),
+                },
+                {
+                  key: "tier",
+                  header: "Tier",
+                  sort: (a) => String(a.quota?.tier ?? ""),
+                  render: (a) => (
+                    <span className="text-xs text-muted-foreground">
+                      {String(a.quota?.tier ?? "—").replace(/^Antigravity\s+/, "")}
+                    </span>
+                  ),
+                },
+                { key: "gemini", header: "Gemini", sort: (a) => a.geminiPct ?? -1, render: (a) => <QuotaBar pct={a.geminiPct} /> },
+                { key: "claude", header: "Claude/GPT", sort: (a) => claudePct(a) ?? -1, render: (a) => <QuotaBar pct={claudePct(a) ?? undefined} /> },
+                {
+                  key: "reset",
+                  header: "Reset",
+                  render: (a) => (
+                    <span className="text-xs text-muted-foreground">
+                      {a.quota?.groups?.[0] ? fmtReset(a.quota.groups[0].resetTime) : "—"}
+                    </span>
+                  ),
+                },
+                {
+                  key: "actions",
+                  header: "Nạp",
+                  align: "right",
+                  render: (a) => (
+                    <button
+                      onClick={() => handleRefreshOne(a.email)}
+                      disabled={refreshing[a.email]}
+                      className="ml-auto flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-warning"
+                      title="Nạp hạn mức"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${refreshing[a.email] ? "animate-spin" : ""}`} />
+                    </button>
+                  ),
+                },
+              ]}
+            />
           </CardContent>
         </Card>
       )}

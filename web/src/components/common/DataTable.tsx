@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react"
+import { Fragment, useMemo, useState, type ReactNode } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown, Inbox } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -54,13 +54,22 @@ interface Props<T> {
     selected: Set<string>
     onChange: (next: Set<string>) => void
   }
+  /**
+   * Hàng chi tiết mở rộng dưới mỗi dòng. `render` trả về null nghĩa là dòng đó không
+   * mở rộng được. Trang Hạn mức dùng để xem quota từng model mà không phải rời trang.
+   */
+  expand?: {
+    expanded: Set<string>
+    onToggle: (key: string) => void
+    render: (row: T) => ReactNode
+  }
 }
 
 const DEFAULT_SIZES = [10, 25, 50, 100]
 
 export function DataTable<T>({
   rows, columns, rowKey, loading, empty, pageSize = 50, initialSort, onRowClick,
-  rowsPerPage, selection,
+  rowsPerPage, selection, expand,
 }: Props<T>) {
   const [sort, setSort] = useState(initialSort ?? null)
   const [page, setPage] = useState(0)
@@ -146,6 +155,7 @@ export function DataTable<T>({
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
+            {expand && <TableHead className="w-8" />}
             {selection && (
               <TableHead className="w-10">
                 <Checkbox
@@ -183,13 +193,30 @@ export function DataTable<T>({
         <TableBody>
           {view.map((r) => {
             const k = rowKey(r)
+            const detail = expand?.expanded.has(k) ? expand.render(r) : null
             return (
+              <Fragment key={k}>
               <TableRow
-                key={k}
                 data-state={selection?.selected.has(k) ? "selected" : undefined}
                 onClick={onRowClick ? () => onRowClick(r) : undefined}
                 className={cn(onRowClick && "cursor-pointer")}
               >
+                {expand && (
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    {expand.render(r) ? (
+                      <button
+                        onClick={() => expand.onToggle(k)}
+                        aria-expanded={expand.expanded.has(k)}
+                        aria-label={expand.expanded.has(k) ? "Thu gọn" : "Xem chi tiết"}
+                        className="flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        {expand.expanded.has(k)
+                          ? <ChevronDown className="size-3.5" />
+                          : <ChevronRight className="size-3.5" />}
+                      </button>
+                    ) : null}
+                  </TableCell>
+                )}
                 {selection && (
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Checkbox
@@ -205,6 +232,14 @@ export function DataTable<T>({
                   </TableCell>
                 ))}
               </TableRow>
+              {detail && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={columns.length + (expand ? 1 : 0) + (selection ? 1 : 0)} className="bg-muted/30 py-3">
+                    {detail}
+                  </TableCell>
+                </TableRow>
+              )}
+              </Fragment>
             )
           })}
         </TableBody>

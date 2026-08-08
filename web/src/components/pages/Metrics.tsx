@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, Clock, Cpu, Gauge, Zap } from "lucide-react"
 import { api } from "@/lib/api"
 import { fmtMs, fmtNum } from "@/lib/format"
 import { KpiCard, PageHeader, ChartCard, ErrorState, StatusBadge } from "@/components/common"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 /**
  * Trang Metrics — sức khoẻ gateway, hai nguồn ghép lại:
@@ -406,25 +407,25 @@ export function Metrics() {
       )}
 
       <ChartCard title="Pool theo provider">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs text-muted-foreground">
-              <th className="pb-2 font-medium">Provider</th>
-              <th className="pb-2 font-medium">Khả dụng</th>
-              <th className="pb-2 font-medium">Inflight</th>
-              <th className="pb-2 font-medium">Circuit breaker</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Provider</TableHead>
+              <TableHead>Khả dụng</TableHead>
+              <TableHead>Inflight</TableHead>
+              <TableHead>Circuit breaker</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {d ? Object.entries(d.accounts).map(([pid, a]) => {
-              const b = d.breaker[pid]
-              const st = !b || b.state === "closed" ? "ok" : b.state === "open" ? "error" : "cooldown"
+              const br = d.breaker[pid]
+              const st = !br || br.state === "closed" ? "ok" : br.state === "open" ? "error" : "cooldown"
               return (
-                <tr key={pid} className="border-b border-border/50 last:border-0">
-                  <td className="py-2 font-mono">{pid}</td>
+                <TableRow key={pid}>
+                  <TableCell className="font-mono">{pid}</TableCell>
                   {/* Thanh tỉ lệ thay vì chỉ hai con số: "348/350" và "12/350" đọc lướt
-                      trông giống nhau, còn thanh gần đầy so với thanh gần rỗng thì thấy ngay. */}
-                  <td className="py-2">
+                      trông giống nhau, còn thanh gần đầy so với gần rỗng thì thấy ngay. */}
+                  <TableCell>
                     <div className="flex items-center gap-2">
                       <div className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
                         <div
@@ -438,18 +439,18 @@ export function Metrics() {
                       <span className="tabular-nums">{a.available}/{a.total}</span>
                       {a.total > 0 && a.available === 0 && <span className="text-xs text-destructive">cạn pool</span>}
                     </div>
-                  </td>
-                  <td className="py-2 tabular-nums">{a.inflight}</td>
-                  <td className="py-2">
-                    <StatusBadge status={st} label={b ? `${BREAKER_LABEL[b.state]}${b.consecutiveFails ? ` · ${b.consecutiveFails} lỗi` : ""}` : "mạch đóng"} />
-                  </td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="tabular-nums">{a.inflight}</TableCell>
+                  <TableCell>
+                    <StatusBadge status={st} label={br ? `${BREAKER_LABEL[br.state]}${br.consecutiveFails ? ` · ${br.consecutiveFails} lỗi` : ""}` : "mạch đóng"} />
+                  </TableCell>
+                </TableRow>
               )
             }) : (
-              <tr><td colSpan={4} className="py-6 text-center text-muted-foreground">Đang tải…</td></tr>
+              <TableRow><TableCell colSpan={4} className="py-6 text-center text-muted-foreground">Đang tải…</TableCell></TableRow>
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </ChartCard>
     </div>
   )
