@@ -44,8 +44,8 @@ function CodeBlock({ code, lang = "bash" }: CodeBlockProps) {
           >
             {copied ? (
               <>
-                <Check className="h-3 w-3 text-emerald-400" />
-                <span className="text-emerald-400">Copied!</span>
+                <Check className="h-3 w-3 text-success" />
+                <span className="text-success">Copied!</span>
               </>
             ) : (
               <>
@@ -83,7 +83,7 @@ function Section({
           <Icon className="h-4 w-4 text-muted-foreground" />
           {title}
           {badge && (
-            <Badge className="bg-orange-500/15 text-orange-400 border-none text-[10px]">
+            <Badge className="bg-primary/15 text-primary border-none text-[10px]">
               {badge}
             </Badge>
           )}
@@ -124,9 +124,9 @@ echo 'ANTHROPIC_BASE_URL=http://localhost:7788' >> ~/.bashrc
 echo 'ANTHROPIC_API_KEY=placeholder' >> ~/.bashrc`}
         />
 
-        <div className="flex items-start gap-2 bg-orange-500/5 border border-orange-500/20 rounded-lg px-3 py-2.5">
-          <ChevronRight className="h-3.5 w-3.5 text-orange-400 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-orange-300">
+        <div className="flex items-start gap-2 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2.5">
+          <ChevronRight className="h-3.5 w-3.5 text-primary flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-primary">
             <strong>Lưu ý:</strong> base URL bỏ <code className="bg-muted px-1 rounded">/v1</code> — agyproxy tự thêm prefix đúng theo provider.
           </p>
         </div>
@@ -267,11 +267,11 @@ npm start`}
         <div className="grid grid-cols-2 gap-3 mt-2">
           <div className="bg-muted/50 rounded-lg px-3 py-2">
             <p className="text-[10px] text-muted-foreground mb-1">Endpoint</p>
-            <code className="text-xs text-orange-400">POST /v1/chat/completions</code>
+            <code className="text-xs text-primary">POST /v1/chat/completions</code>
           </div>
           <div className="bg-muted/50 rounded-lg px-3 py-2">
             <p className="text-[10px] text-muted-foreground mb-1">Events</p>
-            <code className="text-xs text-blue-400">GET /events (SSE)</code>
+            <code className="text-xs text-info">GET /events (SSE)</code>
           </div>
         </div>
       </Section>
@@ -288,7 +288,7 @@ npm start`}
               "Models list tại /api/gateway/models — trả về tất cả model hỗ trợ",
             ].map((tip, i) => (
               <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                <ChevronRight className="h-3 w-3 text-orange-500 flex-shrink-0 mt-0.5" />
+                <ChevronRight className="h-3 w-3 text-primary flex-shrink-0 mt-0.5" />
                 {tip}
               </li>
             ))}

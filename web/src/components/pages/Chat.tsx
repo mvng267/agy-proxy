@@ -80,7 +80,7 @@ function NativeSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className={`appearance-none h-8 px-2 pr-7 rounded-md bg-muted border border-border text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:opacity-50 ${className ?? ""}`}
+        className={`appearance-none h-8 px-2 pr-7 rounded-md bg-muted border border-border text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 ${className ?? ""}`}
       >
         {children}
       </select>
@@ -292,7 +292,7 @@ export function Chat() {
             {/* Reload */}
             <button
               onClick={() => { setLoadingData(true); loadData() }}
-              className="p-1.5 rounded text-muted-foreground hover:text-orange-400 hover:bg-muted transition-colors"
+              className="p-1.5 rounded text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
               title="Reload models/accounts"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -304,7 +304,7 @@ export function Chat() {
                 variant="outline"
                 size="sm"
                 onClick={() => setMessages([])}
-                className="border-border text-muted-foreground hover:text-red-400 h-8 text-xs gap-1"
+                className="border-border text-muted-foreground hover:text-destructive h-8 text-xs gap-1"
               >
                 <Trash2 className="h-3 w-3" />
                 Xoá
@@ -334,8 +334,8 @@ export function Chat() {
                 className={`flex gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 {msg.role === "assistant" && (
-                  <div className="flex-shrink-0 h-7 w-7 rounded-full bg-orange-500/15 flex items-center justify-center mt-0.5">
-                    <Bot className="h-4 w-4 text-orange-400" />
+                  <div className="flex-shrink-0 h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center mt-0.5">
+                    <Bot className="h-4 w-4 text-primary" />
                   </div>
                 )}
 
@@ -365,9 +365,9 @@ export function Chat() {
                   <div
                     className={`rounded-2xl px-4 py-2.5 text-sm ${
                       msg.role === "user"
-                        ? "bg-orange-500 text-white rounded-tr-sm"
+                        ? "bg-primary text-primary-foreground rounded-tr-sm"
                         : msg.error
-                        ? "bg-red-500/15 text-red-300 border border-red-500/20 rounded-tl-sm"
+                        ? "bg-destructive/15 text-destructive border border-destructive/20 rounded-tl-sm"
                         : "bg-muted text-foreground rounded-tl-sm"
                     }`}
                   >
@@ -387,8 +387,8 @@ export function Chat() {
           {/* Sending indicator */}
           {sending && (
             <div className="flex gap-2.5 justify-start">
-              <div className="flex-shrink-0 h-7 w-7 rounded-full bg-orange-500/15 flex items-center justify-center">
-                <Bot className="h-4 w-4 text-orange-400" />
+              <div className="flex-shrink-0 h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center">
+                <Bot className="h-4 w-4 text-primary" />
               </div>
               <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-2.5 flex items-center gap-2">
                 <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin" />
@@ -402,9 +402,9 @@ export function Chat() {
 
         {/* Error */}
         {error && (
-          <div className="mx-4 mb-2 flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-red-400 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-red-400">{error}</p>
+          <div className="mx-4 mb-2 flex items-start gap-2 bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-destructive flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-destructive">{error}</p>
           </div>
         )}
 
@@ -420,13 +420,13 @@ export function Chat() {
                 placeholder="Nhập prompt… (Ctrl+Enter để gửi)"
                 rows={3}
                 disabled={sending}
-                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:opacity-50"
+                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
               />
             </div>
             <Button
               onClick={handleSend}
               disabled={!prompt.trim() || !selectedModel || sending}
-              className="bg-orange-500 hover:bg-orange-600 text-white h-[88px] px-4 flex flex-col items-center justify-center gap-1.5 rounded-xl disabled:opacity-50 shrink-0"
+              className="bg-primary hover:bg-primary text-primary-foreground h-[88px] px-4 flex flex-col items-center justify-center gap-1.5 rounded-xl disabled:opacity-50 shrink-0"
             >
               {sending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -445,7 +445,7 @@ export function Chat() {
                 </Badge>
               )}
               {selectedAccount !== "auto" && (
-                <Badge className="bg-muted text-blue-500 border-none text-[10px]">
+                <Badge className="bg-muted text-info border-none text-[10px]">
                   {selectedAccount.split("@")[0]}
                 </Badge>
               )}

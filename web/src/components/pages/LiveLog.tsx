@@ -202,7 +202,7 @@ export function LiveLog() {
         <h2 className="text-sm font-medium text-foreground">Live Log</h2>
         <span
           className={`ml-1 h-2 w-2 rounded-full ${
-            connected ? "bg-emerald-400 ring-2 ring-emerald-400/25" : "bg-muted-foreground/40"
+            connected ? "bg-success ring-2 ring-success/25" : "bg-muted-foreground/40"
           }`}
         />
         <span className="text-xs text-muted-foreground">
@@ -316,7 +316,7 @@ export function LiveLog() {
           {/* Trạng thái bộ lọc: luôn nói rõ đang hiện bao nhiêu trên tổng bao nhiêu. */}
           <div className="ml-auto flex items-center gap-2 text-[11px]">
             {paused ? (
-              <Badge className="h-5 rounded bg-orange-500/15 px-1.5 text-[10px] text-orange-300">
+              <Badge className="h-5 rounded bg-primary/15 px-1.5 text-[10px] text-primary">
                 ĐANG DỪNG
               </Badge>
             ) : null}
@@ -386,7 +386,7 @@ export function LiveLog() {
                   {/* HÀNG 2 — mô tả */}
                   <p
                     className={`mt-1 break-words font-mono text-[11px] leading-relaxed ${
-                      e.kind === "err" ? "text-red-300/90" : "text-foreground"
+                      e.kind === "err" ? "text-destructive/90" : "text-foreground"
                     }`}
                   >
                     {e.msg}

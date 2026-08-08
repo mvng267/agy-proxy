@@ -65,13 +65,13 @@ function statusBadge(status?: string) {
   if (!status) return <Badge className="bg-muted text-muted-foreground border-none text-[10px]">—</Badge>
   const s = status.toLowerCase()
   if (s === "ok" || s === "active" || s === "done")
-    return <Badge className="bg-emerald-500/15 text-emerald-400 border-none text-[10px]">{status}</Badge>
+    return <Badge className="bg-success/15 text-success border-none text-[10px]">{status}</Badge>
   if (s === "running" || s === "pending")
-    return <Badge className="bg-blue-500/15 text-blue-400 border-none text-[10px]">{status}</Badge>
+    return <Badge className="bg-info/15 text-info border-none text-[10px]">{status}</Badge>
   if (s === "error" || s === "failed" || s === "dead")
-    return <Badge className="bg-red-500/15 text-red-400 border-none text-[10px]">{status}</Badge>
+    return <Badge className="bg-destructive/15 text-destructive border-none text-[10px]">{status}</Badge>
   if (s === "cooldown")
-    return <Badge className="bg-orange-500/15 text-orange-400 border-none text-[10px]">{status}</Badge>
+    return <Badge className="bg-primary/15 text-primary border-none text-[10px]">{status}</Badge>
   return <Badge className="bg-muted text-muted-foreground border-none text-[10px]">{status}</Badge>
 }
 
@@ -265,9 +265,9 @@ export function Accounts() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <AlertTriangle className="h-8 w-8 text-red-500" />
+        <AlertTriangle className="h-8 w-8 text-destructive" />
         <p className="text-sm text-muted-foreground">Error: {error}</p>
-        <button onClick={fetchAccounts} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5">
+        <button onClick={fetchAccounts} className="text-xs text-primary hover:text-primary flex items-center gap-1.5">
           <RefreshCw className="h-3 w-3" /> Retry
         </button>
       </div>
@@ -298,7 +298,7 @@ export function Accounts() {
                 type="checkbox"
                 checked={selectedFlows.has(f.key)}
                 onChange={() => toggleFlow(f.key)}
-                className="rounded border-border bg-muted text-orange-500"
+                className="rounded border-border bg-muted text-primary"
               />
               <span className="text-xs text-foreground">{f.label}</span>
             </label>
@@ -328,7 +328,7 @@ export function Accounts() {
           <option value="done">Done</option>
         </select>
 
-        <Button size="sm" onClick={fetchAccounts} className="border border-border bg-transparent text-muted-foreground hover:text-orange-400 h-9 text-xs gap-1">
+        <Button size="sm" onClick={fetchAccounts} className="border border-border bg-transparent text-muted-foreground hover:text-primary h-9 text-xs gap-1">
           <RefreshCw className="h-3 w-3" /> Refresh
         </Button>
       </div>
@@ -341,7 +341,7 @@ export function Accounts() {
         <Button
           size="sm"
           onClick={handleAutoRun}
-          className="bg-orange-500 hover:bg-orange-600 text-white h-7 text-xs gap-1"
+          className="bg-primary hover:bg-primary text-primary-foreground h-7 text-xs gap-1"
         >
           <Bot className="h-3 w-3" /> Auto Run
         </Button>
@@ -361,10 +361,10 @@ export function Accounts() {
         </Button>
         {selected.size > 0 && (
           <>
-            <Button size="sm" onClick={handleBulkRun} className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-xs gap-1">
+            <Button size="sm" onClick={handleBulkRun} className="bg-success hover:bg-success text-success-foreground h-7 text-xs gap-1">
               <Play className="h-3 w-3" /> Run Selected
             </Button>
-            <Button size="sm" onClick={handleBulkDelete} className="bg-red-600 hover:bg-red-700 text-white h-7 text-xs gap-1">
+            <Button size="sm" onClick={handleBulkDelete} className="bg-destructive hover:bg-destructive text-destructive-foreground h-7 text-xs gap-1">
               <Trash2 className="h-3 w-3" /> Xoá Selected
             </Button>
           </>
@@ -412,7 +412,7 @@ export function Accounts() {
                   pageRows.map(acc => (
                     <TableRow
                       key={acc.email}
-                      className={`border-border hover:bg-muted/50 ${selected.has(acc.email) ? "bg-orange-500/5" : ""}`}
+                      className={`border-border hover:bg-muted/50 ${selected.has(acc.email) ? "bg-primary/5" : ""}`}
                     >
                       <TableCell>
                         <input
@@ -453,7 +453,7 @@ export function Accounts() {
                           <button
                             title="Login (chạy luồng đã chọn)"
                             onClick={() => runPipeline(acc.email)}
-                            className="h-6 px-2 flex items-center gap-1 rounded hover:bg-muted text-muted-foreground hover:text-emerald-400 text-xs"
+                            className="h-6 px-2 flex items-center gap-1 rounded hover:bg-muted text-muted-foreground hover:text-success text-xs"
                           >
                             <Play className="h-3 w-3" /> Login
                           </button>
@@ -461,7 +461,7 @@ export function Accounts() {
                           <button
                             title="Xoá account"
                             onClick={() => deleteAccount(acc.email)}
-                            className="h-6 w-6 flex items-center justify-center rounded hover:bg-red-900/30 text-muted-foreground hover:text-red-400"
+                            className="h-6 w-6 flex items-center justify-center rounded hover:bg-destructive/30 text-muted-foreground hover:text-destructive"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
@@ -507,7 +507,7 @@ export function Accounts() {
                     <button
                       key={p}
                       onClick={() => setPage(p)}
-                      className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-orange-500 text-white" : "text-muted-foreground hover:bg-muted"}`}
+                      className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
                     >
                       {p}
                     </button>

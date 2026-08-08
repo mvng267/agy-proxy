@@ -70,7 +70,7 @@ function StatusBadge({ status, enabled }: { status?: string; enabled?: boolean }
   const s = (status ?? "unknown").toLowerCase()
   if (s === "active" || s === "ok" || s === "online") {
     return (
-      <Badge className="bg-emerald-500/15 text-emerald-400 border-none text-[10px] font-normal">
+      <Badge className="bg-success/15 text-success border-none text-[10px] font-normal">
         <CheckCircle2 className="h-2.5 w-2.5 mr-1" />
         Online
       </Badge>
@@ -78,7 +78,7 @@ function StatusBadge({ status, enabled }: { status?: string; enabled?: boolean }
   }
   if (s === "failed" || s === "offline" || s === "error") {
     return (
-      <Badge className="bg-red-500/15 text-red-400 border-none text-[10px] font-normal">
+      <Badge className="bg-destructive/15 text-destructive border-none text-[10px] font-normal">
         <XCircle className="h-2.5 w-2.5 mr-1" />
         Offline
       </Badge>
@@ -219,11 +219,11 @@ export function Connections() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <AlertTriangle className="h-8 w-8 text-red-500" />
+        <AlertTriangle className="h-8 w-8 text-destructive" />
         <p className="text-sm text-muted-foreground">Error: {error}</p>
         <button
           onClick={fetchData}
-          className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5"
+          className="text-xs text-primary hover:text-primary flex items-center gap-1.5"
         >
           <RefreshCw className="h-3 w-3" /> Retry
         </button>
@@ -252,7 +252,7 @@ export function Connections() {
           variant="outline"
           size="sm"
           onClick={fetchData}
-          className="border-border text-muted-foreground hover:text-orange-400 h-7 text-xs gap-1"
+          className="border-border text-muted-foreground hover:text-primary h-7 text-xs gap-1"
         >
           <RefreshCw className="h-3 w-3" /> Refresh
         </Button>
@@ -269,7 +269,7 @@ export function Connections() {
         <Card className="bg-card border-border">
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground mb-1">Active</p>
-            <p className="text-2xl font-bold text-emerald-400 tabular-nums">
+            <p className="text-2xl font-bold text-success tabular-nums">
               {connections.filter((c) => {
                 const s = (c.status ?? c.testStatus ?? "").toLowerCase()
                 return s === "active" || s === "ok" || s === "online"
@@ -280,7 +280,7 @@ export function Connections() {
         <Card className="bg-card border-border">
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground mb-1">Offline/Lỗi</p>
-            <p className="text-2xl font-bold text-red-400 tabular-nums">
+            <p className="text-2xl font-bold text-destructive tabular-nums">
               {connections.filter((c) => {
                 const s = (c.status ?? c.testStatus ?? "").toLowerCase()
                 return s === "failed" || s === "offline" || s === "error"
@@ -325,7 +325,7 @@ export function Connections() {
                       {/* Status dot */}
                       <div className="mt-1 flex-shrink-0">
                         {enabled ? (
-                          <Wifi className="h-4 w-4 text-emerald-400" />
+                          <Wifi className="h-4 w-4 text-success" />
                         ) : (
                           <WifiOff className="h-4 w-4 text-muted-foreground" />
                         )}
@@ -383,7 +383,7 @@ export function Connections() {
                             </span>
                           )}
                           {conn.proxyEnabled && (
-                            <span className="text-blue-400">proxy ✓</span>
+                            <span className="text-info">proxy ✓</span>
                           )}
                           {conn.createdAt && (
                             <span>
@@ -394,13 +394,13 @@ export function Connections() {
 
                         {/* Ping result */}
                         {ping.status === "ok" && (
-                          <p className="text-xs text-emerald-400 mt-1.5 flex items-center gap-1">
+                          <p className="text-xs text-success mt-1.5 flex items-center gap-1">
                             <CheckCircle2 className="h-3 w-3" />
                             Ping OK · {fmtMs(ping.ms)}
                           </p>
                         )}
                         {ping.status === "fail" && (
-                          <p className="text-xs text-red-400 mt-1.5 flex items-center gap-1">
+                          <p className="text-xs text-destructive mt-1.5 flex items-center gap-1">
                             <XCircle className="h-3 w-3" />
                             {ping.error ?? "Ping failed"}
                           </p>
@@ -416,7 +416,7 @@ export function Connections() {
                         size="sm"
                         disabled={isPinging}
                         onClick={() => pingConnection(conn.id)}
-                        className="border-border text-muted-foreground hover:text-blue-400 h-7 text-xs gap-1"
+                        className="border-border text-muted-foreground hover:text-info h-7 text-xs gap-1"
                         title="Test connection"
                       >
                         {isPinging ? (
@@ -435,8 +435,8 @@ export function Connections() {
                         onClick={() => toggleConnection(conn)}
                         className={`border-border h-7 text-xs gap-1 ${
                           enabled
-                            ? "text-orange-400 hover:text-orange-300"
-                            : "text-muted-foreground hover:text-emerald-400"
+                            ? "text-primary hover:text-primary"
+                            : "text-muted-foreground hover:text-success"
                         }`}
                         title={enabled ? "Tắt connection" : "Bật connection"}
                       >
@@ -456,7 +456,7 @@ export function Connections() {
                         size="sm"
                         disabled={isDeleting}
                         onClick={() => deleteConnection(conn.id)}
-                        className="border-border text-muted-foreground hover:text-red-400 hover:border-red-800 h-7 w-7 p-0"
+                        className="border-border text-muted-foreground hover:text-destructive hover:border-destructive h-7 w-7 p-0"
                         title="Xóa connection"
                       >
                         {isDeleting ? (

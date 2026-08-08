@@ -337,9 +337,9 @@ export function Settings() {
   if (error && !config) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <AlertTriangle className="h-8 w-8 text-red-500" />
+        <AlertTriangle className="h-8 w-8 text-destructive" />
         <p className="text-sm text-muted-foreground">Error: {error}</p>
-        <button onClick={fetchConfig} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5">
+        <button onClick={fetchConfig} className="text-xs text-primary hover:text-primary flex items-center gap-1.5">
           <RefreshCw className="h-3 w-3" /> Retry
         </button>
       </div>
@@ -356,7 +356,7 @@ export function Settings() {
           <SettingsIcon className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-sm font-medium text-foreground">Cấu hình Gateway</h2>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchConfig} className="border-border text-muted-foreground hover:text-orange-400 h-7 text-xs gap-1">
+        <Button variant="outline" size="sm" onClick={fetchConfig} className="border-border text-muted-foreground hover:text-primary h-7 text-xs gap-1">
           <RefreshCw className="h-3 w-3" /> Refresh
         </Button>
       </div>
@@ -396,7 +396,7 @@ export function Settings() {
             <Button size="sm" onClick={handleCopyKey} className="border border-border bg-transparent text-muted-foreground hover:text-foreground h-9 gap-1">
               <Copy className="h-3.5 w-3.5" /> Copy
             </Button>
-            <Button size="sm" onClick={handleRegenKey} disabled={regenSpin} className="border border-border bg-transparent text-orange-400 hover:text-orange-300 h-9 gap-1">
+            <Button size="sm" onClick={handleRegenKey} disabled={regenSpin} className="border border-border bg-transparent text-primary hover:text-primary h-9 gap-1">
               {regenSpin ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
               Regenerate
             </Button>
@@ -417,10 +417,10 @@ export function Settings() {
               <p className="text-xs text-muted-foreground mt-0.5">Bật/tắt toàn bộ gateway proxy</p>
             </div>
             <div className="flex items-center gap-3">
-              <Badge className={enabled ? "bg-emerald-500/15 text-emerald-400 border-none text-[10px]" : "bg-muted text-muted-foreground border-none text-[10px]"}>
+              <Badge className={enabled ? "bg-success/15 text-success border-none text-[10px]" : "bg-muted text-muted-foreground border-none text-[10px]"}>
                 {enabled ? "Enabled" : "Disabled"}
               </Badge>
-              <Switch checked={enabled} onCheckedChange={setEnabled} className="data-[state=checked]:bg-orange-500" />
+              <Switch checked={enabled} onCheckedChange={setEnabled} className="data-[state=checked]:bg-primary" />
             </div>
           </div>
 
@@ -452,8 +452,8 @@ export function Settings() {
                 onClick={() => handleRotation(opt.value)}
                 className={`h-8 px-3 rounded-md text-xs font-medium transition-colors ${
                   rotation === opt.value
-                    ? "bg-orange-500 text-white"
-                    : "bg-muted border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted border border-border text-foreground/70 hover:text-foreground hover:bg-muted"
                 }`}
               >
                 {opt.label}
@@ -512,7 +512,7 @@ export function Settings() {
               <select
                 value={logLevel}
                 onChange={e => setLogLevel(e.target.value)}
-                className="w-full h-9 px-3 rounded-md bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                className="w-full h-9 px-3 rounded-md bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 <option value="debug">Debug</option>
                 <option value="info">Info</option>
@@ -526,18 +526,18 @@ export function Settings() {
 
       {/* Save button */}
       {error && config && (
-        <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
-          <AlertTriangle className="h-3.5 w-3.5 text-red-400 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-red-400">{error}</p>
+        <div className="flex items-start gap-2 bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2.5">
+          <AlertTriangle className="h-3.5 w-3.5 text-destructive flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-destructive">{error}</p>
         </div>
       )}
       <div className="flex items-center gap-3">
-        <Button onClick={handleSave} disabled={saving} className="bg-orange-500 hover:bg-orange-600 text-white gap-2 disabled:opacity-50">
+        <Button onClick={handleSave} disabled={saving} className="bg-primary hover:bg-primary text-primary-foreground gap-2 disabled:opacity-50">
           {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {saving ? "Đang lưu…" : "Lưu cấu hình"}
         </Button>
         {saved && (
-          <div className="flex items-center gap-1.5 text-emerald-400 text-sm">
+          <div className="flex items-center gap-1.5 text-success text-sm">
             <CheckCircle2 className="h-4 w-4" /> Đã lưu!
           </div>
         )}
@@ -562,7 +562,7 @@ export function Settings() {
               Test OmniRoute
             </Button>
             {omniTestResult && (
-              <span className={`text-xs font-medium ${omniTestResult.startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>
+              <span className={`text-xs font-medium ${omniTestResult.startsWith("✓") ? "text-success" : "text-destructive"}`}>
                 {omniTestResult}
               </span>
             )}
@@ -586,7 +586,7 @@ export function Settings() {
               size="sm"
               onClick={handleRestart}
               disabled={restarting}
-              className="bg-red-600 hover:bg-red-700 text-white h-8 text-xs gap-1"
+              className="bg-destructive hover:bg-destructive text-destructive-foreground h-8 text-xs gap-1"
             >
               {restarting ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Power className="h-3 w-3" />}
               {restarting ? "Đang khởi động lại…" : "Restart Server"}
@@ -639,7 +639,7 @@ export function Settings() {
             size="sm"
             onClick={handlePasswordSave}
             disabled={pwdSaving}
-            className="bg-muted hover:bg-muted-foreground/40 text-white h-8 text-xs gap-1"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 text-xs gap-1"
           >
             {pwdSaving ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Shield className="h-3 w-3" />}
             Lưu mật khẩu
@@ -659,7 +659,7 @@ export function Settings() {
               <Button size="sm" onClick={fetchSessions} disabled={sessionsLoading} className="border border-border bg-transparent text-muted-foreground hover:text-foreground h-7 text-xs gap-1">
                 <RefreshCw className={`h-3 w-3 ${sessionsLoading ? "animate-spin" : ""}`} /> Refresh
               </Button>
-              <Button size="sm" onClick={handleRevokeOthers} className="border border-red-800 bg-transparent text-red-400 hover:text-red-300 h-7 text-xs gap-1">
+              <Button size="sm" onClick={handleRevokeOthers} className="border border-destructive bg-transparent text-destructive hover:text-destructive h-7 text-xs gap-1">
                 <Trash2 className="h-3 w-3" /> Đăng xuất khác
               </Button>
             </div>
@@ -675,12 +675,12 @@ export function Settings() {
               {sessions.map(sess => (
                 <div
                   key={sess.id}
-                  className={`flex items-center justify-between p-2.5 rounded-lg border ${sess.current ? "border-orange-500/30 bg-orange-500/5" : "border-border bg-muted/30"}`}
+                  className={`flex items-center justify-between p-2.5 rounded-lg border ${sess.current ? "border-primary/30 bg-primary/5" : "border-border bg-muted/30"}`}
                 >
                   <div className="space-y-0.5 flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-foreground truncate font-mono">{(sess.ua ?? "").slice(0, 60)}</span>
-                      {sess.current && <Badge className="bg-orange-500/20 text-orange-400 border-none text-[10px]">phiên này</Badge>}
+                      {sess.current && <Badge className="bg-primary/20 text-primary border-none text-[10px]">phiên này</Badge>}
                     </div>
                     <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
                       <span>{sess.ip ?? "—"}</span>
@@ -691,7 +691,7 @@ export function Settings() {
                   {!sess.current && (
                     <button
                       onClick={() => handleRevokeSession(sess.id)}
-                      className="ml-2 h-6 w-6 flex items-center justify-center rounded hover:bg-red-900/30 text-muted-foreground hover:text-red-400 flex-shrink-0"
+                      className="ml-2 h-6 w-6 flex items-center justify-center rounded hover:bg-destructive/30 text-muted-foreground hover:text-destructive flex-shrink-0"
                       title="Thu hồi phiên"
                     >
                       <Trash2 className="h-3 w-3" />

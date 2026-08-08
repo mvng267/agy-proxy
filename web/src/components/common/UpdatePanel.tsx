@@ -81,13 +81,13 @@ export function UpdatePanel() {
           {q.isLoading ? (
             <span className="text-xs text-muted-foreground">đang kiểm tra…</span>
           ) : d?.error ? (
-            <span className="text-xs text-amber-400">không kiểm tra được: {d.error.slice(0, 60)}</span>
+            <span className="text-xs text-warning">không kiểm tra được: {d.error.slice(0, 60)}</span>
           ) : d?.hasUpdate ? (
-            <span className="rounded-md bg-orange-500/15 px-2 py-0.5 text-xs font-medium text-orange-400">
+            <span className="rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
               có bản mới v{d.latest}
             </span>
           ) : (
-            <span className="text-xs text-emerald-400">đã là bản mới nhất</span>
+            <span className="text-xs text-success">đã là bản mới nhất</span>
           )}
 
           <div className="ml-auto flex items-center gap-2">
@@ -125,9 +125,9 @@ export function UpdatePanel() {
             {steps.map((s, i) => (
               <div key={i} className="flex items-start gap-2 text-xs">
                 {s.ok ? (
-                  <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-500" />
+                  <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-success" />
                 ) : (
-                  <XCircle className="mt-0.5 h-3 w-3 shrink-0 text-red-500" />
+                  <XCircle className="mt-0.5 h-3 w-3 shrink-0 text-destructive" />
                 )}
                 <span className="w-28 shrink-0 text-muted-foreground">{s.step}</span>
                 <span className="min-w-0 flex-1 break-words text-muted-foreground">{s.detail}</span>

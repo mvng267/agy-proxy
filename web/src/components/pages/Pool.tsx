@@ -481,7 +481,7 @@ export function Pool() {
       {selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 bg-muted/50 rounded-lg px-4 py-2">
           <span className="text-xs text-muted-foreground mr-1">{selected.size} đã chọn</span>
-          <Button size="sm" onClick={() => handleBulkEnable(true, [...selected])} className="bg-success hover:bg-success text-white h-7 text-xs gap-1">
+          <Button size="sm" onClick={() => handleBulkEnable(true, [...selected])} className="bg-success hover:bg-success text-success-foreground h-7 text-xs gap-1">
             <Power className="h-3 w-3" /> Bật
           </Button>
           <Button size="sm" onClick={() => handleBulkEnable(false, [...selected])} className="bg-muted hover:bg-muted-foreground/40 text-foreground h-7 text-xs gap-1">

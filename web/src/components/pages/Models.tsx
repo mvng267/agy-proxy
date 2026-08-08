@@ -46,10 +46,10 @@ type CopiedMap = Record<string, boolean>
 // ── Helpers ────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { color: string; dotColor: string; label: string; icon: React.ReactNode }> = {
-  ok:      { color: "bg-emerald-500/15 text-emerald-400", dotColor: "bg-emerald-400", label: "live",    icon: <CheckCircle2 className="h-2.5 w-2.5" /> },
-  quota:   { color: "bg-amber-500/15 text-amber-400",     dotColor: "bg-amber-400",   label: "quota",   icon: <AlertTriangle className="h-2.5 w-2.5" /> },
-  error:   { color: "bg-red-500/15 text-red-400",         dotColor: "bg-red-400",     label: "error",   icon: <XCircle className="h-2.5 w-2.5" /> },
-  image:   { color: "bg-purple-500/15 text-purple-400",   dotColor: "bg-purple-400",  label: "image",   icon: <Cpu className="h-2.5 w-2.5" /> },
+  ok:      { color: "bg-success/15 text-success", dotColor: "bg-success", label: "live",    icon: <CheckCircle2 className="h-2.5 w-2.5" /> },
+  quota:   { color: "bg-warning/15 text-warning",     dotColor: "bg-warning",   label: "quota",   icon: <AlertTriangle className="h-2.5 w-2.5" /> },
+  error:   { color: "bg-destructive/15 text-destructive",         dotColor: "bg-destructive",     label: "error",   icon: <XCircle className="h-2.5 w-2.5" /> },
+  image:   { color: "bg-info/15 text-info",   dotColor: "bg-info",  label: "image",   icon: <Cpu className="h-2.5 w-2.5" /> },
   unknown: { color: "bg-muted/60 text-muted-foreground",     dotColor: "bg-muted-foreground/40",   label: "—",       icon: <HelpCircle className="h-2.5 w-2.5" /> },
 }
 
@@ -110,7 +110,7 @@ function ModelChip({
         title="Copy model id"
       >
         {copied ? (
-          <Check className="h-2.5 w-2.5 text-emerald-400" />
+          <Check className="h-2.5 w-2.5 text-success" />
         ) : (
           <Copy className="h-2.5 w-2.5" />
         )}
@@ -266,11 +266,11 @@ export function Models() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <AlertTriangle className="h-8 w-8 text-red-500" />
+        <AlertTriangle className="h-8 w-8 text-destructive" />
         <p className="text-sm text-muted-foreground">Error: {error}</p>
         <button
           onClick={fetchData}
-          className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5"
+          className="text-xs text-primary hover:text-primary flex items-center gap-1.5"
         >
           <RefreshCw className="h-3 w-3" /> Retry
         </button>
@@ -339,7 +339,7 @@ export function Models() {
             variant="outline"
             size="sm"
             onClick={fetchData}
-            className="border-border text-muted-foreground hover:text-orange-400 h-7 text-xs gap-1"
+            className="border-border text-muted-foreground hover:text-primary h-7 text-xs gap-1"
           >
             <RefreshCw className="h-3 w-3" /> Refresh
           </Button>
@@ -348,7 +348,7 @@ export function Models() {
             size="sm"
             disabled={checkingAll}
             onClick={checkAllLive}
-            className="border-border text-muted-foreground hover:text-emerald-400 h-7 text-xs gap-1"
+            className="border-border text-muted-foreground hover:text-success h-7 text-xs gap-1"
             title="Gọi thử từng model (1-2 phút)"
           >
             {checkingAll ? (
@@ -363,7 +363,7 @@ export function Models() {
             size="sm"
             disabled={probingKiro}
             onClick={probeKiro}
-            className="border-border text-muted-foreground hover:text-purple-400 h-7 text-xs gap-1"
+            className="border-border text-muted-foreground hover:text-info h-7 text-xs gap-1"
             title="Probe Kiro accounts để tìm model dùng được"
           >
             {probingKiro ? (
@@ -386,9 +386,9 @@ export function Models() {
       {/* KPI row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Live", count: statusCounts.ok, color: "text-emerald-400" },
-          { label: "Quota", count: statusCounts.quota, color: "text-amber-400" },
-          { label: "Error", count: statusCounts.error, color: "text-red-400" },
+          { label: "Live", count: statusCounts.ok, color: "text-success" },
+          { label: "Quota", count: statusCounts.quota, color: "text-warning" },
+          { label: "Error", count: statusCounts.error, color: "text-destructive" },
           { label: "Chưa kiểm", count: statusCounts.unknown, color: "text-muted-foreground" },
         ].map((s) => (
           <Card key={s.label} className="bg-card border-border">
@@ -469,10 +469,10 @@ export function Models() {
                     {checkedCount > 0 && (
                       <div className="flex items-center gap-1.5 text-xs">
                         {okCount > 0 && (
-                          <span className="text-emerald-400">{okCount} live</span>
+                          <span className="text-success">{okCount} live</span>
                         )}
                         {quotaCount > 0 && (
-                          <span className="text-amber-400">{quotaCount} quota</span>
+                          <span className="text-warning">{quotaCount} quota</span>
                         )}
                       </div>
                     )}

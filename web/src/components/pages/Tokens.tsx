@@ -90,14 +90,14 @@ function downloadFile(name: string, content: string, type: string) {
 function HealthBadge({ health }: { health?: string }) {
   if (health === "alive") {
     return (
-      <Badge className="bg-emerald-500/15 text-emerald-400 border-none text-[10px]">
+      <Badge className="bg-success/15 text-success border-none text-[10px]">
         alive
       </Badge>
     )
   }
   if (health === "dead") {
     return (
-      <Badge className="bg-red-500/15 text-red-400 border-none text-[10px]">dead</Badge>
+      <Badge className="bg-destructive/15 text-destructive border-none text-[10px]">dead</Badge>
     )
   }
   return (
@@ -109,9 +109,9 @@ function HealthBadge({ health }: { health?: string }) {
 
 function TargetBadge({ target }: { target: string }) {
   const map: Record<string, string> = {
-    agy: "bg-orange-500/15 text-orange-400",
-    kiro: "bg-blue-500/15 text-blue-400",
-    gweb: "bg-purple-500/15 text-purple-400",
+    agy: "bg-primary/15 text-primary",
+    kiro: "bg-info/15 text-info",
+    gweb: "bg-info/15 text-info",
   }
   const cls = map[target] ?? "bg-muted text-muted-foreground"
   return (
@@ -184,7 +184,7 @@ function TokenRow({ cred }: { cred: Credential }) {
               title="Copy token"
             >
               {copied ? (
-                <Check className="h-3 w-3 text-emerald-400" />
+                <Check className="h-3 w-3 text-success" />
               ) : (
                 <Copy className="h-3 w-3" />
               )}
@@ -316,11 +316,11 @@ export function Tokens() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <AlertTriangle className="h-8 w-8 text-red-500" />
+        <AlertTriangle className="h-8 w-8 text-destructive" />
         <p className="text-sm text-muted-foreground">Lỗi: {error}</p>
         <button
           onClick={fetchData}
-          className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5"
+          className="text-xs text-primary hover:text-primary flex items-center gap-1.5"
         >
           <RefreshCw className="h-3 w-3" /> Retry
         </button>
@@ -341,13 +341,13 @@ export function Tokens() {
         <Card className="bg-card border-border">
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Alive</p>
-            <p className="text-2xl font-bold text-emerald-400 tabular-nums">{alive}</p>
+            <p className="text-2xl font-bold text-success tabular-nums">{alive}</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Dead</p>
-            <p className="text-2xl font-bold text-red-400 tabular-nums">{dead}</p>
+            <p className="text-2xl font-bold text-destructive tabular-nums">{dead}</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
@@ -363,11 +363,11 @@ export function Tokens() {
         <div className="flex items-center gap-2">
           <div className="flex-1 h-2 rounded-full overflow-hidden bg-muted flex">
             <div
-              className="h-full bg-emerald-500 transition-all"
+              className="h-full bg-success transition-all"
               style={{ width: `${(alive / creds.length) * 100}%` }}
             />
             <div
-              className="h-full bg-red-500 transition-all"
+              className="h-full bg-destructive transition-all"
               style={{ width: `${(dead / creds.length) * 100}%` }}
             />
             <div
@@ -413,8 +413,8 @@ export function Tokens() {
           </SelectTrigger>
           <SelectContent className="bg-card border-border">
             <SelectItem value="all" className="text-xs text-foreground">Tất cả</SelectItem>
-            <SelectItem value="alive" className="text-xs text-emerald-400">alive</SelectItem>
-            <SelectItem value="dead" className="text-xs text-red-400">dead</SelectItem>
+            <SelectItem value="alive" className="text-xs text-success">alive</SelectItem>
+            <SelectItem value="dead" className="text-xs text-destructive">dead</SelectItem>
             <SelectItem value="unknown" className="text-xs text-muted-foreground">chưa rõ</SelectItem>
           </SelectContent>
         </Select>
@@ -423,7 +423,7 @@ export function Tokens() {
           size="sm"
           onClick={handleCheck}
           disabled={checking}
-          className="bg-orange-500 hover:bg-orange-600 text-white h-8 text-xs gap-1.5 ml-auto"
+          className="bg-primary hover:bg-primary text-primary-foreground h-8 text-xs gap-1.5 ml-auto"
         >
           {checking ? (
             <RefreshCw className="h-3 w-3 animate-spin" />
@@ -437,14 +437,14 @@ export function Tokens() {
           variant="outline"
           size="sm"
           onClick={handleExport}
-          className="border-border text-muted-foreground hover:text-orange-400 h-8 text-xs gap-1"
+          className="border-border text-muted-foreground hover:text-primary h-8 text-xs gap-1"
         >
           <Download className="h-3 w-3" /> Export CSV
         </Button>
       </div>
 
       {checkMsg && (
-        <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded px-3 py-1.5">
+        <p className="text-xs text-success bg-success/10 border border-success/20 rounded px-3 py-1.5">
           {checkMsg}
         </p>
       )}

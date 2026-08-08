@@ -218,11 +218,11 @@ export function Combo() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <AlertTriangle className="h-8 w-8 text-red-500" />
+        <AlertTriangle className="h-8 w-8 text-destructive" />
         <p className="text-sm text-muted-foreground">Error: {error}</p>
         <button
           onClick={fetchData}
-          className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5"
+          className="text-xs text-primary hover:text-primary flex items-center gap-1.5"
         >
           <RefreshCw className="h-3 w-3" /> Retry
         </button>
@@ -253,7 +253,7 @@ export function Combo() {
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Combos</p>
                 <p className="text-2xl font-bold text-foreground tabular-nums">{combos.length}</p>
               </div>
-              <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
                 <Shuffle className="h-4 w-4" />
               </div>
             </div>
@@ -264,9 +264,9 @@ export function Combo() {
             <div className="flex items-start justify-between">
               <div className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Enabled</p>
-                <p className="text-2xl font-bold text-emerald-400 tabular-nums">{enabledCount}</p>
+                <p className="text-2xl font-bold text-success tabular-nums">{enabledCount}</p>
               </div>
-              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+              <div className="p-2 rounded-lg bg-success/10 text-success">
                 <Shuffle className="h-4 w-4" />
               </div>
             </div>
@@ -279,7 +279,7 @@ export function Combo() {
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Auto Variants</p>
                 <p className="text-2xl font-bold text-foreground">{autoVariants ? "On" : "Off"}</p>
               </div>
-              <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+              <div className="p-2 rounded-lg bg-info/10 text-info">
                 <Shuffle className="h-4 w-4" />
               </div>
             </div>
@@ -303,7 +303,7 @@ export function Combo() {
             variant="outline"
             size="sm"
             onClick={fetchData}
-            className="border-border text-muted-foreground hover:text-orange-400 h-9 text-xs gap-1"
+            className="border-border text-muted-foreground hover:text-primary h-9 text-xs gap-1"
           >
             <RefreshCw className="h-3 w-3" /> Refresh
           </Button>
@@ -315,7 +315,7 @@ export function Combo() {
                 <Button
                   size="sm"
                   onClick={handleCreate}
-                  className="bg-orange-500 hover:bg-orange-600 text-white h-9 text-xs gap-1"
+                  className="bg-primary hover:bg-primary text-primary-foreground h-9 text-xs gap-1"
                 />
               }
             >
@@ -368,7 +368,7 @@ export function Combo() {
                         onClick={() => setForm((f) => ({ ...f, strategy: s }))}
                         className={
                           form.strategy === s
-                            ? "bg-orange-500 hover:bg-orange-600 text-white h-7 text-xs"
+                            ? "bg-primary hover:bg-primary text-primary-foreground h-7 text-xs"
                             : "border-border text-muted-foreground hover:text-foreground hover:bg-muted h-7 text-xs"
                         }
                       >
@@ -394,7 +394,7 @@ export function Combo() {
                 <Button
                   onClick={handleSave}
                   disabled={saving || !form.id.trim() || !form.targets.trim()}
-                  className="bg-orange-500 hover:bg-orange-600 text-white text-xs disabled:opacity-50"
+                  className="bg-primary hover:bg-primary text-primary-foreground text-xs disabled:opacity-50"
                 >
                   {saving ? (
                     <>
@@ -467,7 +467,7 @@ export function Combo() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className="bg-blue-500/15 text-blue-400 border-none text-[10px]">
+                      <Badge className="bg-info/15 text-info border-none text-[10px]">
                         {combo.strategy}
                       </Badge>
                     </TableCell>
@@ -484,7 +484,7 @@ export function Combo() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleEdit(combo)}
-                          className="border-border text-muted-foreground hover:text-blue-400 h-7 w-7 p-0"
+                          className="border-border text-muted-foreground hover:text-info h-7 w-7 p-0"
                           title="Sửa"
                         >
                           <Edit3 className="h-3 w-3" />
@@ -495,7 +495,7 @@ export function Combo() {
                             <Button
                               size="sm"
                               onClick={() => handleDelete(combo.id)}
-                              className="bg-red-600 hover:bg-red-700 text-white h-7 text-[10px] px-2"
+                              className="bg-destructive hover:bg-destructive text-destructive-foreground h-7 text-[10px] px-2"
                             >
                               Xoá
                             </Button>
@@ -513,7 +513,7 @@ export function Combo() {
                             variant="outline"
                             size="sm"
                             onClick={() => setDeleteConfirm(combo.id)}
-                            className="border-border text-muted-foreground hover:text-red-400 h-7 w-7 p-0"
+                            className="border-border text-muted-foreground hover:text-destructive h-7 w-7 p-0"
                             title="Xoá"
                           >
                             <Trash2 className="h-3 w-3" />

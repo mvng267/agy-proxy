@@ -29,9 +29,9 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
-          <div className="p-3 rounded-full bg-red-500/10">
+          <div className="p-3 rounded-full bg-destructive/10">
             <svg
-              className="h-8 w-8 text-red-400"
+              className="h-8 w-8 text-destructive"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -50,7 +50,7 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
           <button
             onClick={this.handleReset}
-            className="px-4 py-2 rounded-md bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition-colors"
+            className="px-4 py-2 rounded-md bg-primary hover:bg-primary text-primary-foreground text-sm font-medium transition-colors"
           >
             Thử lại
           </button>

@@ -465,7 +465,7 @@ export function Quota() {
             <button
               key={v}
               onClick={() => setSortAndSave(v)}
-              className={`h-7 px-2.5 rounded text-xs font-medium transition-colors ${sortBy === v ? "bg-warning text-white" : "bg-muted border border-border text-muted-foreground hover:text-foreground"}`}
+              className={`h-7 px-2.5 rounded text-xs font-medium transition-colors ${sortBy === v ? "bg-primary text-primary-foreground" : "bg-muted border border-border text-foreground/70 hover:text-foreground"}`}
             >
               {l}
             </button>
@@ -493,7 +493,7 @@ export function Quota() {
       {selected.size > 0 && (
         <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-4 py-2">
           <span className="text-xs text-muted-foreground">{selected.size} đã chọn</span>
-          <Button size="sm" onClick={handleBulkRefresh} className="bg-warning hover:bg-warning text-white h-7 text-xs gap-1">
+          <Button size="sm" onClick={handleBulkRefresh} className="bg-warning hover:bg-warning text-warning-foreground h-7 text-xs gap-1">
             <RefreshCw className="h-3 w-3" /> Refresh quota
           </Button>
         </div>
@@ -646,7 +646,7 @@ export function Quota() {
                     const p = Math.max(1, Math.min(totalPages - 4, safePage - 2)) + i
                     return (
                       <button key={p} onClick={() => setPage(p)}
-                        className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-warning text-white" : "text-muted-foreground hover:bg-muted"}`}
+                        className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-warning text-warning-foreground" : "text-muted-foreground hover:bg-muted"}`}
                       >{p}</button>
                     )
                   })}

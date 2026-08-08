@@ -41,7 +41,7 @@ function Tab3({
       onClick={() => onClick(id)}
       className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
         active
-          ? "bg-orange-500 text-white"
+          ? "bg-primary text-primary-foreground"
           : "text-muted-foreground hover:text-foreground hover:bg-muted"
       }`}
     >
@@ -62,14 +62,14 @@ function ResultBox({
     <div
       className={`flex items-start gap-2 p-3 rounded-lg border text-sm ${
         ok
-          ? "bg-emerald-950/30 border-emerald-800/50 text-emerald-300"
-          : "bg-red-950/30 border-red-800/50 text-red-300"
+          ? "bg-success/30 border-success/50 text-success"
+          : "bg-destructive/30 border-destructive/50 text-destructive"
       }`}
     >
       {ok ? (
-        <CheckCircle2 className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
+        <CheckCircle2 className="h-4 w-4 text-success mt-0.5 shrink-0" />
       ) : (
-        <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
+        <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
       )}
       <span>{message}</span>
     </div>
@@ -155,7 +155,7 @@ function SingleForm({ proxyLabels }: { proxyLabels: string[] }) {
           <select
             value={proxy}
             onChange={(e) => setProxy(e.target.value)}
-            className="w-full h-9 px-2 rounded-md bg-background border border-border text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+            className="w-full h-9 px-2 rounded-md bg-background border border-border text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-primary"
           >
             <option value="">(không gán)</option>
             {proxyLabels.map((l) => (
@@ -170,7 +170,7 @@ function SingleForm({ proxyLabels }: { proxyLabels: string[] }) {
       <Button
         onClick={handleSubmit}
         disabled={loading || !email.trim()}
-        className="bg-orange-500 hover:bg-orange-600 text-white h-9 text-sm gap-2"
+        className="bg-primary hover:bg-primary text-primary-foreground h-9 text-sm gap-2"
       >
         {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
         {loading ? "Đang thêm…" : "Thêm tài khoản"}
@@ -242,7 +242,7 @@ function BulkForm() {
     <div className="space-y-3">
       <div
         className={`relative rounded-lg border-2 border-dashed transition-colors ${
-          dragging ? "border-orange-500 bg-orange-500/5" : "border-border hover:border-border"
+          dragging ? "border-primary bg-primary/5" : "border-border hover:border-border"
         }`}
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
@@ -257,7 +257,7 @@ function BulkForm() {
         />
         {dragging && (
           <div className="absolute inset-0 flex items-center justify-center bg-card/80 rounded-lg pointer-events-none">
-            <p className="text-orange-400 font-medium text-sm">Thả file vào đây</p>
+            <p className="text-primary font-medium text-sm">Thả file vào đây</p>
           </div>
         )}
       </div>
@@ -265,7 +265,7 @@ function BulkForm() {
       {lineCount > 0 && (
         <p className="text-xs text-muted-foreground">
           Nhận diện{" "}
-          <span className="text-orange-400 font-medium">{lineCount}</span> dòng
+          <span className="text-primary font-medium">{lineCount}</span> dòng
         </p>
       )}
 
@@ -273,7 +273,7 @@ function BulkForm() {
         <Button
           onClick={() => handleImport(text)}
           disabled={loading || !text.trim()}
-          className="bg-orange-500 hover:bg-orange-600 text-white h-9 text-sm gap-2"
+          className="bg-primary hover:bg-primary text-primary-foreground h-9 text-sm gap-2"
         >
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
           {loading ? "Đang import…" : "Import"}
@@ -431,7 +431,7 @@ function GenerateForm() {
       <Button
         onClick={handleGenerate}
         disabled={loading || !prefix.trim() || !domain.trim() || count < 1}
-        className="bg-orange-500 hover:bg-orange-600 text-white h-9 text-sm gap-2"
+        className="bg-primary hover:bg-primary text-primary-foreground h-9 text-sm gap-2"
       >
         {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
         {loading ? "Đang tạo…" : `Tạo ${preview} tài khoản`}

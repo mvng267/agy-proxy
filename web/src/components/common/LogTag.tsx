@@ -13,17 +13,17 @@ import { cn } from "@/lib/utils"
 export type TagTone = "req" | "ok" | "err" | "warn" | "quota" | "model" | "account" | "key" | "combo" | "muted"
 
 const TONE: Record<TagTone, string> = {
-  req: "bg-blue-500/15 text-blue-300",
-  ok: "bg-emerald-500/15 text-emerald-300",
-  err: "bg-red-500/15 text-red-300",
-  warn: "bg-amber-500/15 text-amber-300",
-  quota: "bg-orange-500/15 text-orange-300",
+  req: "bg-info/15 text-info",
+  ok: "bg-success/15 text-success",
+  err: "bg-destructive/15 text-destructive",
+  warn: "bg-warning/15 text-warning",
+  quota: "bg-primary/15 text-primary",
   // Ba loại "danh tính" (model / account / api key) cố ý KHÁC tông nhau rõ rệt: một
   // dòng log có cả ba, cùng tông thì mắt phải đọc chữ mới phân biệt được.
-  model: "bg-violet-500/15 text-violet-300",
-  account: "bg-sky-500/15 text-sky-300",
-  key: "bg-fuchsia-500/15 text-fuchsia-300",
-  combo: "bg-teal-500/15 text-teal-300",
+  model: "bg-info/15 text-info",
+  account: "bg-info/15 text-info",
+  key: "bg-info/15 text-info",
+  combo: "bg-info/15 text-info",
   muted: "bg-muted/60 text-foreground",
 }
 
