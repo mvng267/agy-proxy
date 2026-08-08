@@ -134,3 +134,48 @@ test('SPA fallback: F5 tại route con trả dashboard chứ không 404', async 
   // Root React đã mount nghĩa là index.html được trả về cho route con
   assert.ok(await page.locator('#root > *').first().isVisible(), 'app React phải mount tại /agy');
 });
+
+test('apiKey bị che mặc định, ?reveal=1 mới trả nguyên văn', async () => {
+  // page.request dùng chung cookie phiên đã đăng nhập ở test trước.
+  const masked = await (await page.request.get(`${BASE}/api/gateway/config`)).json() as any;
+  // AGY_HOME tạm không đặt GATEWAY_API_KEY → sinh key hay rỗng đều được, miễn là
+  // KHÔNG trả nguyên văn: bản che hoặc rỗng, kèm cờ apiKeyMasked.
+  assert.equal(masked.apiKeyMasked, true, 'GET mặc định phải báo apiKeyMasked=true');
+  if (masked.apiKey) {
+    assert.match(String(masked.apiKey), /…|^•+$/, 'apiKey mặc định phải là bản che');
+  }
+  const full = await (await page.request.get(`${BASE}/api/gateway/config?reveal=1`)).json() as any;
+  assert.equal(full.apiKeyMasked, false);
+  if (full.apiKey) assert.doesNotMatch(String(full.apiKey), /…/, 'reveal=1 phải trả key thật');
+});
+
+test('PATCH config: rotation hợp lệ được ghi, giá trị rác bị từ chối KÈM lý do', async () => {
+  const patch = (body: unknown) =>
+    page.request.patch(`${BASE}/api/gateway/config`, { data: body }).then((r) => r.json() as Promise<any>);
+
+  const ok = await patch({ rotation: 'smart' });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.config.rotation, 'smart');
+
+  // Trước đây PATCH vứt `rejected` rồi vẫn trả ok:true — bấm nút mà không có gì đổi
+  // và không ai được báo. Test này khoá hành vi mới lại.
+  const bad = await patch({ rotation: 'khong-ton-tai' });
+  assert.equal(bad.ok, false, 'giá trị ngoài enum phải làm ok=false');
+  assert.ok(bad.rejected?.length, 'phải liệt kê khoá bị từ chối');
+  assert.ok(String(bad.rejected[0].reason).includes('round-robin'), 'lý do phải kể ra các giá trị hợp lệ');
+
+  const back = await patch({ rotation: 'round-robin' });
+  assert.equal(back.config.rotation, 'round-robin');
+});
+
+test('trang Cấu hình: nút chiến lược khớp ĐÚNG enum backend', async () => {
+  // Trước đây UI liệt kê random/least-used/first-available — ba giá trị backend
+  // không hề có, chọn vào là bị từ chối im lặng.
+  await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
+  for (const label of ['Round Robin', 'Quota cao nhất', 'Thông minh', 'Dùng cạn dần', 'Failover']) {
+    assert.ok(
+      await page.getByRole('button', { name: label, exact: true }).isVisible(),
+      `thiếu nút chiến lược "${label}"`,
+    );
+  }
+});
