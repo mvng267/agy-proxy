@@ -67,9 +67,9 @@ function fmtReset(iso?: string) {
 
 function qColor(pct?: number) {
   if (pct == null) return "text-muted-foreground"
-  if (pct >= 50) return "text-emerald-400"
-  if (pct >= 20) return "text-amber-400"
-  return "text-red-400"
+  if (pct >= 50) return "text-success"
+  if (pct >= 20) return "text-warning"
+  return "text-destructive"
 }
 
 function claudePct(a: PoolAccount): number | null {
@@ -92,7 +92,7 @@ function QuotaDonut({ label, pct, color, size = 100, strokeWidth = 10 }: {
     <div className="flex flex-col items-center gap-2">
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="transform -rotate-90">
-          <circle cx={center} cy={center} r={radius} fill="none" stroke="#334155" strokeWidth={strokeWidth} />
+          <circle cx={center} cy={center} r={radius} fill="none" stroke="var(--muted)" strokeWidth={strokeWidth} />
           {pct > 0 && (
             <circle cx={center} cy={center} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth}
               strokeDasharray={`${filled} ${circumference - filled}`} strokeDashoffset={0} strokeLinecap="round"
@@ -139,7 +139,7 @@ function Sparkline({ series, width = 200, height = 40 }: {
 
 function QuotaBar({ pct }: { pct?: number }) {
   if (pct == null) return <span className="text-xs text-muted-foreground">—</span>
-  const color = pct >= 50 ? "bg-emerald-500" : pct >= 20 ? "bg-amber-500" : "bg-red-500"
+  const color = pct >= 50 ? "bg-success" : pct >= 20 ? "bg-warning" : "bg-destructive"
   return (
     <div className="flex items-center gap-2 min-w-[80px]">
       <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
@@ -330,9 +330,9 @@ export function Quota() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <AlertTriangle className="h-8 w-8 text-red-500" />
+        <AlertTriangle className="h-8 w-8 text-destructive" />
         <p className="text-sm text-muted-foreground">Error: {error}</p>
-        <button onClick={fetchAccounts} className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1.5">
+        <button onClick={fetchAccounts} className="text-xs text-warning hover:text-warning flex items-center gap-1.5">
           <RefreshCw className="h-3 w-3" /> Retry
         </button>
       </div>
@@ -358,7 +358,7 @@ export function Quota() {
             size="sm"
             onClick={handleBulkRefresh}
             disabled={bulkRefreshing}
-            className="border border-border bg-transparent text-muted-foreground hover:text-orange-400 h-7 text-xs gap-1"
+            className="border border-border bg-transparent text-muted-foreground hover:text-warning h-7 text-xs gap-1"
           >
             {bulkRefreshing ? <RefreshCw className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
             {selected.size > 0 ? `Refresh ${selected.size} đã chọn` : "Refresh All"}
@@ -379,7 +379,7 @@ export function Quota() {
         </Card>
         <Card className="bg-card border-border">
           <CardContent className="pt-4 flex items-center gap-4">
-            {avgGemini != null && <QuotaDonut label="Gemini TB" pct={avgGemini} color="#22c55e" size={80} strokeWidth={8} />}
+            {avgGemini != null && <QuotaDonut label="Gemini TB" pct={avgGemini} color="var(--chart-success)" size={80} strokeWidth={8} />}
             <div className="flex-1">
               <QuotaBar pct={avgGemini ?? undefined} />
               <p className="text-[10px] text-muted-foreground mt-1">Trung bình pool</p>
@@ -388,7 +388,7 @@ export function Quota() {
         </Card>
         <Card className="bg-card border-border">
           <CardContent className="pt-4 flex items-center gap-4">
-            {avgClaude != null && <QuotaDonut label="Claude TB" pct={avgClaude} color="#8b5cf6" size={80} strokeWidth={8} />}
+            {avgClaude != null && <QuotaDonut label="Claude TB" pct={avgClaude} color="var(--chart-info)" size={80} strokeWidth={8} />}
             <div className="flex-1">
               <QuotaBar pct={avgClaude ?? undefined} />
               <p className="text-[10px] text-muted-foreground mt-1">Trung bình pool</p>
@@ -428,8 +428,8 @@ export function Quota() {
             <div className="bg-muted/50 rounded-lg p-3">
               <Sparkline
                 series={[
-                  { data: histPoints, color: "#22c55e" },
-                  { data: histPointsThird, color: "#8b5cf6" },
+                  { data: histPoints, color: "var(--chart-success)" },
+                  { data: histPointsThird, color: "var(--chart-info)" },
                 ]}
                 width={500}
                 height={60}
@@ -441,8 +441,8 @@ export function Quota() {
             </p>
           )}
           <div className="flex items-center gap-4 mt-2">
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-emerald-500" />Gemini</span>
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-purple-500" />Claude/GPT</span>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-success" />Gemini</span>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-info" />Claude/GPT</span>
           </div>
         </CardContent>
       </Card>
@@ -465,7 +465,7 @@ export function Quota() {
             <button
               key={v}
               onClick={() => setSortAndSave(v)}
-              className={`h-7 px-2.5 rounded text-xs font-medium transition-colors ${sortBy === v ? "bg-orange-500 text-white" : "bg-muted border border-border text-muted-foreground hover:text-foreground"}`}
+              className={`h-7 px-2.5 rounded text-xs font-medium transition-colors ${sortBy === v ? "bg-warning text-white" : "bg-muted border border-border text-muted-foreground hover:text-foreground"}`}
             >
               {l}
             </button>
@@ -493,7 +493,7 @@ export function Quota() {
       {selected.size > 0 && (
         <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-4 py-2">
           <span className="text-xs text-muted-foreground">{selected.size} đã chọn</span>
-          <Button size="sm" onClick={handleBulkRefresh} className="bg-orange-500 hover:bg-orange-600 text-white h-7 text-xs gap-1">
+          <Button size="sm" onClick={handleBulkRefresh} className="bg-warning hover:bg-warning text-white h-7 text-xs gap-1">
             <RefreshCw className="h-3 w-3" /> Refresh quota
           </Button>
         </div>
@@ -541,7 +541,7 @@ export function Quota() {
                       return [
                         <TableRow
                           key={acc.email}
-                          className={`border-border hover:bg-muted/40 ${selected.has(acc.email) ? "bg-orange-500/5" : ""}`}
+                          className={`border-border hover:bg-muted/40 ${selected.has(acc.email) ? "bg-warning/5" : ""}`}
                         >
                           <TableCell className="pl-4">
                             <input
@@ -563,7 +563,7 @@ export function Quota() {
                           </TableCell>
                           <TableCell>
                             <button
-                              className="text-sm text-foreground font-mono hover:text-orange-400 text-left"
+                              className="text-sm text-foreground font-mono hover:text-warning text-left"
                               onClick={() => { setHistEmail(acc.email) }}
                               title="Xem lịch sử hạn mức"
                             >
@@ -578,7 +578,7 @@ export function Quota() {
                             <button
                               onClick={() => handleRefreshOne(acc.email)}
                               disabled={refreshing[acc.email]}
-                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-orange-400 ml-auto"
+                              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-warning ml-auto"
                               title="Nạp hạn mức"
                             >
                               <RefreshCw className={`h-3 w-3 ${refreshing[acc.email] ? "animate-spin" : ""}`} />
@@ -646,7 +646,7 @@ export function Quota() {
                     const p = Math.max(1, Math.min(totalPages - 4, safePage - 2)) + i
                     return (
                       <button key={p} onClick={() => setPage(p)}
-                        className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-orange-500 text-white" : "text-muted-foreground hover:bg-muted"}`}
+                        className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-warning text-white" : "text-muted-foreground hover:bg-muted"}`}
                       >{p}</button>
                     )
                   })}
@@ -678,7 +678,7 @@ export function Quota() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <button
-                          className="text-sm text-foreground font-mono truncate hover:text-orange-400 text-left w-full"
+                          className="text-sm text-foreground font-mono truncate hover:text-warning text-left w-full"
                           onClick={() => setHistEmail(acc.email)}
                         >
                           {acc.email}
@@ -688,7 +688,7 @@ export function Quota() {
                       <button
                         onClick={() => handleRefreshOne(acc.email)}
                         disabled={refreshing[acc.email]}
-                        className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-orange-400 flex-shrink-0"
+                        className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-warning flex-shrink-0"
                       >
                         <RefreshCw className={`h-3 w-3 ${refreshing[acc.email] ? "animate-spin" : ""}`} />
                       </button>
@@ -749,8 +749,8 @@ export function Quota() {
       {histPoints.length >= 2 && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           {histPoints[histPoints.length - 1] > histPoints[histPoints.length - 2]
-            ? <TrendingUp className="h-3 w-3 text-red-400" />
-            : <TrendingDown className="h-3 w-3 text-emerald-400" />}
+            ? <TrendingUp className="h-3 w-3 text-destructive" />
+            : <TrendingDown className="h-3 w-3 text-success" />}
           <span>
             {histPoints[histPoints.length - 1] > histPoints[histPoints.length - 2]
               ? "Quota đang giảm" : "Quota đang phục hồi"}

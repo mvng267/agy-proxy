@@ -44,10 +44,12 @@ interface Point {
 const MAX_POINTS = 120 // 120 × 5s = 10 phút lịch sử trong RAM trang
 
 // Màu series — cặp p50/p99 đã qua validator CVD trên nền slate-900 (xem commit).
-const C_RPS = "#f97316" // primary của app — 1 series, tiêu đề tự định danh
-const C_ERR = "#ef4444"
-const C_P50 = "#2563eb"
-const C_P99 = "#d97706"
+/* Bốn series ĐỌC TOKEN nên đổi theo theme. Giữ 4 sắc phân biệt được: gộp về thang xám
+   thì p50 và p99 chồng nhau không đọc nổi. */
+const C_RPS = "var(--chart-1)"
+const C_ERR = "var(--chart-danger)"
+const C_P50 = "var(--chart-info)"
+const C_P99 = "var(--chart-warning)"
 
 const fmtClock = (t: number) =>
   new Date(t).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
@@ -123,14 +125,14 @@ function LineChart({
         {/* Grid chìm + nhãn trục y */}
         {gridYs.map((v) => (
           <g key={v}>
-            <line x1={PAD_L} x2={W - PAD_R} y1={y(v)} y2={y(v)} stroke="#1e293b" strokeWidth="1" />
-            <text x={PAD_L - 6} y={y(v) + 3} textAnchor="end" fontSize="9" fill="#64748b">{fmt(v)}</text>
+            <line x1={PAD_L} x2={W - PAD_R} y1={y(v)} y2={y(v)} stroke="var(--border)" strokeWidth="1" />
+            <text x={PAD_L - 6} y={y(v) + 3} textAnchor="end" fontSize="9" fill="var(--muted-foreground)">{fmt(v)}</text>
           </g>
         ))}
-        <line x1={PAD_L} x2={W - PAD_R} y1={y(0)} y2={y(0)} stroke="#334155" strokeWidth="1" />
+        <line x1={PAD_L} x2={W - PAD_R} y1={y(0)} y2={y(0)} stroke="var(--border)" strokeWidth="1" />
         {/* Nhãn thời gian đầu/cuối */}
-        <text x={PAD_L} y={H - 4} fontSize="9" fill="#64748b">{fmtClock(points[0]!.t)}</text>
-        <text x={W - PAD_R} y={H - 4} textAnchor="end" fontSize="9" fill="#64748b">{fmtClock(points[n - 1]!.t)}</text>
+        <text x={PAD_L} y={H - 4} fontSize="9" fill="var(--muted-foreground)">{fmtClock(points[0]!.t)}</text>
+        <text x={W - PAD_R} y={H - 4} textAnchor="end" fontSize="9" fill="var(--muted-foreground)">{fmtClock(points[n - 1]!.t)}</text>
 
         {series.map((s) => (
           <path key={s.name} d={pathOf(s.values)} fill="none" stroke={s.color} strokeWidth="2"
@@ -140,11 +142,11 @@ function LineChart({
         {/* Crosshair + marker tại điểm gần con trỏ */}
         {hover != null && (
           <g>
-            <line x1={x(hover)} x2={x(hover)} y1={PAD_T} y2={H - PAD_B} stroke="#475569" strokeWidth="1" strokeDasharray="3 3" />
+            <line x1={x(hover)} x2={x(hover)} y1={PAD_T} y2={H - PAD_B} stroke="var(--muted-foreground)" strokeWidth="1" strokeDasharray="3 3" />
             {series.map((s) => {
               const v = s.values[hover]
               return v == null ? null : (
-                <circle key={s.name} cx={x(hover)} cy={y(v)} r="3.5" fill={s.color} stroke="#0f172a" strokeWidth="2" />
+                <circle key={s.name} cx={x(hover)} cy={y(v)} r="3.5" fill={s.color} stroke="var(--background)" strokeWidth="2" />
               )
             })}
           </g>
