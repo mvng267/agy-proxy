@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query"
 import {
   LayoutDashboard,
   Users,
@@ -13,7 +14,14 @@ import {
   Settings,
   LogOut,
   RefreshCw,
+  CalendarClock,
+  History,
+  UserCheck,
+  Route,
+  ShieldCheck,
 } from "lucide-react"
+import { api } from "@/lib/api"
+import { POLL } from "@/lib/queryClient"
 
 import {
   Sidebar,
@@ -64,10 +72,21 @@ const navGroups = [
     ],
   },
   {
+    // Pipeline login/warmup: hàng đợi scheduler, lịch sử run, và run chờ duyệt tay.
+    label: "Vận hành",
+    items: [
+      { title: "Scheduler", icon: CalendarClock, tab: "scheduler", badge: null },
+      { title: "Runs", icon: History, tab: "runs", badge: null },
+      { title: "Chờ duyệt", icon: UserCheck, tab: "pending", badge: null },
+    ],
+  },
+  {
     label: "Hệ thống",
     items: [
       // Connections + CLI Tools nay la tab ben trong trang nay.
       { title: "Cấu hình", icon: Settings, tab: "settings", badge: null },
+      { title: "OmniRoute", icon: Route, tab: "omniroute", badge: null },
+      { title: "Bảo mật", icon: ShieldCheck, tab: "security", badge: null },
     ],
   },
 ]
@@ -90,6 +109,15 @@ export async function handleLogout() {
 }
 
 export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: AppSidebarProps) {
+  // Số run chờ duyệt tay — hiện badge cạnh "Chờ duyệt" để không bỏ sót captcha đang treo.
+  const { data: pendingData } = useQuery({
+    queryKey: ["pending-human"],
+    queryFn: () => api.get<{ pending: unknown[] }>("/api/pending-human"),
+    refetchInterval: POLL.live,
+    retry: 1,
+  })
+  const pendingCount = pendingData?.pending?.length ?? 0
+
   return (
     <Sidebar collapsible="icon" className="border-r border-slate-800">
       <SidebarHeader className="px-3 py-4">
@@ -133,6 +161,11 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
                     {item.tab === "accounts" && accountCount != null && (
                       <SidebarMenuBadge className="bg-slate-700 text-slate-300 text-[10px] px-1.5 rounded">
                         {accountCount}
+                      </SidebarMenuBadge>
+                    )}
+                    {item.tab === "pending" && pendingCount > 0 && (
+                      <SidebarMenuBadge className="bg-amber-500/20 text-amber-400 text-[10px] px-1.5 rounded">
+                        {pendingCount}
                       </SidebarMenuBadge>
                     )}
                     {item.tab === "agy" && poolCount != null && (

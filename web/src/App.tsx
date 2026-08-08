@@ -42,6 +42,11 @@ const Reports = lazy(() => import("@/components/pages/Reports").then((m) => ({ d
 const Chat = lazy(() => import("@/components/pages/Chat").then((m) => ({ default: m.Chat })))
 const LiveLog = lazy(() => import("@/components/pages/LiveLog").then((m) => ({ default: m.LiveLog })))
 const ApiKeys = lazy(() => import("@/components/pages/ApiKeys").then((m) => ({ default: m.ApiKeys })))
+const Scheduler = lazy(() => import("@/components/pages/Scheduler").then((m) => ({ default: m.Scheduler })))
+const Runs = lazy(() => import("@/components/pages/Runs").then((m) => ({ default: m.Runs })))
+const PendingHuman = lazy(() => import("@/components/pages/PendingHuman").then((m) => ({ default: m.PendingHuman })))
+const Omniroute = lazy(() => import("@/components/pages/Omniroute").then((m) => ({ default: m.Omniroute })))
+const Security = lazy(() => import("@/components/pages/Security").then((m) => ({ default: m.Security })))
 
 // ── Page title mapping ─────────────────────────────────────────────────
 
@@ -63,6 +68,11 @@ const tabTitles: Record<string, string> = {
   tools: "Cấu hình",
   settings: "Cấu hình",
   keys: "API Keys",
+  scheduler: "Scheduler",
+  runs: "Runs",
+  pending: "Chờ duyệt",
+  omniroute: "OmniRoute",
+  security: "Bảo mật",
 }
 
 const REPO_URL = "https://github.com/mvng267/agy-proxy"
@@ -102,6 +112,16 @@ function PageContent({ tab }: { tab: string }) {
       return <SettingsHub initial={tab === "connections" ? "connections" : tab === "tools" ? "cli" : undefined} />
     case "keys":
       return <ApiKeys />
+    case "scheduler":
+      return <Scheduler />
+    case "runs":
+      return <Runs />
+    case "pending":
+      return <PendingHuman />
+    case "omniroute":
+      return <Omniroute />
+    case "security":
+      return <Security />
     default:
       return (
         <div className="flex flex-col items-center justify-center h-64 gap-3">
