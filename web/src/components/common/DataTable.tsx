@@ -1,13 +1,27 @@
 import { useMemo, useState, type ReactNode } from "react"
-import { ChevronDown, ChevronUp, ChevronsUpDown, Inbox } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown, Inbox } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 
 /**
  * Bảng dùng chung: sort bằng click header + phân trang + trạng thái rỗng/đang tải.
  *
- * Trước đây KHÔNG bảng nào cho sort bằng click header (Pool/Quota phải dùng dropdown
- * riêng), và Tokens/Proxy/Connections/Usage không hề phân trang — render toàn bộ danh
- * sách ra DOM.
+ * Dựng trên `ui/table` chứ KHÔNG tự viết `<table>` như trước. Bản cũ tự viết thẻ thô nên
+ * repo có hai hệ style bảng song song: 6 trang dùng `ui/table`, 7 bảng dùng bản này, và
+ * chúng lệch nhau về chiều cao dòng, cỡ chữ tiêu đề, đệm ngang. Giờ chỉ còn một nguồn.
+ *
+ * Cũng bỏ luôn `border border-border rounded-lg` tự bọc: khuôn Atlas là lọc + bảng +
+ * phân trang cùng nằm TRONG một Card, viền tự vẽ sẽ thành viền lồng viền. (Đây là lý do
+ * `ApiKeys.tsx` từng phải để bảng đứng trần ngoài Card.)
  */
 
 export interface Column<T> {
@@ -30,13 +44,27 @@ interface Props<T> {
   /** Sort mặc định khi mở trang. */
   initialSort?: { key: string; dir: "asc" | "desc" }
   onRowClick?: (row: T) => void
+  /** Hiện bộ chọn số dòng/trang (khuôn Atlas). Mặc định bật khi có nhiều hơn 1 trang. */
+  rowsPerPage?: number[]
+  /**
+   * Chọn nhiều dòng. Trước đây DataTable không hỗ trợ nên Accounts/Pool/Quota phải
+   * tự viết cả bảng chỉ vì cần checkbox.
+   */
+  selection?: {
+    selected: Set<string>
+    onChange: (next: Set<string>) => void
+  }
 }
+
+const DEFAULT_SIZES = [10, 25, 50, 100]
 
 export function DataTable<T>({
   rows, columns, rowKey, loading, empty, pageSize = 50, initialSort, onRowClick,
+  rowsPerPage, selection,
 }: Props<T>) {
   const [sort, setSort] = useState(initialSort ?? null)
   const [page, setPage] = useState(0)
+  const [size, setSize] = useState(pageSize)
 
   const sorted = useMemo(() => {
     if (!sort) return rows
@@ -52,15 +80,34 @@ export function DataTable<T>({
     })
   }, [rows, sort, columns])
 
-  const pages = Math.max(1, Math.ceil(sorted.length / pageSize))
+  const pages = Math.max(1, Math.ceil(sorted.length / size))
   const cur = Math.min(page, pages - 1)
-  const view = sorted.slice(cur * pageSize, (cur + 1) * pageSize)
+  const view = sorted.slice(cur * size, (cur + 1) * size)
 
   const toggleSort = (key: string) => {
     setPage(0)
     setSort((s) =>
       s?.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "desc" },
     )
+  }
+
+  // Checkbox "chọn tất cả" chỉ tác động lên TRANG ĐANG XEM — bấm một cái mà chọn luôn
+  // 700 account ở các trang khác là hành vi bất ngờ và khó hoàn tác.
+  const viewKeys = view.map(rowKey)
+  const allOnPage = viewKeys.length > 0 && viewKeys.every((k) => selection?.selected.has(k))
+  const someOnPage = viewKeys.some((k) => selection?.selected.has(k))
+  const toggleAll = () => {
+    if (!selection) return
+    const next = new Set(selection.selected)
+    if (allOnPage) viewKeys.forEach((k) => next.delete(k))
+    else viewKeys.forEach((k) => next.add(k))
+    selection.onChange(next)
+  }
+  const toggleOne = (k: string) => {
+    if (!selection) return
+    const next = new Set(selection.selected)
+    next.has(k) ? next.delete(k) : next.add(k)
+    selection.onChange(next)
   }
 
   if (loading) {
@@ -82,90 +129,143 @@ export function DataTable<T>({
     )
   }
 
-  return (
-    <div className="space-y-3">
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead className="bg-card/60">
-            <tr>
-              {columns.map((c) => (
-                <th
-                  key={c.key}
-                  onClick={c.sort ? () => toggleSort(c.key) : undefined}
-                  className={[
-                    "px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap",
-                    c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left",
-                    c.sort ? "cursor-pointer select-none hover:text-foreground" : "",
-                    c.className ?? "",
-                  ].join(" ")}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {c.header}
-                    {c.sort ? (
-                      sort?.key === c.key ? (
-                        sort.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
-                      ) : (
-                        <ChevronsUpDown className="h-3 w-3 opacity-30" />
-                      )
-                    ) : null}
-                  </span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {view.map((r) => (
-              <tr
-                key={rowKey(r)}
-                onClick={onRowClick ? () => onRowClick(r) : undefined}
-                className={[
-                  "border-t border-border/60",
-                  onRowClick ? "cursor-pointer hover:bg-card/60" : "",
-                ].join(" ")}
-              >
-                {columns.map((c) => (
-                  <td
-                    key={c.key}
-                    className={[
-                      "px-3 py-2",
-                      c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left",
-                    ].join(" ")}
-                  >
-                    {c.render(r)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+  const alignOf = (c: Column<T>) =>
+    c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left"
 
-      {pages > 1 && (
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            {cur * pageSize + 1}–{Math.min((cur + 1) * pageSize, sorted.length)} / {sorted.length}
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={cur === 0}
-              className="h-8 rounded-md border border-border px-2 disabled:opacity-40 hover:bg-card"
-            >
-              Trước
-            </button>
-            <span className="px-2">
-              {cur + 1} / {pages}
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}
-              disabled={cur >= pages - 1}
-              className="h-8 rounded-md border border-border px-2 disabled:opacity-40 hover:bg-card"
-            >
-              Sau
-            </button>
-          </div>
+  const sizes = rowsPerPage ?? DEFAULT_SIZES
+  const from = cur * size + 1
+  const to = Math.min((cur + 1) * size, sorted.length)
+
+  // Dải nút số trang, tối đa 5, trượt quanh trang hiện tại.
+  const pageNums = Array.from({ length: Math.min(5, pages) }, (_, i) =>
+    Math.max(0, Math.min(pages - 5, cur - 2)) + i,
+  ).filter((n) => n < pages)
+
+  return (
+    <div>
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            {selection && (
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={allOnPage}
+                  indeterminate={!allOnPage && someOnPage}
+                  onCheckedChange={toggleAll}
+                  aria-label="Chọn tất cả dòng trên trang"
+                />
+              </TableHead>
+            )}
+            {columns.map((c) => (
+              <TableHead
+                key={c.key}
+                onClick={c.sort ? () => toggleSort(c.key) : undefined}
+                className={cn(
+                  alignOf(c),
+                  c.sort && "cursor-pointer select-none hover:text-foreground",
+                  c.className,
+                )}
+              >
+                <span className={cn("inline-flex items-center gap-1", c.align === "right" && "flex-row-reverse")}>
+                  {c.header}
+                  {c.sort ? (
+                    sort?.key === c.key ? (
+                      sort.dir === "asc" ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />
+                    ) : (
+                      <ChevronsUpDown className="size-3.5 opacity-30" />
+                    )
+                  ) : null}
+                </span>
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {view.map((r) => {
+            const k = rowKey(r)
+            return (
+              <TableRow
+                key={k}
+                data-state={selection?.selected.has(k) ? "selected" : undefined}
+                onClick={onRowClick ? () => onRowClick(r) : undefined}
+                className={cn(onRowClick && "cursor-pointer")}
+              >
+                {selection && (
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selection.selected.has(k)}
+                      onCheckedChange={() => toggleOne(k)}
+                      aria-label={`Chọn ${k}`}
+                    />
+                  </TableCell>
+                )}
+                {columns.map((c) => (
+                  <TableCell key={c.key} className={alignOf(c)}>
+                    {c.render(r)}
+                  </TableCell>
+                ))}
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+
+      {/*
+        Chân bảng theo khuôn Atlas: "Rows per page" bên trái, "1-10 of 25" + nút trang bên
+        phải. Hiện KỂ CẢ khi chỉ có 1 trang — bản cũ ẩn hẳn (`pages > 1`) làm bảng cụt lủn
+        và người dùng mất luôn chỗ đổi số dòng/trang.
+      */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <span>Số dòng</span>
+          <select
+            value={size}
+            onChange={(e) => { setSize(Number(e.target.value)); setPage(0) }}
+            className="h-7 rounded-md border border-border bg-transparent px-1.5 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            {sizes.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
         </div>
-      )}
+
+        <div className="flex items-center gap-3">
+          <span className="tabular-nums">{from}–{to} / {sorted.length}</span>
+          {pages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={cur === 0}
+                aria-label="Trang trước"
+                className="flex size-7 items-center justify-center rounded-md border border-border disabled:opacity-40 hover:bg-muted"
+              >
+                <ChevronLeft className="size-3.5" />
+              </button>
+              {pageNums.map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setPage(n)}
+                  aria-current={n === cur ? "page" : undefined}
+                  className={cn(
+                    "size-7 rounded-md border text-xs tabular-nums",
+                    n === cur
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border hover:bg-muted",
+                  )}
+                >
+                  {n + 1}
+                </button>
+              ))}
+              <button
+                onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}
+                disabled={cur >= pages - 1}
+                aria-label="Trang sau"
+                className="flex size-7 items-center justify-center rounded-md border border-border disabled:opacity-40 hover:bg-muted"
+              >
+                <ChevronRight className="size-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

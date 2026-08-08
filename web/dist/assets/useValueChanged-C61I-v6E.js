@@ -1,1 +1,0 @@
-import{a as e,c as t}from"./createLucideIcon-CCH2rYaf.js";import{E as n,a as r}from"./button-CPHmYC08.js";var i=t(e(),1);function a(e,t){let a=i.useRef(e),o=r(t);n(()=>{a.current!==e&&o(a.current),a.current=e},[e,o])}export{a as t};
