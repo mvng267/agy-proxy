@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react"
 import { PageHeader } from "@/components/common"
-import { DonutStat } from "@/components/common/charts"
+import { DonutStat, Sparkline, TimeSeries } from "@/components/common/charts"
 import {
   Gauge,
   RefreshCw,
@@ -83,31 +83,25 @@ const PAGE_SIZES = [25, 50, 100]
 
 // ── Donut Chart ────────────────────────────────────────────────────────
 
-// ── Sparkline ─────────────────────────────────────────────────────────
-
-function Sparkline({ series, width = 200, height = 40 }: {
-  series: Array<{ data: number[]; color: string }>; width?: number; height?: number
-}) {
-  const drawable = series.filter((s) => s.data.length >= 2)
-  if (!drawable.length) return null
-  // Chung một thang y cho mọi series — hai đường 92% và 72% phải nhìn ra chênh lệch.
-  const all = drawable.flatMap((s) => s.data)
-  const min = Math.min(...all), max = Math.max(...all), range = max - min || 1, padding = 2
-  const toPath = (data: number[]) =>
-    data
-      .map((val, i) => {
-        const x = padding + (i / (data.length - 1)) * (width - padding * 2)
-        const y = height - padding - ((val - min) / range) * (height - padding * 2)
-        return `${i === 0 ? "M" : "L"}${x},${y}`
-      })
-      .join(" ")
-  return (
-    <svg width={width} height={height} className="overflow-visible">
-      {drawable.map((s, i) => (
-        <path key={i} d={toPath(s.data)} fill="none" stroke={s.color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" className="transition-all duration-500" />
-      ))}
-    </svg>
-  )
+/**
+ * Nhãn trục x cho biểu đồ xu hướng.
+ *
+ * Backend trả hai dạng tuỳ mức gộp: `2026-08-08` (ngày) hoặc `2026-08-08 14:00` (giờ) —
+ * và với lịch sử 1 account thì `ts` là epoch. Trục hẹp nên rút còn `08/08` / `14:00`,
+ * in nguyên chuỗi sẽ chồng chữ lên nhau.
+ */
+function fmtBucket(b: string | number): string {
+  const s = String(b)
+  const hour = s.match(/^\d{4}-\d{2}-\d{2}[ T](\d{2}):/)
+  if (hour) return `${hour[1]}:00`
+  const day = s.match(/^\d{4}-(\d{2})-(\d{2})$/)
+  if (day) return `${day[2]}/${day[1]}`
+  const n = Number(b)
+  if (Number.isFinite(n) && n > 0) {
+    const d = new Date(n)
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`
+  }
+  return s
 }
 
 // ── Quota Bar ─────────────────────────────────────────────────────────
@@ -283,11 +277,21 @@ export function Quota() {
   const avgGemini = withQ.length ? Math.round(withQ.reduce((s, a) => s + (a.geminiPct ?? 0), 0) / withQ.length) : null
   const avgClaude = withQ.length ? Math.round(withQ.reduce((s, a) => s + (claudePct(a) ?? 0), 0) / withQ.length) : null
 
-  // History chart points — hai bể riêng: Gemini và Claude/GPT (third-party)
+  // Chỉ còn dùng cho dòng tóm tắt xu hướng ở cuối trang; biểu đồ đọc `histSeries`.
   const histPoints: number[] = historyData?.series?.map(x => x.gemini ?? 0) ??
     historyData?.points?.map(p => p.gemini_pct ?? 0) ?? []
-  const histPointsThird: number[] = historyData?.series?.map(x => x.third ?? 0) ??
-    historyData?.points?.map(p => p.third_pct ?? 0) ?? []
+
+  /**
+   * Dữ liệu cho biểu đồ xu hướng — GIỮ nhãn thời gian.
+   *
+   * Bản cũ map thẳng thành mảng số rồi ném vào sparkline 500×60 cố định, tức là vứt bỏ
+   * `bucket` — nên không có trục, không nhãn thời gian, không tooltip, và không co giãn
+   * theo bề rộng. Có bộ chọn 7/30/90 ngày mà nhìn vào không biết điểm nào là ngày nào.
+   */
+  const histSeries = (historyData?.series
+    ? historyData.series.map((x) => ({ t: fmtBucket(x.bucket), gemini: x.gemini ?? null, third: x.third ?? null }))
+    : historyData?.points?.map((p) => ({ t: fmtBucket(p.ts), gemini: p.gemini_pct ?? null, third: p.third_pct ?? null }))
+  ) ?? []
 
   // ── Loading / Error ──────────────────────────────────────────────────
 
@@ -401,26 +405,51 @@ export function Quota() {
           </div>
         </CardHeader>
         <CardContent>
-          {histPoints.length >= 2 ? (
-            <div className="bg-muted/50 rounded-lg p-3">
-              <Sparkline
-                series={[
-                  { data: histPoints, color: "var(--chart-success)" },
-                  { data: histPointsThird, color: "var(--chart-info)" },
-                ]}
-                width={500}
-                height={60}
-              />
-            </div>
+          {histSeries.length >= 2 ? (
+            <TimeSeries
+              data={histSeries}
+              xKey="t"
+              height={200}
+              series={[
+                { key: "gemini", label: "Gemini", color: "var(--chart-success)" },
+                { key: "third", label: "Claude/GPT", color: "var(--chart-info)" },
+              ]}
+            />
           ) : (
-            <p className="text-xs text-muted-foreground text-center py-4">
-              Chưa có dữ liệu. Bấm Refresh để nạp hạn mức — mỗi lần nạp ghi 1 điểm.
+            <p className="py-8 text-center text-xs text-muted-foreground">
+              {histSeries.length === 1
+                ? "Mới có 1 mốc thời gian — cần ít nhất 2 mốc mới vẽ được đường. Job nền nạp hạn mức mỗi 4 giờ."
+                : "Chưa có dữ liệu. Bấm Refresh để nạp hạn mức — mỗi lần nạp ghi 1 điểm."}
             </p>
           )}
-          <div className="flex items-center gap-4 mt-2">
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-success" />Gemini</span>
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-info" />Claude/GPT</span>
-          </div>
+          {/*
+            Xu hướng gần nhất + sparkline.
+
+            Bản cũ có LOGIC NGƯỢC: `histPoints` là phần trăm quota CÒN LẠI (xem `qColor` —
+            pct cao là xanh/khoẻ), nhưng nó báo "Quota đang giảm" khi con số TĂNG. Người đọc
+            thấy mũi tên đỏ đúng lúc hạn mức vừa hồi lại.
+
+            Và mũi tên một mình không cho biết mức độ: giảm 1% với giảm 40% cùng một icon.
+            Thêm sparkline để thấy hình dạng thật của xu hướng.
+          */}
+          {histPoints.length >= 2 && (() => {
+            const last = histPoints[histPoints.length - 1]!
+            const prev = histPoints[histPoints.length - 2]!
+            const up = last > prev
+            const delta = Math.abs(Math.round(last - prev))
+            return (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {up
+                  ? <TrendingUp className="h-3 w-3 text-success" />
+                  : <TrendingDown className="h-3 w-3 text-warning" />}
+                <span>
+                  {up ? "Hạn mức đang phục hồi" : "Hạn mức đang giảm"}
+                  {delta > 0 ? ` (${up ? "+" : "−"}${delta}%)` : " (không đổi)"}
+                </span>
+                <Sparkline data={histPoints} tone={up ? "success" : "warning"} width={80} height={20} />
+              </div>
+            )
+          })()}
         </CardContent>
       </Card>
 
@@ -722,18 +751,6 @@ export function Quota() {
         </>
       )}
 
-      {/* Trend icons for history (compact, decorative) */}
-      {histPoints.length >= 2 && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {histPoints[histPoints.length - 1] > histPoints[histPoints.length - 2]
-            ? <TrendingUp className="h-3 w-3 text-destructive" />
-            : <TrendingDown className="h-3 w-3 text-success" />}
-          <span>
-            {histPoints[histPoints.length - 1] > histPoints[histPoints.length - 2]
-              ? "Quota đang giảm" : "Quota đang phục hồi"}
-          </span>
-        </div>
-      )}
     </div>
   )
 }

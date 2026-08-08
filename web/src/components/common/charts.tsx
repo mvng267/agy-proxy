@@ -1,5 +1,6 @@
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
+import { cn } from "@/lib/utils"
 
 /**
  * Biểu đồ dùng chung cho dashboard.
@@ -21,6 +22,15 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
  */
 
 // ── Recharts ───────────────────────────────────────────────────────────
+
+/**
+ * `aspect-auto w-full` là BẮT BUỘC khi đặt `height` cố định.
+ *
+ * `ChartContainer` của registry mặc định `aspect-video justify-center`; giữ nguyên thì
+ * chiều cao mình đặt bị tỉ lệ 16:9 ép ngược lại bề rộng, và `justify-center` căn khối
+ * hẹp đó vào giữa — kết quả là biểu đồ chỉ chiếm nửa card, phần còn lại bỏ trống.
+ * Sửa ở chỗ DÙNG chứ không sửa `ui/chart.tsx` để lần sau lấy lại từ registry không mất.
+ */
 
 /** Trục/lưới/tooltip dùng chung — đọc token nên tự đổi theo theme. */
 const AXIS = {
@@ -64,7 +74,7 @@ export function TimeSeries({
 }) {
   const cfg = toConfig(series)
   return (
-    <ChartContainer config={cfg} className={className} style={{ height }}>
+    <ChartContainer config={cfg} className={cn("aspect-auto w-full", className)} style={{ height }}>
       <AreaChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
         <defs>
           {series.map((s) => (
@@ -110,7 +120,7 @@ export function BarSeries({
 }) {
   const cfg = toConfig(series)
   return (
-    <ChartContainer config={cfg} className={className} style={{ height }}>
+    <ChartContainer config={cfg} className={cn("aspect-auto w-full", className)} style={{ height }}>
       <BarChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
         <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis dataKey={xKey} {...AXIS} tickMargin={8} minTickGap={16} />
