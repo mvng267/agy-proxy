@@ -7,6 +7,8 @@ import type { ApiKey } from "@/lib/types"
 import { POLL } from "@/lib/queryClient"
 import { DataTable, KpiCard, PageHeader, StatusBadge, ConfirmDialog, ErrorState, type Column } from "@/components/common"
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 /**
  * Quản lý API key — mỗi key cho một user, chỉ để định danh trong báo cáo.
@@ -111,27 +113,35 @@ export function ApiKeys() {
       align: "right",
       render: (r) => (
         <div className="flex items-center justify-end gap-1">
-          <button
+          <Button
+            variant="ghost" size="icon"
             onClick={() => toggle.mutate(r)}
             title={r.enabled ? "Tắt key" : "Bật key"}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-background hover:text-foreground"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
           >
             <Power className="h-3.5 w-3.5" />
-          </button>
-          <a
-            href={`/usage?apiKeyId=${encodeURIComponent(r.id)}`}
+          </Button>
+          <Button
+            variant="ghost" size="icon"
             title="Xem báo cáo của key này"
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-background hover:text-foreground"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              // pushState + popstate: điều hướng TRONG SPA. `<a href>` sẽ tải lại cả
+              // trang, mất toàn bộ cache React Query và state đang mở.
+              window.history.pushState(null, "", `/reports?apiKeyId=${encodeURIComponent(r.id)}`)
+              window.dispatchEvent(new PopStateEvent("popstate"))
+            }}
           >
             <BarChart3 className="h-3.5 w-3.5" />
-          </a>
-          <button
+          </Button>
+          <Button
+            variant="ghost" size="icon"
             onClick={() => setRevoke(r)}
             title="Thu hồi"
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           >
             <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          </Button>
         </div>
       ),
     },
@@ -166,29 +176,29 @@ export function ApiKeys() {
           <CardContent className="flex flex-wrap items-end gap-3 p-4">
             <div className="min-w-48 flex-1">
               <label className="text-xs text-muted-foreground">Tên (thường là tên người dùng)</label>
-              <input
+              <Input
                 autoFocus
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="vd: Hermes của Minh"
-                className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+                className="mt-1 h-9 w-full text-sm"
               />
             </div>
             <div className="min-w-48 flex-1">
               <label className="text-xs text-muted-foreground">Ghi chú (tuỳ chọn)</label>
-              <input
+              <Input
                 value={form.note}
                 onChange={(e) => setForm({ ...form, note: e.target.value })}
-                className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+                className="mt-1 h-9 w-full text-sm"
               />
             </div>
-            <button
+            <Button
               onClick={() => create.mutate({ name: form.name.trim(), note: form.note.trim() || undefined })}
               disabled={!form.name.trim() || create.isPending}
-              className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-white disabled:opacity-40 hover:opacity-90"
+              className="h-9"
             >
               Tạo
-            </button>
+            </Button>
             {create.error ? <p className="w-full text-sm text-destructive">{String((create.error as Error).message)}</p> : null}
           </CardContent>
         </Card>

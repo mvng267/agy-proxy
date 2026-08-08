@@ -14,7 +14,7 @@ import {
   type ParsedModel, type ProviderId, type ProviderSession, type QuotaBucket,
 } from './providers/index.js';
 import {
-  planCombo, planAuto, shouldFallback, isContextTooLong, getRrCursor,
+  planCombo, planAuto, shouldFallback, isContextTooLong, isModelQuotaError, getRrCursor,
   type Combo, type ComboStrategy, type ComboTarget, type PoolSnapshot,
 } from './combo.js';
 import {
@@ -537,6 +537,18 @@ export async function runProviderCall(opts: {
         emitGw({
           kind: 'err', account: ctx.account.email, model: labelModel, ms, status: e?.status,
           msg: `← ✗ ${e?.status ?? ''} prompt quá dài — không thử account khác, cần đổi model ngữ cảnh lớn hơn`,
+        });
+        throw e;
+      }
+      // "You have exhausted your capacity on THIS MODEL" = hết quota theo MODEL, không
+      // theo account. Đổi account là vô nghĩa — mọi account đều đụng cùng trần model đó.
+      // Đo thật (agy/gemini-2.5-pro): thử 32 account nối tiếp mất 197 GIÂY rồi vẫn 429,
+      // trong khi ngay account đầu Google đã nói rõ "quota reset after 4h59m". Ném ngay
+      // để tầng combo đổi sang MODEL khác, giống cách xử lý prompt quá dài ở trên.
+      if (isModelQuotaError(e)) {
+        emitGw({
+          kind: 'err', account: ctx.account.email, model: labelModel, ms, status: e?.status,
+          msg: `← ✗ ${e?.status ?? ''} hết hạn mức của MODEL (không phải account) — đổi model, không thử account khác`,
         });
         throw e;
       }

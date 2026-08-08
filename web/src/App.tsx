@@ -256,10 +256,12 @@ function AppShell() {
             <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-950/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-sm lg:px-6">
               <SidebarTrigger className="-ml-1 text-slate-400 hover:text-slate-200" />
               <Separator orientation="vertical" className="h-5 bg-slate-800" />
-              {/* Logo + tên app: sidebar mobile là offcanvas nên topbar phải tự nhận diện app */}
+              {/* Logo CHỈ hiện khi sidebar bị ẩn (mobile offcanvas). Trên desktop sidebar
+                  luôn hiển thị logo ngay bên trái, nên lặp lại ở đây vừa thừa vừa đẩy
+                  tiêu đề thụt vào 126px so với mép nội dung — đo bằng Playwright. */}
               <button
                 onClick={() => setActiveTab("overview")}
-                className="flex shrink-0 items-center gap-2"
+                className="flex shrink-0 items-center gap-2 md:hidden"
                 title="Về Dashboard"
               >
                 <span className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500 text-xs font-bold text-white">
@@ -267,8 +269,8 @@ function AppShell() {
                 </span>
                 <span className="hidden text-sm font-semibold text-slate-100 sm:inline">agyproxy</span>
               </button>
-              <span className="text-slate-700">/</span>
-              <h1 className="truncate text-sm font-medium text-slate-300">
+              <span className="text-slate-700 md:hidden">/</span>
+              <h1 className="truncate text-sm font-medium text-slate-200">
                 {tabTitles[activeTab] ?? activeTab}
               </h1>
               <div className="ml-auto flex items-center gap-2">

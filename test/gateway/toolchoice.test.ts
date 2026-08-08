@@ -113,3 +113,35 @@ describe('toGeminiSchema — các dạng JSON Schema mà Gemini không nhận', 
     assert.deepEqual(bad, []);
   });
 });
+
+describe('isModelQuotaError — hết quota MODEL khác hết quota ACCOUNT', () => {
+  test('nhận diện câu "capacity on this model" của Google', async () => {
+    const { isModelQuotaError } = await import('../../src/gateway/combo.js');
+    const e = Object.assign(new Error(
+      'generateContent 429: You have exhausted your capacity on this model. Your quota will reset after 4h59m54s.'
+    ), { status: 429 });
+    assert.equal(isModelQuotaError(e), true);
+  });
+
+  test('429 quota ACCOUNT thường KHÔNG bị nhận nhầm', async () => {
+    const { isModelQuotaError } = await import('../../src/gateway/combo.js');
+    for (const msg of ['RESOURCE_EXHAUSTED', 'Quota exceeded for quota metric', 'MONTHLY_REQUEST_COUNT reached']) {
+      const e = Object.assign(new Error(msg), { status: 429 });
+      assert.equal(isModelQuotaError(e), false, `"${msg}" phải được coi là quota account → đổi account`);
+    }
+  });
+
+  test('status khác 429 luôn false', async () => {
+    const { isModelQuotaError } = await import('../../src/gateway/combo.js');
+    const e = Object.assign(new Error('capacity on this model'), { status: 500 });
+    assert.equal(isModelQuotaError(e), false);
+    assert.equal(isModelQuotaError(undefined), false);
+    assert.equal(isModelQuotaError(null), false);
+  });
+
+  test('combo vẫn trượt sang model kế khi gặp lỗi này', async () => {
+    const { shouldFallback } = await import('../../src/gateway/combo.js');
+    const e = Object.assign(new Error('You have exhausted your capacity on this model.'), { status: 429 });
+    assert.equal(shouldFallback(e), true, 'phải đổi MODEL, nếu không combo đứng im');
+  });
+});

@@ -6,6 +6,8 @@ import { fmtNum } from "@/lib/format"
 import type { ApiKey, UsageResponse } from "@/lib/types"
 import { POLL } from "@/lib/queryClient"
 import { DataTable, KpiCard, PageHeader, ChartCard, ErrorState, type Column } from "@/components/common"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 
 /**
  * Báo cáo — lọc được theo API key và combo (yêu cầu #2).
@@ -78,8 +80,6 @@ export function Reports() {
 
   if (usage.error) return <ErrorState error={usage.error} onRetry={() => usage.refetch()} />
 
-  const sel = "h-8 rounded-md border border-border bg-background px-2 text-sm"
-
   return (
     <div className="space-y-4">
       <PageHeader
@@ -97,31 +97,51 @@ export function Reports() {
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <select value={f.range} onChange={(e) => setF({ range: e.target.value as Range })} className={sel}>
-          <option value="7d">7 ngày</option>
-          <option value="30d">30 ngày</option>
-          <option value="90d">90 ngày</option>
-        </select>
+        <Select value={f.range} onValueChange={(v) => setF({ range: (v ?? "7d") as Range })}>
+          <SelectTrigger className="h-8 w-28 text-xs">
+            {/* SelectValue hiện value thô ("7d"); render nhãn tiếng Việt cho khớp danh sách. */}
+            <span>{f.range === "90d" ? "90 ngày" : f.range === "30d" ? "30 ngày" : "7 ngày"}</span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7d" className="text-xs">7 ngày</SelectItem>
+            <SelectItem value="30d" className="text-xs">30 ngày</SelectItem>
+            <SelectItem value="90d" className="text-xs">90 ngày</SelectItem>
+          </SelectContent>
+        </Select>
 
-        <select value={f.apiKeyId} onChange={(e) => setF({ apiKeyId: e.target.value })} className={sel}>
-          <option value="">Mọi API key</option>
-          <option value="legacy">Key mặc định</option>
-          {(keys.data?.keys ?? []).map((k) => (
-            <option key={k.id} value={k.id}>{k.name}</option>
-          ))}
-        </select>
+        <Select value={f.apiKeyId} onValueChange={(v) => setF({ apiKeyId: v ?? "" })}>
+          <SelectTrigger className="h-8 w-44 text-xs">
+            <span className="truncate">
+              {!f.apiKeyId ? "Mọi API key"
+                : f.apiKeyId === "legacy" ? "Key mặc định"
+                : (keys.data?.keys ?? []).find((k) => k.id === f.apiKeyId)?.name ?? "Mọi API key"}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="" className="text-xs">Mọi API key</SelectItem>
+            <SelectItem value="legacy" className="text-xs">Key mặc định</SelectItem>
+            {(keys.data?.keys ?? []).map((k) => (
+              <SelectItem key={k.id} value={k.id} className="text-xs">{k.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        <select value={f.combo} onChange={(e) => setF({ combo: e.target.value })} className={sel}>
-          <option value="">Mọi combo</option>
-          {(d?.byCombo ?? []).map((c) => (
-            <option key={c.combo} value={c.combo}>{c.combo}</option>
-          ))}
-        </select>
+        <Select value={f.combo} onValueChange={(v) => setF({ combo: v ?? "" })}>
+          <SelectTrigger className="h-8 w-44 text-xs">
+            <span className="truncate">{f.combo || "Mọi combo"}</span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="" className="text-xs">Mọi combo</SelectItem>
+            {(d?.byCombo ?? []).map((c) => (
+              <SelectItem key={c.combo} value={c.combo} className="text-xs">{c.combo}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         {(f.apiKeyId || f.combo) && (
-          <button onClick={() => setF({ apiKeyId: "", combo: "" })} className="h-8 rounded-md border border-border px-2 text-sm hover:bg-card">
+          <Button variant="outline" size="sm" onClick={() => setF({ apiKeyId: "", combo: "" })} className="h-8">
             Xoá lọc
-          </button>
+          </Button>
         )}
       </div>
 
@@ -148,27 +168,53 @@ export function Reports() {
         actions={
           <div className="flex gap-1">
             {(["requests", "tokens"] as const).map((m) => (
-              <button
+              <Button
                 key={m}
+                size="sm"
+                variant={metric === m ? "default" : "outline"}
                 onClick={() => setMetric(m)}
-                className={`h-7 rounded-md px-2 text-xs ${metric === m ? "bg-primary text-white" : "border border-border hover:bg-background"}`}
+                className="h-8 text-xs"
               >
                 {m === "requests" ? "Request" : "Token"}
-              </button>
+              </Button>
             ))}
           </div>
         }
       >
         {series.length ? (
-          <div className="flex h-40 items-end gap-1">
-            {series.map((s) => {
-              const v = metric === "requests" ? s.requests : s.tokIn + s.tokOut
-              return (
-                <div key={s.bucket} className="group relative flex-1" title={`${s.bucket}: ${fmtNum(v)}`}>
-                  <div className="w-full rounded-t bg-primary/70 transition-all group-hover:bg-primary" style={{ height: `${Math.max(2, (v / max) * 150)}px` }} />
-                </div>
-              )
-            })}
+          <div className="space-y-1">
+            {/* Trục Y tối giản: mốc cao nhất + 0, để đọc được độ lớn thay vì chỉ so bằng mắt. */}
+            <div className="flex items-end gap-2">
+              <div className="flex h-40 w-12 shrink-0 flex-col justify-between py-0.5 text-right text-[11px] tabular-nums text-muted-foreground">
+                <span>{fmtNum(max)}</span>
+                <span>{fmtNum(Math.round(max / 2))}</span>
+                <span>0</span>
+              </div>
+              <div className="relative flex h-40 flex-1 items-end gap-1">
+                {[0, 0.5, 1].map((t) => (
+                  <div key={t} className="pointer-events-none absolute inset-x-0 border-t border-border/40" style={{ bottom: `${t * 100}%` }} />
+                ))}
+                {series.map((s) => {
+                  const v = metric === "requests" ? s.requests : s.tokIn + s.tokOut
+                  return (
+                    <div key={s.bucket} className="group relative flex-1" title={`${s.bucket}: ${fmtNum(v)}`}>
+                      <div className="w-full rounded-t bg-primary/70 transition-all group-hover:bg-primary" style={{ height: `${Math.max(2, (v / max) * 150)}px` }} />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            {/* Nhãn ngày: dày quá thì bỏ bớt cho khỏi chồng chữ. */}
+            <div className="flex gap-1 pl-14">
+              {series.map((s, i) => {
+                const step = Math.ceil(series.length / 10)
+                return (
+                  <span key={s.bucket} className="flex-1 truncate text-center text-[10px] text-muted-foreground">
+                    {i % step === 0 ? s.bucket.slice(5) : ""}
+                  </span>
+                )
+              })}
+            </div>
           </div>
         ) : (
           <p className="py-8 text-center text-sm text-muted-foreground">Chưa có dữ liệu trong khoảng này</p>

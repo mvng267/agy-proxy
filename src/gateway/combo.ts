@@ -190,6 +190,28 @@ export function shouldFallback(err: unknown): boolean {
   return /timeout|aborted|ECONN|fetch failed|socket|quota|exhaust|MONTHLY_REQUEST_COUNT|khả dụng/i.test(msg);
 }
 
+/**
+ * Hết hạn mức của MODEL (không phải của account).
+ *
+ * Phân biệt này quan trọng vì hai loại 429 cần xử lý ngược nhau:
+ *   - quota ACCOUNT cạn  → đổi account, model giữ nguyên (đường thường)
+ *   - quota MODEL  cạn   → đổi MODEL, đổi account vô ích vì mọi account đụng cùng trần
+ *
+ * Đo thật trên agy/gemini-2.5-pro: Google trả
+ *   "You have exhausted your capacity on this model. Your quota will reset after 4h59m54s."
+ * Gateway cũ hiểu nhầm là quota account nên thử 32 account nối tiếp — mất 197 GIÂY rồi
+ * vẫn 429, trong khi câu trả lời đã có từ account đầu tiên.
+ */
+export function isModelQuotaError(err: unknown): boolean {
+  const e = err as { status?: number; code?: number; message?: string } | undefined;
+  if (!e) return false;
+  const status = e.status ?? e.code;
+  if (status !== 429) return false;
+  // "capacity on this model" là dấu hiệu riêng của trần THEO MODEL; quota account thì
+  // Google nói "quota exceeded"/"RESOURCE_EXHAUSTED" chung chung, không nhắc "this model".
+  return /capacity on this model|quota.{0,40}\bthis model\b|per-model quota/i.test(String(e.message ?? ''));
+}
+
 /** Lỗi "đầu vào quá dài" của các provider (Kiro/Bedrock/Gemini) — dùng để trượt combo. */
 export function isContextTooLong(err: unknown): boolean {
   const e = err as { message?: string } | undefined;
