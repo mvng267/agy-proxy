@@ -7,7 +7,7 @@ import type { ChatMessage, GenResult, QuotaBucket, QuotaInfo, TokenInfo, ToolCal
  * PoolAccount kế thừa ProviderAccount.
  */
 
-export type ProviderId = 'agy' | 'kr';
+export type ProviderId = 'agy' | 'kr' | 'or';
 
 /** Kết quả ensureReady — phẳng, mỗi provider điền phần của mình. */
 export interface ProviderSession {
@@ -15,6 +15,7 @@ export interface ProviderSession {
   projectId?: string; // agy
   profileArn?: string; // kr
   region?: string; // kr
+  baseUrl?: string; // or (upstream OpenAI-compatible tuỳ credential)
 }
 
 /** Thông tin tối thiểu 1 provider cần để chạy 1 account. */

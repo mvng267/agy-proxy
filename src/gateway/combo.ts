@@ -127,6 +127,9 @@ export function planAuto(variant: string, snap: PoolSnapshot): ComboTarget[] {
   const count = new Map<ProviderId, number>();
   const out: ComboTarget[] = [];
   for (const s of scored) {
+    // Provider chưa cấu hình account nào (vd or/ mới thêm) → bỏ hẳn khỏi chuỗi thử.
+    // Khác available=0 (cạn tạm thời, vẫn xếp cuối làm dự phòng khi cooldown hết).
+    if ((snap[s.provider]?.total ?? 0) === 0) continue;
     const n = count.get(s.provider) ?? 0;
     if (n >= 2) continue;
     out.push({ model: s.model });

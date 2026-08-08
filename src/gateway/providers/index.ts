@@ -1,15 +1,17 @@
 import { agyProvider } from './agy.js';
 import { kiroProvider } from './kiro.js';
+import { openrouterProvider } from './openrouter.js';
 import type { Provider, ProviderId, ProviderModel } from './types.js';
 
 export * from './types.js';
-export { agyProvider, kiroProvider };
+export { agyProvider, kiroProvider, openrouterProvider };
 
 export const PROVIDERS: Record<ProviderId, Provider> = {
   agy: agyProvider,
   kr: kiroProvider,
+  or: openrouterProvider,
 };
-export const PROVIDER_IDS: readonly ProviderId[] = ['agy', 'kr'];
+export const PROVIDER_IDS: readonly ProviderId[] = ['agy', 'kr', 'or'];
 
 /** Bí danh prefix → provider id. */
 const ALIAS: Record<string, ProviderId> = {
@@ -17,6 +19,8 @@ const ALIAS: Record<string, ProviderId> = {
   antigravity: 'agy',
   kr: 'kr',
   kiro: 'kr',
+  or: 'or',
+  openrouter: 'or',
 };
 
 export function getProvider(id: string): Provider | undefined {
@@ -94,6 +98,7 @@ function guessProvider(bare: string): ProviderId | undefined {
  * Phân tích model id. PREFIX BẮT BUỘC:
  *   agy/… | antigravity/…  → Antigravity
  *   kr/…  | kiro/…         → Kiro
+ *   or/…  | openrouter/…   → OpenRouter / upstream OpenAI-compatible tuỳ ý
  *   combo/<tên>            → combo do người dùng tạo
  *   auto | auto/<biến thể> → combo ảo dựng theo từng request
  * Thiếu prefix hoặc prefix lạ → ModelIdError (HTTP 400) kèm gợi ý.
@@ -143,7 +148,7 @@ export function parseModelId(raw: string | undefined | null): ParsedModel {
   if (!pid) {
     const guess = guessProvider(s);
     throw new ModelIdError(
-      `Prefix "${head}/" không phải provider của gateway này (agy/, kr/, combo/, auto).` +
+      `Prefix "${head}/" không phải provider của gateway này (agy/, kr/, or/, combo/, auto).` +
         (guess ? ` Có phải bạn muốn "${guess}/${s}"?` : ''),
       guess ? `${guess}/${s}` : undefined,
     );

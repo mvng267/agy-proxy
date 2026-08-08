@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { config } from '../../config.js';
 import { openaiGenerationConfig, openaiToolConfig, openaiError } from '../openai.js';
-import { allModels, parseModelId, type ParsedModel } from '../providers/index.js';
+import { allModels, parseModelId, PROVIDERS, type ParsedModel } from '../providers/index.js';
 import { AUTO_VARIANT_IDS, shouldFallback } from '../combo.js';
 import { recordComboRun } from '../../store/db.js';
 import { syncFromStore, NoAccountError } from '../pool.js';
@@ -40,7 +40,7 @@ export function registerOpenAIDialect(app: FastifyInstance): void {
     const data = all.map((m) => ({
       id: bare ? (dupes.has(m.id) && m.provider === 'kr' ? `${m.id}-kr` : m.id) : m.prefixed,
       object: 'model',
-      owned_by: m.provider === 'kr' ? 'kiro' : 'antigravity',
+      owned_by: m.providerLabel.toLowerCase(),
     }));
     // combo do người dùng tạo + combo ảo auto
     for (const c of listCombos()) data.push({ id: `combo/${c.id}`, object: 'model', owned_by: 'combo' });
@@ -72,7 +72,7 @@ export function registerOpenAIDialect(app: FastifyInstance): void {
         id: raw,
         object: 'model',
         created: 0,
-        owned_by: p.kind === 'provider' ? (p.provider === 'kr' ? 'kiro' : 'antigravity') : 'combo',
+        owned_by: p.kind === 'provider' ? PROVIDERS[p.provider!].label.toLowerCase() : 'combo',
       };
     } catch (e: any) {
       return reply.code(404).send({ error: { message: e?.message ?? 'model not found', type: 'invalid_request_error' } });

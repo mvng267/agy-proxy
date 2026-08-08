@@ -34,10 +34,11 @@ test('combo + auto có namespace riêng', () => {
 test('registry: model đều có prefix, target store map đúng', () => {
   const ms = allModels();
   assert.ok(ms.length >= 13);
-  assert.ok(ms.every((m) => /^(agy|kr)\//.test(m.prefixed)));
+  assert.ok(ms.every((m) => /^(agy|kr|or)\//.test(m.prefixed)));
   assert.equal(new Set(ms.map((m) => m.prefixed)).size, ms.length, 'id không được trùng');
   assert.equal(providerOfTarget('agy')?.id, 'agy');
   assert.equal(providerOfTarget('kiro')?.id, 'kr', "target CSV là 'kiro', không phải 'kr'");
+  assert.equal(providerOfTarget('openrouter')?.id, 'or');
   assert.equal(providerOfTarget('gweb'), undefined);
   assert.equal(getProvider('kr')?.label, 'Kiro');
 });
