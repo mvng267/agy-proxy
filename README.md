@@ -161,6 +161,20 @@ npm run build            # build → web/dist
 cp ../public/login.html dist/login.html   # (chỉ lần đầu, login.html đã có trong dist)
 ```
 
+## Phân vai máy
+
+| Máy | Vai trò | Gateway | Cập nhật code |
+|-----|---------|---------|---------------|
+| macOS (local) | **Test** — chạy test, thử tính năng | `agyproxy off` | `git pull` như thường |
+| Debian `100.112.240.4` | **Production** — phục vụ client thật | BẬT | nút "Cập nhật" trên dashboard, hoặc `agyproxy update` |
+
+Máy test để `off` để hai máy không cùng đốt quota của một pool credential — không có
+cơ chế điều phối giữa hai instance, cùng gọi thì dễ 429 chéo. Bật lại khi cần test
+đường gọi thật: `agyproxy on`.
+
+Production nhận code qua GitHub (`origin/main`), KHÔNG qua patch thủ công — patch tạo
+commit hash khác nên `git pull` sẽ xung đột và nút "Cập nhật" ngừng hoạt động.
+
 ## Deployment
 
 Hai script trong `scripts/`, cấu hình hoàn toàn qua biến env (không hardcode host/path):
