@@ -110,20 +110,27 @@ function QuotaDonut({ label, pct, color, size = 100, strokeWidth = 10 }: {
 
 // ── Sparkline ─────────────────────────────────────────────────────────
 
-function Sparkline({ data, color, width = 200, height = 40 }: {
-  data: number[]; color: string; width?: number; height?: number
+function Sparkline({ series, width = 200, height = 40 }: {
+  series: Array<{ data: number[]; color: string }>; width?: number; height?: number
 }) {
-  if (data.length < 2) return null
-  const min = Math.min(...data), max = Math.max(...data), range = max - min || 1, padding = 2
-  const points = data.map((val, i) => {
-    const x = padding + (i / (data.length - 1)) * (width - padding * 2)
-    const y = height - padding - ((val - min) / range) * (height - padding * 2)
-    return `${x},${y}`
-  })
-  const pathD = points.map((p, i) => (i === 0 ? `M${p}` : `L${p}`)).join(" ")
+  const drawable = series.filter((s) => s.data.length >= 2)
+  if (!drawable.length) return null
+  // Chung một thang y cho mọi series — hai đường 92% và 72% phải nhìn ra chênh lệch.
+  const all = drawable.flatMap((s) => s.data)
+  const min = Math.min(...all), max = Math.max(...all), range = max - min || 1, padding = 2
+  const toPath = (data: number[]) =>
+    data
+      .map((val, i) => {
+        const x = padding + (i / (data.length - 1)) * (width - padding * 2)
+        const y = height - padding - ((val - min) / range) * (height - padding * 2)
+        return `${i === 0 ? "M" : "L"}${x},${y}`
+      })
+      .join(" ")
   return (
     <svg width={width} height={height} className="overflow-visible">
-      <path d={pathD} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" className="transition-all duration-500" />
+      {drawable.map((s, i) => (
+        <path key={i} d={toPath(s.data)} fill="none" stroke={s.color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" className="transition-all duration-500" />
+      ))}
     </svg>
   )
 }
@@ -301,9 +308,11 @@ export function Quota() {
   const avgGemini = withQ.length ? Math.round(withQ.reduce((s, a) => s + (a.geminiPct ?? 0), 0) / withQ.length) : null
   const avgClaude = withQ.length ? Math.round(withQ.reduce((s, a) => s + (claudePct(a) ?? 0), 0) / withQ.length) : null
 
-  // History chart points
+  // History chart points — hai bể riêng: Gemini và Claude/GPT (third-party)
   const histPoints: number[] = historyData?.series?.map(x => x.gemini ?? 0) ??
     historyData?.points?.map(p => p.gemini_pct ?? 0) ?? []
+  const histPointsThird: number[] = historyData?.series?.map(x => x.third ?? 0) ??
+    historyData?.points?.map(p => p.third_pct ?? 0) ?? []
 
   // ── Loading / Error ──────────────────────────────────────────────────
 
@@ -417,7 +426,14 @@ export function Quota() {
         <CardContent>
           {histPoints.length >= 2 ? (
             <div className="bg-slate-800/50 rounded-lg p-3">
-              <Sparkline data={histPoints} color="#22c55e" width={500} height={60} />
+              <Sparkline
+                series={[
+                  { data: histPoints, color: "#22c55e" },
+                  { data: histPointsThird, color: "#8b5cf6" },
+                ]}
+                width={500}
+                height={60}
+              />
             </div>
           ) : (
             <p className="text-xs text-slate-600 text-center py-4">

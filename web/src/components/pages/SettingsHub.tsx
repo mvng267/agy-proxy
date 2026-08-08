@@ -18,10 +18,11 @@ const Loading = () => (
   <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Đang tải…</div>
 )
 
-export function SettingsHub() {
+export function SettingsHub({ initial }: { initial?: string }) {
   return (
     <TabShell
       storageKey="Cấu hình"
+      initial={initial}
       tabs={[
         {
           key: "general",

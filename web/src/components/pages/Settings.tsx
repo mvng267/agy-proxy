@@ -665,7 +665,9 @@ export function Settings() {
           {sessions.length === 0 ? (
             <p className="text-xs text-slate-600 text-center py-4">Không có phiên</p>
           ) : (
-            <div className="space-y-2">
+            /* max-h + scroll: pool login bằng curl/CLI tạo hàng trăm phiên — render
+               thẳng làm trang Cấu hình dài cả chục nghìn px, kéo mãi không hết. */
+            <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
               {sessions.map(sess => (
                 <div
                   key={sess.id}

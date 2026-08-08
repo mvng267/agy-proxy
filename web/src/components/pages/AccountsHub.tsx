@@ -18,10 +18,11 @@ const Loading = () => (
   <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Đang tải…</div>
 )
 
-export function AccountsHub() {
+export function AccountsHub({ initial }: { initial?: string }) {
   return (
     <TabShell
       storageKey="Tài khoản"
+      initial={initial}
       tabs={[
         {
           key: "list",

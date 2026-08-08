@@ -57,6 +57,14 @@ interface OverviewData {
     counts?: Record<string, { ok?: number; total?: number; cooldown?: number; dead?: number }>
   }
   gateway?: {
+    // /api/overview hiện trả các trường PHẲNG; `pool` lồng là shape của bản cũ,
+    // giữ lại để dashboard cũ (nếu còn) không vỡ.
+    total?: number
+    enabled?: number
+    cooldown?: number
+    dead?: number
+    requests?: number
+    tokens?: number
     pool?: {
       total?: number
       active?: number
@@ -526,12 +534,29 @@ export function Overview() {
 
   const acc = data?.accounts ?? {}
   const gw = data?.gateway ?? {}
-  const pool = gw.pool ?? { total: 0, active: 0, cooldown: 0, enabled: 0, dead: 0 }
+  // /api/overview trả gateway PHẲNG {total,enabled,cooldown,dead}; shape cũ lồng
+  // trong .pool. Đọc cả hai — trước đây chỉ đọc .pool nên toàn dashboard hiện 0.
+  const pool = {
+    total: gw.pool?.total ?? gw.total ?? 0,
+    enabled: gw.pool?.enabled ?? gw.enabled ?? 0,
+    cooldown: gw.pool?.cooldown ?? gw.cooldown ?? 0,
+    dead: gw.pool?.dead ?? gw.dead ?? 0,
+    active: gw.pool?.active,
+  }
+  const apiProviders = data?.providers ?? []
   const byProvider = acc.byProvider ?? {}
-  const providerNames = Object.keys(byProvider)
-  const providers = providerNames.length > 0
-    ? providerNames.map((name) => ({ name, ...byProvider[name] }))
-    : []
+  const providers = apiProviders.length > 0
+    ? apiProviders.map((p) => ({
+        name: p.label ?? p.id,
+        total: p.total ?? 0,
+        active: p.ready ?? 0,
+        cooldown: p.cooldown ?? 0,
+      }))
+    : Object.keys(byProvider).map((name) => ({ name, ...byProvider[name]! }))
+  // "Sẵn sàng" = enabled + không dead + hết cooldown, tính sẵn từng provider ở backend.
+  const poolReady = apiProviders.length > 0
+    ? apiProviders.reduce((s, p) => s + (p.ready ?? 0), 0)
+    : (pool.active ?? 0)
 
   const topModels = gw.topModels ?? []
 
@@ -555,18 +580,22 @@ export function Overview() {
 
   // ── Stacked pool bar ───────────────────────────────────────────────
 
-  const poolEnabled = pool.enabled ?? pool.active ?? 0
-  const poolCooldown = pool.cooldown ?? 0
-  const poolDead = pool.dead ?? 0
-  const poolTotal = pool.total ?? 0
+  const poolEnabled = pool.enabled || pool.active || 0
+  const poolCooldown = pool.cooldown
+  const poolDead = pool.dead
+  const poolTotal = pool.total
   const poolOff = Math.max(0, poolTotal - poolEnabled)
 
   const poolSegments = [
-    { label: "Sẵn sàng", value: Math.max(0, poolEnabled - poolCooldown - poolDead), color: "#22c55e" },
+    { label: "Sẵn sàng", value: poolReady, color: "#22c55e" },
     { label: "Cooldown", value: poolCooldown, color: "#f97316" },
     { label: "Chết", value: poolDead, color: "#ef4444" },
     { label: "Tắt", value: poolOff, color: "#334155" },
   ]
+
+  // "Hôm nay" trên KPI Requests: API không có trường riêng — lấy bucket cuối
+  // của series 7 ngày (bucket theo ngày, phần tử cuối chính là hôm nay).
+  const todayReq = gw.requestsToday ?? usageSeries[usageSeries.length - 1]?.requests
 
   // Series bar items
   const seriesItems = usageSeries.map((s) => ({
@@ -585,30 +614,32 @@ export function Overview() {
         <KpiCard
           title="Tài khoản"
           value={acc.total ?? 0}
-          subtitle={`${acc.active ?? 0} active`}
+          subtitle={acc.counts
+            ? `${acc.counts.agy?.ok ?? 0} agy ok · ${acc.counts.kiro?.ok ?? 0} kiro ok`
+            : `${acc.active ?? 0} active`}
           icon={Users}
           color="blue"
         />
         <KpiCard
           title="Pool hoạt động"
-          value={pool.active ?? 0}
-          subtitle={`/ ${pool.total ?? 0} total`}
+          value={poolReady}
+          subtitle={`/ ${poolTotal} total`}
           icon={Zap}
           color="green"
         />
         <KpiCard
           title="Requests 7D"
           value={fmtNum(gw.requests7d ?? usageTotals.requests)}
-          subtitle={`${fmtNum(gw.requestsToday)} today`}
+          subtitle={`${fmtNum(todayReq)} today`}
           icon={Activity}
           color="orange"
-          trend={gw.requestsToday != null && gw.requestsToday > 0 ? "up" : "neutral"}
-          trendLabel={gw.requestsToday != null ? `${gw.requestsToday.toLocaleString()} today` : undefined}
+          trend={todayReq != null && todayReq > 0 ? "up" : "neutral"}
+          trendLabel={todayReq != null ? `${todayReq.toLocaleString()} today` : undefined}
         />
         <KpiCard
           title="Cooldown"
-          value={pool.cooldown ?? 0}
-          subtitle={pool.total ? `${Math.round(((pool.cooldown ?? 0) / pool.total) * 100)}% of pool` : "—"}
+          value={poolCooldown}
+          subtitle={poolTotal ? `${Math.round((poolCooldown / poolTotal) * 100)}% of pool` : "—"}
           icon={AlertTriangle}
           color="red"
         />
@@ -626,7 +657,7 @@ export function Overview() {
             <ProviderHealthCard name="Kiro" total={0} active={0} cooldown={0} />
           </>
         )}
-        <PoolHealthCard total={pool.total ?? 0} active={pool.active ?? 0} cooldown={pool.cooldown ?? 0} />
+        <PoolHealthCard total={poolTotal} active={poolReady} cooldown={poolCooldown} />
       </div>
 
       {/* ── Pool Health Stacked Bar ── */}
@@ -667,7 +698,7 @@ export function Overview() {
             </div>
             <div className="mt-3 space-y-0.5 text-xs text-slate-500">
               {quota.fetched != null && (
-                <p>{quota.fetched}/{acc.total ?? 0} account đã nạp hạn mức</p>
+                <p>{quota.fetched}/{poolTotal || (acc.total ?? 0)} pool entry đã nạp hạn mức</p>
               )}
               {quota.tier && <p>Tier: {quota.tier}</p>}
               {quota.geminiReset && (

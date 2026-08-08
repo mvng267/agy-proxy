@@ -17,10 +17,14 @@ export interface TabDef {
   render: () => ReactNode
 }
 
-export function TabShell({ tabs, storageKey }: { tabs: TabDef[]; storageKey: string }) {
+export function TabShell({ tabs, storageKey, initial }: { tabs: TabDef[]; storageKey: string; initial?: string }) {
   const read = () => {
     const q = new URLSearchParams(window.location.search).get("tab")
-    return tabs.some((t) => t.key === q) ? q! : tabs[0]!.key
+    if (tabs.some((t) => t.key === q)) return q!
+    // Link cũ kiểu /tokens, /connections đi qua đây: route đặt tab khởi đầu,
+    // không có thì về tab đầu tiên.
+    if (initial && tabs.some((t) => t.key === initial)) return initial
+    return tabs[0]!.key
   }
   const [active, setActive] = useState(read)
 
@@ -31,6 +35,13 @@ export function TabShell({ tabs, storageKey }: { tabs: TabDef[]; storageKey: str
     return () => window.removeEventListener("popstate", onPop)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabs])
+
+  // Điều hướng sidebar/tab cũ khi hub ĐANG mở (component không remount):
+  // /accounts → /tokens phải nhảy sang tab Tokens dù state đã có.
+  useEffect(() => {
+    if (initial && tabs.some((t) => t.key === initial)) setActive(initial)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial])
 
   const go = (k: string) => {
     const q = new URLSearchParams(window.location.search)

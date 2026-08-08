@@ -120,7 +120,8 @@ function lockRemainMin(ip: string): number {
 // `/api/health` công khai: load balancer / uptime monitor / `docker healthcheck` gọi nó
 // mà không có phiên đăng nhập — bắt auth thì health check luôn thấy 401 và coi như service
 // chết. Payload chỉ gồm số đếm + version, không có email/token/secret nào.
-const PUBLIC_PATHS = new Set(['/login', '/login.html', '/style.css', '/api/auth/login', '/favicon.ico', '/api/health']);
+// favicon.svg: màn login (chưa có phiên) cũng tải icon — chặn thì tab hiện icon vỡ + 401 noise.
+const PUBLIC_PATHS = new Set(['/login', '/login.html', '/style.css', '/api/auth/login', '/favicon.ico', '/favicon.svg', '/api/health']);
 
 export function registerAuth(app: FastifyInstance): void {
   app.addHook('onRequest', async (req, reply) => {

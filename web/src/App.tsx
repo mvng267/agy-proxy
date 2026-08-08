@@ -73,11 +73,12 @@ function PageContent({ tab }: { tab: string }) {
   switch (tab) {
     case "overview":
       return <Overview />
-    // Tab cũ (tokens/add) trỏ vào hub — link đã lưu của người dùng vẫn mở được.
+    // Tab cũ (tokens/add) trỏ vào hub — link đã lưu của người dùng vẫn mở được,
+    // và mở ĐÚNG tab con thay vì rơi về tab đầu.
     case "accounts":
     case "tokens":
     case "add":
-      return <AccountsHub />
+      return <AccountsHub initial={tab === "tokens" ? "tokens" : tab === "add" ? "add" : undefined} />
     case "agy":
       return <Pool />
     case "models":
@@ -98,7 +99,7 @@ function PageContent({ tab }: { tab: string }) {
     case "tools":
     case "connections":
     case "settings":
-      return <SettingsHub />
+      return <SettingsHub initial={tab === "connections" ? "connections" : tab === "tools" ? "cli" : undefined} />
     case "keys":
       return <ApiKeys />
     default:
@@ -207,6 +208,13 @@ function useTabFromUrl(): [string, (t: string) => void] {
 function AppShell() {
   const [activeTab, setActiveTab] = useTabFromUrl()
   const qc = useQueryClient()
+  // Cùng queryKey với ServerStatus — react-query dedupe, không thêm request nào.
+  const { data: health } = useQuery({
+    queryKey: ["health"],
+    queryFn: () => api.get<{ status: string; accounts?: number; poolSize?: number }>("/api/health"),
+    refetchInterval: 30_000,
+    retry: 1,
+  })
 
   return (
     <ToastProvider>
@@ -215,6 +223,8 @@ function AppShell() {
           <AppSidebar
             activeTab={activeTab}
             onTabChange={setActiveTab}
+            accountCount={health?.accounts}
+            poolCount={health?.poolSize}
           />
           <SidebarInset>
             {/* Topbar — h-14, px-4/lg:px-6: footer dùng đúng cặp số này để hai thanh cân nhau */}
