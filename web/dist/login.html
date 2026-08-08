@@ -67,6 +67,9 @@
     .pad button:active{background:#334155}
     .pad button[data-k="del"]{font-size:17px;background:transparent;border-color:transparent;color:#94a3b8}
     .hide{display:none}
+    .alt{display:block;width:100%;margin-top:16px;padding:9px;font-size:13px;color:#94a3b8;
+      background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+    .alt:hover{color:#e2e8f0}
     @media (max-width:380px){.pad button{height:50px;font-size:19px}}
   </style>
   <div class="card">
@@ -97,6 +100,19 @@
         <span></span><button type="button" data-k="0">0</button><button type="button" data-k="del" aria-label="Xoá">⌫</button>
       </div>
       <button type="submit" id="btn" class="hide">Đăng nhập</button>
+      <!-- Lối thoát BẮT BUỘC: máy đang đặt mật khẩu CHỮ thì bàn phím số không gõ được,
+           người dùng bị khoá ngoài dashboard hoàn toàn (gặp thật trên production sau khi
+           đổi màn đăng nhập). Nút này chuyển về ô nhập tự do. -->
+      <button type="button" id="toText" class="alt">Dùng mật khẩu chữ</button>
+    </form>
+
+    <form id="formText" class="hide" autocomplete="off">
+      <div class="field">
+        <label for="passText">Mật khẩu</label>
+        <input id="passText" type="password" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button type="submit" id="btnText">Đăng nhập</button>
+      <button type="button" id="toPin" class="alt">Dùng passcode 6 số</button>
     </form>
   </div>
   <script>
@@ -162,6 +178,40 @@
       }
     }
     form.addEventListener('submit', (e) => { e.preventDefault(); submit(); });
+
+    // ---- chế độ mật khẩu chữ ----
+    const formText = document.getElementById('formText');
+    const passText = document.getElementById('passText');
+    const show = (pin) => {
+      form.classList.toggle('hide', !pin);
+      formText.classList.toggle('hide', pin);
+      err.style.display = 'none';
+      (pin ? pass : passText).focus();
+      // Nhớ lựa chọn: máy dùng mật khẩu chữ thì lần sau vào thẳng ô chữ.
+      try { localStorage.setItem('agy_login_mode', pin ? 'pin' : 'text'); } catch {}
+    };
+    document.getElementById('toText').addEventListener('click', () => show(false));
+    document.getElementById('toPin').addEventListener('click', () => show(true));
+    formText.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (busy || !passText.value) return;
+      busy = true; err.style.display = 'none';
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: passText.value }),
+        });
+        if (res.ok || res.redirected) { window.location.href = '/'; return; }
+        const j = await res.json().catch(() => ({}));
+        err.textContent = j.error || 'Mật khẩu không đúng';
+        err.style.display = 'block';
+        passText.value = ''; passText.focus();
+      } catch {
+        err.textContent = 'Không kết nối được máy chủ';
+        err.style.display = 'block';
+      } finally { busy = false; }
+    });
+    try { if (localStorage.getItem('agy_login_mode') === 'text') show(false); } catch {}
     paint();
   </script>
 </body>
