@@ -5,45 +5,124 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Bảng màu — theo template Atlas của ReUI (đã trích từ CSS bản demo thật).
+ *
+ * KHÁC BIỆT LỚN NHẤT so với bản cũ: `--primary` là màu TRUNG TÍNH đảo chiều giữa hai chế
+ * độ (tối ở nền sáng, sáng ở nền tối) chứ không phải cam cố định. Hệ quả cần nhớ:
+ * ở chế độ tối, nút `variant="default"` là nút SÁNG chữ TỐI — mọi chỗ hard-code
+ * `text-white` trên nền primary sẽ thành chữ trắng trên nền trắng.
+ *
+ * CHỈ CÓ HAI KHỐI. Trước đây có ba: `:root`, `.dark`, và một bản sao 38 dòng của `.dark`
+ * đặt trong `@media (prefers-color-scheme: dark)` — sửa một bên quên bên kia là lệch theme.
+ * Nay `lib/theme.ts` LUÔN đặt class `.dark` hoặc `.light` lên <html> (kể cả chế độ "theo
+ * máy", nó đọc matchMedia rồi quy về một trong hai), nên `.dark` là nguồn sự thật duy nhất.
+ * Kèm script chặn nháy màu trong index.html chạy trước khi React khởi động.
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.705 0.191 47.604);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  /* Trạng thái khoẻ/cảnh báo — thiếu 2 token này là lý do mọi trang hard-code emerald/amber. */
-  --success: oklch(0.596 0.145 163.225);
-  --success-foreground: oklch(0.985 0 0);
-  --warning: oklch(0.769 0.163 70.08);
-  --warning-foreground: oklch(0.205 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.705 0.191 47.604);
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #171717;
+  --primary-foreground: #fafafa;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #171717;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --accent: #f5f5f5;
+  --accent-foreground: #171717;
+  --destructive: #e40014;
+  --destructive-foreground: #fafafa;
+  --success: #10b981;
+  --success-foreground: #ffffff;
+  --warning: #eab308;
+  --warning-foreground: #171717;
+  /* `--info` là token MỚI. Thiếu nó chính là lý do 24 chỗ dùng blue-* và 10 chỗ purple-*
+     cho nhãn thông tin — không có đích để ánh xạ về. */
+  --info: #8b5cf6;
+  --info-foreground: #ffffff;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #a1a1a1;
   --radius: 0.625rem;
-  --chart-1: oklch(0.705 0.191 47.604);
-  --chart-2: oklch(0.637 0.237 25.331);
-  --chart-3: oklch(0.556 0 0);
-  --chart-4: oklch(0.439 0 0);
-  --chart-5: oklch(0.371 0 0);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.705 0.191 47.604);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.705 0.191 47.604);
+
+  /* Thang xám cho chuỗi dữ liệu KHÔNG mang ngữ nghĩa (top model, top account…). */
+  --chart-1: #d4d4d4;
+  --chart-2: #737373;
+  --chart-3: #525252;
+  --chart-4: #404040;
+  --chart-5: #262626;
+  /* Chart MANG ngữ nghĩa (donut sức khoẻ pool, trạng thái) phải dùng nhóm này — thang xám
+     ở trên đặt 3 cung cạnh nhau thì không đọc được đâu là active/cooldown/chết. */
+  --chart-success: #10b981;
+  --chart-warning: #eab308;
+  --chart-danger: #e40014;
+  --chart-info: #8b5cf6;
+  --chart-muted: #a3a3a3;
+
+  --sidebar: #fafafa;
+  --sidebar-foreground: #0a0a0a;
+  --sidebar-primary: #171717;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #f5f5f5;
+  --sidebar-accent-foreground: #171717;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #a1a1a1;
+
+  /* Bề rộng nội dung tối đa — Atlas căn giữa và KHÔNG cho nội dung tràn hết màn rộng. */
+  --container-app: 80rem;
+}
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #171717;
+  --card-foreground: #fafafa;
+  --popover: #171717;
+  --popover-foreground: #fafafa;
+  --primary: #e5e5e5;
+  --primary-foreground: #171717;
+  --secondary: #262626;
+  --secondary-foreground: #fafafa;
+  --muted: #262626;
+  --muted-foreground: #a1a1a1;
+  --accent: #262626;
+  --accent-foreground: #fafafa;
+  --destructive: #ff6568;
+  --destructive-foreground: #171717;
+  /* Sáng hơn bản light để đủ tương phản trên nền #0a0a0a. */
+  --success: #34d399;
+  --success-foreground: #171717;
+  --warning: #facc15;
+  --warning-foreground: #171717;
+  --info: #a78bfa;
+  --info-foreground: #171717;
+  --border: #ffffff1a;
+  --input: #ffffff26;
+  --ring: #737373;
+
+  --chart-1: #d4d4d4;
+  --chart-2: #a3a3a3;
+  --chart-3: #737373;
+  --chart-4: #525252;
+  --chart-5: #404040;
+  --chart-success: #34d399;
+  --chart-warning: #facc15;
+  --chart-danger: #ff6568;
+  --chart-info: #a78bfa;
+  --chart-muted: #525252;
+
+  --sidebar: #0f0f0f;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #e5e5e5;
+  --sidebar-primary-foreground: #171717;
+  --sidebar-accent: #262626;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #ffffff1a;
+  --sidebar-ring: #737373;
 }
 
 body {
@@ -66,14 +145,23 @@ body {
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  /* Nhóm ngữ nghĩa cho chart trạng thái — xem giải thích ở khối :root. */
+  --color-chart-success: var(--chart-success);
+  --color-chart-warning: var(--chart-warning);
+  --color-chart-danger: var(--chart-danger);
+  --color-chart-info: var(--chart-info);
+  --color-chart-muted: var(--chart-muted);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -96,95 +184,6 @@ body {
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 }
-
-/*
- * Dark theme.
- *
- * TRƯỚC ĐÂY khối này ghi đè thẳng `:root` nên palette sáng ở trên vô dụng — dashboard
- * luôn tối bất kể người dùng chọn gì. Nay chỉ áp khi có class `.dark` (người chọn) hoặc
- * hệ điều hành đang tối và người dùng CHƯA chọn gì (`:root:not(.light)`).
- */
-.dark {
-  --background: oklch(0.09 0.005 265);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.155 0.005 265);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.155 0.005 265);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.705 0.191 47.604);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.215 0.006 265);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.215 0.006 265);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.215 0.006 265);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  /* Dark: sáng hơn bản light để đủ tương phản trên nền slate-950. */
-  --success: oklch(0.696 0.17 162.48);
-  --success-foreground: oklch(0.145 0 0);
-  --warning: oklch(0.828 0.189 84.429);
-  --warning-foreground: oklch(0.145 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.705 0.191 47.604);
-  --chart-1: oklch(0.705 0.191 47.604);
-  --chart-2: oklch(0.637 0.237 25.331);
-  --chart-3: oklch(0.556 0 0);
-  --chart-4: oklch(0.439 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.12 0.005 265);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.705 0.191 47.604);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.215 0.006 265);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.705 0.191 47.604);
-}
-
-/* Chưa chọn gì thì theo hệ điều hành. `.light` để người dùng ép sáng dù OS đang tối. */
-@media (prefers-color-scheme: dark) {
-  :root:not(.light):not(.dark) {
-  --background: oklch(0.09 0.005 265);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.155 0.005 265);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.155 0.005 265);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.705 0.191 47.604);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.215 0.006 265);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.215 0.006 265);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.215 0.006 265);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  /* Dark: sáng hơn bản light để đủ tương phản trên nền slate-950. */
-  --success: oklch(0.696 0.17 162.48);
-  --success-foreground: oklch(0.145 0 0);
-  --warning: oklch(0.828 0.189 84.429);
-  --warning-foreground: oklch(0.145 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.705 0.191 47.604);
-  --chart-1: oklch(0.705 0.191 47.604);
-  --chart-2: oklch(0.637 0.237 25.331);
-  --chart-3: oklch(0.556 0 0);
-  --chart-4: oklch(0.439 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.12 0.005 265);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.705 0.191 47.604);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.215 0.006 265);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.705 0.191 47.604);
-}
-}
-
 
 @layer base {
   * {

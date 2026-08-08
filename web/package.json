@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && cp src/login.html dist/login.html",
+    "check:colors": "node scripts/check-colors.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },

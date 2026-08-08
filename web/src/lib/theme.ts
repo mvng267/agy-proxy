@@ -18,17 +18,24 @@ export function getTheme(): Theme {
   }
 }
 
-/** Áp class lên <html>. 'system' thì bỏ cả hai để CSS media query tự quyết. */
+/**
+ * Áp class lên <html>. LUÔN đặt đúng một trong hai class, kể cả chế độ 'system'.
+ *
+ * Trước đây 'system' bỏ cả hai class rồi phó thác cho `@media (prefers-color-scheme)` trong
+ * CSS — nhưng khối media đó là bản sao 38 dòng của `.dark`, sửa một bên quên bên kia là lệch
+ * theme. Nay JS tự quy 'system' về dark/light (đã có sẵn listener theo dõi hệ điều hành ở
+ * initTheme), nên CSS chỉ cần MỘT khối `.dark` — nguồn sự thật duy nhất.
+ */
 export function applyTheme(t: Theme): void {
   const el = document.documentElement
+  const dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
   el.classList.remove('light', 'dark')
-  if (t !== 'system') el.classList.add(t)
+  el.classList.add(dark ? 'dark' : 'light')
   // Thanh địa chỉ trình duyệt / notch iOS tô theo màu này.
   const meta = document.querySelector('meta[name="theme-color"]')
-  if (meta) {
-    const dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
-    meta.setAttribute('content', dark ? '#0a0a0f' : '#ffffff')
-  }
+  // Hex cứng CÓ CHỦ ĐÍCH: trình duyệt đọc thuộc tính HTML này để tô thanh địa chỉ / notch,
+  // nó không phân giải được `var(--background)`. Giá trị khớp --background của hai chế độ.
+  if (meta) meta.setAttribute('content', dark ? '#0a0a0a' : '#ffffff')
 }
 
 export function setTheme(t: Theme): void {

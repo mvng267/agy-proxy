@@ -13,6 +13,23 @@
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>agyproxy</title>
+    <!--
+      Đặt class theme TRƯỚC khi React chạy. Không có đoạn này thì <html> chưa có class nào
+      cho tới lúc JS module tải xong → trang loé sáng rồi mới tối lại. Phải chạy đồng bộ và
+      nằm trong <head>, không đưa vào main.tsx được.
+      Khoá 'agy_theme' khớp hằng KEY trong src/lib/theme.ts — đổi một bên phải đổi cả hai.
+    -->
+    <script>
+      (function () {
+        try {
+          var v = localStorage.getItem('agy_theme');
+          var dark = v === 'dark' || (v !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.add(dark ? 'dark' : 'light');
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

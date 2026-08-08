@@ -13,7 +13,24 @@
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>agyproxy</title>
-    <script type="module" crossorigin src="/assets/index-qlLB3s6l.js"></script>
+    <!--
+      Đặt class theme TRƯỚC khi React chạy. Không có đoạn này thì <html> chưa có class nào
+      cho tới lúc JS module tải xong → trang loé sáng rồi mới tối lại. Phải chạy đồng bộ và
+      nằm trong <head>, không đưa vào main.tsx được.
+      Khoá 'agy_theme' khớp hằng KEY trong src/lib/theme.ts — đổi một bên phải đổi cả hai.
+    -->
+    <script>
+      (function () {
+        try {
+          var v = localStorage.getItem('agy_theme');
+          var dark = v === 'dark' || (v !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.add(dark ? 'dark' : 'light');
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-C57f46yG.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/createLucideIcon-Ct0G_dhG.js">
     <link rel="modulepreload" crossorigin href="/assets/utils-DojpP95n.js">
     <link rel="modulepreload" crossorigin href="/assets/dist-B-_f02Ty.js">
@@ -32,7 +49,7 @@
     <link rel="modulepreload" crossorigin href="/assets/info-CV95Dsf8.js">
     <link rel="modulepreload" crossorigin href="/assets/triangle-alert-BtUBX7nb.js">
     <link rel="modulepreload" crossorigin href="/assets/x-Choid-Tt.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-D38VQVNd.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-KoxmtmyT.css">
   </head>
   <body>
     <div id="root"></div>

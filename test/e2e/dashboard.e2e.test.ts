@@ -84,19 +84,28 @@ test('chưa đăng nhập: / chuyển về /login, /api/* trả 401 JSON', async
   assert.equal(j.error, 'unauthorized');
 });
 
+/**
+ * Màn đăng nhập là bàn phím passcode 6 số, kèm lối thoát "Dùng mật khẩu chữ" cho máy đang
+ * đặt mật khẩu có chữ. Test dùng đường mật khẩu chữ vì `DASHBOARD_PASSWORD` của e2e
+ * (`e2e-test-pass`) không phải 6 chữ số.
+ */
+async function loginWith(pw: string) {
+  await page.getByRole('button', { name: 'Dùng mật khẩu chữ' }).click();
+  await page.fill('#passText', pw);
+  await page.click('#btnText');
+}
+
 test('login sai hiện lỗi, không rời trang', async () => {
   await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
-  await page.fill('#pass', 'sai-mat-khau');
-  await page.click('#btn');
+  await loginWith('sai-mat-khau');
   await page.waitForSelector('#err', { state: 'visible', timeout: 5000 });
   assert.match(page.url(), /\/login$/);
 });
 
 test('login đúng vào dashboard, health badge + sidebar render', async () => {
-  await page.fill('#pass', PASS);
   await Promise.all([
     page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 10_000 }),
-    page.click('#btn'),
+    page.fill('#passText', PASS).then(() => page.click('#btnText')),
   ]);
   // Sidebar phải có đủ nhóm điều hướng
   for (const label of ['Dashboard', 'Tài khoản', 'Pool', 'Models', 'Combo', 'Cấu hình']) {
