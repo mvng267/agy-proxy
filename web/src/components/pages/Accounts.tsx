@@ -9,21 +9,13 @@ import {
   RotateCcw,
   Bot,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react"
+import { DataTable } from "@/components/common/DataTable"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -47,8 +39,6 @@ const FLOWS = [
   { key: "agy", label: "Antigravity", col: "status_agy" as const },
   { key: "kiro", label: "Kiro", col: "status_kiro" as const },
 ]
-
-const PAGE_SIZES = [25, 50, 100]
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -94,10 +84,8 @@ export function Accounts() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   // Pagination
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<number>(() =>
-    Number(localStorage.getItem("vs_accSize") || 25)
-  )
+  // DataTable tự quản số dòng/trang; đây chỉ là giá trị KHỞI TẠO đọc từ lựa chọn cũ.
+  const [pageSize] = useState<number>(() => Number(localStorage.getItem("vs_accSize") || 25))
 
   // Filter
   const [statusFilter, setStatusFilter] = useState("all")
@@ -227,21 +215,6 @@ export function Accounts() {
     return true
   })
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const safePage = Math.min(page, totalPages)
-  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
-
-  const toggleSelect = (email: string) => {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(email)) next.delete(email); else next.add(email)
-      return next
-    })
-  }
-  const toggleAll = () => {
-    if (selected.size === pageRows.length) setSelected(new Set())
-    else setSelected(new Set(pageRows.map(a => a.email)))
-  }
 
   const toggleFlow = (flow: string) => {
     setSelectedFlows(prev => {
@@ -284,7 +257,7 @@ export function Accounts() {
           <Input
             placeholder="Tìm email…"
             value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1) }}
+            onChange={e => { setSearch(e.target.value); }}
             className="pl-9 bg-card border-border text-foreground placeholder:text-muted-foreground h-9 text-sm"
           />
         </div>
@@ -319,7 +292,7 @@ export function Accounts() {
         {/* Status filter */}
         <select
           value={statusFilter}
-          onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
+          onChange={e => { setStatusFilter(e.target.value); }}
           className="h-9 px-2 rounded-md bg-card border border-border text-foreground text-sm focus:outline-none"
         >
           <option value="all">Tất cả</option>
@@ -379,150 +352,78 @@ export function Accounts() {
             Tài khoản ({filtered.length})
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="w-8">
-                    <input
-                      type="checkbox"
-                      checked={pageRows.length > 0 && selected.size === pageRows.length}
-                      onChange={toggleAll}
-                      className="rounded border-border bg-muted"
-                    />
-                  </TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Proxy</TableHead>
-                  {FLOWS.map(f => (
-                    <TableHead key={f.key} className="text-muted-foreground text-xs">{f.label}</TableHead>
-                  ))}
-                  <TableHead>Last login</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pageRows.length === 0 ? (
-                  <TableRow className="border-border">
-                    <TableCell colSpan={4 + FLOWS.length} className="text-center text-muted-foreground text-xs py-8">
-                      Không có tài khoản khớp
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  pageRows.map(acc => (
-                    <TableRow
-                      key={acc.email}
-                      className={`border-border hover:bg-muted/50 ${selected.has(acc.email) ? "bg-primary/5" : ""}`}
-                    >
-                      <TableCell>
-                        <input
-                          type="checkbox"
-                          checked={selected.has(acc.email)}
-                          onChange={() => toggleSelect(acc.email)}
-                          className="rounded border-border bg-muted"
-                        />
-                      </TableCell>
-                      <TableCell className="text-sm text-foreground font-mono max-w-[220px] truncate">
-                        {acc.email}
-                      </TableCell>
-                      {/* Proxy dropdown */}
-                      <TableCell>
-                        <select
-                          value={acc.proxy ?? ""}
-                          onChange={e => setProxy(acc.email, e.target.value)}
-                          className="h-7 px-2 rounded bg-muted border border-border text-foreground text-xs focus:outline-none max-w-[120px]"
-                        >
-                          <option value="">(none)</option>
-                          {proxies.map(p => (
-                            <option key={p.label} value={p.label}>{p.label}</option>
-                          ))}
-                        </select>
-                      </TableCell>
-                      {/* Status per flow */}
-                      {FLOWS.map(f => (
-                        <TableCell key={f.key}>
-                          {statusBadge(acc[f.col])}
-                        </TableCell>
+        <CardContent className="p-0">
+          <DataTable
+            rows={filtered}
+            rowKey={(a) => a.email}
+            pageSize={pageSize}
+            selection={{ selected, onChange: setSelected }}
+            empty="Không có tài khoản khớp"
+            columns={[
+              {
+                key: "email",
+                header: "Email",
+                sort: (a) => a.email,
+                render: (a) => (
+                  <span className="block max-w-[220px] truncate font-mono text-sm text-foreground" title={a.email}>{a.email}</span>
+                ),
+              },
+              {
+                key: "proxy",
+                header: "Proxy",
+                sort: (a) => a.proxy ?? "",
+                render: (a) => (
+                  <Select value={a.proxy ?? ""} onValueChange={(v) => setProxy(a.email, v ?? "")}>
+                    <SelectTrigger className="h-7 w-[130px] text-xs">
+                      <span className="truncate">{a.proxy || "(none)"}</span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="" className="text-xs">(none)</SelectItem>
+                      {proxies.map((p) => (
+                        <SelectItem key={p.label} value={p.label} className="text-xs">{p.label}</SelectItem>
                       ))}
-                      <TableCell className="text-xs text-muted-foreground">
-                        {fmtAgo(acc.lastLogin)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 justify-end">
-                          {/* Login: run selected flows */}
-                          <button
-                            title="Login (chạy luồng đã chọn)"
-                            onClick={() => runPipeline(acc.email)}
-                            className="h-6 px-2 flex items-center gap-1 rounded hover:bg-muted text-muted-foreground hover:text-success text-xs"
-                          >
-                            <Play className="h-3 w-3" /> Login
-                          </button>
-                          {/* Delete */}
-                          <button
-                            title="Xoá account"
-                            onClick={() => deleteAccount(acc.email)}
-                            className="h-6 w-6 flex items-center justify-center rounded hover:bg-destructive/30 text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Pager */}
-          {filtered.length > 0 && (
-            <div className="flex items-center justify-between pt-4 border-t border-border">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  Trang {safePage}/{totalPages} · {filtered.length} rows
-                </span>
-                <select
-                  value={pageSize}
-                  onChange={e => {
-                    setPageSize(Number(e.target.value))
-                    setPage(1)
-                    localStorage.setItem("vs_accSize", e.target.value)
-                  }}
-                  className="h-7 px-2 rounded bg-muted border border-border text-foreground text-xs focus:outline-none"
-                >
-                  {PAGE_SIZES.map(s => <option key={s} value={s}>{s}/trang</option>)}
-                </select>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={safePage <= 1}
-                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground disabled:opacity-30"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </button>
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  const p = Math.max(1, Math.min(totalPages - 4, safePage - 2)) + i
-                  return (
+                    </SelectContent>
+                  </Select>
+                ),
+              },
+              // Cột ĐỘNG theo FLOWS — số cột đổi theo cấu hình luồng.
+              ...FLOWS.map((f) => ({
+                key: f.key,
+                header: f.label,
+                sort: (a: Account) => String(a[f.col] ?? ""),
+                render: (a: Account) => statusBadge(a[f.col]),
+              })),
+              {
+                key: "lastLogin",
+                header: "Last login",
+                sort: (a) => a.lastLogin ?? 0,
+                render: (a) => <span className="text-xs text-muted-foreground">{fmtAgo(a.lastLogin)}</span>,
+              },
+              {
+                key: "actions",
+                header: "",
+                align: "right",
+                render: (a) => (
+                  <div className="flex items-center justify-end gap-1">
                     <button
-                      key={p}
-                      onClick={() => setPage(p)}
-                      className={`h-7 w-7 flex items-center justify-center rounded text-xs ${p === safePage ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                      title="Login (chạy luồng đã chọn)"
+                      onClick={() => runPipeline(a.email)}
+                      className="flex h-6 items-center gap-1 rounded px-2 text-xs text-muted-foreground hover:bg-muted hover:text-success"
                     >
-                      {p}
+                      <Play className="h-3 w-3" /> Login
                     </button>
-                  )
-                })}
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={safePage >= totalPages}
-                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground disabled:opacity-30"
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          )}
+                    <button
+                      title="Xoá account"
+                      onClick={() => deleteAccount(a.email)}
+                      className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-destructive/30 hover:text-destructive"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ),
+              },
+            ]}
+          />
         </CardContent>
       </Card>
     </div>
