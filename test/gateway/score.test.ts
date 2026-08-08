@@ -1,10 +1,12 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { Pool, scoreAccount, errRate, recordOutcome, SCORE_WEIGHTS, type PoolAccount } from '../../src/gateway/pool.js';
+import { Pool, scoreAccount, errRate, recordOutcome, SCORE_WEIGHTS, SCORE_STALE_MS, type PoolAccount } from '../../src/gateway/pool.js';
 
 /** Account tối thiểu để chấm điểm — không đụng mạng, không đụng DB. */
 function mk(email: string, geminiPct?: number, extra: Partial<PoolAccount> = {}): PoolAccount {
   return {
+    // `key` là khoá persist (toPersist dùng a.key); thiếu nó thì toPersist trả object rỗng.
+    key: `agy:${email}`,
     email, provider: 'agy', enabled: true, health: 'ok', inflight: 0,
     requests: 0, tokensIn: 0, tokensOut: 0, lastUsed: 0, cooldownUntil: 0, lastError: '',
     ...(geminiPct != null
@@ -118,5 +120,61 @@ describe('pick — full-first và smart giờ KHÁC nhau', () => {
     assert.equal(p.pick('highest-first').email, 'hi@x');
     p.release('agy:hi@x');
     assert.equal(p.pick('smart').email, 'mid@x', 'smart phải né account đang hỏng');
+  });
+});
+
+describe('persist số liệu chấm điểm qua restart', () => {
+  function pool1() {
+    const p = new Pool();
+    (p as any).accounts = new Map([['agy:a@x', mk('a@x', 50)]]);
+    return p;
+  }
+
+  test('recentFails/latency ĐƯỢC lưu — restart không bắt học lại từ đầu', () => {
+    const p = pool1();
+    const a = (p as any).accounts.get('agy:a@x') as PoolAccount;
+    for (let i = 0; i < 10; i++) recordOutcome(a, i % 2 === 0, 1200);
+    a.lastAttempt = Date.now();
+
+    const saved = p.toPersist()['agy:a@x'];
+    assert.equal(typeof saved.recentFails, 'number', 'thiếu recentFails → mất lịch sử lỗi mỗi lần restart');
+    assert.equal(saved.recentCount, 10);
+    assert.ok(saved.latencyEwmaMs! > 0);
+    assert.ok(saved.scoreAt > 0, 'phải kèm mốc thời gian để biết dữ liệu còn mới không');
+  });
+
+  test('nạp lại khi còn mới', () => {
+    const p = pool1();
+    const a = (p as any).accounts.get('agy:a@x') as PoolAccount;
+    p.applyPersist({ 'agy:a@x': { recentFails: 0b1111, recentCount: 8, latencyEwmaMs: 900, scoreAt: Date.now() - 60_000 } as any });
+    assert.equal(a.recentCount, 8);
+    assert.equal(a.latencyEwmaMs, 900);
+    assert.equal(errRate(a), 0.5);
+  });
+
+  test('BỎ khi quá cũ — upstream có thể đã hồi phục', () => {
+    const p = pool1();
+    const a = (p as any).accounts.get('agy:a@x') as PoolAccount;
+    p.applyPersist({
+      'agy:a@x': { recentFails: 0xfffff, recentCount: 20, latencyEwmaMs: 9999, scoreAt: Date.now() - SCORE_STALE_MS - 1000 } as any,
+    });
+    assert.equal(a.recentCount ?? 0, 0, 'lịch sử lỗi cũ 30+ phút không được dùng lại');
+    assert.equal(a.latencyEwmaMs, undefined);
+  });
+
+  test('khứ hồi toPersist → applyPersist giữ nguyên điểm', () => {
+    const p1 = pool1();
+    const a1 = (p1 as any).accounts.get('agy:a@x') as PoolAccount;
+    for (let i = 0; i < 6; i++) recordOutcome(a1, true, 800);
+    a1.lastAttempt = Date.now();
+    const before = scoreAccount(a1, 'gemini', 1);
+
+    const p2 = pool1();
+    p2.applyPersist(p1.toPersist());
+    const a2 = (p2 as any).accounts.get('agy:a@x') as PoolAccount;
+    // inflight KHÔNG persist (nó là trạng thái tức thời), nên so điểm với cùng inflight=0.
+    assert.equal(a2.recentCount, a1.recentCount, 'số mẫu phải khớp');
+    assert.equal(a2.latencyEwmaMs, a1.latencyEwmaMs, 'độ trễ phải khớp');
+    assert.equal(Math.round(scoreAccount(a2, 'gemini', 1) * 1e6), Math.round(before * 1e6));
   });
 });

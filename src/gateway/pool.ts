@@ -139,6 +139,9 @@ export function recordOutcome(a: PoolAccount, ok: boolean, latencyMs?: number): 
  * giờ được gọi, và vì thế không bao giờ có số đo. (Đúng lỗi 160/402 account chưa từng
  * được dùng đã gặp ở chiến lược cursor cũ.)
  */
+/** Số liệu chấm điểm cũ hơn mốc này thì bỏ — upstream có thể đã đổi trạng thái hẳn. */
+export const SCORE_STALE_MS = 30 * 60_000;
+
 export const SCORE_WEIGHTS = { quota: 0.45, errRate: 0.25, latency: 0.15, load: 0.15 } as const;
 
 export function scoreAccount(a: PoolAccount, bucket?: QuotaBucket, maxInflight = 1): number {
@@ -485,6 +488,14 @@ export class Pool {
         // Access token: KHÔNG persist thì mỗi lần restart mất sạch token của 700 account,
         // và tải dồn sau đó gây hàng trăm lần refresh cùng lúc — đúng kiểu 429 hàng loạt.
         token: a.token,
+        // Số liệu chấm điểm cho chiến lược `smart`. Trước đây CHỈ nằm trong RAM nên mỗi
+        // lần restart pool mất sạch "account nào hay lỗi, account nào chậm" — phải học
+        // lại từ đầu bằng chính traffic thật của người dùng. Persist kèm mốc thời gian
+        // để applyPersist tự bỏ khi đã quá cũ (xem SCORE_STALE_MS).
+        recentFails: a.recentFails || 0,
+        recentCount: a.recentCount || 0,
+        latencyEwmaMs: a.latencyEwmaMs,
+        scoreAt: a.lastAttempt || 0,
       };
     }
     return out;
@@ -514,6 +525,15 @@ export class Pool {
           if (v > Date.now()) live[k] = v;
         }
         if (Object.keys(live).length) a.bucketCooldown = live as any;
+      }
+      // Số liệu chấm điểm chỉ dùng lại khi CÒN MỚI. Lịch sử lỗi của 6 tiếng trước không
+      // nói gì về upstream lúc này (có thể đã hồi phục), nhưng vứt hết cũng phí — restart
+      // vài phút thì dữ liệu vẫn đúng. 30 phút là mốc dung hoà.
+      const scoreAge = Date.now() - ((s as any).scoreAt ?? 0);
+      if ((s as any).scoreAt && scoreAge < SCORE_STALE_MS) {
+        a.recentFails = s.recentFails ?? a.recentFails;
+        a.recentCount = s.recentCount ?? a.recentCount;
+        a.latencyEwmaMs = s.latencyEwmaMs ?? a.latencyEwmaMs;
       }
       if (s.quota && !a.quota) a.quota = s.quota; // giữ quota qua restart (TTL tự lo refresh)
       if (s.projectId && !a.projectId) a.projectId = s.projectId; // bỏ discoverProject sau restart

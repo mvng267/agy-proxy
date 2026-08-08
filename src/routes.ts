@@ -10,6 +10,7 @@ import { fetchWebshareList, parseProxyList, testProxy } from './proxy/webshare.j
 import { omniroute } from './omniroute/client.js';
 import { config, CSV, saveSettings, setConfig, applyConfig, getConfigValue, CONFIG_KEYS, SECRET_KEYS, RESTART_KEYS, AGY_HOME, ROOT } from './config.js';
 import { checkAll, restartHealthLoop } from './health/tokenHealth.js';
+import { checkUpdate, runUpdate } from './updater.js';
 import { hashPassword, verifyPassword } from './security.js';
 import { registerGatewayRoutes } from './gateway/routes.js';
 import { registerToolRoutes } from './tools/routes.js';
@@ -375,6 +376,30 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e: any) {
       return { ok: false, error: e?.message ?? String(e) };
     }
+  });
+
+  // ---------- cập nhật bản mới ----------
+  // Có sẵn CLI `agyproxy update` nhưng phải SSH vào máy chủ mới chạy được; hai endpoint
+  // này đưa đúng luồng đó lên dashboard.
+  app.get('/api/system/update', async () => checkUpdate());
+
+  app.post('/api/system/update', async (req, reply) => {
+    const b = (req.body as { restart?: boolean }) ?? {};
+    const info = await checkUpdate();
+    if (!info.canSelfUpdate) {
+      return reply.code(400).send({ ok: false, error: 'Bản cài không phải git checkout — cập nhật bằng `agyproxy update` trên máy chủ', steps: [] });
+    }
+    if (!info.hasUpdate) {
+      return { ok: true, upToDate: true, ...info, steps: [] };
+    }
+    const steps = await runUpdate();
+    const ok = steps.every((s) => s.ok);
+    // Restart TÁCH RIÊNG và luôn chậm nhịp: trả response xong mới thoát, nếu không client
+    // mất kết nối trước khi biết cập nhật thành công hay thất bại.
+    if (ok && b.restart !== false) {
+      setTimeout(() => process.exit(0), 1500);
+    }
+    return { ok, steps, restarting: ok && b.restart !== false, ...(await checkUpdate()) };
   });
 
   // Khởi động lại (service/CLI sẽ dựng lại tiến trình)

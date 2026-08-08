@@ -16,6 +16,7 @@ import {
   RotateCcw,
   Lock,
 } from "lucide-react"
+import { UpdatePanel } from "@/components/common/UpdatePanel"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -568,6 +569,9 @@ export function Settings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Cập nhật đứng TRƯỚC restart: cài xong thì bước kế là khởi động lại. */}
+      <UpdatePanel />
 
       {/* ── Restart server ────────────────────────────────────────────────── */}
       <Card className="bg-slate-900 border-slate-800">

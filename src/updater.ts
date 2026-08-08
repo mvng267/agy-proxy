@@ -1,0 +1,153 @@
+import { execFile } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+import log from './lib/logger.js';
+
+/**
+ * Kiểm tra + cài bản mới từ GitHub.
+ *
+ * Logic này vốn CHỈ nằm trong bin/agyproxy.mjs nên dashboard không dùng lại được —
+ * người dùng phải SSH vào máy mới cập nhật được. Tách ra đây để cả CLI lẫn API
+ * `/api/system/update` dùng chung một đường, không có bản thứ hai để lệch nhau.
+ */
+
+const execFileAsync = promisify(execFile);
+export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const REPO = 'mvng267/agy-proxy';
+
+function localVersion(): string {
+  try {
+    return JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8')).version ?? '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
+/** So sánh semver dạng x.y.z. >0 nghĩa là a mới hơn b. */
+export function cmpVersion(a: string, b: string): number {
+  const x = String(a).split('.').map(Number);
+  const y = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0);
+  }
+  return 0;
+}
+
+export interface UpdateCheck {
+  current: string;
+  latest: string | null;
+  hasUpdate: boolean;
+  /** Cài bằng git pull được không — quyết định UI hiện nút hay chỉ hướng dẫn. */
+  canSelfUpdate: boolean;
+  error?: string;
+}
+
+async function fetchRemoteVersion(): Promise<string> {
+  // API GitHub trước: raw.githubusercontent.com dính CDN cache tới vài phút, nên vừa
+  // push xong hỏi ngay vẫn ra bản cũ.
+  const api = await fetch(`https://api.github.com/repos/${REPO}/contents/package.json?ref=main`, {
+    headers: { accept: 'application/vnd.github+json', 'user-agent': 'agyproxy' },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (api.ok) {
+    const j = (await api.json()) as { content?: string };
+    if (j.content) return JSON.parse(Buffer.from(j.content, 'base64').toString('utf8')).version;
+  }
+  const raw = await fetch(`https://raw.githubusercontent.com/${REPO}/main/package.json`, {
+    // Ép bỏ cache CDN bằng query, `cache:'no-store'` không có trong undici RequestInit.
+    headers: { 'cache-control': 'no-cache' },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!raw.ok) throw new Error(`HTTP ${raw.status}`);
+  return JSON.parse(await raw.text()).version;
+}
+
+/** Có phải bản cài từ git (pull được) không. */
+export function isGitCheckout(): boolean {
+  return existsSync(resolve(ROOT, '.git'));
+}
+
+export async function checkUpdate(): Promise<UpdateCheck> {
+  const current = localVersion();
+  try {
+    const latest = await fetchRemoteVersion();
+    return {
+      current,
+      latest,
+      hasUpdate: cmpVersion(latest, current) > 0,
+      canSelfUpdate: isGitCheckout(),
+    };
+  } catch (e: any) {
+    return {
+      current,
+      latest: null,
+      hasUpdate: false,
+      canSelfUpdate: isGitCheckout(),
+      error: String(e?.message ?? e),
+    };
+  }
+}
+
+export interface UpdateStep {
+  step: string;
+  ok: boolean;
+  detail?: string;
+}
+
+/**
+ * Cài bản mới. KHÔNG tự restart — người gọi quyết định thời điểm, vì restart giữa lúc
+ * đang phục vụ request sẽ cắt ngang stream của client.
+ *
+ * Chỉ chạy được trên bản cài từ git. Bản npm global thì `git pull` vô nghĩa, và tự
+ * `npm install -g` từ tiến trình server là tự ghi đè lên chính mình khi đang chạy.
+ */
+export async function runUpdate(onStep?: (s: UpdateStep) => void): Promise<UpdateStep[]> {
+  const steps: UpdateStep[] = [];
+  const push = (s: UpdateStep) => {
+    steps.push(s);
+    onStep?.(s);
+    log[s.ok ? 'info' : 'error'](`update: ${s.step}${s.detail ? ' — ' + s.detail : ''}`);
+  };
+
+  if (!isGitCheckout()) {
+    push({ step: 'kiểm tra', ok: false, detail: 'không phải bản cài từ git — cập nhật bằng `agyproxy update` trên máy chủ' });
+    return steps;
+  }
+
+  const run = async (step: string, cmd: string, args: string[], cwd = ROOT) => {
+    try {
+      const { stdout, stderr } = await execFileAsync(cmd, args, { cwd, timeout: 300_000, maxBuffer: 8 << 20 });
+      push({ step, ok: true, detail: (stdout || stderr).trim().split('\n').slice(-2).join(' ').slice(0, 200) });
+      return true;
+    } catch (e: any) {
+      push({ step, ok: false, detail: String(e?.stderr || e?.message || e).slice(0, 300) });
+      return false;
+    }
+  };
+
+  // Có thay đổi chưa commit thì `pull --ff-only` sẽ fail — báo rõ thay vì để lỗi git khó hiểu.
+  try {
+    const { stdout } = await execFileAsync('git', ['-C', ROOT, 'status', '--porcelain'], { timeout: 30_000 });
+    if (stdout.trim()) {
+      push({ step: 'kiểm tra', ok: false, detail: 'thư mục có thay đổi chưa commit — dừng để không mất code' });
+      return steps;
+    }
+  } catch (e: any) {
+    push({ step: 'kiểm tra', ok: false, detail: String(e?.message ?? e).slice(0, 200) });
+    return steps;
+  }
+
+  if (!(await run('git pull', 'git', ['-C', ROOT, 'pull', '--ff-only']))) return steps;
+  if (!(await run('npm install', 'npm', ['install', '--omit=dev', '--no-fund', '--no-audit']))) return steps;
+
+  // Web build nằm trong repo nhưng dist có thể cũ hơn src sau khi pull.
+  if (existsSync(resolve(ROOT, 'web/package.json'))) {
+    await run('npm install (web)', 'npm', ['install', '--no-fund', '--no-audit'], resolve(ROOT, 'web'));
+    await run('build web', 'npm', ['run', 'build'], resolve(ROOT, 'web'));
+  }
+
+  push({ step: 'xong', ok: true, detail: `đã cài v${localVersion()} — khởi động lại để áp dụng` });
+  return steps;
+}
