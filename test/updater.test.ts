@@ -60,3 +60,26 @@ describe('runUpdate — build web trong môi trường production', () => {
     assert.match(SRC, /BUILD WEB LỖI/, 'phải nói rõ dashboard đang chạy giao diện cũ');
   });
 });
+
+describe('runUpdate — web/dist là sản phẩm build, không phải code', () => {
+  const SRC = readFileSync(new URL('../src/updater.ts', import.meta.url), 'utf8');
+
+  test('dọn web/dist trước khi pull', () => {
+    // web/dist ĐƯỢC commit (server serve dashboard từ đó) nên mỗi lần build sinh hash
+    // file mới là thư mục bẩn ngay. Coi đó là "code sắp mất" thì nút Cập nhật chỉ chạy
+    // được ĐÚNG MỘT LẦN rồi tắc vĩnh viễn — gặp thật trên production.
+    assert.match(SRC, /checkout', '--', 'web\/dist'/, 'phải git checkout web/dist');
+    assert.match(SRC, /clean', '-fd', 'web\/dist'/, 'phải xoá file dist mới sinh (untracked)');
+  });
+
+  test('vẫn dừng khi có thay đổi THẬT ngoài web/dist', () => {
+    // Không được nới lỏng thành "kệ hết" — code người viết vẫn phải được bảo vệ.
+    assert.match(SRC, /!f\.startsWith\('web\/dist\/'\)/, 'chỉ bỏ qua web/dist');
+    assert.match(SRC, /dừng để không mất code/);
+  });
+
+  test('package-lock không bị coi là code chưa commit', () => {
+    // npm install sửa lockfile là chuyện thường, chặn vì nó thì nút không bao giờ chạy.
+    assert.match(SRC, /f !== 'package-lock\.json'/);
+  });
+});

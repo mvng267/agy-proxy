@@ -130,17 +130,39 @@ export async function runUpdate(onStep?: (s: UpdateStep) => void): Promise<Updat
     }
   };
 
-  // Có thay đổi chưa commit thì `pull --ff-only` sẽ fail — báo rõ thay vì để lỗi git khó hiểu.
+  // `web/dist` ĐƯỢC commit vào repo (server serve dashboard từ đó), nên mỗi lần build
+  // sinh hash file mới là thư mục "bẩn" ngay. Nếu coi đó là "code sắp mất" thì nút Cập
+  // nhật chỉ chạy được ĐÚNG MỘT LẦN rồi tắc vĩnh viễn — gặp thật trên production.
+  // Dist là sản phẩm build, không phải code người viết: dọn sạch trước khi pull.
+  try {
+    await execFileAsync('git', ['-C', ROOT, 'checkout', '--', 'web/dist'], { timeout: 60_000 });
+  } catch { /* chưa có thay đổi nào để dọn */ }
+  try {
+    await execFileAsync('git', ['-C', ROOT, 'clean', '-fd', 'web/dist'], { timeout: 60_000 });
+  } catch { /* không sao */ }
+
+  // Còn thay đổi NGOÀI web/dist thì mới thật sự là code chưa commit — dừng lại.
   try {
     const { stdout } = await execFileAsync('git', ['-C', ROOT, 'status', '--porcelain'], { timeout: 30_000 });
-    if (stdout.trim()) {
-      push({ step: 'kiểm tra', ok: false, detail: 'thư mục có thay đổi chưa commit — dừng để không mất code' });
+    const dirty = stdout
+      .split('\n')
+      .map((l) => l.slice(3).trim())
+      .filter(Boolean)
+      // package-lock.json bị npm install sửa là chuyện thường, không phải code người viết.
+      .filter((f) => !f.startsWith('web/dist/') && f !== 'package-lock.json' && f !== 'web/package-lock.json');
+    if (dirty.length) {
+      push({ step: 'kiểm tra', ok: false, detail: `thư mục có thay đổi chưa commit (${dirty.slice(0, 3).join(', ')}) — dừng để không mất code` });
       return steps;
     }
   } catch (e: any) {
     push({ step: 'kiểm tra', ok: false, detail: String(e?.message ?? e).slice(0, 200) });
     return steps;
   }
+
+  // package-lock có thể lệch sau lần install trước → pull sẽ fail. Bỏ thay đổi cục bộ.
+  try {
+    await execFileAsync('git', ['-C', ROOT, 'checkout', '--', 'package-lock.json', 'web/package-lock.json'], { timeout: 60_000 });
+  } catch { /* file có thể không tồn tại */ }
 
   if (!(await run('git pull', 'git', ['-C', ROOT, 'pull', '--ff-only']))) return steps;
   if (!(await run('npm install', 'npm', ['install', '--omit=dev', '--no-fund', '--no-audit']))) return steps;
