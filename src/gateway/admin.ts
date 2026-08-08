@@ -27,6 +27,7 @@ import {
 } from './engine.js';
 import { toMessages } from './dialects/wire.js';
 import { gatewayMetrics } from './metrics.js';
+import { providerBreaker } from './breaker.js';
 
 /**
  * Admin API cho dashboard: quản lý account/key/config/combo, báo cáo usage & quota,
@@ -358,6 +359,7 @@ export function registerAdminRoutes(app: FastifyInstance): void {
       uptimeSec: Math.round(process.uptime()),
       window: gatewayMetrics.snapshot(now),
       accounts,
+      breaker: providerBreaker.snapshot(now),
       rssMb: Math.round(process.memoryUsage.rss() / 1024 / 1024),
     };
   });

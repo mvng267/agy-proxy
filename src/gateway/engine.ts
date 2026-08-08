@@ -24,11 +24,13 @@ import {
   dispatcherFor,
   refreshQuota,
   geminiPct,
+  isTransientError,
   NoAccountError,
   streamLimiter,
   type PoolAccount,
   type Strategy,
 } from './pool.js';
+import { providerBreaker } from './breaker.js';
 import { refreshAccessToken, type ChatMessage, type GenResult, type ToolCall, type ToolDef } from './antigravity.js';
 import { openaiCompletion, sseChunk } from './dialects/wire.js';
 import { gatewayMetrics } from './metrics.js';
@@ -390,6 +392,10 @@ export async function runProviderCall(opts: {
       { status: 400 },
     );
   }
+  // Circuit breaker theo provider: cả upstream đang sập thì fail-fast 503 ngay,
+  // không đốt thêm 3 lượt gọi mạng + hàng chục vòng pick. 503 nằm trong shouldFallback
+  // nên combo/auto tự trượt sang provider khác.
+  providerBreaker.allow(provider);
   const genArgs = { generationConfig: opts.generationConfig, tools: opts.tools, toolConfig: opts.toolConfig };
   const bucket = bucketOf(provider, bare);
   /**
@@ -503,6 +509,7 @@ export async function runProviderCall(opts: {
           reply.raw.end();
         }
         const ms = Date.now() - t0;
+        providerBreaker.ok(provider);
         pool.report(ctx.account, { ok: true, promptTokens: pt, completionTokens: ct, latencyMs: ms });
         afterCall(ctx.account, labelModel, { ok: true, promptTokens: pt, completionTokens: ct, ms, status: 200 }, opts.usage);
         savePersist();
@@ -511,6 +518,7 @@ export async function runProviderCall(opts: {
       }
       const r = await p.generate({ session: ctx.session, model: bare, messages, ...genArgs, dispatcher: ctx.dispatcher });
       const ms = Date.now() - t0;
+      providerBreaker.ok(provider);
       pool.report(ctx.account, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, latencyMs: ms });
       afterCall(ctx.account, labelModel, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, ms, status: 200 }, opts.usage);
       savePersist();
@@ -546,6 +554,17 @@ export async function runProviderCall(opts: {
         kind: 'err', account: ctx.account.email, model: labelModel, ms, status: e?.status,
         msg: `← ✗ ${e?.status ?? ''} ${outOfQuota ? '(hết hạn mức → đổi account)' : ''} ${String(e?.message ?? e).slice(0, 90)}`,
       });
+      // Chỉ lỗi HẠ TẦNG mới nuôi circuit breaker — quota là chuyện từng account.
+      if (!outOfQuota && (e?.status >= 500 || isTransientError(String(e?.message ?? e), e?.status))) {
+        providerBreaker.fail(provider);
+        if (providerBreaker.state(provider) === 'open') {
+          emitGw({
+            kind: 'err', account: '-', model: labelModel, status: 503,
+            msg: `⛔ circuit breaker ${provider} MỞ — ngừng failover, chặn tạm để upstream hồi`,
+          });
+          throw e; // fail-fast: không thử thêm account nào của provider đang sập
+        }
+      }
       if (stream && reply.raw.headersSent) throw e; // đã gửi byte → không cứu được
     } finally {
       releaseLimiter?.();
