@@ -178,7 +178,7 @@ export function LiveLog() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-10rem)] gap-4">
+    <div className="flex flex-col h-[calc(100dvh-10rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] gap-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0">
         <div className="flex items-center gap-2">

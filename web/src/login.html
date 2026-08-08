@@ -2,13 +2,26 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- viewport-fit=cover bắt buộc để env(safe-area-inset-*) hoạt động;
+       interactive-widget=resizes-content để bàn phím ảo không che input (Chrome/Android) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+  <meta name="theme-color" content="#020817" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="agyproxy" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <title>Đăng nhập · agyproxy</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      /* 100dvh + safe-area: card không bị notch/home indicator che, keyboard bật thì co lại theo viewport */
+      min-height: 100dvh; display: flex; align-items: center; justify-content: center;
+      padding-top: calc(16px + env(safe-area-inset-top, 0px));
+      padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      padding-left: calc(16px + env(safe-area-inset-left, 0px));
+      padding-right: calc(16px + env(safe-area-inset-right, 0px));
       background: #020817; font-family: 'Geist', 'Inter', system-ui, sans-serif; color: #f8fafc;
     }
     .card {
@@ -62,6 +75,13 @@
     </form>
   </div>
   <script>
+    // iOS Safari không hỗ trợ interactive-widget — khi bàn phím bật, cuộn input vào giữa
+    // vùng nhìn thấy (visualViewport đã trừ phần bị bàn phím chiếm).
+    document.querySelectorAll('input').forEach(el => {
+      el.addEventListener('focus', () => {
+        setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 250);
+      });
+    });
     const form = document.getElementById('form');
     const btn = document.getElementById('btn');
     const err = document.getElementById('err');

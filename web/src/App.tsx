@@ -251,8 +251,9 @@ function AppShell() {
             poolCount={health?.poolSize}
           />
           <SidebarInset>
-            {/* Topbar — h-14, px-4/lg:px-6: footer dùng đúng cặp số này để hai thanh cân nhau */}
-            <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-950/80 px-4 backdrop-blur-sm lg:px-6">
+            {/* Topbar — 3.5rem + safe-area-inset-top: sticky nên phải tự chừa notch khi dính lên đỉnh.
+                px-4/lg:px-6: footer dùng đúng cặp số này để hai thanh cân nhau */}
+            <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-950/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-sm lg:px-6">
               <SidebarTrigger className="-ml-1 text-slate-400 hover:text-slate-200" />
               <Separator orientation="vertical" className="h-5 bg-slate-800" />
               {/* Logo + tên app: sidebar mobile là offcanvas nên topbar phải tự nhận diện app */}
@@ -291,8 +292,9 @@ function AppShell() {
               </Suspense>
             </main>
 
-            {/* Footer — cùng chiều cao/padding với topbar để khung trên–dưới đối xứng */}
-            <footer className="flex h-14 shrink-0 items-center justify-between gap-3 border-t border-slate-800 bg-slate-950 px-4 lg:px-6">
+            {/* Footer — cùng 3.5rem với topbar để khung trên–dưới đối xứng; safe-area-inset-bottom
+                đẩy nội dung lên trên home indicator của iPhone */}
+            <footer className="flex h-[calc(3.5rem+env(safe-area-inset-bottom))] shrink-0 items-center justify-between gap-3 border-t border-slate-800 bg-slate-950 px-4 pb-[env(safe-area-inset-bottom)] lg:px-6">
               <p className="flex min-w-0 items-center gap-2 text-xs text-slate-500">
                 <span className="truncate">© 2026 agyproxy</span>
                 <span className="hidden sm:inline text-slate-700">·</span>
