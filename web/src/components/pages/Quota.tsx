@@ -399,13 +399,19 @@ export function Quota() {
         <div className="flex items-center bg-muted border border-border rounded-lg p-0.5">
           <button
             onClick={() => setViewAndSave("table")}
-            className={`h-6 w-6 flex items-center justify-center rounded ${viewMode === "table" ? "bg-muted" : ""}`}
+            aria-label="Xem dạng bảng"
+            title="Xem dạng bảng"
+            aria-pressed={viewMode === "table"}
+            className={`flex h-6 w-6 items-center justify-center rounded ${viewMode === "table" ? "bg-muted" : ""}`}
           >
             <Table2 className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
           <button
             onClick={() => setViewAndSave("card")}
-            className={`h-6 w-6 flex items-center justify-center rounded ${viewMode === "card" ? "bg-muted" : ""}`}
+            aria-label="Xem dạng thẻ"
+            title="Xem dạng thẻ"
+            aria-pressed={viewMode === "card"}
+            className={`flex h-6 w-6 items-center justify-center rounded ${viewMode === "card" ? "bg-muted" : ""}`}
           >
             <LayoutGrid className="h-3.5 w-3.5 text-muted-foreground" />
           </button>

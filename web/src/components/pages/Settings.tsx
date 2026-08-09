@@ -387,6 +387,8 @@ export function Settings() {
                   }
                   setShowKey(v => !v)
                 }}
+                aria-label={showKey ? "Ẩn API key" : "Hiện API key"}
+                title={showKey ? "Ẩn API key" : "Hiện API key"}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
