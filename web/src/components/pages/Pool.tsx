@@ -12,10 +12,9 @@ import {
   PowerOff,
   FlaskConical,
   Gauge,
-  CheckCheck,
 } from "lucide-react"
-import { KpiCard, PageHeader } from "@/components/common"
-import { PoolDonut } from "@/components/common/charts"
+import { ConfirmDialog, KpiCard, PageHeader } from "@/components/common"
+import { SegmentBar } from "@/components/common/charts"
 import { DataTable } from "@/components/common/DataTable"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -107,6 +106,10 @@ export function Pool() {
 
   // Selection
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  /** Danh sách áp dụng: đã chọn → chỉ phần đó; chưa chọn → undefined = toàn bộ. */
+  const sel = () => (selected.size > 0 ? [...selected] : undefined)
+  /** Hành động huỷ hoại / tốn thời gian đang chờ xác nhận. */
+  const [confirm, setConfirm] = useState<"off" | "live" | null>(null)
 
   // Per-row spinning states
   const [spinning, setSpinning] = useState<Record<string, Record<string, boolean>>>({})
@@ -333,23 +336,29 @@ export function Pool() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Pool" desc="Account trong pool, sức khoẻ và hạn mức từng provider" />
-      {/* Provider Tabs */}
-      <div className="flex items-center gap-2">
-        {([["agy", "Antigravity"], ["kr", "Kiro"]] as const).map(([key, label]) => (
-          <Button
-            key={key}
-            size="sm"
-            onClick={() => setProvider(key)}
-            className={provider === key
-              ? "bg-primary hover:bg-primary/90 text-primary-foreground h-8 text-xs"
-              : "border border-border bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted h-8 text-xs"}
-          >
-            {label}
-          </Button>
-        ))}
-        <Badge className="bg-muted text-muted-foreground border-none text-xs ml-1">{provAccounts.length} account</Badge>
-      </div>
+      {/* Tabs provider vào `actions` — nó là bộ lọc QUYẾT ĐỊNH toàn bộ dữ liệu bên dưới,
+          để rời ra giữa trang thì người dùng thấy hai chỗ lọc ở hai nơi. */}
+      <PageHeader
+        title="Pool"
+        desc="Account trong pool, sức khoẻ và hạn mức từng provider"
+        actions={
+          <div className="flex items-center gap-2">
+            {([["agy", "Antigravity"], ["kr", "Kiro"]] as const).map(([key, label]) => (
+              <Button
+                key={key}
+                size="sm"
+                onClick={() => setProvider(key)}
+                className={provider === key
+                  ? "h-8 bg-primary text-xs text-primary-foreground hover:bg-primary/90"
+                  : "h-8 border border-border bg-transparent text-xs text-muted-foreground hover:bg-muted hover:text-foreground"}
+              >
+                {label}
+              </Button>
+            ))}
+            <Badge className="bg-muted text-muted-foreground">{provAccounts.length}</Badge>
+          </div>
+        }
+      />
 
       {/* KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -362,74 +371,16 @@ export function Pool() {
       {/* Gợi ý định tuyến: bể nào còn nhiều quota → nên ưu tiên model nào */}
       <RoutingHint />
 
-      {/* Donut + Health */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
-              <Zap className="h-4 w-4 text-muted-foreground" /> Pool Distribution
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-6">
-              <PoolDonut
-                center={poolActive}
-                sub="sẵn sàng"
-                size={110}
-                strokeWidth={10}
-                segments={[
-                  { label: "Sẵn sàng", value: poolActive, tone: "success" },
-                  { label: "Cooldown", value: poolCooldown, tone: "warning" },
-                  { label: "Không dùng được", value: Math.max(0, poolTotal - poolActive - poolCooldown), tone: "danger" },
-                ]}
-              />
-              <div className="flex-1 space-y-2 text-xs">
-                {[
-                  { label: "Active", color: "bg-success", val: poolActive },
-                  { label: "Cooldown", color: "bg-warning", val: poolCooldown },
-                  { label: "Inactive", color: "bg-muted-foreground/40", val: poolInactive },
-                ].map(({ label, color, val }) => (
-                  <div key={label} className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <span className={`h-2 w-2 rounded-full ${color}`} />
-                      <span className="text-muted-foreground">{label}</span>
-                    </span>
-                    <span className="font-medium text-foreground tabular-nums">{val}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
-              <Activity className="h-4 w-4 text-muted-foreground" /> Pool Health
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Active</span>
-                <span className="text-success font-medium tabular-nums">{poolActive} / {poolTotal} ({pctActive}%)</span>
-              </div>
-              <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div className="h-full bg-success transition-all duration-500 rounded-full" style={{ width: `${pctActive}%` }} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Cooldown</span>
-                <span className="text-warning font-medium tabular-nums">{poolCooldown} / {poolTotal} ({pctCooldown}%)</span>
-              </div>
-              <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div className="h-full bg-warning transition-all duration-500 rounded-full" style={{ width: `${pctCooldown}%` }} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Trước đây là 2 Card "Pool Distribution" + "Pool Health" hiện lại ĐÚNG 3 con số đã
+          có ở hàng KPI ngay trên — ba lần biểu diễn cùng dữ liệu, đẩy bảng xuống ~700px.
+          Một thanh phân bổ là đủ để thấy tỉ lệ. */}
+      <SegmentBar
+        segments={[
+          { label: "Sẵn sàng", value: poolActive, tone: "success" },
+          { label: "Cooldown", value: poolCooldown, tone: "warning" },
+          { label: "Không dùng được", value: poolInactive, tone: "danger" },
+        ]}
+      />
 
       {/* Check progress bar */}
       {checkProgress && (
@@ -446,27 +397,39 @@ export function Pool() {
         </div>
       )}
 
-      {/* Bulk action bar */}
-      {selected.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 bg-muted/50 rounded-lg px-4 py-2">
-          <span className="text-xs text-muted-foreground mr-1">{selected.size} đã chọn</span>
-          <Button size="sm" onClick={() => handleBulkEnable(true, [...selected])} className="bg-success hover:bg-success text-success-foreground h-7 text-xs gap-1">
-            <Power className="h-3 w-3" /> Bật
-          </Button>
-          <Button size="sm" onClick={() => handleBulkEnable(false, [...selected])} className="bg-muted hover:bg-muted-foreground/40 text-foreground h-7 text-xs gap-1">
-            <PowerOff className="h-3 w-3" /> Tắt
-          </Button>
-          <Button size="sm" onClick={handleBulkQuota} className="bg-muted hover:bg-muted-foreground/40 text-foreground h-7 text-xs gap-1">
-            <Gauge className="h-3 w-3" /> Quota
-          </Button>
-          <Button size="sm" onClick={() => startCheck("token")} className="bg-muted hover:bg-muted-foreground/40 text-foreground h-7 text-xs gap-1">
-            <FlaskConical className="h-3 w-3" /> Token
-          </Button>
-          <Button size="sm" onClick={() => startCheck("live")} className="bg-muted hover:bg-muted-foreground/40 text-foreground h-7 text-xs gap-1">
-            <Activity className="h-3 w-3" /> Live
-          </Button>
-        </div>
-      )}
+      {/*
+        MỘT thanh hành động duy nhất, thay vì trước đây có 6 nút trong toolbar VÀ 5 nút
+        trong bulk-bar — 5 cặp trùng nghĩa, khác nhãn, khác màu, cách nhau 60 dòng
+        (`Tắt` vs `All Off`). Không ai biết chúng khác nhau chỗ nào nếu không đọc code.
+
+        Nhãn đổi theo ngữ cảnh: chưa chọn dòng nào thì áp cho TOÀN BỘ (các handler vốn đã
+        làm vậy), chọn rồi thì áp cho phần đã chọn. Nói rõ trong nhãn để không bấm nhầm.
+      */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 px-4 py-2">
+        <span className="mr-1 text-xs text-muted-foreground">
+          {selected.size > 0 ? `${selected.size} đã chọn` : `Toàn bộ ${sorted.length} account`}
+        </span>
+        <Button size="sm" onClick={() => handleBulkEnable(true, sel())} className="h-7 gap-1 bg-success text-xs text-success-foreground hover:bg-success">
+          <Power className="h-3 w-3" /> Bật
+        </Button>
+        {/* Tắt hàng loạt KHÔNG hoàn tác được và mặc định áp cho cả 700 account → phải xác nhận. */}
+        <Button size="sm" onClick={() => setConfirm("off")} className="h-7 gap-1 bg-muted text-xs text-foreground hover:bg-muted-foreground/40">
+          <PowerOff className="h-3 w-3" /> Tắt
+        </Button>
+        <Button size="sm" onClick={handleWake} className="h-7 gap-1 bg-muted text-xs text-foreground hover:bg-muted-foreground/40">
+          <Snowflake className="h-3 w-3" /> Gỡ cooldown
+        </Button>
+        <Button size="sm" onClick={handleBulkQuota} className="h-7 gap-1 bg-muted text-xs text-foreground hover:bg-muted-foreground/40">
+          <Gauge className="h-3 w-3" /> Nạp quota
+        </Button>
+        <Button size="sm" onClick={() => startCheck("token")} className="h-7 gap-1 bg-muted text-xs text-foreground hover:bg-muted-foreground/40">
+          <FlaskConical className="h-3 w-3" /> Test token
+        </Button>
+        {/* Quét live cả pool mất ~8 phút và chạy dày sẽ bị Google chặn tốc độ → xác nhận. */}
+        <Button size="sm" onClick={() => (selected.size > 0 ? startCheck("live") : setConfirm("live"))} className="h-7 gap-1 bg-muted text-xs text-foreground hover:bg-muted-foreground/40">
+          <Activity className="h-3 w-3" /> Check live
+        </Button>
+      </div>
 
       {/* Table */}
       <Card>
@@ -504,22 +467,6 @@ export function Pool() {
               </Select>
               {/* Bỏ dropdown sắp xếp — bảng đã sắp xếp bằng click tiêu đề cột (DataTable),
                   để cả hai là hai chỗ làm cùng một việc và dễ lệch nhau. */}
-              {/* Bulk: Enable all / Disable all / Wake / Check all / Refresh quota all */}
-              <Button size="sm" onClick={() => handleBulkEnable(true)} className="border border-border bg-transparent text-success hover:bg-muted h-8 text-xs gap-1">
-                <Power className="h-3 w-3" /> All On
-              </Button>
-              <Button size="sm" onClick={() => handleBulkEnable(false)} className="border border-border bg-transparent text-muted-foreground hover:bg-muted h-8 text-xs gap-1">
-                <PowerOff className="h-3 w-3" /> All Off
-              </Button>
-              <Button size="sm" onClick={handleWake} className="border border-border bg-transparent text-warning hover:bg-muted h-8 text-xs gap-1">
-                <Snowflake className="h-3 w-3" /> Wake
-              </Button>
-              <Button size="sm" onClick={() => startCheck("live")} className="border border-border bg-transparent text-muted-foreground hover:bg-muted h-8 text-xs gap-1">
-                <CheckCheck className="h-3 w-3" /> Check All
-              </Button>
-              <Button size="sm" onClick={() => handleBulkQuota()} className="border border-border bg-transparent text-muted-foreground hover:bg-muted h-8 text-xs gap-1">
-                <Gauge className="h-3 w-3" /> Quota All
-              </Button>
               <Button size="sm" onClick={fetchData} className="border border-border bg-transparent text-muted-foreground hover:text-warning h-8 text-xs gap-1">
                 <RefreshCw className="h-3 w-3" /> Refresh
               </Button>
@@ -645,6 +592,25 @@ export function Pool() {
           />
         </CardContent>
       </Card>
+      {/* Hai hành động không hoàn tác / tốn 8 phút — ConfirmDialog đã có sẵn ở common/ mà
+          trang này chưa từng dùng, dù `All Off` tắt cả 700 account chỉ bằng một cú bấm. */}
+      <ConfirmDialog
+        open={confirm !== null}
+        onCancel={() => setConfirm(null)}
+        danger={confirm === "off"}
+        title={confirm === "off" ? "Tắt account hàng loạt?" : "Quét live toàn bộ pool?"}
+        desc={
+          confirm === "off"
+            ? `Sẽ tắt ${selected.size > 0 ? `${selected.size} account đã chọn` : `TOÀN BỘ ${sorted.length} account`}. Account đã tắt không nhận request cho tới khi bật lại.`
+            : `Sẽ gọi thử lần lượt ${sorted.length} account — mất khoảng ${Math.max(1, Math.ceil(sorted.length * 1.2 / 60))} phút. Chạy quá dày có thể bị upstream chặn tốc độ.`
+        }
+        onConfirm={() => {
+          if (confirm === "off") handleBulkEnable(false, sel())
+          else startCheck("live")
+          setConfirm(null)
+        }}
+      />
+
     </div>
   )
 }
