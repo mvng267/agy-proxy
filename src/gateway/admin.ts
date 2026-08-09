@@ -702,12 +702,27 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     const host = (req.headers['x-forwarded-host'] as string) || req.headers.host || `127.0.0.1:${config.port}`;
     const proto = (req.headers['x-forwarded-proto'] as string) || (req.protocol ?? 'http');
     const base = `${proto}://${host}`;
+    /**
+     * Gom mọi thứ tool ngoài cần vào MỘT response, để tab CLI không phải ghép 3 lời gọi.
+     *
+     * Hai loại secret KHÁC NHAU, dùng nhầm là 401 mà không rõ vì sao:
+     *  - `token` (cliToken): điều khiển agyproxy — dashboard, CLI, MCP
+     *  - `apiKey` (gatewayApiKey legacy): gọi MODEL qua /proxy/v1 và /v1/messages
+     *
+     * Key trong bảng `api_keys` KHÔNG lấy lại được (DB chỉ giữ sha256, xem apikeys.ts:104)
+     * nên chỉ trả tên + prefix để nhận diện, kèm chỉ dẫn tạo mới ở tab API Keys.
+     */
+    const gwKey = config.gateway.apiKey;
     return {
       url: base,
       token: reveal ? token : maskKey(token),
       masked: !reveal,
       gatewayUrl: `${base}/proxy/v1`,
       anthropicUrl: base,
+      apiKey: gwKey ? (reveal ? gwKey : maskKey(gwKey)) : '',
+      hasApiKey: !!gwKey,
+      keys: listPublicApiKeys().map((k) => ({ id: k.id, name: k.name, prefix: k.prefix, enabled: k.enabled })),
+      models: allModels().map((m) => ({ id: m.prefixed, label: m.label, provider: m.provider })),
     };
   });
 

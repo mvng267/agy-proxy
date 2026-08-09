@@ -8,7 +8,7 @@ import {
   EyeOff,
   RefreshCw,
 } from "lucide-react"
-import { CodeBlock, CopyButton, PageHeader } from "@/components/common"
+import { CodeBlock, CopyButton, CopyRow, PageHeader } from "@/components/common"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -58,6 +58,10 @@ interface ConnectInfo {
   masked: boolean
   gatewayUrl: string
   anthropicUrl: string
+  apiKey: string
+  hasApiKey: boolean
+  keys: Array<{ id: string; name: string; prefix: string; enabled: boolean }>
+  models: Array<{ id: string; label: string; provider: string }>
 }
 
 /**
@@ -99,33 +103,123 @@ function ConnectPanel() {
   }
 
   const url = info?.url ?? ""
-  const tok = info?.token ?? ""
+  const models = info?.models ?? []
+  // Lọc theo provider để danh sách 35 model không thành một khối chữ khó đọc.
+  const [prov, setProv] = useState<string>("all")
+  const provs = [...new Set(models.map((m) => m.provider))]
+  const shown = prov === "all" ? models : models.filter((m) => m.provider === prov)
+
+  const apiKeyValue = async () => {
+    const r = await fetch("/api/cli/connect?reveal=1")
+    return ((await r.json()) as ConnectInfo).apiKey
+  }
 
   return (
-    <Section icon={Terminal} title="Kết nối tool ngoài" badge="Token">
+    <Section icon={Terminal} title="Thông tin kết nối" badge="Copy">
       {err && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{err}</p>
       )}
 
+      {/* ── Địa chỉ ─────────────────────────────────────────────────── */}
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">
-          Token CLI — cho <strong className="text-foreground">toàn quyền</strong> điều khiển gateway.
-          Chỉ truyền qua mạng tin cậy (Tailscale/VPN) hoặc HTTPS.
+        <p className="text-xs font-medium text-foreground">Địa chỉ</p>
+        <CopyRow label="Base URL" value={url} />
+        <CopyRow label="OpenAI" value={info?.gatewayUrl ?? ""} />
+        <CopyRow label="Anthropic" value={info?.anthropicUrl ?? ""} />
+        <p className="text-[11px] text-muted-foreground">
+          Anthropic bỏ <code className="rounded bg-muted px-1">/v1</code> — agyproxy tự thêm prefix đúng theo provider.
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <code className="flex-1 min-w-[240px] truncate rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm text-foreground">
-            {busy ? "Đang tải…" : tok || "—"}
-          </code>
-          <Button
-            size="sm"
-            onClick={() => (revealed ? load(false) : load(true))}
-            disabled={busy}
-            className="h-8 gap-1.5 border border-border bg-transparent text-xs text-muted-foreground hover:text-foreground"
-          >
-            {revealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            {revealed ? "Ẩn" : "Hiện"}
-          </Button>
-          <CopyButton value={tokenValue} label="Copy" className="h-8 border border-border" />
+      </div>
+
+      <Separator className="bg-border" />
+
+      {/* ── Khoá ────────────────────────────────────────────────────── */}
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-foreground">Khoá</p>
+        <p className="text-[11px] text-muted-foreground">
+          Hai loại KHÁC NHAU — dùng nhầm sẽ nhận 401 mà không rõ vì sao.
+        </p>
+
+        <CopyRow
+          label="CLI token"
+          value={tokenValue}
+          display={info?.token ?? "—"}
+          action={
+            <Button
+              size="sm"
+              onClick={() => load(!revealed)}
+              disabled={busy}
+              className="h-7 gap-1.5 border border-border bg-transparent text-xs text-muted-foreground hover:text-foreground"
+            >
+              {revealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              {revealed ? "Ẩn" : "Hiện"}
+            </Button>
+          }
+        />
+        <p className="pl-30 text-[11px] text-muted-foreground">
+          Điều khiển agyproxy (dashboard · CLI · MCP). <strong className="text-foreground">Toàn quyền</strong> —
+          chỉ truyền qua mạng tin cậy hoặc HTTPS.
+        </p>
+
+        {info?.hasApiKey ? (
+          <>
+            <CopyRow label="API key" value={apiKeyValue} display={info.apiKey} />
+            <p className="pl-30 text-[11px] text-muted-foreground">
+              Gọi MODEL qua hai địa chỉ ở trên. Đây là key dùng chung (legacy).
+            </p>
+          </>
+        ) : (
+          <p className="text-[11px] text-warning">
+            Chưa đặt API key gateway — vào Cấu hình để tạo, nếu không ai gọi cũng lọt.
+          </p>
+        )}
+
+        {info?.keys?.length ? (
+          <div className="mt-1 space-y-1">
+            <p className="text-[11px] text-muted-foreground">
+              Key riêng đã tạo ({info.keys.length}) — <strong className="text-foreground">không lấy lại được</strong>,
+              chỉ hiện đúng một lần lúc tạo (server chỉ giữ mã băm):
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {info.keys.map((k) => (
+                <span key={k.id} className="rounded-md border border-border px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                  {k.name} · {k.prefix}…
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <Separator className="bg-border" />
+
+      {/* ── Model ───────────────────────────────────────────────────── */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-medium text-foreground">Model khả dụng ({models.length})</p>
+          <div className="flex items-center gap-1">
+            {["all", ...provs].map((v) => (
+              <button
+                key={v}
+                onClick={() => setProv(v)}
+                className={`rounded-md px-2 py-1 text-[11px] transition-colors ${
+                  prov === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                {v === "all" ? "Tất cả" : v}
+              </button>
+            ))}
+            <CopyButton value={shown.map((m) => m.id).join("\n")} label="Copy tất cả" size="xs" />
+          </div>
+        </div>
+        <div className="flex max-h-52 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-border p-2">
+          {shown.map((m) => (
+            <span key={m.id} className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5 font-mono text-[11px] text-foreground">
+              {m.id}
+              <CopyButton value={m.id} size="xs" title={`Copy ${m.id}`} />
+            </span>
+          ))}
+          {!shown.length ? <span className="p-2 text-xs text-muted-foreground">Đang tải…</span> : null}
         </div>
       </div>
 
@@ -138,7 +232,7 @@ function ConnectPanel() {
 
       <div className="space-y-2">
         <p className="text-xs font-medium text-foreground">2 · Kết nối (chạy một lần)</p>
-        <CodeBlock code={`agyproxy connect ${url} --token ${revealed ? tok : "<bấm Copy ở trên>"}`} />
+        <CodeBlock code={`agyproxy connect ${url} --token ${revealed ? (info?.token ?? "") : "<bấm Copy ở trên>"}`} />
         <p className="text-[11px] text-muted-foreground">
           Lưu ở <code className="rounded bg-muted px-1">~/.agyproxy/cli.json</code> (chmod 600). Từ đây mọi lệnh chạy trên server này.
         </p>
