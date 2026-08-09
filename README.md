@@ -170,6 +170,10 @@ export AGY_TOKEN=<token>
 
 Thứ tự ưu tiên: `--url/--token` › `AGY_URL/AGY_TOKEN` › `cli.json` › local.
 
+> **Tích hợp hệ thống ngoài?** `docs/BAN-GIAO-CONTROL.md` là tài liệu tự chứa để đưa cho
+> team/agent bên kia — gồm hai đường (MCP hoặc HTTP), shape JSON thật, ranh giới an toàn,
+> và ví dụ curl/JS/Python đã kiểm chứng chạy được.
+
 ### Gọi bất kỳ endpoint nào
 
 `agyproxy api` là đường đi tới **toàn bộ ~88 endpoint**, kể cả endpoint thêm sau này —
