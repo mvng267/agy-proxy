@@ -17,6 +17,7 @@ import {
   Lock,
 } from "lucide-react"
 import { UpdatePanel } from "@/components/common/UpdatePanel"
+import { writeClipboard } from "@/components/common"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -219,7 +220,7 @@ export function Settings() {
       const real = await fetch("/api/gateway/config?reveal=1")
         .then(r => r.json()).then(j => j.apiKey as string).catch(() => "")
       if (!real) { showToast("Không lấy được API key"); return }
-      await navigator.clipboard.writeText(real)
+      if (!(await writeClipboard(real))) throw new Error("clipboard")
       showToast("Đã copy API key")
     } catch { showToast("Copy lỗi") }
   }

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react"
-import { KpiCard, PageHeader } from "@/components/common"
+import { KpiCard, PageHeader, writeClipboard } from "@/components/common"
 import { SegmentBar } from "@/components/common/charts"
 import {
   Cpu,
@@ -156,18 +156,19 @@ export function Models() {
 
   const handleCopy = async (id: string) => {
     try {
-      await navigator.clipboard.writeText(id)
+      if (!(await writeClipboard(id))) throw new Error("clipboard")
       setCopied((prev) => ({ ...prev, [id]: true }))
       setTimeout(() => setCopied((prev) => ({ ...prev, [id]: false })), 1500)
     } catch {
-      // ignore
+      setCheckResult("Không sao chép được — hãy bôi đen rồi Ctrl+C")
+      setTimeout(() => setCheckResult(null), 2500)
     }
   }
 
   const copyAll = async (providerModels: Model[]) => {
     try {
       const ids = providerModels.map((m) => m.id).join("\n")
-      await navigator.clipboard.writeText(ids)
+      if (!(await writeClipboard(ids))) throw new Error("clipboard")
       setCheckResult(`Đã copy ${providerModels.length} model id`)
       setTimeout(() => setCheckResult(null), 2000)
     } catch {

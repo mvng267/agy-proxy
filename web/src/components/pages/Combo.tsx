@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react"
-import { KpiCard, PageHeader } from "@/components/common"
+import { KpiCard, PageHeader, writeClipboard } from "@/components/common"
+import { useToast } from "@/components/ui/toast"
 import { SegmentBar } from "@/components/common/charts"
 import {
   Shuffle,
@@ -88,6 +89,7 @@ function parseTargets(text: string): ComboTarget[] {
 // ── Combo Page ─────────────────────────────────────────────────────────
 
 export function Combo() {
+  const toast = useToast()
   const [combos, setCombos] = useState<Combo[]>([])
   const [autoVariants, setAutoVariants] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -195,10 +197,8 @@ export function Combo() {
     }
   }
 
-  const copyId = (id: string) => {
-    navigator.clipboard.writeText(id).catch(() => {
-      // ignore
-    })
+  const copyId = async (id: string) => {
+    if (!(await writeClipboard(id))) toast({ title: "Không sao chép được", description: "Hãy bôi đen rồi Ctrl+C", variant: "error" })
   }
 
   if (loading) {

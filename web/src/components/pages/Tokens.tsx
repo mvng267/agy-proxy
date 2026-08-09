@@ -11,7 +11,7 @@ import {
   ShieldCheck,
 } from "lucide-react"
 import { DataTable } from "@/components/common/DataTable"
-import { KpiCard } from "@/components/common"
+import { KpiCard, writeClipboard } from "@/components/common"
 import { SegmentBar } from "@/components/common/charts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -142,7 +142,7 @@ function TokenCell({ cred }: { cred: Credential }) {
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(rawVal)
+      if (!(await writeClipboard(rawVal))) throw new Error("clipboard")
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {

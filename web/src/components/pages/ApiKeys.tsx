@@ -1,11 +1,11 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { KeyRound, Plus, Copy, Check, Trash2, BarChart3, Power } from "lucide-react"
+import { KeyRound, Plus, Trash2, BarChart3, Power } from "lucide-react"
 import { api } from "@/lib/api"
 import { fmtAgo } from "@/lib/format"
 import type { ApiKey } from "@/lib/types"
 import { POLL } from "@/lib/queryClient"
-import { DataTable, KpiCard, PageHeader, StatusBadge, ConfirmDialog, ErrorState, type Column } from "@/components/common"
+import { DataTable, KpiCard, PageHeader, StatusBadge, ConfirmDialog, ErrorState, CopyButton, type Column } from "@/components/common"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,7 +18,6 @@ export function ApiKeys() {
   const qc = useQueryClient()
   const [newKey, setNewKey] = useState<{ name: string; key: string } | null>(null)
   const [revoke, setRevoke] = useState<ApiKey | null>(null)
-  const [copied, setCopied] = useState(false)
   const [form, setForm] = useState({ name: "", note: "" })
   const [showForm, setShowForm] = useState(false)
 
@@ -220,16 +219,9 @@ export function ApiKeys() {
             <h3 className="text-base font-semibold text-foreground">Đã tạo key "{newKey.name}"</h3>
             <div className="mt-3 flex items-center gap-2 rounded-md border border-border bg-background p-2">
               <code className="flex-1 break-all font-mono text-xs text-foreground">{newKey.key}</code>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(newKey.key)
-                  setCopied(true)
-                  setTimeout(() => setCopied(false), 1500)
-                }}
-                className="shrink-0 rounded-md border border-border p-1.5 hover:bg-card"
-              >
-                {copied ? <Check className="h-3.5 w-3.5 text-[color:var(--success)]" /> : <Copy className="h-3.5 w-3.5" />}
-              </button>
+              {/* Key này CHỈ hiện đúng một lần (DB chỉ giữ sha256) — copy thất bại mà
+                  im lặng là mất key thật. CopyButton báo lỗi rõ khi không ghi được. */}
+              <CopyButton value={newKey.key} className="shrink-0 rounded-md border border-border p-1.5 hover:bg-card" />
             </div>
             <p className="mt-2 text-sm text-[color:var(--warning)]">
               Key chỉ hiện lần này. Lưu lại ngay — hệ thống chỉ giữ bản băm, không khôi phục được.

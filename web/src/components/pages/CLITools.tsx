@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import {
   Terminal,
-  Copy,
-  Check,
   ChevronRight,
   Zap,
   Shuffle,
@@ -10,6 +8,7 @@ import {
   EyeOff,
   RefreshCw,
 } from "lucide-react"
+import { CodeBlock, CopyButton } from "@/components/common"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -18,56 +17,6 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 
 // ── Types ──────────────────────────────────────────────────────────────
-
-interface CodeBlockProps {
-  code: string
-  lang?: string
-}
-
-// ── Code Block ──────────────────────────────────────────────────────────
-
-function CodeBlock({ code, lang = "bash" }: CodeBlockProps) {
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(code)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // ignore
-    }
-  }
-
-  return (
-    <div className="relative group rounded-xl bg-background border border-border overflow-hidden">
-      {lang && (
-        <div className="flex items-center justify-between px-4 py-1.5 border-b border-border bg-card/50">
-          <span className="text-[10px] text-muted-foreground font-mono uppercase">{lang}</span>
-          <button
-            onClick={handleCopy}
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {copied ? (
-              <>
-                <Check className="h-3 w-3 text-success" />
-                <span className="text-success">Copied!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="h-3 w-3" />
-                Copy
-              </>
-            )}
-          </button>
-        </div>
-      )}
-      <pre className="p-4 text-xs text-foreground overflow-x-auto leading-relaxed whitespace-pre">
-        <code>{code}</code>
-      </pre>
-    </div>
-  )
-}
 
 // ── Section ─────────────────────────────────────────────────────────────
 
@@ -126,7 +75,6 @@ function ConnectPanel() {
   const [revealed, setRevealed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
 
   const load = useCallback(async (reveal: boolean) => {
     setBusy(true); setErr(null)
@@ -144,15 +92,10 @@ function ConnectPanel() {
 
   useEffect(() => { load(false) }, [load])
 
-  const copyToken = async () => {
-    // Copy phải lấy token THẬT kể cả khi đang che — người dùng không cần lộ nó lên màn
-    // hình chỉ để sao chép.
-    try {
-      const r = await fetch("/api/cli/connect?reveal=1")
-      const j = await r.json() as ConnectInfo
-      await navigator.clipboard.writeText(j.token)
-      setCopied(true); setTimeout(() => setCopied(false), 2000)
-    } catch { /* ignore */ }
+  // Copy lấy token THẬT kể cả khi đang che — không bắt lộ lên màn hình chỉ để sao chép.
+  const tokenValue = async () => {
+    const r = await fetch("/api/cli/connect?reveal=1")
+    return ((await r.json()) as ConnectInfo).token
   }
 
   const url = info?.url ?? ""
@@ -182,14 +125,7 @@ function ConnectPanel() {
             {revealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
             {revealed ? "Ẩn" : "Hiện"}
           </Button>
-          <Button
-            size="sm"
-            onClick={copyToken}
-            className="h-8 gap-1.5 border border-border bg-transparent text-xs text-muted-foreground hover:text-foreground"
-          >
-            {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? "Đã copy" : "Copy"}
-          </Button>
+          <CopyButton value={tokenValue} label="Copy" className="h-8 border border-border" />
         </div>
       </div>
 

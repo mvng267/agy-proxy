@@ -5,6 +5,7 @@ import { Sparkline } from "./Sparkline"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export { DataTable, type Column } from "./DataTable"
+export { CopyButton, CodeBlock, CopyRow, useCopy, writeClipboard } from "./copy"
 
 /**
  * Component nền tảng dùng chung.
@@ -158,7 +159,7 @@ export function PageHeader({ title, desc, actions }: { title: string; desc?: str
 
 export function ChartCard({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }) {
   return (
-    <Card className="bg-card border-border">
+    <Card>
       <CardContent className="p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="text-sm font-medium text-foreground">{title}</h3>

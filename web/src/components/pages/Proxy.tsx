@@ -12,6 +12,8 @@ import {
   Link2,
 } from "lucide-react"
 import { DataTable } from "@/components/common/DataTable"
+import { writeClipboard } from "@/components/common"
+import { useToast } from "@/components/ui/toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -77,6 +79,7 @@ function StatusBadge({ status }: { status?: string }) {
 // ── Proxy Page ─────────────────────────────────────────────────────────
 
 export function Proxy() {
+  const toast = useToast()
   const [data, setData] = useState<ProxyData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -187,8 +190,12 @@ export function Proxy() {
 
   // ── Copy proxy label ───────────────────────────────────────────────
 
-  const handleCopy = (label: string) => {
-    navigator.clipboard.writeText(label).catch(() => {})
+  const handleCopy = async (label: string) => {
+    // writeClipboard có fallback cho ngữ cảnh không bảo mật (HTTP + IP) — bản cũ gọi thẳng
+    // navigator.clipboard rồi `.catch(() => {})`, nên trên production (http://<ip>:7788)
+    // copy luôn thất bại IM LẶNG và người dùng dán ra giá trị cũ mà không biết.
+    const ok = await writeClipboard(label)
+    if (!ok) { toast({ title: "Không sao chép được", description: "Hãy bôi đen rồi Ctrl+C", variant: "error" }); return }
     setCopiedLabel(label)
     setTimeout(() => setCopiedLabel(null), 1500)
   }
