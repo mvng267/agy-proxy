@@ -338,7 +338,7 @@ export function Quota() {
           icon={Gauge}
           loading={loading}
         />
-        <Card className="bg-card border-border">
+        <Card>
           <CardContent className="pt-4 flex items-center gap-4">
             {avgGemini != null && <DonutStat label="Gemini TB" pct={avgGemini} tone="success" size={80} strokeWidth={8} />}
             <div className="flex-1">
@@ -347,7 +347,7 @@ export function Quota() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-card border-border">
+        <Card>
           <CardContent className="pt-4 flex items-center gap-4">
             {avgClaude != null && <DonutStat label="Claude TB" pct={avgClaude} tone="info" size={80} strokeWidth={8} />}
             <div className="flex-1">
@@ -359,7 +359,7 @@ export function Quota() {
       </div>
 
       {/* History chart */}
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -487,7 +487,7 @@ export function Quota() {
 
       {/* ── TABLE VIEW ─────────────────────────────────────────────────────── */}
       {viewMode === "table" && (
-        <Card className="bg-card border-border">
+        <Card>
           <CardContent className="p-0">
             <DataTable
               rows={sorted}

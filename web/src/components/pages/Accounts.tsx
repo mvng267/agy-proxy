@@ -345,7 +345,7 @@ export function Accounts() {
       </div>
 
       {/* Table */}
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
             <Users className="h-4 w-4 text-muted-foreground" />

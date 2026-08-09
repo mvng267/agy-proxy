@@ -367,7 +367,7 @@ export function Pool() {
 
       {/* Donut + Health */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
               <Zap className="h-4 w-4 text-muted-foreground" /> Pool Distribution
@@ -405,7 +405,7 @@ export function Pool() {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
               <Activity className="h-4 w-4 text-muted-foreground" /> Pool Health
@@ -472,7 +472,7 @@ export function Pool() {
       )}
 
       {/* Table */}
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">

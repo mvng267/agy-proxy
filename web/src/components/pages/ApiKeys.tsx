@@ -172,7 +172,7 @@ export function ApiKeys() {
       </div>
 
       {showForm && (
-        <Card className="bg-card border-border">
+        <Card>
           <CardContent className="flex flex-wrap items-end gap-3 p-4">
             <div className="min-w-48 flex-1">
               <label className="text-xs text-muted-foreground">Tên (thường là tên người dùng)</label>

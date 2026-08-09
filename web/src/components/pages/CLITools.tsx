@@ -77,7 +77,7 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <Card className="bg-card border-border">
+    <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
           <Icon className="h-4 w-4 text-muted-foreground" />
@@ -277,7 +277,7 @@ npm start`}
       </Section>
 
       {/* Tips */}
-      <Card className="bg-muted/30 border-border">
+      <Card className="bg-muted/30">
         <CardContent className="pt-4">
           <ul className="space-y-2">
             {[

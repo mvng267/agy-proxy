@@ -248,7 +248,7 @@ export function LiveLog() {
       </div>
 
       {/* ── Bộ lọc ───────────────────────────────────────────────────── */}
-      <Card className="border-border bg-card">
+      <Card>
         <CardContent className="flex flex-wrap items-center gap-2 p-2.5">
           <Filter className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 
@@ -328,7 +328,7 @@ export function LiveLog() {
       </Card>
 
       {/* ── Danh sách log ────────────────────────────────────────────── */}
-      <Card className="flex min-h-0 flex-1 flex-col border-border bg-card">
+      <Card className="flex min-h-0 flex-1 flex-col">
         <CardContent className="min-h-0 flex-1 overflow-y-auto p-0">
           {shown.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-2">

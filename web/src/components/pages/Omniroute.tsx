@@ -192,7 +192,7 @@ export function Omniroute() {
         />
       </div>
 
-      <Card className="mt-4 bg-card border-border">
+      <Card className="mt-4">
         <CardContent className="p-4">
           <h3 className="mb-3 text-sm font-medium text-foreground">Connections ({connList.length})</h3>
           <DataTable
@@ -206,7 +206,7 @@ export function Omniroute() {
         </CardContent>
       </Card>
 
-      <Card className="mt-4 bg-card border-border">
+      <Card className="mt-4">
         <CardContent className="p-4">
           <h3 className="mb-3 text-sm font-medium text-foreground">Models ({modelList.length})</h3>
           <DataTable

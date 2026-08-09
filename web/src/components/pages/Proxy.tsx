@@ -249,7 +249,7 @@ export function Proxy() {
     <div className="space-y-4">
       <PageHeader title="Proxy" desc="Danh sách proxy và kết quả kiểm tra kết nối" />
       {/* Import form */}
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -344,7 +344,7 @@ export function Proxy() {
       </div>
 
       {/* Proxy table */}
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
             <Globe className="h-4 w-4 text-muted-foreground" />

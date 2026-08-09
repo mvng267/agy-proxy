@@ -284,7 +284,7 @@ export function Connections() {
 
       {/* Connection List */}
       {sorted.length === 0 ? (
-        <Card className="bg-card border-border">
+        <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <Link className="h-8 w-8 text-muted-foreground" />

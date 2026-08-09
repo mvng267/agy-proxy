@@ -362,7 +362,7 @@ export function Settings() {
       </div>
 
       {/* ── API Key ─────────────────────────────────────────────────────── */}
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
             <Key className="h-4 w-4 text-muted-foreground" /> API Key
@@ -406,7 +406,7 @@ export function Settings() {
       </Card>
 
       {/* ── Gateway toggle + Outbound proxy ──────────────────────────────── */}
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-foreground">Gateway</CardTitle>
         </CardHeader>
@@ -440,7 +440,7 @@ export function Settings() {
       </Card>
 
       {/* ── Rotation strategy ────────────────────────────────────────────── */}
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-foreground">Rotation Strategy</CardTitle>
         </CardHeader>
@@ -492,7 +492,7 @@ export function Settings() {
       </Card>
 
       {/* ── Advanced ─────────────────────────────────────────────────────── */}
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-foreground">Advanced</CardTitle>
         </CardHeader>
@@ -544,7 +544,7 @@ export function Settings() {
       </div>
 
       {/* ── OmniRoute Test ────────────────────────────────────────────────── */}
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
             <TestTube2 className="h-4 w-4 text-muted-foreground" /> OmniRoute
@@ -574,7 +574,7 @@ export function Settings() {
       <UpdatePanel />
 
       {/* ── Restart server ────────────────────────────────────────────────── */}
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
             <Power className="h-4 w-4 text-muted-foreground" /> Server
@@ -597,7 +597,7 @@ export function Settings() {
       </Card>
 
       {/* ── Password change ───────────────────────────────────────────────── */}
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
             <Lock className="h-4 w-4 text-muted-foreground" /> Đổi mật khẩu
@@ -649,7 +649,7 @@ export function Settings() {
       </Card>
 
       {/* ── Sessions ──────────────────────────────────────────────────────── */}
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">

@@ -109,7 +109,7 @@ export function Security() {
         </div>
       )}
 
-      <Card className="mt-4 max-w-lg bg-card border-border">
+      <Card className="mt-4 max-w-lg">
         <CardContent className="p-5">
           <h3 className="mb-1 flex items-center gap-2 text-sm font-medium text-foreground">
             <KeyRound className="h-4 w-4 text-muted-foreground" />

@@ -162,7 +162,7 @@ export function Runs() {
       </div>
 
       <div className={`mt-4 grid gap-4 ${selected ? "xl:grid-cols-2" : ""}`}>
-        <Card className="bg-card border-border">
+        <Card>
           <CardContent className="p-4">
             <DataTable
               rows={rows}
@@ -178,7 +178,7 @@ export function Runs() {
         </Card>
 
         {selected && (
-          <Card className="bg-card border-border self-start">
+          <Card className="self-start">
             <CardContent className="p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-medium text-foreground">

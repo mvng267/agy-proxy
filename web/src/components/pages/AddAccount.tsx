@@ -466,7 +466,7 @@ export function AddAccount() {
 
   return (
     <div className="space-y-4 max-w-2xl">
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
             <UserPlus className="h-4 w-4 text-muted-foreground" />

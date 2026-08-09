@@ -176,7 +176,7 @@ export function Scheduler() {
       </div>
 
       {s && s.batchTotal > 0 && (
-        <Card className="mt-4 bg-card border-border">
+        <Card className="mt-4">
           <CardContent className="p-4">
             <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
               <span>Tiến độ đợt hiện tại</span>
@@ -191,7 +191,7 @@ export function Scheduler() {
         </Card>
       )}
 
-      <Card className="mt-4 bg-card border-border">
+      <Card className="mt-4">
         <CardContent className="p-4">
           <h3 className="mb-3 text-sm font-medium text-foreground">
             Job trong hàng đợi {s && s.queued > s.queue.length ? `(hiện 50/${s.queued})` : ""}

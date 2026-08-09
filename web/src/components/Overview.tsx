@@ -153,7 +153,7 @@ function ProviderHealthCard({
 }) {
   const inactive = total - active - cooldown
   return (
-    <Card className="bg-card border-border">
+    <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -204,7 +204,7 @@ function PoolHealthCard({ total, active, cooldown }: { total: number; active: nu
   const pctActive = total > 0 ? Math.round((active / total) * 100) : 0
   const pctCooldown = total > 0 ? Math.round((cooldown / total) * 100) : 0
   return (
-    <Card className="bg-card border-border">
+    <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
           <Activity className="h-4 w-4 text-muted-foreground" />
@@ -244,7 +244,7 @@ function PoolHealthCard({ total, active, cooldown }: { total: number; active: nu
 function TopModelsCard({ models }: { models: Array<{ model: string; count: number; requests?: number }> }) {
   const maxCount = Math.max(...models.map((m) => m.requests ?? m.count), 1)
   return (
-    <Card className="bg-card border-border">
+    <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
           <Zap className="h-4 w-4 text-muted-foreground" />
@@ -467,7 +467,7 @@ export function Overview() {
 
       {/* ── Pool Health Stacked Bar ── */}
       {poolTotal > 0 && (
-        <Card className="bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
               <Activity className="h-4 w-4 text-muted-foreground" />
@@ -482,7 +482,7 @@ export function Overview() {
 
       {/* ── Quota Donuts ── */}
       {(quota.geminiAvg != null || quota.thirdPartyAvg != null || (quota.providers ?? []).length > 0) && (
-        <Card className="bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
               <Cpu className="h-4 w-4 text-muted-foreground" />
@@ -520,7 +520,7 @@ export function Overview() {
       {/* ── Request bars + Top Models ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Requests 7d bars */}
-        <Card className="bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
@@ -547,7 +547,7 @@ export function Overview() {
       {/* ── Provider Perf + Top Accounts ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Provider performance */}
-        <Card className="bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
               <Activity className="h-4 w-4 text-muted-foreground" />
@@ -594,7 +594,7 @@ export function Overview() {
         </Card>
 
         {/* Top Accounts */}
-        <Card className="bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
@@ -617,7 +617,7 @@ export function Overview() {
 
       {/* ── Proxy Load ── */}
       {proxyLoadEntries.length > 0 && (
-        <Card className="bg-card border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
               <Globe className="h-4 w-4 text-muted-foreground" />

@@ -445,7 +445,7 @@ export function Models() {
 
       {/* Groups */}
       {filteredGroups.length === 0 ? (
-        <Card className="bg-card border-border">
+        <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col items-center justify-center py-8 gap-3">
               <Cpu className="h-8 w-8 text-muted-foreground" />
