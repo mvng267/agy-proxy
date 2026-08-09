@@ -1,9 +1,49 @@
-import { test, describe } from 'node:test';
+/**
+ * Test backup/restore.
+ *
+ * CÔ LẬP DỮ LIỆU — bắt buộc, không phải cho gọn.
+ *
+ * `restoreBackup` GHI THẬT xuống `DATA_DIR`: accounts.csv, proxies.csv, credentials.csv,
+ * gateway.json, state.db. Bản trước của file này không cô lập gì cả, nên chạy `npm test`
+ * là ghi đè thẳng vào `~/.agyproxy/data/` — nơi giữ 700 credential thật. Nó "an toàn" chỉ
+ * vì restore chính snapshot vừa dựng nên nội dung trùng nhau; một test hỏng giữa chừng,
+ * một lần đổi thứ tự, hay `mode:'replace'` với dữ liệu thiếu là mất sạch.
+ *
+ * `paths.ts` đọc `AGY_HOME` ở THỜI ĐIỂM IMPORT, nên biến môi trường phải đặt xong TRƯỚC
+ * khi bất cứ module nào của src/ được nạp → dùng `await import()` động, không `import` tĩnh.
+ */
+import { test, describe, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { store } from '../src/store/index.js';
-import { buildBackup, restoreBackup } from '../src/backup.js';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+
+const TMP = mkdtempSync(resolve(tmpdir(), 'agy-backup-test-'));
+process.env.AGY_HOME = TMP;
+
+// Dữ liệu mồi: có ít nhất một dòng thật thì các assert về counts mới có nghĩa,
+// và restore mode 'replace' mới thực sự bị thử thách.
+mkdirSync(resolve(TMP, 'data'), { recursive: true });
+writeFileSync(
+  resolve(TMP, 'data', 'credentials.csv'),
+  'email,password\nt1@example.com,pw1\nt2@example.com,pw2\n',
+);
+writeFileSync(resolve(TMP, 'data', 'accounts.csv'), 'email,password\nt1@example.com,pw1\n');
+
+const { store } = await import('../src/store/index.js');
+const { buildBackup, restoreBackup } = await import('../src/backup.js');
+const { DATA_DIR } = await import('../src/paths.js');
+const { recordGatewayUsage } = await import('../src/store/db.js');
+
+// Nếu dòng này đỏ thì mọi test dưới đang chạy trên dữ liệu thật — dừng ngay.
+assert.ok(
+  DATA_DIR.startsWith(TMP),
+  `CÔ LẬP HỎNG: DATA_DIR=${DATA_DIR} nằm ngoài thư mục tạm ${TMP} → test sẽ ghi vào dữ liệu thật`,
+);
 
 store.load();
+
+after(() => rmSync(TMP, { recursive: true, force: true }));
 
 test('buildBackup: shape đầy đủ', () => {
   const b = buildBackup();
@@ -75,11 +115,18 @@ describe('backup v3 — chuyển toàn bộ hệ thống giữa server', () => {
   });
 
   test('history:true mới kèm bảng lịch sử', () => {
-    const b = buildBackup({ history: true });
-    const t = b.tables ?? {};
+    // Phải seed: DB tạm rỗng thì "không có bảng lịch sử" là đúng, và test sẽ đỏ vì
+    // không có gì để xuất chứ không phải vì tuỳ chọn hỏng. Đây là điều kiện tiên quyết
+    // của phép thử, không phải chi tiết phụ.
+    recordGatewayUsage({
+      ts: Date.now(), email: 't1@example.com', model: 'agy/x',
+      promptTokens: 1, completionTokens: 1, ok: true, ms: 10,
+    });
+
+    const t = buildBackup({ history: true }).tables ?? {};
     // quota_history một mình chiếm ~71% dung lượng file, nên phải là lựa chọn.
-    const hasHistory = 'quota_history' in t || 'gateway_usage' in t || 'runs' in t;
-    assert.ok(hasHistory, 'history:true phải kèm ít nhất một bảng lịch sử');
+    assert.ok('gateway_usage' in t, 'history:true phải kèm bảng lịch sử đã có dữ liệu');
+    assert.ok(!('gateway_usage' in (buildBackup().tables ?? {})), 'mặc định vẫn không kèm');
   });
 
   test('backup kèm lịch sử NẶNG hơn hẳn — lý do tách tuỳ chọn', () => {
