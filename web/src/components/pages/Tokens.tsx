@@ -85,18 +85,18 @@ function downloadFile(name: string, content: string, type: string) {
 function HealthBadge({ health }: { health?: string }) {
   if (health === "alive") {
     return (
-      <Badge className="bg-success/15 text-success border-none text-[10px]">
+      <Badge className="bg-success/15 text-success">
         alive
       </Badge>
     )
   }
   if (health === "dead") {
     return (
-      <Badge className="bg-destructive/15 text-destructive border-none text-[10px]">dead</Badge>
+      <Badge className="bg-destructive/15 text-destructive">dead</Badge>
     )
   }
   return (
-    <Badge className="bg-muted text-muted-foreground border-none text-[10px]">—</Badge>
+    <Badge className="bg-muted text-muted-foreground">—</Badge>
   )
 }
 

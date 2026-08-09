@@ -417,7 +417,7 @@ export function Settings() {
               <p className="text-xs text-muted-foreground mt-0.5">Bật/tắt toàn bộ gateway proxy</p>
             </div>
             <div className="flex items-center gap-3">
-              <Badge className={enabled ? "bg-success/15 text-success border-none text-[10px]" : "bg-muted text-muted-foreground border-none text-[10px]"}>
+              <Badge className={enabled ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"}>
                 {enabled ? "Enabled" : "Disabled"}
               </Badge>
               <Switch checked={enabled} onCheckedChange={setEnabled} className="data-[state=checked]:bg-primary" />
@@ -680,7 +680,7 @@ export function Settings() {
                   <div className="space-y-0.5 flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-foreground truncate font-mono">{(sess.ua ?? "").slice(0, 60)}</span>
-                      {sess.current && <Badge className="bg-primary/20 text-primary border-none text-[10px]">phiên này</Badge>}
+                      {sess.current && <Badge className="bg-primary/20 text-primary">phiên này</Badge>}
                     </div>
                     <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
                       <span>{sess.ip ?? "—"}</span>

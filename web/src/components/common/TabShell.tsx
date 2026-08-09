@@ -59,7 +59,7 @@ export function TabShell({ tabs, storageKey, initial }: { tabs: TabDef[]; storag
       <div
         role="tablist"
         aria-label={storageKey}
-        className="flex gap-1 overflow-x-auto border-b border-border pb-px"
+        className="flex gap-1 overflow-x-auto border-b border-border pb-2"
       >
         {tabs.map((t) => {
           const on = t.key === current.key
@@ -69,10 +69,12 @@ export function TabShell({ tabs, storageKey, initial }: { tabs: TabDef[]; storag
               role="tab"
               aria-selected={on}
               onClick={() => go(t.key)}
-              className={`-mb-px flex h-9 shrink-0 items-center gap-1.5 border-b-2 px-3 text-sm transition-colors ${
+              /* h-8 · 14px/500 · bo 8px — số đo Atlas (atlas-admin.reui.io/users).
+                 Trước đây là tab gạch chân h-9/400/bo 0. */
+              className={`flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] px-3 text-sm font-medium transition-colors ${
                 on
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
               }`}
             >
               {t.icon}

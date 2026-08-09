@@ -64,7 +64,7 @@ function fmtNum(n: number | undefined) {
 function StatusBadge({ status, enabled }: { status?: string; enabled?: boolean }) {
   if (enabled === false) {
     return (
-      <Badge className="bg-muted/60 text-muted-foreground border-none text-[10px] font-normal">
+      <Badge className="bg-muted/60 text-muted-foreground font-normal">
         Disabled
       </Badge>
     )
@@ -72,7 +72,7 @@ function StatusBadge({ status, enabled }: { status?: string; enabled?: boolean }
   const s = (status ?? "unknown").toLowerCase()
   if (s === "active" || s === "ok" || s === "online") {
     return (
-      <Badge className="bg-success/15 text-success border-none text-[10px] font-normal">
+      <Badge className="bg-success/15 text-success font-normal">
         <CheckCircle2 className="h-2.5 w-2.5 mr-1" />
         Online
       </Badge>
@@ -80,14 +80,14 @@ function StatusBadge({ status, enabled }: { status?: string; enabled?: boolean }
   }
   if (s === "failed" || s === "offline" || s === "error") {
     return (
-      <Badge className="bg-destructive/15 text-destructive border-none text-[10px] font-normal">
+      <Badge className="bg-destructive/15 text-destructive font-normal">
         <XCircle className="h-2.5 w-2.5 mr-1" />
         Offline
       </Badge>
     )
   }
   return (
-    <Badge className="bg-muted/60 text-muted-foreground border-none text-[10px] font-normal">
+    <Badge className="bg-muted/60 text-muted-foreground font-normal">
       <HelpCircle className="h-2.5 w-2.5 mr-1" />
       {status ?? "Unknown"}
     </Badge>
@@ -330,12 +330,12 @@ export function Connections() {
                             {conn.name}
                           </span>
                           {conn.provider && (
-                            <Badge className="bg-muted/60 text-foreground border-none text-[10px] font-normal">
+                            <Badge className="bg-muted/60 text-foreground font-normal">
                               {conn.provider}
                             </Badge>
                           )}
                           {conn.authType && (
-                            <Badge className="bg-muted/40 text-muted-foreground border-none text-[10px] font-normal">
+                            <Badge className="bg-muted/40 text-muted-foreground font-normal">
                               {conn.authType}
                             </Badge>
                           )}

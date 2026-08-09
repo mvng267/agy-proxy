@@ -83,7 +83,7 @@ function Section({
           <Icon className="h-4 w-4 text-muted-foreground" />
           {title}
           {badge && (
-            <Badge className="bg-primary/15 text-primary border-none text-[10px]">
+            <Badge className="bg-primary/15 text-primary">
               {badge}
             </Badge>
           )}

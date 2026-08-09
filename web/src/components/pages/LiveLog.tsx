@@ -316,7 +316,7 @@ export function LiveLog() {
           {/* Trạng thái bộ lọc: luôn nói rõ đang hiện bao nhiêu trên tổng bao nhiêu. */}
           <div className="ml-auto flex items-center gap-2 text-[11px]">
             {paused ? (
-              <Badge className="h-5 rounded bg-primary/15 px-1.5 text-[10px] text-primary">
+              <Badge className="h-5 rounded bg-primary/15 px-1.5 text-primary">
                 ĐANG DỪNG
               </Badge>
             ) : null}

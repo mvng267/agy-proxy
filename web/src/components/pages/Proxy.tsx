@@ -12,6 +12,7 @@ import {
   Link2,
 } from "lucide-react"
 import { DataTable } from "@/components/common/DataTable"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -57,7 +58,7 @@ interface AutoAssignResult {
 function StatusBadge({ status }: { status?: string }) {
   if (!status) {
     return (
-      <Badge className="bg-muted text-muted-foreground border-none text-[10px]">—</Badge>
+      <Badge className="bg-muted text-muted-foreground">—</Badge>
     )
   }
   const map: Record<string, string> = {
@@ -282,12 +283,7 @@ export function Proxy() {
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <label className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={importReplace}
-                onChange={(e) => setImportReplace(e.target.checked)}
-                className="rounded border-border bg-muted text-primary"
-              />
+              <Checkbox checked={importReplace} onCheckedChange={(v) => setImportReplace(!!v)} />
               Thay thế (xoá proxy cũ)
             </label>
             <Button
@@ -376,7 +372,7 @@ export function Proxy() {
                 header: "Protocol",
                 sort: (p) => p.protocol ?? "http",
                 render: (p) => (
-                  <Badge className="border-none bg-muted text-[10px] text-muted-foreground">{p.protocol ?? "http"}</Badge>
+                  <Badge className="bg-muted text-muted-foreground">{p.protocol ?? "http"}</Badge>
                 ),
               },
               {
@@ -388,14 +384,14 @@ export function Proxy() {
                   const obj = t !== undefined && t !== "loading" ? t : null
                   if (t === "loading") {
                     return (
-                      <Badge className="border-none bg-muted text-[10px] text-muted-foreground">
+                      <Badge className="bg-muted text-muted-foreground">
                         <RefreshCw className="mr-1 inline h-2.5 w-2.5 animate-spin" />testing…
                       </Badge>
                     )
                   }
                   if (obj && !obj.ok) {
                     return (
-                      <Badge className="border-none bg-destructive/15 text-[10px] text-destructive">
+                      <Badge className="bg-destructive/15 text-destructive">
                         ✕ {obj.error?.slice(0, 20) ?? "fail"}
                       </Badge>
                     )

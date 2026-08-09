@@ -14,6 +14,7 @@ import {
   ChevronRight,
 } from "lucide-react"
 import { DataTable } from "@/components/common/DataTable"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -372,15 +373,16 @@ export function Quota() {
                   Xem tất cả
                 </Button>
               )}
-              <select
-                value={histRange}
-                onChange={e => setHistRange(e.target.value)}
-                className="h-7 px-2 rounded bg-muted border border-border text-foreground text-xs focus:outline-none"
-              >
-                <option value="7d">7 ngày</option>
-                <option value="30d">30 ngày</option>
-                <option value="90d">90 ngày</option>
-              </select>
+              <Select value={histRange} onValueChange={(v) => setHistRange(v ?? "7d")}>
+                <SelectTrigger className="h-7 w-24 text-xs">
+                  <span className="truncate">{{ "7d": "7 ngày", "30d": "30 ngày", "90d": "90 ngày" }[histRange] ?? "7 ngày"}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7d" className="text-xs">7 ngày</SelectItem>
+                  <SelectItem value="30d" className="text-xs">30 ngày</SelectItem>
+                  <SelectItem value="90d" className="text-xs">90 ngày</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
@@ -599,7 +601,7 @@ export function Quota() {
                         >
                           {acc.email}
                         </button>
-                        {q && <Badge className="bg-muted text-muted-foreground border-none text-[10px] mt-1">{tier}</Badge>}
+                        {q && <Badge className="bg-muted text-muted-foreground mt-1">{tier}</Badge>}
                       </div>
                       <button
                         onClick={() => handleRefreshOne(acc.email)}

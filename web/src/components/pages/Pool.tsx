@@ -17,6 +17,7 @@ import {
 import { KpiCard, PageHeader } from "@/components/common"
 import { PoolDonut } from "@/components/common/charts"
 import { DataTable } from "@/components/common/DataTable"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -101,7 +102,6 @@ export function Pool() {
   // Filter / sort / page
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState("all")
-  const [sort, setSort] = useState("email")
   // DataTable tự quản số dòng/trang; đây chỉ là giá trị KHỞI TẠO đọc từ lựa chọn cũ.
   const [pageSize] = useState<number>(() => Number(localStorage.getItem("vs_agySize") || 50))
 
@@ -274,11 +274,8 @@ export function Pool() {
     return true
   })
 
-  const sorted = [...filtered].sort((a, b) => {
-    if (sort === "requests") return b.requests - a.requests
-    if (sort === "quota") return (b.geminiPct ?? -1) - (a.geminiPct ?? -1)
-    return a.email.localeCompare(b.email)
-  })
+  // Không sắp xếp ở đây nữa — DataTable lo, và người dùng đổi được bằng click tiêu đề cột.
+  const sorted = filtered
 
 
   const poolTotal = provAccounts.length
@@ -289,11 +286,11 @@ export function Pool() {
   const pctCooldown = poolTotal > 0 ? Math.round((poolCooldown / poolTotal) * 100) : 0
 
   const statusBadge = (acc: PoolAccount) => {
-    if (!acc.enabled) return <Badge className="bg-muted text-muted-foreground border-none text-[10px]">Off</Badge>
-    if (acc.cooldown) return <Badge className="bg-warning/15 text-warning border-none text-[10px]">Cooldown</Badge>
-    if (acc.health === "alive") return <Badge className="bg-success/15 text-success border-none text-[10px]">Active</Badge>
-    if (acc.health === "dead") return <Badge className="bg-destructive/15 text-destructive border-none text-[10px]">Dead</Badge>
-    return <Badge className="bg-muted text-muted-foreground border-none text-[10px]">—</Badge>
+    if (!acc.enabled) return <Badge className="bg-muted text-muted-foreground">Off</Badge>
+    if (acc.cooldown) return <Badge className="bg-warning/15 text-warning">Cooldown</Badge>
+    if (acc.health === "alive") return <Badge className="bg-success/15 text-success">Active</Badge>
+    if (acc.health === "dead") return <Badge className="bg-destructive/15 text-destructive">Dead</Badge>
+    return <Badge className="bg-muted text-muted-foreground">—</Badge>
   }
 
   const healthBadge = (h?: string) => {
@@ -491,27 +488,22 @@ export function Pool() {
                 />
               </div>
               {/* Filter */}
-              <select
-                value={filter}
-                onChange={e => { setFilter(e.target.value); }}
-                className="h-8 px-2 rounded-md bg-muted border border-border text-foreground text-xs focus:outline-none"
-              >
-                <option value="all">Tất cả</option>
-                <option value="on">Bật</option>
-                <option value="off">Tắt</option>
-                <option value="cooldown">Cooldown</option>
-                <option value="dead">Dead</option>
-              </select>
-              {/* Sort */}
-              <select
-                value={sort}
-                onChange={e => { setSort(e.target.value); }}
-                className="h-8 px-2 rounded-md bg-muted border border-border text-foreground text-xs focus:outline-none"
-              >
-                <option value="email">Email</option>
-                <option value="requests">Requests</option>
-                <option value="quota">Quota</option>
-              </select>
+              <Select value={filter} onValueChange={(v) => setFilter(v ?? "all")}>
+                <SelectTrigger className="h-8 w-28 text-xs">
+                  <span className="truncate">
+                    {{ all: "Tất cả", on: "Bật", off: "Tắt", cooldown: "Cooldown", dead: "Dead" }[filter] ?? "Tất cả"}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  {(["all", "on", "off", "cooldown", "dead"] as const).map((v) => (
+                    <SelectItem key={v} value={v} className="text-xs">
+                      {{ all: "Tất cả", on: "Bật", off: "Tắt", cooldown: "Cooldown", dead: "Dead" }[v]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {/* Bỏ dropdown sắp xếp — bảng đã sắp xếp bằng click tiêu đề cột (DataTable),
+                  để cả hai là hai chỗ làm cùng một việc và dễ lệch nhau. */}
               {/* Bulk: Enable all / Disable all / Wake / Check all / Refresh quota all */}
               <Button size="sm" onClick={() => handleBulkEnable(true)} className="border border-border bg-transparent text-success hover:bg-muted h-8 text-xs gap-1">
                 <Power className="h-3 w-3" /> All On
@@ -540,6 +532,7 @@ export function Pool() {
             rowKey={(a) => a.email}
             pageSize={pageSize}
             selection={{ selected, onChange: setSelected }}
+            initialSort={{ key: "email", dir: "asc" }}
             empty={filter !== "all" || search ? "Không có account khớp" : "Chưa có account trong pool"}
             columns={[
               {

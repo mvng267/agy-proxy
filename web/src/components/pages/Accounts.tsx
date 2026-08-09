@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import { DataTable } from "@/components/common/DataTable"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -52,17 +53,17 @@ function fmtAgo(ms?: number) {
 }
 
 function statusBadge(status?: string) {
-  if (!status) return <Badge className="bg-muted text-muted-foreground border-none text-[10px]">—</Badge>
+  if (!status) return <Badge className="bg-muted text-muted-foreground">—</Badge>
   const s = status.toLowerCase()
   if (s === "ok" || s === "active" || s === "done")
-    return <Badge className="bg-success/15 text-success border-none text-[10px]">{status}</Badge>
+    return <Badge className="bg-success/15 text-success">{status}</Badge>
   if (s === "running" || s === "pending")
-    return <Badge className="bg-info/15 text-info border-none text-[10px]">{status}</Badge>
+    return <Badge className="bg-info/15 text-info">{status}</Badge>
   if (s === "error" || s === "failed" || s === "dead")
-    return <Badge className="bg-destructive/15 text-destructive border-none text-[10px]">{status}</Badge>
+    return <Badge className="bg-destructive/15 text-destructive">{status}</Badge>
   if (s === "cooldown")
-    return <Badge className="bg-primary/15 text-primary border-none text-[10px]">{status}</Badge>
-  return <Badge className="bg-muted text-muted-foreground border-none text-[10px]">{status}</Badge>
+    return <Badge className="bg-primary/15 text-primary">{status}</Badge>
+  return <Badge className="bg-muted text-muted-foreground">{status}</Badge>
 }
 
 // ── Accounts Page ──────────────────────────────────────────────────────
@@ -267,12 +268,7 @@ export function Accounts() {
           <span className="text-xs text-muted-foreground">Luồng:</span>
           {FLOWS.map(f => (
             <label key={f.key} className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={selectedFlows.has(f.key)}
-                onChange={() => toggleFlow(f.key)}
-                className="rounded border-border bg-muted text-primary"
-              />
+              <Checkbox checked={selectedFlows.has(f.key)} onCheckedChange={() => toggleFlow(f.key)} />
               <span className="text-xs text-foreground">{f.label}</span>
             </label>
           ))}
@@ -280,26 +276,24 @@ export function Accounts() {
 
         {/* No-proxy */}
         <label className="flex items-center gap-1.5 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={noProxy}
-            onChange={e => setNoProxy(e.target.checked)}
-            className="rounded border-border bg-muted"
-          />
+          <Checkbox checked={noProxy} onCheckedChange={(v) => setNoProxy(!!v)} />
           <span className="text-xs text-muted-foreground">Không dùng proxy</span>
         </label>
 
         {/* Status filter */}
-        <select
-          value={statusFilter}
-          onChange={e => { setStatusFilter(e.target.value); }}
-          className="h-9 px-2 rounded-md bg-card border border-border text-foreground text-sm focus:outline-none"
-        >
-          <option value="all">Tất cả</option>
-          <option value="error">Lỗi / Failed</option>
-          <option value="running">Running</option>
-          <option value="done">Done</option>
-        </select>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "all")}>
+          <SelectTrigger className="h-9 w-36 text-sm">
+            <span className="truncate">
+              {{ all: "Tất cả", error: "Lỗi / Failed", running: "Running", done: "Done" }[statusFilter] ?? "Tất cả"}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" className="text-sm">Tất cả</SelectItem>
+            <SelectItem value="error" className="text-sm">Lỗi / Failed</SelectItem>
+            <SelectItem value="running" className="text-sm">Running</SelectItem>
+            <SelectItem value="done" className="text-sm">Done</SelectItem>
+          </SelectContent>
+        </Select>
 
         <Button size="sm" onClick={fetchAccounts} className="border border-border bg-transparent text-muted-foreground hover:text-primary h-9 text-xs gap-1">
           <RefreshCw className="h-3 w-3" /> Refresh

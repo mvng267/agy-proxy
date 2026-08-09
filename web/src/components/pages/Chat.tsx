@@ -344,12 +344,12 @@ export function Chat() {
                   {msg.role === "assistant" && msg.meta && (
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       {msg.meta.model && (
-                        <Badge className="bg-muted text-muted-foreground border-none text-[10px] h-4">
+                        <Badge className="bg-muted text-muted-foreground h-4">
                           {msg.meta.model.split("/").pop() ?? msg.meta.model}
                         </Badge>
                       )}
                       {msg.meta.account && (
-                        <Badge className="bg-muted text-muted-foreground border-none text-[10px] h-4">
+                        <Badge className="bg-muted text-muted-foreground h-4">
                           {msg.meta.account.split("@")[0]}
                         </Badge>
                       )}
@@ -440,12 +440,12 @@ export function Chat() {
             <span className="text-[10px] text-muted-foreground">Ctrl+Enter để gửi</span>
             <div className="flex items-center gap-2">
               {selectedModel && (
-                <Badge className="bg-muted text-muted-foreground border-none text-[10px]">
+                <Badge className="bg-muted text-muted-foreground">
                   {selectedModel.split("/").pop() ?? selectedModel}
                 </Badge>
               )}
               {selectedAccount !== "auto" && (
-                <Badge className="bg-muted text-info border-none text-[10px]">
+                <Badge className="bg-muted text-info">
                   {selectedAccount.split("@")[0]}
                 </Badge>
               )}

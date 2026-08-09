@@ -430,7 +430,7 @@ export function Combo() {
                 render: (c) => (
                   <div className="flex flex-wrap gap-1">
                     {c.targets.map((t) => (
-                      <Badge key={t.model} className="border-none bg-muted font-mono text-[10px] text-foreground">
+                      <Badge key={t.model} className=" bg-muted font-mono text-foreground">
                         {t.model}{t.weight != null ? ` ×${t.weight}` : ""}
                       </Badge>
                     ))}
@@ -441,7 +441,7 @@ export function Combo() {
                 key: "strategy",
                 header: "Strategy",
                 sort: (c) => c.strategy,
-                render: (c) => <Badge className="border-none bg-info/15 text-[10px] text-info">{c.strategy}</Badge>,
+                render: (c) => <Badge className="bg-info/15 text-info">{c.strategy}</Badge>,
               },
               {
                 key: "enabled",
