@@ -222,17 +222,17 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
                       <span>{item.title}</span>
                     </SidebarMenuButton>
                     {item.tab === "accounts" && accountCount != null && (
-                      <SidebarMenuBadge className="bg-muted text-foreground text-[10px] px-1.5 rounded">
+                      <SidebarMenuBadge className="bg-muted text-foreground text-[10px] px-1.5 rounded-[6px]">
                         {accountCount}
                       </SidebarMenuBadge>
                     )}
                     {item.tab === "pending" && pendingCount > 0 && (
-                      <SidebarMenuBadge className="bg-warning/15 text-warning text-[10px] px-1.5 rounded">
+                      <SidebarMenuBadge className="bg-warning/15 text-warning text-[10px] px-1.5 rounded-[6px]">
                         {pendingCount}
                       </SidebarMenuBadge>
                     )}
                     {item.tab === "agy" && poolCount != null && (
-                      <SidebarMenuBadge className="bg-primary/12 text-primary text-[10px] px-1.5 rounded">
+                      <SidebarMenuBadge className="bg-primary/12 text-primary text-[10px] px-1.5 rounded-[6px]">
                         {poolCount}
                       </SidebarMenuBadge>
                     )}

@@ -160,7 +160,7 @@ function ProviderHealthCard({
             <Server className="h-4 w-4 text-muted-foreground" />
             {name}
           </CardTitle>
-          <Badge variant={active > 0 ? "default" : "destructive"} className={active > 0 ? "bg-success/15 text-success border-none text-[10px]" : "text-[10px]"}>
+          <Badge variant={active > 0 ? "default" : "destructive"} className={active > 0 ? "bg-success/15 text-success" : ""}>
             {active > 0 ? "Online" : "Offline"}
           </Badge>
         </div>

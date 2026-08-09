@@ -110,7 +110,7 @@ function TargetBadge({ target }: { target: string }) {
   }
   const cls = map[target] ?? "bg-muted text-muted-foreground"
   return (
-    <Badge className={`${cls} border-none text-[10px]`}>{target}</Badge>
+    <Badge className={cls}>{target}</Badge>
   )
 }
 

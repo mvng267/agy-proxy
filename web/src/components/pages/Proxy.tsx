@@ -70,7 +70,7 @@ function StatusBadge({ status }: { status?: string }) {
   }
   const cls = map[status] ?? "bg-muted text-muted-foreground"
   return (
-    <Badge className={`${cls} border-none text-[10px]`}>{status}</Badge>
+    <Badge className={cls}>{status}</Badge>
   )
 }
 
