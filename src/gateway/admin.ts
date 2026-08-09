@@ -254,6 +254,20 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     const t0 = Date.now();
 
     /**
+     * Tham số sinh — để người thử tự chỉnh, vì mặc định thấp gây hiểu nhầm nặng:
+     * model reasoning tiêu maxOutputTokens vào phần suy nghĩ, nên trần thấp trả về
+     * `content` RỖNG kèm finishReason "length" — trông y hệt model hỏng.
+     * Model ảnh thì bỏ hẳn trần (xem chú thích ở smokeTest).
+     */
+    const maxOutputTokens = Number(b?.maxTokens) > 0 ? Number(b.maxTokens) : 2000;
+    const generationConfig: Record<string, unknown> = isImageModel(model)
+      ? {}
+      : { maxOutputTokens };
+    if (b?.temperature !== undefined && Number.isFinite(Number(b.temperature))) {
+      generationConfig.temperature = Number(b.temperature);
+    }
+
+    /**
      * Dùng CHUNG engine với /proxy/v1 thay vì tự gọi provider một lần.
      *
      * Bản cũ: pickReady → generate → lỗi là trả 502 luôn. Nên account đầu tiên hết quota
@@ -275,6 +289,7 @@ export function registerAdminRoutes(app: FastifyInstance): void {
         forcedEmail: forced,
         proxyOverride: proxy,
         endpoint: 'chat-test',
+        generationConfig,
         onAccount: (email: string) => { usedAccount = email; },
       });
       if (!('result' in out)) return { ok: true, account: usedAccount, model, ms: Date.now() - t0 };
