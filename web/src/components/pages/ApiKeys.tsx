@@ -77,7 +77,18 @@ export function ApiKeys() {
     {
       key: "prefix",
       header: "Prefix",
-      render: (r) => <code className="rounded bg-background px-1.5 py-0.5 text-xs">{r.prefix}…</code>,
+      /**
+       * Copy PREFIX, không phải key — key đầy đủ là `agy_<8 hex>_<32 byte>` mà server chỉ
+       * lưu prefix + sha256 (apikeys.ts:107), phần bí mật không tồn tại ở đâu sau lúc tạo.
+       * Prefix vẫn đáng copy: dùng để đối chiếu log, tra xem request đến từ key nào.
+       * Nhãn nói rõ để không ai dán nó vào client rồi nhận 401 mà không hiểu vì sao.
+       */
+      render: (r) => (
+        <span className="flex items-center gap-1">
+          <code className="rounded bg-background px-1.5 py-0.5 text-xs">{r.prefix}…</code>
+          <CopyButton value={r.prefix} title={`Copy prefix ${r.prefix} — để đối chiếu log, KHÔNG phải key gọi API`} size="xs" />
+        </span>
+      ),
     },
     {
       key: "requests",
@@ -203,14 +214,27 @@ export function ApiKeys() {
         </Card>
       )}
 
-      <DataTable
-        rows={rows}
-        columns={columns}
-        rowKey={(r) => r.id}
-        loading={keys.isLoading}
-        initialSort={{ key: "createdAt", dir: "desc" }}
-        empty="Chưa có key nào. Client vẫn dùng được key mặc định trong .env."
-      />
+      {/* Bọc trong Card cho khớp khuôn Atlas — bảng đứng trần là tàn dư từ lúc DataTable
+          tự vẽ viền riêng, giờ nó dựng trên ui/table nên không còn viền của mình. */}
+      <Card className="mt-4">
+        <CardContent className="p-0">
+          <DataTable
+            rows={rows}
+            columns={columns}
+            rowKey={(r) => r.id}
+            loading={keys.isLoading}
+            initialSort={{ key: "createdAt", dir: "desc" }}
+            empty="Chưa có key nào. Client vẫn dùng được key mặc định trong .env."
+          />
+          {/* Nói rõ vì sao không có nút copy KEY: thấy nút copy ở cột Prefix mà không có
+              giải thích thì người dùng sẽ dán prefix vào client rồi nhận 401. */}
+          <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground">
+            Prefix chỉ để <strong className="text-foreground">đối chiếu log</strong> — không gọi API được.
+            Key đầy đủ chỉ hiện <strong className="text-foreground">đúng một lần lúc tạo</strong> vì server
+            chỉ lưu mã băm. Mất key thì tạo key mới rồi xoá key cũ.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Key thô chỉ hiện MỘT LẦN — server lưu sha256, không lấy lại được. */}
       {newKey && (

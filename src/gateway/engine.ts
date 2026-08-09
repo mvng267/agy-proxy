@@ -379,6 +379,12 @@ export async function runProviderCall(opts: {
   onUsage?: (u: { promptTokens: number; completionTokens: number }) => void;
   /** Ép/cấm gọi tool — nguồn là `tool_choice` của client. */
   toolConfig?: Record<string, unknown>;
+  /**
+   * Báo account nào ĐANG được thử ở lượt này. Gọi lại mỗi lần failover chuyển account,
+   * nên giá trị cuối cùng là account thực sự phục vụ request.
+   * Màn "Chat thử" dùng để hiện đúng account đã trả lời.
+   */
+  onAccount?: (email: string) => void;
 }): Promise<{ done: true } | { result: GenResult }> {
   const { provider, bare, labelModel, messages, stream, reply } = opts;
   const p = PROVIDERS[provider];
@@ -477,6 +483,7 @@ export async function runProviderCall(opts: {
     if (stream) releaseLimiter = await streamLimiter.acquire();
     const t0 = Date.now();
     const plabel = proxyLabelOf(ctx.account);
+    opts.onAccount?.(ctx.account.email);
     gw({
       kind: 'req', account: ctx.account.email, model: labelModel, proxy: plabel,
       endpoint: opts.endpoint ?? '/proxy/v1', attempt: attempt + 1,

@@ -24,7 +24,7 @@ import {
 import { isImageModel } from './antigravity.js';
 import {
   log, emitGw, afterCall, proxyLabelOf, accOf, bucketOf, pickReady, poolSnapshot,
-  listCombos, testAccount, checkLiveAccount, emitCheck,
+  listCombos, testAccount, checkLiveAccount, emitCheck, runProviderCall,
 } from './engine.js';
 import { toMessages } from './dialects/wire.js';
 import { gatewayMetrics } from './metrics.js';
@@ -249,53 +249,50 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     }
     const model = parsed.prefixed;
     const t0 = Date.now();
-    let ctx: Awaited<ReturnType<typeof pickReady>>;
+
+    /**
+     * Dùng CHUNG engine với /proxy/v1 thay vì tự gọi provider một lần.
+     *
+     * Bản cũ: pickReady → generate → lỗi là trả 502 luôn. Nên account đầu tiên hết quota
+     * là màn "Chat thử" báo 429, dù pool còn hàng trăm account khoẻ — trong khi gọi cùng
+     * model qua /proxy/v1 lại thành công. Hai đường cùng một việc mà hành xử khác nhau,
+     * và người dùng thử ở đây rồi kết luận nhầm là gateway hỏng.
+     *
+     * `runProviderCall` lo failover, circuit breaker, ghi usage, cập nhật pool.
+     */
+    let usedAccount = '';
     try {
-      ctx = await pickReady(parsed.provider!, forced, proxy);
-    } catch (e: any) {
-      return reply.code(e?.code ?? 503).send({ error: e?.message ?? 'no account' });
-    }
-    const plabel = proxyLabelOf(ctx.account, proxy);
-    emitGw({ kind: 'req', account: ctx.account.email, model, proxy: plabel, endpoint: 'chat-test', msg: `→ ${model} · ${ctx.account.email} · chat-test · proxy:${plabel}` });
-    try {
-      const r = await PROVIDERS[parsed.provider!].generate({
-        session: ctx.session,
-        model: parsed.model!,
+      const out = await runProviderCall({
+        provider: parsed.provider!,
+        bare: parsed.model!,
+        labelModel: model,
         messages,
-        dispatcher: ctx.dispatcher,
+        stream: false,
+        reply,
+        forcedEmail: forced,
+        proxyOverride: proxy,
+        endpoint: 'chat-test',
+        onAccount: (email: string) => { usedAccount = email; },
       });
-      const ms = Date.now() - t0;
-      // Phải truyền OBJECT: pool tra theo khoá ghép `provider:email`, đưa email trần
-      // vào thì Map.get() trượt và mọi cập nhật bị bỏ im lặng (xem Pool.report).
-      pool.report(ctx.account, {
-        ok: true,
-        promptTokens: r.usage.promptTokens,
-        completionTokens: r.usage.completionTokens,
-      });
-      afterCall(ctx.account, model, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, ms });
-      savePersist();
-      emitGw({ kind: 'res', account: ctx.account.email, model, ms, tokens: r.usage.totalTokens, status: 200, msg: `← 200 · ${r.usage.totalTokens} tok · ${ms}ms` });
+      if (!('result' in out)) return { ok: true, account: usedAccount, model, ms: Date.now() - t0 };
+      const r = out.result;
       return {
         ok: true,
-        account: ctx.account.email,
+        account: usedAccount,
         model,
-        ms,
+        ms: Date.now() - t0,
         text: r.text,
         images: r.images,
         usage: r.usage,
         isImage: isImageModel(model),
       };
     } catch (e: any) {
-      const ms = Date.now() - t0;
-      pool.report(ctx.account, {
-        ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs,
-        bucket: bucketOf(ctx.account.provider, parseModelId(model).model ?? model),
+      // Sau khi đã thử hết account khả dụng mà vẫn lỗi — lúc này 429 là thật.
+      return reply.code(e?.status ?? 502).send({
+        ok: false,
+        account: usedAccount,
+        error: e?.message ?? String(e),
       });
-      afterCall(ctx.account, model, { ok: false, ms });
-      emitGw({ kind: 'err', account: ctx.account.email, model, ms, status: e?.status, msg: `← ✗ ${e?.status ?? ''} ${String(e?.message ?? e).slice(0, 100)}` });
-      return reply.code(502).send({ ok: false, account: ctx.account.email, error: e?.message ?? String(e) });
-    } finally {
-      pool.release(ctx.account);
     }
   });
 
