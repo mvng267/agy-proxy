@@ -592,6 +592,8 @@ function help() {
   ${c.b('agyproxy ping')}          server sống không + độ trễ  ${c.d('[--json]')}
   ${c.b('agyproxy routes')}        liệt kê toàn bộ endpoint  ${c.d('[--json]')}
   ${c.b('agyproxy api <M> <path>')} gọi thẳng API bất kỳ  ${c.d('[json | -]')}
+  ${c.b('agyproxy setup-mcp')}     cấu hình MCP cho Claude Code / Hermes  ${c.d('[--json]')}
+     ${c.d('agent điều khiển agyproxy bằng tool-calling — 10 tool đọc + 4 ghi an toàn')}
      ${c.d("vd: agyproxy api /api/overview")}
      ${c.d("    agyproxy api PATCH /api/gateway/config '{\"rotation\":\"smart\"}'")}
      ${c.d('    cat big.json | agyproxy api POST /api/accounts/import -')}
@@ -1006,6 +1008,34 @@ function routesCmd() {
   console.log(c.d(`\n  ${list.length} endpoint · gọi bằng: agyproxy api <METHOD> <đường-dẫn> [json]`));
 }
 
+/**
+ * `agyproxy setup-mcp` — in cấu hình MCP để dán vào Claude Code / Hermes.
+ *
+ * KHÔNG tự ghi đè file config của người dùng: `~/.claude.json` chứa cả lịch sử hội thoại
+ * và cấu hình project khác, ghi hỏng là mất nhiều thứ. In ra để dán vào là đủ, và người
+ * dùng thấy được chính xác cái gì được thêm.
+ */
+function setupMcpCmd() {
+  const { pass } = dashCreds();
+  const url = baseUrl();
+  const entry = {
+    command: process.execPath,
+    args: [resolve(ROOT, 'bin/agyproxy-mcp.mjs')],
+    env: { AGY_URL: url, AGY_TOKEN: pass },
+  };
+  if (has('--json')) { console.log(JSON.stringify({ mcpServers: { agyproxy: entry } }, null, 2)); return; }
+
+  console.log(`${c.b('Cấu hình MCP cho agyproxy')}  ${c.d(url)}\n`);
+  console.log(c.d('Claude Code — thêm vào ~/.claude.json (khoá "mcpServers"):'));
+  console.log(JSON.stringify({ mcpServers: { agyproxy: entry } }, null, 2));
+  console.log(`\n${c.d('Hoặc dùng lệnh của Claude Code:')}`);
+  console.log(`  claude mcp add agyproxy -e AGY_URL=${url} -e AGY_TOKEN=<token> -- ${process.execPath} ${resolve(ROOT, 'bin/agyproxy-mcp.mjs')}`);
+  console.log(`\n${c.y('⚠')} AGY_TOKEN cho TOÀN QUYỀN điều khiển gateway — file config nên chmod 600.`);
+  console.log(c.d('  Agent chỉ gọi được 14 tool trong allowlist: 10 đọc + 4 ghi an toàn'));
+  console.log(c.d('  (gỡ cooldown · nạp quota · kiểm tra 1 account · đổi chiến lược xoay).'));
+  console.log(c.d('  Xoá/restart/đổi mật khẩu/backup/lộ key đều KHÔNG expose.'));
+}
+
 // ---------- main ----------
 const [cmd, ...rest] = process.argv.slice(2);
 const has = (f) => rest.includes(f);
@@ -1111,6 +1141,7 @@ switch (cmd) {
   case 'ping': await pingCmd(); break;
   case 'api': await apiCmd(rest); break;
   case 'routes': routesCmd(); break;
+  case 'setup-mcp': setupMcpCmd(); break;
 
   case 'version': case '-v': case '--version': console.log(PKG.version); break;
   case 'help': case '-h': case '--help': help(); break;
