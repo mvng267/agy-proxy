@@ -10,6 +10,7 @@ the task. See root `CLAUDE.md` for the task→skill mapping table.
 
 | Skill | Purpose |
 |-------|---------|
+| **`operate-agyproxy`** | **Vận hành pool đang chạy: chẩn đoán lỗi/chậm, gỡ cooldown, nạp quota. KHÔNG phải sửa code.** |
 | `code-review` | Review changes since a fixed point along Standards + Spec axes (parallel sub-agents). |
 | `codebase-design` | Design modules "twice" before committing to one approach. |
 | `diagnosing-bugs` | Systematic root-cause debugging (understand before fixing). |

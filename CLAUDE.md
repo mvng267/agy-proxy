@@ -34,6 +34,7 @@ skill first** (read `skills/<name>/SKILL.md`):
 
 | Task | Skill |
 |------|-------|
+| **Vận hành pool đang chạy** (lỗi, chậm, hết quota) | **`operate-agyproxy`** |
 | Fix a bug | `diagnosing-bugs` |
 | Build a feature | `implement` + `tdd` |
 | Review changes | `code-review` |
