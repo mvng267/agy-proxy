@@ -224,7 +224,10 @@ export function registerAdminRoutes(app: FastifyInstance): void {
 
   app.get('/api/gateway/models', async () => ({
     models: allModels().map((m) => ({
-      id: m.prefixed, bare: m.id, label: m.label, image: m.image,
+      id: m.prefixed, bare: m.id, label: m.label,
+      // `image` giữ lại cho client cũ; UI mới đọc imageIn/imageOut vì `image` từng
+      // mang hai nghĩa trái ngược tuỳ provider (sinh ảnh vs nhận ảnh).
+      image: m.image, imageIn: m.imageIn ?? false, imageOut: m.imageOut ?? m.image,
       provider: m.provider, providerLabel: m.providerLabel,
       bucket: m.bucket, maxInput: m.maxInput,
     })),

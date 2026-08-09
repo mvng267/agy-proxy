@@ -94,7 +94,12 @@ export type QuotaBucket = 'gemini' | 'claude';
 export interface ModelInfo {
   id: string;
   label: string;
+  /** DEPRECATED — alias của `imageOut`. Xem chú thích ở `providers/types.ts`. */
   image: boolean;
+  /** Nhận được ảnh trong prompt (vision). */
+  imageIn?: boolean;
+  /** Sinh ra được ảnh. */
+  imageOut?: boolean;
   /** Bể hạn mức của model. Không đặt = provider không chia bể (Kiro). */
   bucket?: QuotaBucket;
   /**
@@ -196,6 +201,20 @@ export const MODELS: ModelInfo[] = [
   { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite', image: false, maxInput: 384_000, bucket: 'gemini' },
   { id: 'gpt-oss-120b-medium', label: 'GPT-OSS 120B (Medium)', image: false, maxInput: 128_000, bucket: 'claude' },
 ];
+
+/**
+ * Suy ra `imageOut` / `imageIn` cho catalog Antigravity — làm tự động thay vì gõ tay
+ * từng dòng, để thêm model mới không phải nhớ đặt hai cờ.
+ *
+ *  - `imageOut` = model SINH ảnh, lấy đúng theo `image` đã khai (chỉ 1 model hiện nay).
+ *  - `imageIn`  = model NHẬN ảnh trong prompt. Mọi model Gemini đều nhận được:
+ *    `contentToParts()` chuyển block `image_url` thành `inlineData` cho upstream.
+ *    Riêng gpt-oss (bể claude, không phải Gemini) thì không.
+ */
+for (const m of MODELS) {
+  m.imageOut = m.image;
+  m.imageIn = m.id.startsWith('gemini-');
+}
 
 /** Map model client → tên upstream cloudcode-pa (chỉ khi khác). */
 const CLIENT_TO_UPSTREAM: Record<string, string> = {
@@ -888,7 +907,16 @@ export async function checkModelsLive(
         dispatcher,
         generationConfig: { maxOutputTokens: m.image ? undefined : 8 },
       });
-      out.push({ id: m.id, status: m.image ? (r.images.length ? 'ok' : 'ok') : 'ok', ms: Date.now() - t0 });
+      // Model ảnh mà không trả về ảnh nào là HỎNG, dù request không ném lỗi. Bản trước
+      // viết `m.image ? (r.images.length ? 'ok' : 'ok') : 'ok'` — cả ba nhánh đều 'ok',
+      // nên phép kiểm `r.images.length` bị vứt đi và model ảnh luôn báo xanh.
+      const imgFail = (m.imageOut ?? m.image) && r.images.length === 0;
+      out.push({
+        id: m.id,
+        status: imgFail ? 'error' : 'ok',
+        ...(imgFail ? { detail: 'model ảnh nhưng không trả về ảnh nào' } : {}),
+        ms: Date.now() - t0,
+      });
     } catch (e: any) {
       const msg = String(e?.message ?? e);
       const quota = e?.status === 429 || /quota|exhaust|resource_exhausted/i.test(msg);

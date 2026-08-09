@@ -35,7 +35,21 @@ export interface ProviderAccount {
 export interface ProviderModel {
   id: string; // id trần, chưa prefix
   label: string;
+  /**
+   * DEPRECATED — dùng `imageIn` / `imageOut`.
+   *
+   * Field này từng mang HAI nghĩa trái ngược tuỳ provider: ở `antigravity.ts` nó là
+   * "model SINH ảnh", còn ở `kiro.ts` là "model NHẬN ảnh đầu vào". Cả hai cùng phơi qua
+   * `/api/gateway/models`, nên UI không phân biệt được: API trả 8 model `image: true`
+   * trong khi chỉ 1 model thực sự sinh được ảnh.
+   *
+   * Giữ lại làm alias của `imageOut` để client ngoài đang đọc `image` không vỡ.
+   */
   image: boolean;
+  /** Nhận được ảnh trong prompt (vision). Không có = chỉ nhận text. */
+  imageIn?: boolean;
+  /** Sinh ra được ảnh. Hiện chỉ `agy/gemini-3.1-flash-image`. */
+  imageOut?: boolean;
   /** Trần ngữ cảnh (token). Dùng để gợi ý model thay thế khi prompt quá dài. */
   maxInput?: number;
   /** Bể hạn mức (agy chia 2 bể độc lập). Không đặt = provider không chia bể (Kiro). */

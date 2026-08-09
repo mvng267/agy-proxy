@@ -115,16 +115,26 @@ export interface KiroModel extends ProviderModel {
    *  CONTENT_LENGTH_EXCEEDS_THRESHOLD. Rộng hơn 200k mà tài liệu công bố. */
   maxInput: number;
 }
+/**
+ * `image`/`imageIn`/`imageOut` đều FALSE cho toàn bộ model Kiro.
+ *
+ * Bản trước đặt `image: true` cho 7/9 model, và giá trị đó phơi thẳng qua
+ * `/api/gateway/models` — API trả 8 model "có ảnh" trong khi thực tế chỉ 1 model sinh
+ * được ảnh, còn Kiro thì không làm được cả hai chiều:
+ *   - KHÔNG sinh ảnh: `generate()` hardcode `images: []`
+ *   - KHÔNG nhận ảnh: `textOf()` lọc bỏ mọi part không phải text (xem chú thích ở đó)
+ * Cờ sai làm UI mời người dùng gửi ảnh vào model sẽ lặng lẽ vứt nó đi.
+ */
 export const KIRO_MODELS: KiroModel[] = [
-  { id: 'auto', label: 'Auto (Kiro tự chọn)', image: true, credit: 1, maxInput: 256_000 },
-  { id: 'claude-sonnet-4.5', label: 'Claude Sonnet 4.5', image: true, credit: 1.3, maxInput: 256_000 },
-  { id: 'claude-sonnet-4', label: 'Claude Sonnet 4', image: true, credit: 1.3, maxInput: 256_000 },
-  { id: 'claude-haiku-4.5', label: 'Claude Haiku 4.5', image: true, credit: 0.4, maxInput: 256_000 },
-  { id: 'deepseek-3.2', label: 'DeepSeek v3.2', image: true, credit: 0.25, maxInput: 164_000 },
+  { id: 'auto', label: 'Auto (Kiro tự chọn)', image: false, credit: 1, maxInput: 256_000 },
+  { id: 'claude-sonnet-4.5', label: 'Claude Sonnet 4.5', image: false, credit: 1.3, maxInput: 256_000 },
+  { id: 'claude-sonnet-4', label: 'Claude Sonnet 4', image: false, credit: 1.3, maxInput: 256_000 },
+  { id: 'claude-haiku-4.5', label: 'Claude Haiku 4.5', image: false, credit: 0.4, maxInput: 256_000 },
+  { id: 'deepseek-3.2', label: 'DeepSeek v3.2', image: false, credit: 0.25, maxInput: 164_000 },
   { id: 'minimax-m2.5', label: 'MiniMax M2.5', image: false, credit: 0.25, maxInput: 196_000 },
-  { id: 'minimax-m2.1', label: 'MiniMax M2.1', image: true, credit: 0.15, maxInput: 196_000 },
+  { id: 'minimax-m2.1', label: 'MiniMax M2.1', image: false, credit: 0.15, maxInput: 196_000 },
   { id: 'glm-5', label: 'GLM 5', image: false, credit: 0.5, maxInput: 256_000 },
-  { id: 'qwen3-coder-next', label: 'Qwen3 Coder Next', image: true, credit: 0.05, maxInput: 256_000 },
+  { id: 'qwen3-coder-next', label: 'Qwen3 Coder Next', image: false, credit: 0.05, maxInput: 256_000 },
 ];
 
 /** Bí danh cho người quen gõ gạch ngang (claude-sonnet-4-5 → claude-sonnet-4.5). */
