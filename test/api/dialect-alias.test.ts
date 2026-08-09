@@ -1,5 +1,7 @@
 import { test, before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import formbody from '@fastify/formbody';
 import { store } from '../../src/store/index.js';
@@ -22,6 +24,8 @@ import { registerGatewayRoutes } from '../../src/gateway/routes.js';
  *   - POST /v1/messages/count_tokens  (dialects/anthropic.ts:256-257)
  * Cả hai đã vá nhưng KHÔNG có test hồi quy. Đây là lưới đó.
  */
+
+const ROOT = resolve(import.meta.dirname, '../..');
 
 let app: FastifyInstance;
 
@@ -97,6 +101,33 @@ describe('auth — hai endpoint từng thủng', () => {
   test('GET /v1/models CÓ key → 200', async () => {
     const r = await app.inject({ method: 'GET', url: '/v1/models', headers: bearer() });
     assert.equal(r.statusCode, 200);
+  });
+
+  test('prefix /openai/ KHÔNG bị hook auth dashboard chặn', async () => {
+    /**
+     * Bug thật: `auth.ts` miễn Basic auth cho `/proxy/v1`, `/v1/`, `/anthropic/` nhưng
+     * THIẾU `/openai/`. Dialect có đăng ký route, nhưng request kèm API key hợp lệ vẫn
+     * nhận 401 vì bị hook chặn trước khi tới handler.
+     * Đo thật: /v1/models trả 200 còn /openai/v1/models trả 401 với CÙNG một key.
+     *
+     * Test này chạy qua app.inject nên không đi qua hook đó — giá trị của nó là khoá
+     * bảng tiền tố. Xem test 'bảng tiền tố miễn auth' bên dưới.
+     */
+    const r = await app.inject({ method: 'GET', url: '/openai/v1/models', headers: bearer() });
+    assert.equal(r.statusCode, 200, '/openai/v1/models phải phục vụ được bằng API key');
+  });
+
+  test('bảng tiền tố miễn auth dashboard phải đủ 4 loại client', async () => {
+    // Đây mới là chỗ bug nằm. Đọc thẳng mã nguồn vì hook chạy ở tầng server thật,
+    // app.inject trong test không đi qua nó.
+    const src = readFileSync(resolve(ROOT, 'src/auth.ts'), 'utf8');
+    for (const p of ['/proxy/v1', '/v1/', '/anthropic/', '/openai/']) {
+      assert.match(
+        src,
+        new RegExp(`startsWith\\('${p.replace(/\//g, '\\/')}'\\)`),
+        `auth.ts thiếu tiền tố '${p}' → client dùng prefix này nhận 401 dù key hợp lệ`,
+      );
+    }
   });
 
   test('POST /v1/messages/count_tokens KHÔNG key → 401 (từng mở hoàn toàn)', async () => {

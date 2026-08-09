@@ -98,6 +98,41 @@ export const TOOLS = [
     call: (a) => ({ method: 'GET', path: `/api/gateway/usage?range=${a.range ?? '7d'}&groupBy=${a.groupBy ?? 'day'}` }),
   },
   {
+    name: 'agyproxy_usage_logs',
+    title: 'Log từng request',
+    description:
+      'Từng request một, mới nhất trước: thời gian, account, model, đường vào, mã HTTP, ' +
+      'token vào/ra, thời lượng. Lọc được theo email · model · endpoint · status · ok. ' +
+      'Dùng khi cần TRUY VẾT ("429 nhiều nhất ở model nào, account nào") — các tool tổng ' +
+      'hợp chỉ cho con số cộng dồn. Kèm `facets` liệt kê giá trị có thật để biết lọc theo gì.',
+    schema: {
+      range: z.enum(['1d', '7d', '30d', '90d']).default('7d'),
+      email: z.string().optional().describe('Lọc theo account'),
+      model: z.string().optional().describe('Model id đã prefix, vd agy/gemini-3-flash'),
+      endpoint: z.string().optional().describe('vd /v1/messages, /v1/chat/completions, chat-test'),
+      status: z.number().int().optional().describe('Mã HTTP cụ thể, vd 429'),
+      ok: z.boolean().optional().describe('true chỉ lấy thành công, false chỉ lấy lỗi'),
+      limit: z.number().int().min(1).max(500).default(100),
+      offset: z.number().int().min(0).default(0),
+    },
+    call: (a) => {
+      const q = new URLSearchParams({ range: a.range ?? '7d', limit: String(a.limit ?? 100), offset: String(a.offset ?? 0) });
+      for (const k of ['email', 'model', 'endpoint']) if (a[k]) q.set(k, a[k]);
+      if (a.status !== undefined) q.set('status', String(a.status));
+      if (a.ok !== undefined) q.set('ok', String(a.ok));
+      return { method: 'GET', path: `/api/gateway/usage/logs?${q}` };
+    },
+  },
+  {
+    name: 'agyproxy_usage_compare',
+    title: 'So sánh kỳ này với kỳ trước',
+    description:
+      'Tổng request/token kỳ này so kỳ trước cùng độ dài, kèm % thay đổi. Dùng để trả lời ' +
+      '"tuần này dùng nhiều hơn tuần trước bao nhiêu" mà không phải tự tính.',
+    schema: { range: z.enum(['1d', '7d', '30d', '90d']).default('7d') },
+    call: (a) => ({ method: 'GET', path: `/api/gateway/usage/compare?range=${a.range ?? '7d'}` }),
+  },
+  {
     name: 'agyproxy_config',
     title: 'Cấu hình gateway',
     description:

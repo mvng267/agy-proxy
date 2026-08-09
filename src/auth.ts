@@ -129,9 +129,24 @@ const PUBLIC_PATHS = new Set(['/login', '/login.html', '/style.css', '/api/auth/
 export function registerAuth(app: FastifyInstance): void {
   app.addHook('onRequest', async (req, reply) => {
     const url = req.url.split('?')[0] || '';
-    // Endpoint suy luận dùng GATEWAY_API_KEY riêng, không dùng phiên dashboard:
-    //  /proxy/v1/*  (OpenAI)   ·  /v1/*, /anthropic/*  (Anthropic — Claude Code gọi <base>/v1/messages)
-    if (url.startsWith('/proxy/v1') || url.startsWith('/v1/') || url.startsWith('/anthropic/')) return;
+    /**
+     * Endpoint suy luận dùng GATEWAY_API_KEY riêng, không dùng phiên dashboard.
+     * Bốn tiền tố vì mỗi loại client tự nối path một kiểu:
+     *   /proxy/v1/*   Hermes, OmniRoute
+     *   /v1/*         Claude Code (<base>/v1/messages), Aider, Cursor
+     *   /anthropic/*  client nói giọng Anthropic
+     *   /openai/*     client nói giọng OpenAI
+     *
+     * `/openai/` từng THIẾU ở danh sách này: dialect có đăng ký route, gọi bằng API key
+     * hợp lệ vẫn nhận 401 vì bị hook auth dashboard chặn trước khi tới handler. Đo thật:
+     * /v1/models trả 200 còn /openai/v1/models trả 401 với cùng một key.
+     */
+    if (
+      url.startsWith('/proxy/v1') ||
+      url.startsWith('/v1/') ||
+      url.startsWith('/anthropic/') ||
+      url.startsWith('/openai/')
+    ) return;
     if (PUBLIC_PATHS.has(url)) return;
     if (isAuthed(req)) return;
 

@@ -72,7 +72,7 @@ Cấu hình (người vận hành lấy bằng `agyproxy setup-mcp`):
 }
 ```
 
-**14 tool, chia hai nhóm:**
+**16 tool, chia hai nhóm:**
 
 *Đọc — gọi tự do:*
 
@@ -86,6 +86,8 @@ Cấu hình (người vận hành lấy bằng `agyproxy setup-mcp`):
 | `agyproxy_models` | Model gọi được, id đã có prefix provider — dùng thẳng khi gọi API |
 | `agyproxy_combos` | Combo (chuỗi model dự phòng) đã cấu hình |
 | `agyproxy_usage` | Request/token theo thời gian, tách theo model · account · API key |
+| **`agyproxy_usage_logs`** | **TỪNG request một** — lọc theo email · model · endpoint · status · ok. Dùng khi cần truy vết, các tool trên chỉ cho số cộng dồn |
+| **`agyproxy_usage_compare`** | **Kỳ này so kỳ trước** cùng độ dài, kèm % thay đổi |
 | `agyproxy_config` | Chiến lược xoay, cooldown, chính sách quota (API key trả dạng che) |
 | `agyproxy_runs` | Lịch sử chạy flow login/warmup |
 
@@ -189,9 +191,31 @@ Những endpoint sau **có thật** nhưng Control **không nên gọi**, kèm l
 
 ---
 
+### Truy vết lỗi — thứ bảng tổng hợp không trả lời được
+
+Số cộng dồn cho biết "có 432 lỗi 429", nhưng không cho biết **ở đâu**. Log chi tiết cho biết:
+
+```bash
+# 429 nhiều nhất ở model nào? — đọc `facets.models` trong kết quả
+curl -u ":$CLI_TOKEN" "$BASE/api/gateway/usage/logs?range=30d&status=429&limit=20"
+
+# một account cụ thể đang hỏng thế nào
+curl -u ":$CLI_TOKEN" "$BASE/api/gateway/usage/logs?range=7d&email=abc@x.vn&ok=false"
+```
+
+Lọc được theo `email · model · endpoint · status · ok · stream · apiKeyId · combo`, chồng
+nhau thì AND. Phân trang bằng `limit` (tối đa 500) + `offset`; `total` là tổng khớp bộ lọc,
+không phải số dòng trang này. `facets` liệt kê giá trị **có thật** trong khoảng kèm số lần —
+dùng nó để biết lọc theo gì thay vì đoán.
+
 ## 5. Tự khám phá thêm
 
-- `agyproxy routes --json` — liệt kê toàn bộ 91 endpoint dạng `{method, path}`
+- `agyproxy routes --json` — liệt kê toàn bộ **105** endpoint dạng `{method, path}`,
+  gồm cả 15 route dialect (`/v1/*`, `/proxy/v1/*`, `/openai/v1/*`, `/anthropic/v1/*`).
+  Bản trước bỏ sót chính nhóm này nên danh sách chỉ có 91 — nếu bạn đang dùng bản cũ và
+  không thấy `/v1/chat/completions` trong đó thì **không phải** gateway thiếu, mà là lệnh
+  liệt kê thiếu.
+- `agyproxy chat <model> "<prompt>"` — gọi thử model ngay từ dòng lệnh, có failover.
 - **Dashboard → Cấu hình → CLI Tools → Thử API** — gọi thử endpoint bất kỳ ngay trong trình
   duyệt để xem shape dữ liệu **trước khi** viết code. Nhanh hơn đoán rồi sửa.
 

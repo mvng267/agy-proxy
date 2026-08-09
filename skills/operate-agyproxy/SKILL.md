@@ -93,13 +93,43 @@ Những thứ này gọi được về mặt kỹ thuật nhưng gây hậu qu�
 | `DELETE /api/accounts/*` | Xoá vĩnh viễn, không hoàn tác |
 | `GET /api/backup/export` · `/api/credentials` · `?reveal=1` | Trả token và credential **nguyên văn** — đừng in ra log hay chat |
 
-**Nếu bạn dùng MCP thì cả nhóm này đã bị chặn sẵn** — allowlist chỉ có 10 tool đọc + 4 tool
+**Nếu bạn dùng MCP thì cả nhóm này đã bị chặn sẵn** — allowlist chỉ có 12 tool đọc + 4 tool
 ghi an toàn. Dùng CLI/HTTP trực tiếp thì phải tự giữ ranh giới.
+
+## Truy vết: từ "có lỗi" đến "lỗi ở đâu"
+
+`/api/metrics` cho biết **có** lỗi, không cho biết **ở đâu**. Log chi tiết trả lời tiếp:
+
+```bash
+# 429 tập trung ở model nào? — đọc facets.models trong kết quả
+agyproxy api '/api/gateway/usage/logs?range=30d&status=429&limit=20'
+
+# một account cụ thể hỏng thế nào
+agyproxy api '/api/gateway/usage/logs?range=7d&email=abc@x.vn&ok=false'
+
+# đường vào nào đang lỗi nhiều — /v1/messages hay /v1/chat/completions
+agyproxy api '/api/gateway/usage/logs?range=7d&ok=false'
+```
+
+Lọc theo `email · model · endpoint · status · ok · stream`, chồng nhau thì AND.
+`facets` liệt kê giá trị **có thật** kèm số lần — dùng nó để biết lọc theo gì, đừng đoán.
+
+MCP có sẵn hai tool tương ứng: `agyproxy_usage_logs`, `agyproxy_usage_compare`.
+
+## Thử một model ngay
+
+```bash
+agyproxy chat agy/gemini-3-flash "2+2 bằng mấy?"
+agyproxy chat agy/gemini-3.1-flash-image "vẽ con mèo" --out meo.png
+```
+
+Đi qua cùng đường với `/proxy/v1` nên **có failover** — nếu lệnh này lỗi thì client thật
+cũng lỗi. Ngược lại, nó chạy mà client báo hỏng thì vấn đề nằm ở phía client.
 
 ## Tự khám phá thêm
 
 ```bash
-agyproxy routes --json     # 91 endpoint dạng {method, path}
+agyproxy routes --json     # 105 endpoint dạng {method, path}
 agyproxy api /api/gateway/models    # model gọi được, id đã có prefix provider
 ```
 

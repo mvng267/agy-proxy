@@ -592,9 +592,12 @@ function help() {
   ${c.b('agyproxy ping')}          server sống không + độ trễ  ${c.d('[--json]')}
   ${c.b('agyproxy routes')}        liệt kê toàn bộ endpoint  ${c.d('[--json]')}
   ${c.b('agyproxy api <M> <path>')} gọi thẳng API bất kỳ  ${c.d('[json | -]')}
+  ${c.b('agyproxy chat <model> <prompt>')} gọi model, có failover  ${c.d('[--account] [--max] [--out] [--json]')}
+     ${c.d('model ảnh: ảnh ghi ra file, không đổ data URI ra terminal')}
   ${c.b('agyproxy setup-mcp')}     cấu hình MCP cho Claude Code / Hermes  ${c.d('[--json]')}
-     ${c.d('agent điều khiển agyproxy bằng tool-calling — 10 tool đọc + 4 ghi an toàn')}
+     ${c.d('agent điều khiển agyproxy bằng tool-calling — 12 tool đọc + 4 ghi an toàn')}
      ${c.d("vd: agyproxy api /api/overview")}
+     ${c.d('vd: agyproxy chat agy/gemini-3-flash "2+2 bằng mấy?"')}
      ${c.d("    agyproxy api PATCH /api/gateway/config '{\"rotation\":\"smart\"}'")}
      ${c.d('    cat big.json | agyproxy api POST /api/accounts/import -')}
 
@@ -984,17 +987,118 @@ async function apiCmd(args) {
   catch { console.log(text); }
 }
 
-/** `agyproxy routes` — liệt kê endpoint bằng cách đọc chính mã nguồn server. */
+/**
+ * `agyproxy chat <model> <prompt>` — gọi model từ dòng lệnh.
+ *
+ * Trước đây muốn thử một model phải mở dashboard hoặc tự viết curl kèm header đúng.
+ * Lệnh này dùng chính đường /api/gateway/chat mà màn Chat thử dùng, nên có đủ failover.
+ *
+ * Ảnh trả về là data URI vài trăm KB — KHÔNG in ra terminal (làm ngập màn hình và hỏng
+ * cả scrollback). Ghi ra file rồi in đường dẫn.
+ */
+async function chatCmd(args) {
+  const model = args[0];
+  const prompt = args.slice(1).filter((a) => !a.startsWith('--')).join(' ');
+  if (!model || !prompt) {
+    die('Dùng: agyproxy chat <model> <prompt> [--account <email>] [--max <n>] [--json]\n' +
+        '  vd: agyproxy chat agy/gemini-3-flash "2+2 bằng mấy?"\n' +
+        '      agyproxy chat agy/gemini-3.1-flash-image "vẽ con mèo" --out mèo.png\n' +
+        '  Xem model gọi được: agyproxy api /api/gateway/models');
+  }
+
+  const body = {
+    model,
+    content: prompt,
+    account: flagVal('--account') || undefined,
+    maxTokens: Number(flagVal('--max')) || undefined,
+  };
+
+  const t0 = Date.now();
+  const { user, pass } = dashCreds();
+  // Model chậm (nhất là model ảnh) + failover 3 account → timeout phải rộng.
+  const res = await fetch(`${baseUrl()}/api/gateway/chat`, {
+    method: 'POST',
+    headers: {
+      'user-agent': 'agyproxy-cli', accept: 'application/json', 'content-type': 'application/json',
+      authorization: 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64'),
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(Number(flagVal('--timeout')) || 300_000),
+  }).catch((e) => die(`Không gọi được server: ${e.message}`));
+
+  const text = await res.text();
+  let d;
+  try { d = JSON.parse(text); } catch { die(`Server trả về không phải JSON: ${text.slice(0, 200)}`); }
+  if (!res.ok || d.ok === false) die(`Lỗi ${res.status}: ${d.error ?? text.slice(0, 200)}`);
+
+  if (has('--json')) { console.log(JSON.stringify(d, null, 2)); return; }
+  if (d.text) console.log(d.text);
+
+  for (const [i, img] of (d.images ?? []).entries()) {
+    const m = /^data:(image\/\w+);base64,(.*)$/.exec(img);
+    if (!m) continue;
+    const ext = m[1].split('/')[1];
+    const out = flagVal('--out') || `agyproxy-${Date.now()}-${i + 1}.${ext}`;
+    writeFileSync(out, Buffer.from(m[2], 'base64'));
+    console.log(c.b(`  ảnh → ${out}`) + c.d(` (${Math.round(m[2].length * 0.75 / 1024)} KB)`));
+  }
+
+  const tok = d.usage?.totalTokens;
+  console.log(c.d(`\n  ${d.account ?? '?'} · ${d.ms ?? Date.now() - t0}ms${tok ? ` · ${tok} token` : ''}`));
+}
+
+/**
+ * `agyproxy routes` — liệt kê endpoint bằng cách đọc chính mã nguồn server.
+ *
+ * Hai lý do bản trước BỎ SÓT đúng những endpoint quan trọng nhất (`/v1/chat/completions`,
+ * `/v1/messages`, `/v1/models` — đo thật: gọi trả 200/400 nhưng không hề xuất hiện trong
+ * danh sách):
+ *   1. Regex chỉ nhận tiền tố `/api`, `/proxy`, `/events` — bỏ hẳn `/v1`, `/openai`,
+ *      `/anthropic`.
+ *   2. Route dialect KHÔNG đăng ký bằng `app.post('/đường-dẫn', …)` mà qua vòng lặp
+ *      `for (const path of [...]) app.post(path, …)`, nên mẫu `.post('…')` không khớp.
+ *
+ * Hậu quả không nhỏ: Control và agent ngoài dựa vào lệnh này để khám phá endpoint, nên
+ * danh sách thiếu khiến họ kết luận sai là gateway không hỗ trợ chuẩn đó.
+ */
 function routesCmd() {
   const found = new Set();
+  /** Tiền tố được coi là endpoint HTTP công khai. */
+  const PREFIX = String.raw`(?:api|proxy|events|v1|openai|anthropic)`;
+
   const walk = (dir) => {
     for (const n of readdirSync(dir, { withFileTypes: true })) {
       const p = resolve(dir, n.name);
       if (n.isDirectory()) { walk(p); continue; }
       if (!n.name.endsWith('.ts')) continue;
       const src = readFileSync(p, 'utf8');
-      for (const m of src.matchAll(/\.(get|post|patch|put|delete)\(\s*['"`](\/(api|proxy|events)[^'"`]*)/g)) {
+
+      // Dạng 1: app.post('/đường-dẫn', …) — đăng ký trực tiếp.
+      for (const m of src.matchAll(
+        new RegExp(String.raw`\.(get|post|patch|put|delete)\(\s*['"\`](\/${PREFIX}[^'"\`]*)`, 'g'),
+      )) {
         found.add(`${m[1].toUpperCase().padEnd(6)} ${m[2]}`);
+      }
+
+      // Dạng 2: for (const path of ['/a', '/b']) app.post(path, …) — dialect dùng kiểu
+      // này để phục vụ cùng handler dưới nhiều tiền tố.
+      for (const m of src.matchAll(
+        new RegExp(String.raw`for\s*\(\s*const\s+(\w+)\s+of\s+(\[[^\]]*\])\s*\)\s*\{?\s*app\.(get|post|patch|put|delete)\(\s*\1\b`, 'g'),
+      )) {
+        for (const q of m[2].matchAll(new RegExp(String.raw`['"\`](\/${PREFIX}[^'"\`]*)`, 'g'))) {
+          found.add(`${m[3].toUpperCase().padEnd(6)} ${q[1]}`);
+        }
+      }
+
+      // Dạng 3: mảng path khai báo ở biến ngoài rồi mới lặp (anthropicPaths).
+      for (const m of src.matchAll(
+        new RegExp(String.raw`for\s*\(\s*const\s+\w+\s+of\s+(\w+)\s*\)\s*\{?\s*app\.(get|post|patch|put|delete)\(`, 'g'),
+      )) {
+        const decl = new RegExp(String.raw`const\s+${m[1]}\s*(?::[^=]+)?=\s*(\[[^\]]*\])`).exec(src);
+        if (!decl) continue;
+        for (const q of decl[1].matchAll(new RegExp(String.raw`['"\`](\/${PREFIX}[^'"\`]*)`, 'g'))) {
+          found.add(`${m[2].toUpperCase().padEnd(6)} ${q[1]}`);
+        }
       }
     }
   };
@@ -1031,7 +1135,7 @@ function setupMcpCmd() {
   console.log(`\n${c.d('Hoặc dùng lệnh của Claude Code:')}`);
   console.log(`  claude mcp add agyproxy -e AGY_URL=${url} -e AGY_TOKEN=<token> -- ${process.execPath} ${resolve(ROOT, 'bin/agyproxy-mcp.mjs')}`);
   console.log(`\n${c.y('⚠')} AGY_TOKEN cho TOÀN QUYỀN điều khiển gateway — file config nên chmod 600.`);
-  console.log(c.d('  Agent chỉ gọi được 14 tool trong allowlist: 10 đọc + 4 ghi an toàn'));
+  console.log(c.d('  Agent chỉ gọi được 16 tool trong allowlist: 12 đọc + 4 ghi an toàn'));
   console.log(c.d('  (gỡ cooldown · nạp quota · kiểm tra 1 account · đổi chiến lược xoay).'));
   console.log(c.d('  Xoá/restart/đổi mật khẩu/backup/lộ key đều KHÔNG expose.'));
 }
@@ -1140,6 +1244,7 @@ switch (cmd) {
   case 'token': tokenCmd(); break;
   case 'ping': await pingCmd(); break;
   case 'api': await apiCmd(rest); break;
+  case 'chat': await chatCmd(rest); break;
   case 'routes': routesCmd(); break;
   case 'setup-mcp': setupMcpCmd(); break;
 

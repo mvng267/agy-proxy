@@ -244,13 +244,41 @@ describe('điều khiển từ xa qua CLI', () => {
     assert.ok(Array.isArray(list) && list.length > 50, `phải liệt kê nhiều endpoint, có ${list.length}`);
     assert.ok(list.some((r: any) => r.path === '/api/overview'), 'phải có /api/overview');
   });
+
+  test('routes KHÔNG được bỏ sót endpoint dialect', async () => {
+    /**
+     * Bản trước bỏ sót đúng những endpoint quan trọng nhất — đo thật: gọi
+     * `/v1/chat/completions` trả 400 (tức route CÓ thật) nhưng nó không hề xuất hiện
+     * trong `routes --json`. Hai nguyên nhân:
+     *   1. Regex chỉ nhận tiền tố /api, /proxy, /events
+     *   2. Route dialect đăng ký qua `for (const path of [...]) app.post(path, …)`
+     *      nên mẫu `.post('…')` không khớp
+     * Control và agent ngoài dùng lệnh này để khám phá endpoint, nên danh sách thiếu
+     * khiến họ kết luận sai là gateway không hỗ trợ chuẩn đó.
+     */
+    const { stdout } = await runRemote('routes', '--json');
+    const paths = new Set(JSON.parse(stdout).map((r: any) => `${r.method} ${r.path}`));
+
+    for (const p of [
+      'POST /v1/chat/completions',
+      'POST /v1/messages',
+      'GET /v1/models',
+      'POST /v1/messages/count_tokens',
+      'POST /openai/v1/chat/completions',
+      'POST /anthropic/v1/messages',
+      'POST /proxy/v1/chat/completions',
+      'POST /proxy/v1/responses',
+    ]) {
+      assert.ok(paths.has(p), `routes thiếu \`${p}\` — client dùng đường này tưởng gateway không hỗ trợ`);
+    }
+  });
 });
 
-test('help liệt kê đủ 5 lệnh điều khiển từ xa', async () => {
+test('help liệt kê đủ 6 lệnh điều khiển từ xa', async () => {
   // Người dùng không đọc source; `help` là chỗ duy nhất họ biết lệnh nào tồn tại.
   // Thêm lệnh mà quên help thì lệnh đó coi như không có.
   const { stdout } = await run('help');
-  for (const cmd of ['token', 'connect', 'ping', 'routes', 'api']) {
+  for (const cmd of ['token', 'connect', 'ping', 'routes', 'api', 'chat']) {
     assert.match(stdout, new RegExp(`agyproxy ${cmd}\\b`), `help thiếu lệnh \`${cmd}\``);
   }
   // Tab CLI trên dashboard là đường dễ nhất để lấy token — help phải trỏ tới.
