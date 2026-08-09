@@ -300,10 +300,12 @@ export function Accounts() {
         </Button>
       </div>
 
-      {/* Bulk actions bar — always visible */}
+      {/* Thanh này LUÔN hiện là đúng: Auto Run / Retry Failed / Stop là hành động toàn cục
+          (chạy pipeline đăng nhập), không phụ thuộc dòng nào được chọn. Chỉ 2 nút cuối mới
+          cần chọn dòng. Nhãn nói rõ phạm vi thay vì chữ "Bulk:" không mang thông tin. */}
       <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-lg px-3 py-2">
         <span className="text-xs text-muted-foreground mr-1">
-          {selected.size > 0 ? `${selected.size} đã chọn` : "Bulk:"}
+          {selected.size > 0 ? `${selected.size} đã chọn` : "Chạy luồng:"}
         </span>
         <Button
           size="sm"

@@ -9,6 +9,7 @@ import {
   Check,
   Zap,
   Download,
+  ChevronDown,
   Link2,
 } from "lucide-react"
 import { DataTable } from "@/components/common/DataTable"
@@ -256,7 +257,18 @@ export function Proxy() {
   return (
     <div className="space-y-4">
       <PageHeader title="Proxy" desc="Danh sách proxy và kết quả kiểm tra kết nối" />
-      {/* Import form */}
+      {/*
+        Import là hành động THỈNH THOẢNG, danh sách proxy là thứ mở trang này để xem —
+        nhưng form import (Card lớn ~480px) đang đứng trước, đẩy danh sách xuống dưới.
+        Thu vào <details> để mặc định gọn, bấm mới mở.
+      */}
+      <details className="group">
+        <summary className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
+          <Download className="h-3.5 w-3.5" />
+          Import proxy
+          <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="mt-3">
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -347,6 +359,9 @@ export function Proxy() {
       </div>
 
       {/* Proxy table */}
+        </div>
+      </details>
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
