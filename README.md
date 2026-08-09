@@ -119,6 +119,13 @@ Hoặc script: `node scripts/setup-combos.mjs` (tạo 5 combos mặc định)
 | `agyproxy accounts wake` | gỡ cooldown tất cả |
 | `agyproxy backup` | backup thủ công |
 | `agyproxy version` | phiên bản |
+| **`agyproxy token`** | in token CLI (chạy trên máy chủ) |
+| **`agyproxy connect <url>`** | lưu kết nối tới server khác — `--token <tok>` |
+| **`agyproxy ping`** | server sống không + độ trễ — `[--json]` |
+| **`agyproxy routes`** | liệt kê toàn bộ endpoint — `[--json]` |
+| **`agyproxy api <M> <path>`** | gọi thẳng API bất kỳ — `[json \| -]` |
+
+Năm lệnh in đậm dùng để **điều khiển từ máy khác** — xem mục bên dưới.
 
 ### CLI tools (setup)
 
@@ -135,6 +142,12 @@ agyproxy setup-codex      # cấu hình Codex
 Toàn bộ agyproxy điều khiển được qua CLI hoặc HTTP, kể cả từ máy khác.
 
 ### Kết nối — 2 bước
+
+Cách nhanh nhất: mở **Dashboard → Cấu hình → CLI Tools**. Tab đó hiện sẵn token (che, bấm
+để lộ), lệnh `connect` đã điền URL + token, và có mục **Thử API** gọi thẳng endpoint bất
+kỳ để xem shape dữ liệu trước khi viết tool.
+
+Hoặc làm bằng dòng lệnh:
 
 ```bash
 # 1. TRÊN MÁY CHỦ: lấy token

@@ -587,6 +587,7 @@ function help() {
 
   ${c.b('── điều khiển từ xa / từ tool ngoài ──')}
   ${c.b('agyproxy token')}         in token CLI ${c.d('(chạy TRÊN MÁY CHỦ)')}
+     ${c.d('hoặc mở Dashboard → Cấu hình → CLI Tools: có sẵn token + lệnh copy-paste')}
   ${c.b('agyproxy connect <url>')} lưu kết nối  ${c.d('--token <tok> · ghi ~/.agyproxy/cli.json')}
   ${c.b('agyproxy ping')}          server sống không + độ trễ  ${c.d('[--json]')}
   ${c.b('agyproxy routes')}        liệt kê toàn bộ endpoint  ${c.d('[--json]')}

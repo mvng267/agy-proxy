@@ -245,3 +245,14 @@ describe('điều khiển từ xa qua CLI', () => {
     assert.ok(list.some((r: any) => r.path === '/api/overview'), 'phải có /api/overview');
   });
 });
+
+test('help liệt kê đủ 5 lệnh điều khiển từ xa', async () => {
+  // Người dùng không đọc source; `help` là chỗ duy nhất họ biết lệnh nào tồn tại.
+  // Thêm lệnh mà quên help thì lệnh đó coi như không có.
+  const { stdout } = await run('help');
+  for (const cmd of ['token', 'connect', 'ping', 'routes', 'api']) {
+    assert.match(stdout, new RegExp(`agyproxy ${cmd}\\b`), `help thiếu lệnh \`${cmd}\``);
+  }
+  // Tab CLI trên dashboard là đường dễ nhất để lấy token — help phải trỏ tới.
+  assert.match(stdout, /CLI Tools/, 'help phải chỉ ra tab CLI trên dashboard');
+});
