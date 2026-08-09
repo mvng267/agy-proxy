@@ -100,6 +100,9 @@ export function passwordOk(pass: string, user = ''): boolean {
 /** Request đã xác thực chưa (cookie hoặc Basic). */
 export function isAuthed(req: FastifyRequest): boolean {
   if (!config.dashboardPassword) return true;
+  // Đang MỞ KHOÁ tạm thời: vẫn còn mật khẩu trong DB, chỉ là không hỏi. Đặt SAU nhánh
+  // "chưa có mật khẩu" để không nới lỏng gì thêm — hai điều kiện độc lập nhau.
+  if (config.authDisabled) return true;
   if (verifyToken(readCookie(req, COOKIE))) return true;
   const h = (req.headers['authorization'] || '') as string;
   if (h.startsWith('Basic ')) {

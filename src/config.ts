@@ -53,6 +53,15 @@ export const config = {
   maxBodyMb: num(S('maxBodyMb') ?? E('MAX_BODY_MB'), 32),
   // ---- đăng nhập dashboard ----
   dashboardPassword: S('dashboardPassword') ?? E('DASHBOARD_PASSWORD') ?? '123456',
+  /**
+   * Tạm TẮT yêu cầu đăng nhập mà VẪN GIỮ mật khẩu đã đặt.
+   *
+   * Không dùng cách "xoá mật khẩu" để mở khoá: mật khẩu lưu dạng scrypt hash không đảo
+   * ngược được, xoá là mất vĩnh viễn và muốn khoá lại phải gõ passcode mới.
+   */
+  authDisabled: (S('authDisabled') ?? '') === '1',
+  /** Mật khẩu hiện tại có phải passcode 6 số không — hash không suy ra được, phải ghi riêng. */
+  passcodeMode: (S('passcodeMode') ?? '') === '1',
   dashboardUser: S('dashboardUser') ?? E('DASHBOARD_USER') ?? '',
   sessionSecret: S('sessionSecret') ?? '',
   // chống brute-force
@@ -128,6 +137,8 @@ const SETTERS: Record<string, Setter> = {
   host: (v) => (config.host = v),
   maxBodyMb: (v) => (config.maxBodyMb = Number(v)),
   dashboardPassword: (v) => (config.dashboardPassword = v),
+  authDisabled: (v) => (config.authDisabled = v === '1'),
+  passcodeMode: (v) => (config.passcodeMode = v === '1'),
   dashboardUser: (v) => (config.dashboardUser = v),
   sessionSecret: (v) => (config.sessionSecret = v),
   loginMaxFail: (v) => (config.loginMaxFail = Number(v)),

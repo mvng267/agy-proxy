@@ -11,7 +11,7 @@ import { omniroute } from './omniroute/client.js';
 import { config, CSV, saveSettings, setConfig, applyConfig, getConfigValue, CONFIG_KEYS, SECRET_KEYS, RESTART_KEYS, AGY_HOME, ROOT } from './config.js';
 import { checkAll, restartHealthLoop } from './health/tokenHealth.js';
 import { checkUpdate, runUpdate } from './updater.js';
-import { hashPassword, verifyPassword, isWeakPasscode } from './security.js';
+import { hashPassword, verifyPassword, isWeakPasscode, isPasscode } from './security.js';
 import { registerGatewayRoutes } from './gateway/routes.js';
 import { registerToolRoutes } from './tools/routes.js';
 import { buildBackup, restoreBackup } from './backup.js';
@@ -415,7 +415,39 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     user: config.dashboardUser,
     host: config.host,
     open: config.host === '0.0.0.0' || config.host === '::',
+    /** `false` = đang mở khoá (không hỏi mật khẩu), nhưng mật khẩu VẪN còn trong DB. */
+    locked: !config.authDisabled,
+    /** Mật khẩu đã đặt là passcode 6 số hay mật khẩu chữ. */
+    isPasscode: config.passcodeMode,
   }));
+
+  /**
+   * Khoá / mở khoá đăng nhập dashboard mà KHÔNG đụng tới mật khẩu đã lưu.
+   *
+   * Vì sao không dùng cách xoá mật khẩu (`POST /api/security/password` với chuỗi rỗng):
+   * mật khẩu lưu dạng scrypt hash không đảo ngược được, xoá là mất vĩnh viễn — khoá lại
+   * sẽ phải nghĩ và gõ passcode mới. Cờ riêng cho phép bật/tắt qua lại không mất gì.
+   *
+   * Mở khoá BẮT BUỘC nhập mật khẩu hiện tại: nếu không, bất kỳ ai đã vào được dashboard
+   * (kể cả qua phiên còn hạn của người khác) đều tắt được đăng nhập cho mọi lần sau.
+   * Khoá lại thì không cần — siết chặt luôn là an toàn.
+   */
+  app.post('/api/security/lock', async (req, reply) => {
+    const b = (req.body as { locked?: boolean; current?: string }) ?? {};
+    const locked = b.locked !== false;
+
+    if (!config.dashboardPassword) {
+      return reply.code(400).send({ ok: false, error: 'Chưa đặt mật khẩu — không có gì để khoá' });
+    }
+    if (!locked && !verifyPassword(b.current ?? '', config.dashboardPassword)) {
+      return reply.code(403).send({ ok: false, error: 'Mật khẩu hiện tại không đúng' });
+    }
+
+    const v = locked ? '' : '1';
+    config.authDisabled = !locked;
+    saveSettings({ authDisabled: v });
+    return { ok: true, locked };
+  });
 
   app.post('/api/security/password', async (req, reply) => {
     const b = (req.body as { password?: string; user?: string; current?: string }) ?? {};
@@ -436,8 +468,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const stored = pass ? hashPassword(pass) : ''; // lưu HASH, không lưu plaintext
     config.dashboardPassword = stored;
     config.dashboardUser = user;
-    saveSettings({ dashboardPassword: stored, dashboardUser: user });
-    return { ok: true, hasPassword: !!pass, user };
+    // Hash scrypt không suy ngược được, nên "đây là passcode hay mật khẩu chữ" phải ghi
+    // riêng ngay lúc đặt — sau này không còn cách nào biết.
+    const pcMode = pass && isPasscode(pass) ? '1' : '';
+    config.passcodeMode = pcMode === '1';
+    // Đặt mật khẩu mới thì luôn về trạng thái KHOÁ: vừa đặt xong mà vẫn mở là bất ngờ.
+    config.authDisabled = false;
+    saveSettings({ dashboardPassword: stored, dashboardUser: user, passcodeMode: pcMode, authDisabled: '' });
+    return { ok: true, hasPassword: !!pass, user, isPasscode: config.passcodeMode };
   });
 
   // ---------- backup / restore toàn bộ (JSON kèm token) ----------
