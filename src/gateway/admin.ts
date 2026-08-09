@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { config, applyConfig } from '../config.js';
 import { createApiKey, listPublicApiKeys, patchApiKey, removeApiKey } from './apikeys.js';
 import {
@@ -8,7 +8,7 @@ import {
   getComboRow, upsertComboRow, deleteComboRow, comboStatsRows,
   providerStats, creditsUsedThisMonth,
   usageByApiKey, usageByCombo, attributionSince, type UsageFilter,
-  metricsSeries, metricsHistoryCount,
+  metricsSeries, metricsHistoryCount, getSetting, setSetting,
 } from '../store/db.js';
 import {
   PROVIDERS, PROVIDER_IDS, allModels, parseModelId,
@@ -680,6 +680,37 @@ export function registerAdminRoutes(app: FastifyInstance): void {
    * Tự chọn độ mịn theo cửa sổ: ≤6h giữ nguyên từng điểm 1 phút; dài hơn thì gộp để
    * không đẩy hàng chục nghìn điểm xuống trình duyệt (7 ngày = 10k điểm nếu để raw).
    */
+  /**
+   * Thông tin để tool ngoài kết nối vào agyproxy qua CLI hoặc HTTP.
+   *
+   * Token CLI cho TOÀN QUYỀN điều khiển gateway, nên mặc định trả bản CHE
+   * (`agy-1234…cdef`) giống cách `/api/gateway/config` che apiKey. Phải `?reveal=1`
+   * mới trả nguyên văn — để token không nằm sẵn trong mọi response, trong cache trình
+   * duyệt, hay trong ảnh chụp màn hình người dùng gửi đi.
+   *
+   * Sinh token nếu chưa có: người dùng mở tab CLI lần đầu là dùng được ngay, không phải
+   * SSH vào máy chủ chạy `agyproxy token`.
+   */
+  app.get('/api/cli/connect', async (req) => {
+    let token = getSetting('cliToken');
+    if (!token) {
+      token = randomBytes(24).toString('base64url');
+      setSetting('cliToken', token);
+    }
+    const reveal = (req.query as any)?.reveal === '1';
+    // URL mà tool ngoài phải gọi — lấy từ chính request nên đúng cả khi sau reverse proxy.
+    const host = (req.headers['x-forwarded-host'] as string) || req.headers.host || `127.0.0.1:${config.port}`;
+    const proto = (req.headers['x-forwarded-proto'] as string) || (req.protocol ?? 'http');
+    const base = `${proto}://${host}`;
+    return {
+      url: base,
+      token: reveal ? token : maskKey(token),
+      masked: !reveal,
+      gatewayUrl: `${base}/proxy/v1`,
+      anthropicUrl: base,
+    };
+  });
+
   app.get('/api/metrics/history', async (req) => {
     const q = req.query as any;
     const to = q.to ? Number(q.to) : Date.now();

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   Terminal,
   Copy,
@@ -6,10 +6,16 @@ import {
   ChevronRight,
   Zap,
   Shuffle,
+  Eye,
+  EyeOff,
+  RefreshCw,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -94,6 +100,266 @@ function Section({
   )
 }
 
+
+// ── Kết nối tool ngoài ──────────────────────────────────────────────────
+
+interface ConnectInfo {
+  url: string
+  token: string
+  masked: boolean
+  gatewayUrl: string
+  anthropicUrl: string
+}
+
+/**
+ * Bảng kết nối: lấy token CLI thật từ server và dựng sẵn lệnh để dán.
+ *
+ * Trước đây trang này chỉ là hướng dẫn TĨNH — người dùng phải tự SSH vào máy chủ chạy
+ * `agyproxy token`, tự thay `<ip>` và `<token>` trong lệnh mẫu. Giờ lấy thẳng từ
+ * `/api/cli/connect`.
+ *
+ * Token mặc định CHE (`agy-1234…cdef`) và chỉ lộ khi bấm "Hiện": nó cho toàn quyền điều
+ * khiển gateway, nên không nên nằm sẵn trên màn hình lúc chia sẻ hay chụp ảnh.
+ */
+function ConnectPanel() {
+  const [info, setInfo] = useState<ConnectInfo | null>(null)
+  const [revealed, setRevealed] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const load = useCallback(async (reveal: boolean) => {
+    setBusy(true); setErr(null)
+    try {
+      const r = await fetch(`/api/cli/connect${reveal ? "?reveal=1" : ""}`)
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      setInfo(await r.json() as ConnectInfo)
+      setRevealed(reveal)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Không lấy được thông tin kết nối")
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  useEffect(() => { load(false) }, [load])
+
+  const copyToken = async () => {
+    // Copy phải lấy token THẬT kể cả khi đang che — người dùng không cần lộ nó lên màn
+    // hình chỉ để sao chép.
+    try {
+      const r = await fetch("/api/cli/connect?reveal=1")
+      const j = await r.json() as ConnectInfo
+      await navigator.clipboard.writeText(j.token)
+      setCopied(true); setTimeout(() => setCopied(false), 2000)
+    } catch { /* ignore */ }
+  }
+
+  const url = info?.url ?? ""
+  const tok = info?.token ?? ""
+
+  return (
+    <Section icon={Terminal} title="Kết nối tool ngoài" badge="Token">
+      {err && (
+        <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{err}</p>
+      )}
+
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          Token CLI — cho <strong className="text-foreground">toàn quyền</strong> điều khiển gateway.
+          Chỉ truyền qua mạng tin cậy (Tailscale/VPN) hoặc HTTPS.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <code className="flex-1 min-w-[240px] truncate rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm text-foreground">
+            {busy ? "Đang tải…" : tok || "—"}
+          </code>
+          <Button
+            size="sm"
+            onClick={() => (revealed ? load(false) : load(true))}
+            disabled={busy}
+            className="h-8 gap-1.5 border border-border bg-transparent text-xs text-muted-foreground hover:text-foreground"
+          >
+            {revealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {revealed ? "Ẩn" : "Hiện"}
+          </Button>
+          <Button
+            size="sm"
+            onClick={copyToken}
+            className="h-8 gap-1.5 border border-border bg-transparent text-xs text-muted-foreground hover:text-foreground"
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "Đã copy" : "Copy"}
+          </Button>
+        </div>
+      </div>
+
+      <Separator className="bg-border" />
+
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-foreground">1 · Cài CLI trên máy tool</p>
+        <CodeBlock code={`git clone https://github.com/mvng267/agy-proxy && cd agy-proxy && npm install`} />
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-foreground">2 · Kết nối (chạy một lần)</p>
+        <CodeBlock code={`agyproxy connect ${url} --token ${revealed ? tok : "<bấm Copy ở trên>"}`} />
+        <p className="text-[11px] text-muted-foreground">
+          Lưu ở <code className="rounded bg-muted px-1">~/.agyproxy/cli.json</code> (chmod 600). Từ đây mọi lệnh chạy trên server này.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-foreground">3 · Dùng</p>
+        <CodeBlock code={`agyproxy ping                      # server sống không + độ trễ
+agyproxy status                    # pool, cooldown, requests
+agyproxy routes                    # liệt kê toàn bộ endpoint
+agyproxy api /api/overview         # gọi thẳng API bất kỳ
+agyproxy api PATCH /api/gateway/config '{"rotation":"smart"}'`} />
+      </div>
+
+      <Separator className="bg-border" />
+
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-foreground">Không cài CLI — dùng thẳng HTTP</p>
+        <p className="text-[11px] text-muted-foreground">
+          Token đi qua HTTP Basic, nên bất cứ thứ gì gọi được HTTP đều điều khiển được.
+        </p>
+        <CodeBlock code={`curl -u ":$AGY_TOKEN" ${url}/api/overview
+
+# hoặc biến môi trường, hợp với CI/container
+export AGY_URL=${url}
+export AGY_TOKEN=<token>`} />
+        <CodeBlock lang="python" code={`import requests
+r = requests.get("${url}/api/overview", auth=("", TOKEN))`} />
+      </div>
+
+      <Separator className="bg-border" />
+
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-foreground">Cắm coding agent vào pool</p>
+        <CodeBlock code={`# Claude Code / Anthropic — base URL BỎ /v1
+export ANTHROPIC_BASE_URL=${info?.anthropicUrl ?? url}
+export ANTHROPIC_API_KEY=<API key ở tab API Keys>
+
+# OpenAI-compatible
+export OPENAI_BASE_URL=${info?.gatewayUrl ?? url + "/proxy/v1"}`} />
+      </div>
+    </Section>
+  )
+}
+
+
+// ── Thử API ngay trên tab ───────────────────────────────────────────────
+
+/**
+ * Gọi thử endpoint ngay trong dashboard.
+ *
+ * Lý do có mục này: `agyproxy routes` liệt kê ~88 endpoint, nhưng biết TÊN endpoint chưa
+ * đủ để biết nó trả về gì. Thử ngay tại chỗ rồi mới đi viết tool thì nhanh hơn nhiều so
+ * với đoán shape rồi sửa dần.
+ *
+ * Dùng phiên đăng nhập sẵn có, KHÔNG cần token — token chỉ cần cho tool ở máy khác.
+ */
+function ApiTryer() {
+  const [method, setMethod] = useState("GET")
+  const [path, setPath] = useState("/api/overview")
+  const [body, setBody] = useState("")
+  const [res, setRes] = useState<string | null>(null)
+  const [status, setStatus] = useState<number | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const run = async () => {
+    setBusy(true); setRes(null); setStatus(null)
+    try {
+      const opt: RequestInit = { method }
+      if (method !== "GET" && body.trim()) {
+        opt.headers = { "content-type": "application/json" }
+        opt.body = body
+      }
+      const r = await fetch(path.startsWith("/") ? path : `/${path}`, opt)
+      setStatus(r.status)
+      const t = await r.text()
+      try { setRes(JSON.stringify(JSON.parse(t), null, 2)) } catch { setRes(t) }
+    } catch (e) {
+      setRes(e instanceof Error ? e.message : "Lỗi gọi API")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Section icon={Zap} title="Thử API" badge="Sandbox">
+      <p className="text-xs text-muted-foreground">
+        Gọi thử bất kỳ endpoint nào bằng phiên đăng nhập hiện tại — để biết shape dữ liệu
+        trước khi viết tool. Xem danh sách đầy đủ bằng <code className="rounded bg-muted px-1">agyproxy routes</code>.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={method} onValueChange={(v) => setMethod(v ?? "GET")}>
+          <SelectTrigger className="h-8 w-28 text-xs"><span>{method}</span></SelectTrigger>
+          <SelectContent>
+            {["GET", "POST", "PATCH", "DELETE"].map((m) => (
+              <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          value={path}
+          onChange={(e) => setPath(e.target.value)}
+          placeholder="/api/overview"
+          className="h-8 flex-1 min-w-[220px] font-mono text-xs"
+        />
+        <Button size="sm" onClick={run} disabled={busy} className="h-8 gap-1.5 text-xs">
+          {busy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+          Gọi
+        </Button>
+      </div>
+
+      {method !== "GET" && (
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder='{"rotation":"smart"}'
+          rows={3}
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        />
+      )}
+
+      <div className="flex flex-wrap gap-1.5">
+        {[
+          ["GET", "/api/overview"],
+          ["GET", "/api/metrics"],
+          ["GET", "/api/gateway/accounts?provider=agy"],
+          ["GET", "/api/gateway/quota/history?range=7d"],
+          ["GET", "/api/metrics/history?hours=6"],
+        ].map(([m, pth]) => (
+          <button
+            key={pth}
+            onClick={() => { setMethod(m!); setPath(pth!) }}
+            className="rounded-md border border-border px-2 py-1 font-mono text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            {pth}
+          </button>
+        ))}
+      </div>
+
+      {res != null && (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Badge className={status && status < 400 ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"}>
+              HTTP {status}
+            </Badge>
+            <span className="text-[11px] text-muted-foreground">{res.length.toLocaleString("vi-VN")} ký tự</span>
+          </div>
+          <pre className="max-h-80 overflow-auto rounded-xl border border-border bg-background p-3 font-mono text-[11px] leading-relaxed text-foreground">
+            {res.length > 20000 ? res.slice(0, 20000) + "\n… (cắt bớt)" : res}
+          </pre>
+        </div>
+      )}
+    </Section>
+  )
+}
+
 // ── CLITools Page ────────────────────────────────────────────────────────
 
 export function CLITools() {
@@ -104,6 +370,10 @@ export function CLITools() {
         <Terminal className="h-4 w-4 text-muted-foreground" />
         <h2 className="text-sm font-medium text-foreground">CLI Tools</h2>
       </div>
+
+      <ConnectPanel />
+
+      <ApiTryer />
 
       {/* Quick setup */}
       <Section icon={Terminal} title="Cài đặt nhanh" badge="Setup">

@@ -183,3 +183,28 @@ test('GET /proxy/v1/models/:id — retrieve model (gateway trung gian gọi đ�
   const bad = await app.inject({ method: 'GET', url: '/proxy/v1/models/khong-ton-tai-xyz', headers });
   assert.equal(bad.statusCode, 404, 'model lạ phải 404, không phải 500');
 });
+
+/**
+ * `/api/cli/connect` — nguồn token cho tab CLI trên dashboard.
+ *
+ * Token này cho TOÀN QUYỀN điều khiển gateway, nên mặc định phải trả bản CHE. Nếu ai đó
+ * lỡ bỏ `maskKey` thì token nguyên văn sẽ nằm trong mọi response, trong cache trình duyệt,
+ * và trong ảnh chụp màn hình người dùng gửi đi — test này khoá lại điều đó.
+ */
+test('GET /api/cli/connect: mặc định CHE token, ?reveal=1 mới trả nguyên văn', async () => {
+  const masked = await app.inject({ method: 'GET', url: '/api/cli/connect' });
+  assert.equal(masked.statusCode, 200);
+  const m = masked.json() as { token: string; masked: boolean; url: string };
+  assert.equal(m.masked, true);
+  assert.match(m.token, /…/, 'token mặc định phải bị che');
+  assert.ok(m.url.startsWith('http'), 'phải trả URL để tool ngoài kết nối');
+
+  const full = await app.inject({ method: 'GET', url: '/api/cli/connect?reveal=1' });
+  const f = full.json() as { token: string; masked: boolean };
+  assert.equal(f.masked, false);
+  assert.doesNotMatch(f.token, /…/, 'reveal=1 phải trả token nguyên văn');
+  assert.ok(f.token.length >= 20, `token phải đủ dài, có ${f.token.length}`);
+
+  // Bản che phải là CHÍNH token đó bị cắt, không phải token khác.
+  assert.ok(f.token.startsWith(m.token.split('…')[0]!), 'bản che và bản thật phải cùng một token');
+});
