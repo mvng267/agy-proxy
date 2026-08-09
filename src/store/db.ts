@@ -394,6 +394,18 @@ const AGG = `COUNT(*) AS requests, COALESCE(SUM(prompt_tokens),0) AS tokIn, COAL
 export interface UsageFilter {
   apiKeyId?: string;
   combo?: string;
+  /** Lọc theo account. */
+  email?: string;
+  /** Lọc theo model (id đã prefix, vd `agy/gemini-3-flash`). */
+  model?: string;
+  /** Lọc theo đường vào: `/v1/messages`, `/v1/chat/completions`, `chat-test`… */
+  endpoint?: string;
+  /** Mã HTTP cụ thể — dùng để soi riêng 429 hay 503. */
+  status?: number;
+  /** `true` chỉ lấy thành công, `false` chỉ lấy lỗi. Bỏ trống = cả hai. */
+  ok?: boolean;
+  /** `true` chỉ lấy request stream. */
+  stream?: boolean;
 }
 
 /** Dựng mệnh đề WHERE động — dùng chung cho mọi hàm tổng hợp. */
@@ -407,6 +419,30 @@ function usageWhere(f?: UsageFilter): { sql: string; args: unknown[] } {
   if (f?.combo) {
     sql += ' AND combo = ?';
     args.push(f.combo);
+  }
+  if (f?.email) {
+    sql += ' AND email = ?';
+    args.push(f.email);
+  }
+  if (f?.model) {
+    sql += ' AND model = ?';
+    args.push(f.model);
+  }
+  if (f?.endpoint) {
+    sql += ' AND endpoint = ?';
+    args.push(f.endpoint);
+  }
+  if (f?.status !== undefined) {
+    sql += ' AND status = ?';
+    args.push(f.status);
+  }
+  if (f?.ok !== undefined) {
+    sql += ' AND ok = ?';
+    args.push(f.ok ? 1 : 0);
+  }
+  if (f?.stream !== undefined) {
+    sql += ' AND stream = ?';
+    args.push(f.stream ? 1 : 0);
   }
   return { sql, args };
 }
@@ -873,6 +909,66 @@ export function usageRows(from: number, to: number, f?: UsageFilter): UsageRow[]
        FROM gateway_usage WHERE ts >= ? AND ts < ?${w.sql} ORDER BY ts ASC`,
     )
     .all(from, to, ...(w.args as any[])) as any[];
+}
+
+/**
+ * Từng request một, PHÂN TRANG phía server và mới nhất trước.
+ *
+ * Khác `usageRows` (dùng cho xuất CSV, trả toàn bộ theo thứ tự tăng dần): bảng chi tiết
+ * trên dashboard không được kéo cả chục nghìn dòng về trình duyệt.
+ */
+export function usageLogs(
+  from: number,
+  to: number,
+  f?: UsageFilter,
+  limit = 100,
+  offset = 0,
+): { rows: UsageRow[]; total: number } {
+  const w = usageWhere(f);
+  const where = `WHERE ts >= ? AND ts < ?${w.sql}`;
+  const total = (
+    db.prepare(`SELECT COUNT(*) n FROM gateway_usage ${where}`).get(from, to, ...(w.args as any[])) as any
+  ).n as number;
+  const rows = db
+    .prepare(
+      `SELECT ts, email, model, prompt_tokens AS promptTokens, completion_tokens AS completionTokens, ok, ms,
+              api_key_id AS apiKeyId, combo, endpoint, status, request_id AS requestId, stream
+       FROM gateway_usage ${where} ORDER BY ts DESC LIMIT ? OFFSET ?`,
+    )
+    .all(from, to, ...(w.args as any[]), Math.max(1, Math.min(500, limit)), Math.max(0, offset)) as any[];
+  return { rows, total };
+}
+
+/**
+ * Các giá trị CÓ THẬT trong khoảng thời gian, kèm số lần xuất hiện.
+ *
+ * Dùng dựng dropdown lọc: chỉ liệt kê thứ thực sự có dữ liệu, thay vì bắt người dùng
+ * đoán mã lỗi hay tên endpoint rồi lọc ra bảng rỗng.
+ */
+export function usageFacets(
+  from: number,
+  to: number,
+  f?: UsageFilter,
+): {
+  endpoints: { value: string; n: number }[];
+  statuses: { value: number; n: number }[];
+  models: { value: string; n: number }[];
+} {
+  const w = usageWhere(f);
+  const where = `WHERE ts >= ? AND ts < ?${w.sql}`;
+  const args = [from, to, ...(w.args as any[])];
+  const nhom = (col: string, extra = '') =>
+    db
+      .prepare(
+        `SELECT ${col} AS value, COUNT(*) n FROM gateway_usage ${where}${extra}
+         GROUP BY ${col} ORDER BY n DESC LIMIT 40`,
+      )
+      .all(...args) as any[];
+  return {
+    endpoints: nhom('endpoint', " AND endpoint IS NOT NULL AND endpoint != ''"),
+    statuses: nhom('status', ' AND status IS NOT NULL'),
+    models: nhom('model'),
+  };
 }
 
 // ---------------------------------------------------------------------------

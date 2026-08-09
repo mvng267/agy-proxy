@@ -4,6 +4,7 @@ import { config, applyConfig } from '../config.js';
 import { createApiKey, listPublicApiKeys, patchApiKey, removeApiKey } from './apikeys.js';
 import {
   usageTotals, usageSeries, usageByModel, usageByAccount, usageRows, usageSamples,
+  usageLogs, usageFacets,
   quotaSeries, quotaForAccount, quotaHistoryCount,
   getComboRow, upsertComboRow, deleteComboRow, comboStatsRows,
   providerStats, creditsUsedThisMonth,
@@ -290,6 +291,18 @@ export function registerAdminRoutes(app: FastifyInstance): void {
         proxyOverride: proxy,
         endpoint: 'chat-test',
         generationConfig,
+        /**
+         * `endpoint` ở trên chỉ dùng cho Live Log; cột attribution trong usage lấy từ
+         * `usage` này. Không truyền thì mọi request từ Chat thử vào DB với endpoint,
+         * api_key_id, request_id đều NULL — không lọc ra được trong Báo cáo.
+         */
+        usage: {
+          apiKeyId: 'dashboard',
+          keyName: 'Chat thử',
+          endpoint: 'chat-test',
+          requestId: randomUUID(),
+          stream: false,
+        },
         onAccount: (email: string) => { usedAccount = email; },
       });
       if (!('result' in out)) return { ok: true, account: usedAccount, model, ms: Date.now() - t0 };
@@ -603,9 +616,19 @@ export function registerAdminRoutes(app: FastifyInstance): void {
   /** Bộ lọc báo cáo lấy từ query — trống nghĩa là không lọc theo tiêu chí đó. */
   const filterOf = (req: FastifyRequest): UsageFilter => {
     const q = (req.query ?? {}) as any;
+    const chuoi = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
+    // `ok`/`stream` là ba trạng thái: có lọc true, có lọc false, hoặc không lọc.
+    // Đọc bằng `=== 'true'` thì 'false' và thiếu tham số gộp làm một → sai.
+    const bool = (v: unknown) => (v === 'true' || v === '1' ? true : v === 'false' || v === '0' ? false : undefined);
     return {
-      apiKeyId: typeof q.apiKeyId === 'string' && q.apiKeyId ? q.apiKeyId : undefined,
-      combo: typeof q.combo === 'string' && q.combo ? q.combo : undefined,
+      apiKeyId: chuoi(q.apiKeyId),
+      combo: chuoi(q.combo),
+      email: chuoi(q.email),
+      model: chuoi(q.model),
+      endpoint: chuoi(q.endpoint),
+      status: Number.isFinite(Number(q.status)) && q.status !== '' && q.status !== undefined ? Number(q.status) : undefined,
+      ok: bool(q.ok),
+      stream: bool(q.stream),
     };
   };
 
@@ -630,6 +653,59 @@ export function registerAdminRoutes(app: FastifyInstance): void {
        * (cột chỉ có từ schema v3) — UI phải nói rõ, nếu không người dùng tưởng hỏng.
        */
       attributionSince: attributionSince(),
+    };
+  });
+
+  /**
+   * Từng request một — để đối chiếu và truy vết, thứ mà các bảng tổng hợp không làm được
+   * ("429 nhiều nhất ở model nào, account nào, lúc mấy giờ").
+   *
+   * Phân trang phía SERVER: bảng đã có hàng chục nghìn dòng, kéo hết về trình duyệt rồi
+   * mới cắt là treo máy. `facets` liệt kê giá trị CÓ THẬT trong khoảng để dựng dropdown,
+   * tránh việc người dùng đoán mã lỗi rồi lọc ra bảng rỗng.
+   */
+  app.get('/api/gateway/usage/logs', async (req) => {
+    const { from, to } = rangeOf(req);
+    const q = (req.query ?? {}) as any;
+    const limit = Number(q.limit) > 0 ? Number(q.limit) : 100;
+    const offset = Number(q.offset) > 0 ? Number(q.offset) : 0;
+    const f = filterOf(req);
+    const { rows, total } = usageLogs(from, to, f, limit, offset);
+    const names = new Map(listPublicApiKeys().map((k) => [k.id, k.name]));
+    return {
+      rows: rows.map((r) => ({
+        ...r,
+        keyName: r.apiKeyId === 'legacy' ? 'Key mặc định' : r.apiKeyId ? names.get(r.apiKeyId) ?? '(đã xoá)' : '',
+      })),
+      total,
+      limit,
+      offset,
+      facets: usageFacets(from, to, f),
+      attributionSince: attributionSince(),
+    };
+  });
+
+  /**
+   * So sánh kỳ này với kỳ TRƯỚC ĐÓ cùng độ dài — "tuần này so tuần trước".
+   * Một con số tuyệt đối không nói lên điều gì nếu không có mốc để đối chiếu.
+   */
+  app.get('/api/gateway/usage/compare', async (req) => {
+    const { from, to } = rangeOf(req);
+    const f = filterOf(req);
+    const doDai = to - from;
+    const hienTai = usageTotals(from, to, f);
+    const truocDo = usageTotals(from - doDai, from, f);
+    const delta = (a: number, b: number) => (b > 0 ? Math.round(((a - b) / b) * 100) : a > 0 ? 100 : 0);
+    return {
+      current: hienTai,
+      previous: truocDo,
+      changePct: {
+        requests: delta(hienTai.requests, truocDo.requests),
+        tokIn: delta(hienTai.tokIn, truocDo.tokIn),
+        tokOut: delta(hienTai.tokOut, truocDo.tokOut),
+        accounts: delta(hienTai.accounts, truocDo.accounts),
+      },
+      period: { from, to, previousFrom: from - doDai, previousTo: from },
     };
   });
 
