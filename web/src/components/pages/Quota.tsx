@@ -300,34 +300,45 @@ export function Quota() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Hạn mức" desc="Quota còn lại theo từng account và lịch sử tiêu thụ" />
       {toast && (
         <div className="fixed bottom-4 right-4 z-50 bg-muted border border-border text-foreground text-sm px-4 py-2 rounded-lg shadow-lg">
           {toast}
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Gauge className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-medium text-foreground">Hạn mức — {withQ.length}/{accounts.length} đã nạp</h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={handleBulkRefresh}
-            disabled={bulkRefreshing}
-            className="border border-border bg-transparent text-muted-foreground hover:text-warning h-7 text-xs gap-1"
-          >
-            {bulkRefreshing ? <RefreshCw className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            {selected.size > 0 ? `Refresh ${selected.size} đã chọn` : "Refresh All"}
-          </Button>
-          <Button size="sm" onClick={fetchAccounts} className="border border-border bg-transparent text-muted-foreground hover:text-foreground h-7 text-xs gap-1">
-            <RefreshCw className="h-3 w-3" /> Tải lại
-          </Button>
-        </div>
-      </div>
+      {/*
+        MỘT nút nạp thay vì ba. Trước đây có `Refresh All` (header), `Tải lại` (header) và
+        `Refresh quota` (bulk-bar) — cái thứ nhất và thứ ba gọi CÙNG một hàm
+        `handleBulkRefresh`, chỉ khác nhãn và cách nhau 170 dòng.
+
+        `Tải lại` giữ riêng vì nó khác nghĩa thật: chỉ đọc lại danh sách từ server, không
+        gọi upstream nạp hạn mức.
+      */}
+      <PageHeader
+        title="Hạn mức"
+        desc={`Quota còn lại theo từng account · ${withQ.length}/${accounts.length} đã nạp`}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={handleBulkRefresh}
+              disabled={bulkRefreshing}
+              className="h-8 gap-1.5 border border-border bg-transparent text-xs text-muted-foreground hover:text-warning"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${bulkRefreshing ? "animate-spin" : ""}`} />
+              {selected.size > 0 ? `Nạp ${selected.size} đã chọn` : "Nạp tất cả"}
+            </Button>
+            <Button
+              size="sm"
+              onClick={fetchAccounts}
+              title="Đọc lại danh sách từ server (không gọi upstream)"
+              className="h-8 gap-1.5 border border-border bg-transparent text-xs text-muted-foreground hover:text-foreground"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Tải lại
+            </Button>
+          </div>
+        }
+      />
 
       {/* Stats KPI */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -358,82 +369,6 @@ export function Quota() {
           </CardContent>
         </Card>
       </div>
-
-      {/* History chart */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              {histEmail ? `Xu hướng · ${histEmail}` : "Xu hướng toàn pool"}
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              {histEmail && (
-                <Button size="sm" onClick={() => setHistEmail(null)} className="border border-border bg-transparent text-muted-foreground h-7 text-xs">
-                  Xem tất cả
-                </Button>
-              )}
-              <Select value={histRange} onValueChange={(v) => setHistRange(v ?? "7d")}>
-                <SelectTrigger className="h-7 w-24 text-xs">
-                  <span className="truncate">{{ "7d": "7 ngày", "30d": "30 ngày", "90d": "90 ngày" }[histRange] ?? "7 ngày"}</span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7d" className="text-xs">7 ngày</SelectItem>
-                  <SelectItem value="30d" className="text-xs">30 ngày</SelectItem>
-                  <SelectItem value="90d" className="text-xs">90 ngày</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {histSeries.length >= 2 ? (
-            <TimeSeries
-              data={histSeries}
-              xKey="t"
-              height={200}
-              series={[
-                { key: "gemini", label: "Gemini", color: "var(--chart-success)" },
-                { key: "third", label: "Claude/GPT", color: "var(--chart-info)" },
-              ]}
-            />
-          ) : (
-            <p className="py-8 text-center text-xs text-muted-foreground">
-              {histSeries.length === 1
-                ? "Mới có 1 mốc thời gian — cần ít nhất 2 mốc mới vẽ được đường. Job nền nạp hạn mức mỗi 4 giờ."
-                : "Chưa có dữ liệu. Bấm Refresh để nạp hạn mức — mỗi lần nạp ghi 1 điểm."}
-            </p>
-          )}
-          {/*
-            Xu hướng gần nhất + sparkline.
-
-            Bản cũ có LOGIC NGƯỢC: `histPoints` là phần trăm quota CÒN LẠI (xem `qColor` —
-            pct cao là xanh/khoẻ), nhưng nó báo "Quota đang giảm" khi con số TĂNG. Người đọc
-            thấy mũi tên đỏ đúng lúc hạn mức vừa hồi lại.
-
-            Và mũi tên một mình không cho biết mức độ: giảm 1% với giảm 40% cùng một icon.
-            Thêm sparkline để thấy hình dạng thật của xu hướng.
-          */}
-          {histPoints.length >= 2 && (() => {
-            const last = histPoints[histPoints.length - 1]!
-            const prev = histPoints[histPoints.length - 2]!
-            const up = last > prev
-            const delta = Math.abs(Math.round(last - prev))
-            return (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {up
-                  ? <TrendingUp className="h-3 w-3 text-success" />
-                  : <TrendingDown className="h-3 w-3 text-warning" />}
-                <span>
-                  {up ? "Hạn mức đang phục hồi" : "Hạn mức đang giảm"}
-                  {delta > 0 ? ` (${up ? "+" : "−"}${delta}%)` : " (không đổi)"}
-                </span>
-                <Sparkline data={histPoints} tone={up ? "success" : "warning"} width={80} height={20} />
-              </div>
-            )
-          })()}
-        </CardContent>
-      </Card>
 
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-wrap">
@@ -476,16 +411,6 @@ export function Quota() {
           </button>
         </div>
       </div>
-
-      {/* Bulk selection bar */}
-      {selected.size > 0 && (
-        <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-4 py-2">
-          <span className="text-xs text-muted-foreground">{selected.size} đã chọn</span>
-          <Button size="sm" onClick={handleBulkRefresh} className="bg-warning hover:bg-warning text-warning-foreground h-7 text-xs gap-1">
-            <RefreshCw className="h-3 w-3" /> Refresh quota
-          </Button>
-        </div>
-      )}
 
       {/* ── TABLE VIEW ─────────────────────────────────────────────────────── */}
       {viewMode === "table" && (
@@ -662,6 +587,87 @@ export function Quota() {
           )}
         </>
       )}
+
+      {/*
+        Biểu đồ xu hướng là thông tin THAM KHẢO — đặt nó giữa KPI và bảng thì ở laptop
+        1366×768 bảng account (thứ người dùng vào trang này để xem) nằm dưới nếp gấp.
+        Chuyển xuống cuối, sau bảng.
+      */}
+      {/* History chart */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              {histEmail ? `Xu hướng · ${histEmail}` : "Xu hướng toàn pool"}
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              {histEmail && (
+                <Button size="sm" onClick={() => setHistEmail(null)} className="border border-border bg-transparent text-muted-foreground h-7 text-xs">
+                  Xem tất cả
+                </Button>
+              )}
+              <Select value={histRange} onValueChange={(v) => setHistRange(v ?? "7d")}>
+                <SelectTrigger className="h-7 w-24 text-xs">
+                  <span className="truncate">{{ "7d": "7 ngày", "30d": "30 ngày", "90d": "90 ngày" }[histRange] ?? "7 ngày"}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7d" className="text-xs">7 ngày</SelectItem>
+                  <SelectItem value="30d" className="text-xs">30 ngày</SelectItem>
+                  <SelectItem value="90d" className="text-xs">90 ngày</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {histSeries.length >= 2 ? (
+            <TimeSeries
+              data={histSeries}
+              xKey="t"
+              height={200}
+              series={[
+                { key: "gemini", label: "Gemini", color: "var(--chart-success)" },
+                { key: "third", label: "Claude/GPT", color: "var(--chart-info)" },
+              ]}
+            />
+          ) : (
+            <p className="py-8 text-center text-xs text-muted-foreground">
+              {histSeries.length === 1
+                ? "Mới có 1 mốc thời gian — cần ít nhất 2 mốc mới vẽ được đường. Job nền nạp hạn mức mỗi 4 giờ."
+                : "Chưa có dữ liệu. Bấm Refresh để nạp hạn mức — mỗi lần nạp ghi 1 điểm."}
+            </p>
+          )}
+          {/*
+            Xu hướng gần nhất + sparkline.
+
+            Bản cũ có LOGIC NGƯỢC: `histPoints` là phần trăm quota CÒN LẠI (xem `qColor` —
+            pct cao là xanh/khoẻ), nhưng nó báo "Quota đang giảm" khi con số TĂNG. Người đọc
+            thấy mũi tên đỏ đúng lúc hạn mức vừa hồi lại.
+
+            Và mũi tên một mình không cho biết mức độ: giảm 1% với giảm 40% cùng một icon.
+            Thêm sparkline để thấy hình dạng thật của xu hướng.
+          */}
+          {histPoints.length >= 2 && (() => {
+            const last = histPoints[histPoints.length - 1]!
+            const prev = histPoints[histPoints.length - 2]!
+            const up = last > prev
+            const delta = Math.abs(Math.round(last - prev))
+            return (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {up
+                  ? <TrendingUp className="h-3 w-3 text-success" />
+                  : <TrendingDown className="h-3 w-3 text-warning" />}
+                <span>
+                  {up ? "Hạn mức đang phục hồi" : "Hạn mức đang giảm"}
+                  {delta > 0 ? ` (${up ? "+" : "−"}${delta}%)` : " (không đổi)"}
+                </span>
+                <Sparkline data={histPoints} tone={up ? "success" : "warning"} width={80} height={20} />
+              </div>
+            )
+          })()}
+        </CardContent>
+      </Card>
 
     </div>
   )
