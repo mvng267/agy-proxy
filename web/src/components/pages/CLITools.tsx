@@ -8,7 +8,7 @@ import {
   EyeOff,
   RefreshCw,
 } from "lucide-react"
-import { CodeBlock, CopyButton } from "@/components/common"
+import { CodeBlock, CopyButton, PageHeader } from "@/components/common"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -301,11 +301,10 @@ function ApiTryer() {
 export function CLITools() {
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <Terminal className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-medium text-foreground">CLI Tools</h2>
-      </div>
+      <PageHeader
+        title="CLI Tools"
+        desc="Kết nối tool ngoài, thử API, và hướng dẫn cắm coding agent vào pool"
+      />
 
       <ConnectPanel />
 
@@ -470,7 +469,7 @@ cp .env.example .env
 npm start`}
         />
 
-        <div className="grid grid-cols-2 gap-3 mt-2">
+        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="bg-muted/50 rounded-lg px-3 py-2">
             <p className="text-[10px] text-muted-foreground mb-1">Endpoint</p>
             <code className="text-xs text-primary">POST /v1/chat/completions</code>

@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from "react"
 import {
-  Settings as SettingsIcon,
   RefreshCw,
   AlertTriangle,
   Save,
@@ -17,7 +16,7 @@ import {
   Lock,
 } from "lucide-react"
 import { UpdatePanel } from "@/components/common/UpdatePanel"
-import { writeClipboard } from "@/components/common"
+import { PageHeader, writeClipboard } from "@/components/common"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -351,16 +350,15 @@ export function Settings() {
     <div className="space-y-4 max-w-3xl">
       {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <SettingsIcon className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-medium text-foreground">Cấu hình Gateway</h2>
-        </div>
-        <Button variant="outline" size="sm" onClick={fetchConfig} className="border-border text-muted-foreground hover:text-primary h-7 text-xs gap-1">
-          <RefreshCw className="h-3 w-3" /> Refresh
-        </Button>
-      </div>
+      <PageHeader
+        title="Cấu hình Gateway"
+        desc="API key, chiến lược xoay account, hạn mức và tham số vận hành"
+        actions={
+          <Button variant="outline" size="sm" onClick={fetchConfig} className="h-8 gap-1.5 border-border text-xs text-muted-foreground hover:text-primary">
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </Button>
+        }
+      />
 
       {/* ── API Key ─────────────────────────────────────────────────────── */}
       <Card>
@@ -469,7 +467,7 @@ export function Settings() {
 
           <Separator className="bg-muted" />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm text-foreground">Cooldown (giây)</label>
               <Input
@@ -498,7 +496,7 @@ export function Settings() {
           <CardTitle className="text-sm font-medium text-foreground">Advanced</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm text-foreground">Timeout (giây)</label>
               <Input

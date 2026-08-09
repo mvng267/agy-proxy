@@ -267,7 +267,7 @@ export function Combo() {
 
 
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+      <div className="flex flex-col flex-wrap gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input

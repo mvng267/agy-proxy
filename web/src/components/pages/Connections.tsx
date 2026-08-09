@@ -13,7 +13,7 @@ import {
   WifiOff,
   Zap,
 } from "lucide-react"
-import { KpiCard } from "@/components/common"
+import { KpiCard, PageHeader } from "@/components/common"
 import { SegmentBar } from "@/components/common/charts"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -245,27 +245,23 @@ export function Connections() {
   const connFailed = connections.filter((c) => ["failed", "offline", "error"].includes(statusOf(c))).length
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Link className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-medium text-foreground">Connections OmniRoute</h2>
-          {note && (
-            <span className="text-xs text-muted-foreground">· {note}</span>
-          )}
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchData}
-          className="border-border text-muted-foreground hover:text-primary h-7 text-xs gap-1"
-        >
-          <RefreshCw className="h-3 w-3" /> Refresh
-        </Button>
-      </div>
+      <PageHeader
+        title="Connections"
+        desc={note ? `Kết nối OmniRoute · ${note}` : "Kết nối OmniRoute và trạng thái từng provider"}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchData}
+            className="h-8 gap-1.5 border-border text-xs text-muted-foreground hover:text-primary"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </Button>
+        }
+      />
 
       {/* Summary KPIs — KpiCard chung thay 3 Card tay. */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <KpiCard label="Tổng connections" value={connections.length} icon={Wifi} loading={loading} />
         <KpiCard label="Active" value={connActive} tone="success" icon={Wifi} loading={loading} />
         <KpiCard label="Offline/Lỗi" value={connFailed} tone="danger" icon={Wifi} loading={loading} />

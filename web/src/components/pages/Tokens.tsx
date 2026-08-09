@@ -329,7 +329,7 @@ export function Tokens() {
       )}
 
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+      <div className="flex flex-col flex-wrap gap-2 sm:flex-row sm:items-center">
         <div className="relative flex-1 max-w-xs">
           <KeyRound className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
