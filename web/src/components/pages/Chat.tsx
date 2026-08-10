@@ -52,6 +52,10 @@ interface ChatResponse {
   text?: string
   images?: string[]
   error?: string
+  /** Combo: bước THẬT SỰ trả lời — combo có thể trượt vài bước trước đó. */
+  resolvedModel?: string
+  /** Vết từng bước combo: bước nào trượt và vì sao. */
+  steps?: Array<{ model: string; ok: boolean; ms: number; error?: string }>
 }
 
 interface ChatMessage {
@@ -69,6 +73,9 @@ interface ChatMessage {
     account?: string
     ms?: number
     tokens?: number
+    /** Combo: bước thật sự trả lời, khác `model` khi combo trượt bước đầu. */
+    resolvedModel?: string
+    steps?: Array<{ model: string; ok: boolean; ms: number; error?: string }>
   }
   error?: boolean
 }
@@ -271,6 +278,8 @@ export function Chat() {
             account: data.account,
             ms: data.ms,
             tokens: data.usage?.totalTokens,
+            resolvedModel: data.resolvedModel,
+            steps: data.steps,
           },
         }
         setMessages((prev) => [...prev, assistantMsg])
@@ -443,6 +452,21 @@ export function Chat() {
                       {msg.meta.model && (
                         <Badge className="bg-muted text-muted-foreground h-4">
                           {msg.meta.model.split("/").pop() ?? msg.meta.model}
+                        </Badge>
+                      )}
+                      {/* Combo: model NÀO thật sự trả lời. Chỉ hiện tên combo thì không
+                          biết nó rơi vào bước nào — mà đó chính là thứ cần biết khi thử. */}
+                      {msg.meta.resolvedModel && msg.meta.resolvedModel !== msg.meta.model && (
+                        <Badge
+                          className="bg-info/15 text-info h-4"
+                          title={
+                            msg.meta.steps?.length
+                              ? msg.meta.steps.map((s) => `${s.ok ? "✓" : "✗"} ${s.model}${s.error ? ` — ${s.error}` : ""}`).join("\n")
+                              : undefined
+                          }
+                        >
+                          → {msg.meta.resolvedModel}
+                          {msg.meta.steps && msg.meta.steps.length > 1 ? ` (bước ${msg.meta.steps.length})` : ""}
                         </Badge>
                       )}
                       {msg.meta.account && (

@@ -25,6 +25,9 @@ interface Model {
   label?: string
   providerLabel?: string
   imageOut?: boolean
+  /** 'model' = model provider · 'combo' = chuỗi model tự dự phòng. */
+  kind?: "model" | "combo"
+  steps?: string[]
 }
 
 /** Bốn tiền tố vì mỗi loại client tự nối path một kiểu — xem chú thích ở src/auth.ts. */
@@ -239,7 +242,15 @@ export function ApiPlayground() {
                 <span className="truncate">{model || "Chọn model"}</span>
               </SelectTrigger>
               <SelectContent>
-                {list.map((m) => (
+                {/* Combo lên đầu: chúng nhiều bước nên dễ hỏng hơn model đơn,
+                    và đây là chỗ duy nhất thử được chúng qua chuẩn API thật. */}
+                {list.filter((m) => m.kind === "combo").map((m) => (
+                  <SelectItem key={m.id} value={m.id} className="text-xs">
+                    {m.id}
+                    {m.steps?.length ? <span className="ml-1.5 text-muted-foreground">({m.steps.length} bước)</span> : null}
+                  </SelectItem>
+                ))}
+                {list.filter((m) => m.kind !== "combo").map((m) => (
                   <SelectItem key={m.id} value={m.id} className="text-xs">{m.id}</SelectItem>
                 ))}
               </SelectContent>

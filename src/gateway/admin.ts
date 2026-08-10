@@ -16,7 +16,7 @@ import {
   type ParsedModel, type ProviderId,
 } from './providers/index.js';
 import {
-  planAuto, validateTargets, AUTO_VARIANT_IDS, AUTO_VARIANTS, scoreCandidates,
+  planAuto, validateTargets, AUTO_VARIANT_IDS, AUTO_VARIANTS, scoreCandidates, shouldFallback,
 } from './combo.js';
 import {
   pool, syncFromStore, savePersist, refreshQuota, geminiPct, claudePct,
@@ -26,6 +26,7 @@ import { isImageModel } from './antigravity.js';
 import {
   log, emitGw, afterCall, proxyLabelOf, accOf, bucketOf, pickReady, poolSnapshot,
   listCombos, testAccount, checkLiveAccount, emitCheck, runProviderCall,
+  resolveComboPlan, COMBO_MAX_STEPS,
 } from './engine.js';
 import { toMessages } from './dialects/wire.js';
 import { gatewayMetrics } from './metrics.js';
@@ -223,15 +224,44 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     return { ok: rejected.length === 0, changed, rejected, config: cfg };
   });
 
+  /**
+   * Danh sách thứ GỌI ĐƯỢC ở trường `model` — gồm cả combo, không chỉ model provider.
+   *
+   * `allModels()` chỉ trả model thật. Combo cũng gọi được y như model (`combo/<tên>`)
+   * nhưng nằm ở nguồn khác, nên mọi UI dùng endpoint này đều không chọn được combo:
+   * Chat thử, Gọi API và So sánh model đều thiếu. Người dùng có combo trong tay mà
+   * không thử được từ dashboard.
+   *
+   * `/proxy/v1/models` (dialect OpenAI) đã gộp combo từ trước — hai endpoint lệch nhau
+   * là gốc của lỗi này.
+   */
   app.get('/api/gateway/models', async () => ({
-    models: allModels().map((m) => ({
-      id: m.prefixed, bare: m.id, label: m.label,
-      // `image` giữ lại cho client cũ; UI mới đọc imageIn/imageOut vì `image` từng
-      // mang hai nghĩa trái ngược tuỳ provider (sinh ảnh vs nhận ảnh).
-      image: m.image, imageIn: m.imageIn ?? false, imageOut: m.imageOut ?? m.image,
-      provider: m.provider, providerLabel: m.providerLabel,
-      bucket: m.bucket, maxInput: m.maxInput,
-    })),
+    models: [
+      ...allModels().map((m) => ({
+        id: m.prefixed, bare: m.id, label: m.label,
+        // `image` giữ lại cho client cũ; UI mới đọc imageIn/imageOut vì `image` từng
+        // mang hai nghĩa trái ngược tuỳ provider (sinh ảnh vs nhận ảnh).
+        image: m.image, imageIn: m.imageIn ?? false, imageOut: m.imageOut ?? m.image,
+        provider: m.provider, providerLabel: m.providerLabel,
+        bucket: m.bucket, maxInput: m.maxInput,
+        kind: 'model' as const,
+      })),
+      // Combo chỉ liệt kê cái đang BẬT: combo tắt gọi vào sẽ nhận 503, mời chọn là bẫy.
+      ...listCombos()
+        .filter((c) => c.enabled)
+        .map((c) => ({
+          id: `combo/${c.id}`, bare: c.id, label: c.name || c.id,
+          // Combo trỏ tới nhiều model khác nhau nên không có khả năng ảnh cố định —
+          // để false cho an toàn, UI không mời gửi ảnh vào thứ có thể rơi vào model text.
+          image: false, imageIn: false, imageOut: false,
+          provider: 'combo' as const, providerLabel: 'Combo',
+          bucket: undefined, maxInput: undefined,
+          kind: 'combo' as const,
+          /** Các bước sẽ thử, theo thứ tự — để UI hiện được combo làm gì. */
+          steps: (c.targets ?? []).map((t) => t.model),
+          strategy: c.strategy,
+        })),
+    ],
   }));
 
   // ---------------- Chat thử ----------------
@@ -247,9 +277,6 @@ export function registerAdminRoutes(app: FastifyInstance): void {
       parsed = parseModelId(b?.model);
     } catch (e: any) {
       return reply.code(400).send({ error: e.message, suggestion: e.suggestion });
-    }
-    if (parsed.kind !== 'provider') {
-      return reply.code(400).send({ error: 'Chat thử chỉ nhận model thật (agy/… hoặc kr/…), không nhận combo.' });
     }
     const model = parsed.prefixed;
     const t0 = Date.now();
@@ -279,6 +306,72 @@ export function registerAdminRoutes(app: FastifyInstance): void {
      * `runProviderCall` lo failover, circuit breaker, ghi usage, cập nhật pool.
      */
     let usedAccount = '';
+
+    /**
+     * Combo/auto: tự chạy vòng thay vì gọi `runComboRequest`.
+     *
+     * `runComboRequest` gửi thẳng response OpenAI qua `reply` (openaiCompletion), trong
+     * khi Chat thử/So sánh model cần shape riêng `{ok, account, model, text, images, ms}`
+     * để hiện ảnh và metadata. Nên tái dùng `resolveComboPlan` + `shouldFallback` — cùng
+     * nguồn kế hoạch với /proxy/v1, chỉ khác chỗ đóng gói kết quả.
+     *
+     * Trước đây màn này CHẶN combo bằng 400 "chỉ nhận model thật". Nhưng combo mới là
+     * thứ hay cần thử nhất: nó có nhiều bước, sai một bước là cả chuỗi hỏng, mà không
+     * có chỗ nào thử được từ dashboard.
+     */
+    if (parsed.kind !== 'provider') {
+      const resolved = resolveComboPlan(parsed);
+      if ('error' in resolved) return reply.code(resolved.status).send({ ok: false, error: resolved.error });
+      const plan = resolved.plan.slice(0, COMBO_MAX_STEPS);
+      if (!plan.length) {
+        return reply.code(503).send({ ok: false, error: `${resolved.name}: không có model nào khả dụng` });
+      }
+
+      const skipKeys = new Set<string>();
+      /** Vết từng bước — thứ người dùng cần thấy: bước nào trượt và vì sao. */
+      const steps: Array<{ model: string; ok: boolean; ms: number; error?: string }> = [];
+      let lastErr: any;
+
+      for (const t of plan) {
+        const tp = parseModelId(t.model);
+        if (tp.kind !== 'provider') continue; // combo lồng combo: bỏ qua, không đệ quy
+        const st = Date.now();
+        try {
+          const out = await runProviderCall({
+            provider: tp.provider!, bare: tp.model!, labelModel: tp.prefixed,
+            messages, stream: false, reply, skipKeys, generationConfig,
+            forcedEmail: forced, proxyOverride: proxy, endpoint: 'chat-test',
+            usage: {
+              apiKeyId: 'dashboard', keyName: 'Chat thử', endpoint: 'chat-test',
+              requestId: randomUUID(), stream: false, combo: resolved.name,
+            },
+            onAccount: (email: string) => { usedAccount = email; },
+          });
+          steps.push({ model: tp.prefixed, ok: true, ms: Date.now() - st });
+          const r = 'result' in out ? out.result : undefined;
+          return {
+            ok: true, account: usedAccount, model: resolved.name,
+            /** Bước THẬT SỰ trả lời — combo có thể trượt vài bước trước đó. */
+            resolvedModel: tp.prefixed,
+            ms: Date.now() - t0,
+            text: r?.text, images: r?.images, usage: r?.usage,
+            isImage: isImageModel(tp.prefixed),
+            steps,
+          };
+        } catch (e: any) {
+          lastErr = e;
+          steps.push({ model: tp.prefixed, ok: false, ms: Date.now() - st, error: String(e?.message ?? e).slice(0, 120) });
+          // Lỗi của NGƯỜI DÙNG (400 prompt sai, 401 key sai) thì trượt bước cũng vô ích.
+          if (!shouldFallback(e)) break;
+        }
+      }
+      return reply.code(lastErr?.status ?? 502).send({
+        ok: false, account: usedAccount, model: resolved.name,
+        error: lastErr?.message ?? 'Mọi bước trong combo đều thất bại',
+        steps,
+      });
+    }
+
     try {
       const out = await runProviderCall({
         provider: parsed.provider!,

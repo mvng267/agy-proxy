@@ -33,6 +33,9 @@ interface Ket {
   ms: number
   tokens?: number
   error?: string
+  /** Combo: bước thật sự trả lời — so combo với model đơn thì cần biết nó rơi vào đâu. */
+  resolvedModel?: string
+  steps?: Array<{ model: string; ok: boolean; ms: number; error?: string }>
 }
 
 /** Bao nhiêu model một lượt. Trần thấp có chủ đích: mỗi model là một request thật tốn quota. */
@@ -104,6 +107,8 @@ export function ModelCompare() {
           account: j.account,
           ms: j.ms ?? Date.now() - t0,
           tokens: j.usage?.totalTokens,
+          resolvedModel: j.resolvedModel,
+          steps: j.steps,
         }
       } catch (e) {
         const huy = e instanceof DOMException && e.name === "AbortError"
@@ -266,6 +271,17 @@ export function ModelCompare() {
                       )}
 
                       <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2 text-[10px] text-muted-foreground">
+                        {/* Combo trả lời bằng model NÀO — so combo với model đơn mà không
+                            biết nó rơi vào bước nào thì phép so vô nghĩa. */}
+                        {k.resolvedModel && k.resolvedModel !== k.model && (
+                          <span
+                            className="rounded bg-info/15 px-1.5 py-0.5 text-info"
+                            title={k.steps?.map((s) => `${s.ok ? "✓" : "✗"} ${s.model}${s.error ? ` — ${s.error}` : ""}`).join("\n")}
+                          >
+                            → {k.resolvedModel.split("/").pop()}
+                            {k.steps && k.steps.length > 1 ? ` (bước ${k.steps.length})` : ""}
+                          </span>
+                        )}
                         {k.account && <span>{k.account.split("@")[0]}</span>}
                         {k.tokens ? <span>· {fmtNum(k.tokens)} token</span> : null}
                       </div>
