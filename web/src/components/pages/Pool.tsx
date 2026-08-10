@@ -39,6 +39,8 @@ interface PoolAccount {
   tokensIn: number
   tokensOut: number
   lastUsed?: number
+  /** Lần KIỂM gần nhất (khác lastUsed = lúc phục vụ request). */
+  lastCheckAt?: number
   geminiPct?: number
   claudePct?: number
   quota?: {
@@ -168,7 +170,7 @@ export function Pool() {
     await withSpin(email, "test", async () => {
       const r = await fetch(`/api/gateway/accounts/${encodeURIComponent(email)}/test?provider=${provider}`, { method: "POST" })
       const data = await r.json()
-      setAccounts(prev => prev.map(a => a.email === email ? { ...a, health: data.alive ? "alive" : "dead" } : a))
+      setAccounts(prev => prev.map(a => a.email === email ? { ...a, health: data.alive ? "alive" : "dead", lastCheckAt: Date.now() } : a))
     })
   }
 
@@ -176,7 +178,7 @@ export function Pool() {
     await withSpin(email, "live", async () => {
       const r = await fetch(`/api/gateway/accounts/${encodeURIComponent(email)}/checklive?provider=${provider}`, { method: "POST" })
       const data = await r.json()
-      setAccounts(prev => prev.map(a => a.email === email ? { ...a, liveStatus: data.status } : a))
+      setAccounts(prev => prev.map(a => a.email === email ? { ...a, liveStatus: data.status, lastCheckAt: Date.now() } : a))
     })
   }
 
@@ -253,8 +255,8 @@ export function Pool() {
       if (ev.email) {
         setAccounts(prev => prev.map(a => {
           if (a.email !== ev.email) return a
-          if (ev.kind === "token") return { ...a, health: ev.result }
-          if (ev.kind === "live") return { ...a, liveStatus: ev.result }
+          if (ev.kind === "token") return { ...a, health: ev.result, lastCheckAt: Date.now() }
+          if (ev.kind === "live") return { ...a, liveStatus: ev.result, lastCheckAt: Date.now() }
           return a
         }))
       }
@@ -526,8 +528,22 @@ export function Pool() {
                 sort: (a) => a.health ?? "",
                 render: (a) => (
                   <div className="flex flex-col gap-0.5">
-                    {healthBadge(a.health)}
-                    {liveBadge(a.liveStatus)}
+                    <div className="flex items-center gap-1">
+                      {healthBadge(a.health)}
+                      {liveBadge(a.liveStatus)}
+                    </div>
+                    {/* "alive" của 1 phút trước và của 3 ngày trước tin được khác hẳn
+                        nhau — không có mốc này thì badge nói được rất ít. */}
+                    {a.lastCheckAt ? (
+                      <span
+                        className="text-[10px] text-muted-foreground"
+                        title={`Kiểm lúc ${new Date(a.lastCheckAt).toLocaleString("vi-VN")}`}
+                      >
+                        {fmtAgo(a.lastCheckAt)}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/60">chưa kiểm</span>
+                    )}
                   </div>
                 ),
               },

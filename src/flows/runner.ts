@@ -8,6 +8,21 @@ import type { Account, FlowKey, Proxy } from '../store/models.js';
 import { openProfile, type Session } from '../browser/profile.js';
 import { detectChallenge } from '../browser/challenge.js';
 
+/**
+ * Máy này có mở được cửa sổ trình duyệt không?
+ *
+ * macOS/Windows luôn có. Linux phải có X hoặc Wayland, và Chrome nhận biết qua BIẾN
+ * MÔI TRƯỜNG `DISPLAY`/`WAYLAND_DISPLAY` — có socket ở /tmp/.X11-unix mà thiếu biến
+ * thì vẫn chết, nên không kiểm socket làm gì.
+ *
+ * Server Debian chạy agyproxy không có cái nào. Đo thật từ log production:
+ * "Missing X server or $DISPLAY" → "The platform failed to initialize. Exiting."
+ */
+function canOpenWindow(): boolean {
+  if (process.platform !== 'linux') return true;
+  return !!(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
+}
+
 /** Đăng ký các run đang chờ người bấm tay. */
 interface HumanWaiter {
   resolve: () => void;
@@ -173,6 +188,21 @@ export async function runFlow(
     } catch (e) {
       // Gặp challenge khi headless -> mở lại cửa sổ headful để người xử lý tay.
       if (config.headless && e instanceof Error && e.message === 'challenge_in_headless') {
+        /**
+         * Chỉ mở được cửa sổ khi máy CÓ màn hình.
+         *
+         * Server Debian không chạy X, nên `attempt(false)` chết ngay với
+         * "Missing X server or $DISPLAY" — một lỗi Playwright dài 30 dòng chôn vùi
+         * nguyên nhân thật (captcha cần người xử lý). Người vận hành đọc log chỉ thấy
+         * "browser has been closed" và tưởng trình duyệt hỏng.
+         *
+         * Không có màn hình thì dừng ở `needs_human` — đúng bản chất: việc này CẦN
+         * người, và người phải làm ở nơi có màn hình.
+         */
+        if (!canOpenWindow()) {
+          addLog(runId, 'challenge', 'Cần người xử lý captcha, nhưng máy chủ không có màn hình (X server). Xử lý trên máy có giao diện, hoặc cài xvfb.');
+          throw new Error('challenge_no_display');
+        }
         emitRun({ runId, email, flow, status: 'running', detail: 'escalate: mở cửa sổ để xử lý challenge' });
         await attempt(false);
       } else {
@@ -185,7 +215,11 @@ export async function runFlow(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     updateRun(runId, 'failed', msg);
-    store.setStatus(email, flow, msg === 'human_timeout' || msg === 'skipped_by_user' ? 'needs_human' : 'failed');
+    // `challenge_no_display`: máy chủ không có màn hình nên KHÔNG mở được cửa sổ cho
+    // người xử lý captcha. Vẫn là 'needs_human' — cần người, chỉ là phải làm nơi khác —
+    // chứ không phải 'failed' (account có thể vẫn tốt nguyên).
+    const canHuman = msg === 'human_timeout' || msg === 'skipped_by_user' || msg === 'challenge_no_display';
+    store.setStatus(email, flow, canHuman ? 'needs_human' : 'failed');
     addLog(runId, 'error', msg);
     emitLog({ runId, email, flow, level: 'error', msg });
     emitRun({ runId, email, flow, status: 'failed', detail: msg });

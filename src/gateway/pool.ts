@@ -41,6 +41,12 @@ export interface PoolAccount extends ProviderAccount {
   tokensOut: number;
   lastUsed: number; // epoch ms, 0 = chưa dùng. CHỈ cập nhật khi request THÀNH CÔNG (LRU).
   lastAttempt?: number; // epoch ms mọi lần gọi kể cả lỗi — để debug, không ảnh hưởng LRU
+  /**
+   * Lần KIỂM account gần nhất (testAccount / checkLiveAccount) — khác hẳn `lastUsed`
+   * (lúc phục vụ request thật). Không có mốc này thì UI hiện "alive" mà không ai biết
+   * đó là kết quả của 1 phút trước hay 3 ngày trước; trạng thái cũ tin được ít hơn nhiều.
+   */
+  lastCheckAt?: number;
   consecutiveFails?: number; // số lỗi liên tiếp → cooldown tăng dần (backoff)
   /**
    * Bitmask 20 kết quả gần nhất (1 = lỗi) + số mẫu đã có. CHỈ RAM, không persist:
@@ -254,7 +260,19 @@ export class Pool {
       cur.refreshToken = i.refreshToken;
       cur.credential = i.credential;
       cur.proxyLabel = i.proxyLabel;
-      cur.health = i.health;
+      /**
+       * KHÔNG ghi đè `health` bằng `'unknown'`.
+       *
+       * `syncFromStore()` chạy mỗi 2 giây và truyền `c.health || 'unknown'` từ
+       * credentials.csv. Bản trước gán vô điều kiện, nên kết quả kiểm account vừa ghi
+       * vào RAM (`health='alive'`, `liveStatus='ok'`) bị xoá ngay ở lần sync kế tiếp —
+       * người dùng bấm "Kiểm tra", thấy xanh vài giây rồi về `unknown`. Trái hẳn với
+       * lời hứa "giữ nguyên state cũ" ngay trên đầu hàm này.
+       *
+       * Store chỉ được phép NÂNG CẤP hiểu biết, không được hạ: 'unknown' nghĩa là
+       * "chưa biết", mà RAM đang biết rõ hơn thì giữ lấy cái biết rõ.
+       */
+      if (i.health && i.health !== 'unknown') cur.health = i.health;
       if (i.profileArn) cur.profileArn = i.profileArn;
       if (i.region) cur.region = i.region;
       return cur;
@@ -483,6 +501,10 @@ export class Pool {
         monthlyExhaustedUntil: a.monthlyExhaustedUntil || 0,
         liveStatus: a.liveStatus,
         lastAttempt: a.lastAttempt || 0,
+        // Kết quả kiểm phải sống qua restart: bản trước chỉ giữ `liveStatus` mà không
+        // giữ thời điểm, nên sau khởi động lại UI hiện "alive" không rõ từ bao giờ.
+        lastCheckAt: a.lastCheckAt || 0,
+        health: a.health,
         consecutiveFails: a.consecutiveFails || 0,
         bucketCooldown: a.bucketCooldown,
         // Access token: KHÔNG persist thì mỗi lần restart mất sạch token của 700 account,
@@ -537,6 +559,21 @@ export class Pool {
       }
       if (s.quota && !a.quota) a.quota = s.quota; // giữ quota qua restart (TTL tự lo refresh)
       if (s.projectId && !a.projectId) a.projectId = s.projectId; // bỏ discoverProject sau restart
+      /**
+       * Kết quả KIỂM account phải sống qua restart, kèm thời điểm.
+       *
+       * Bản trước persist `liveStatus` nhưng KHÔNG khôi phục lại, và không lưu mốc thời
+       * gian nào — nên sau mỗi lần khởi động, công sức kiểm cả pool (~1.2 giây/account,
+       * 700 account ≈ 14 phút) mất sạch, UI về "unknown" hết.
+       *
+       * `health` chỉ nhận khi persist biết rõ hơn RAM: 'unknown' nghĩa là "chưa biết",
+       * ghi đè bằng nó là hạ cấp hiểu biết.
+       */
+      a.lastCheckAt = (s as any).lastCheckAt || a.lastCheckAt;
+      if (s.liveStatus && !a.liveStatus) a.liveStatus = s.liveStatus;
+      if ((s as any).health && (s as any).health !== 'unknown' && a.health === 'unknown') {
+        a.health = (s as any).health;
+      }
       // chỉ khôi phục cooldown còn hiệu lực (đã qua thì bỏ)
       if (s.cooldownUntil && s.cooldownUntil > Date.now()) a.cooldownUntil = s.cooldownUntil;
       if (s.monthlyExhaustedUntil && s.monthlyExhaustedUntil > Date.now()) a.monthlyExhaustedUntil = s.monthlyExhaustedUntil;

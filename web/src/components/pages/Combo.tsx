@@ -11,6 +11,9 @@ import {
   Search,
   Edit3,
   Copy,
+  X,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react"
 import { DataTable } from "@/components/common/DataTable"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,6 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -51,7 +55,8 @@ interface CombosResponse {
 
 interface ComboForm {
   id: string
-  targets: string
+  /** Mảng bước, không phải chuỗi — chọn từ danh sách nên không sai id được. */
+  steps: ComboTarget[]
   strategy: string
   enabled: boolean
 }
@@ -62,29 +67,14 @@ const STRATEGIES = ["priority", "round-robin", "weighted", "highest-quota"]
 
 const emptyForm: ComboForm = {
   id: "",
-  targets: "",
+  steps: [],
   strategy: "priority",
   enabled: true,
 }
 
-// Targets trong form là chuỗi "model" hoặc "model:weight" cách nhau dấu phẩy.
-// Model id không chứa ":" (dạng agy/… kr/…) nên suffix số sau ":" luôn là weight.
-function targetsToText(targets: ComboTarget[]): string {
-  return targets.map((t) => (t.weight != null ? `${t.model}:${t.weight}` : t.model)).join(", ")
-}
-
-function parseTargets(text: string): ComboTarget[] {
-  return text
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => {
-      const m = /^(.*):(\d+(?:\.\d+)?)$/.exec(s)
-      if (m) return { model: m[1]!.trim(), weight: Number(m[2]) }
-      return { model: s }
-    })
-    .filter((t) => t.model)
-}
+// Form giữ MẢNG bước, không phải chuỗi "model:weight, model:weight".
+// Hai hàm chuyển đổi chuỗi ↔ mảng đã bỏ: chọn từ dropdown thì không có chuỗi để parse,
+// và cũng không còn cách nào gõ sai id.
 
 // ── Combo Page ─────────────────────────────────────────────────────────
 
@@ -100,6 +90,33 @@ export function Combo() {
   const [form, setForm] = useState<ComboForm>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  /** Model gọi được — nguồn cho dropdown, để không ai gõ sai id. */
+  const [models, setModels] = useState<string[]>([])
+
+  const steps = form.steps
+
+  /**
+   * Chỉ mời model THẬT, không mời combo.
+   * Combo lồng combo không được engine đệ quy (`runComboRequest` bỏ qua bước non-provider),
+   * nên cho chọn là tạo ra bước chết âm thầm.
+   */
+  const availableModels = models.filter((id) => !id.startsWith("combo/") && !steps.some((t) => t.model === id))
+
+  const addStep = (id: string | null) => {
+    if (!id) return
+    setForm((f) => (f.steps.some((t) => t.model === id) ? f : { ...f, steps: [...f.steps, { model: id }] }))
+  }
+  const removeStep = (i: number) => setForm((f) => ({ ...f, steps: f.steps.filter((_, k) => k !== i) }))
+  const moveStep = (i: number, d: -1 | 1) =>
+    setForm((f) => {
+      const j = i + d
+      if (j < 0 || j >= f.steps.length) return f
+      const next = [...f.steps]
+      ;[next[i], next[j]] = [next[j]!, next[i]!]
+      return { ...f, steps: next }
+    })
+  const setStepWeight = (i: number, w: number) =>
+    setForm((f) => ({ ...f, steps: f.steps.map((t, k) => (k === i ? { ...t, weight: w } : t)) }))
 
   const fetchData = useCallback(async () => {
     try {
@@ -107,6 +124,11 @@ export function Combo() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json() as CombosResponse
       setCombos(json.combos ?? [])
+      // Danh sách model cho dropdown — tải cùng lúc, hỏng thì để rỗng chứ không chặn trang.
+      fetch("/api/gateway/models")
+        .then((r) => (r.ok ? r.json() : { models: [] }))
+        .then((m: { models?: Array<{ id: string }> }) => setModels((m.models ?? []).map((x) => x.id)))
+        .catch(() => {})
       setAutoVariants(json.autoVariants ?? false)
       setError(null)
     } catch (err) {
@@ -132,7 +154,7 @@ export function Combo() {
     setEditingId(combo.id)
     setForm({
       id: combo.id,
-      targets: targetsToText(combo.targets),
+      steps: combo.targets ?? [],
       strategy: combo.strategy,
       enabled: combo.enabled,
     })
@@ -140,12 +162,12 @@ export function Combo() {
   }
 
   const handleSave = async () => {
-    if (!form.id.trim() || !form.targets.trim()) return
+    if (!form.id.trim() || form.steps.length === 0) return
     setSaving(true)
     try {
       const payload = {
         id: form.id.trim(),
-        targets: parseTargets(form.targets),
+        targets: form.steps,
         strategy: form.strategy,
         enabled: form.enabled,
       }
@@ -323,16 +345,86 @@ export function Combo() {
                   />
                 </div>
 
-                {/* Targets */}
+                {/*
+                  Bộ chọn model — thay ô gõ chuỗi "agy/x:2, kr/y:1".
+                  Gõ tay đòi người dùng nhớ chính xác id trong 32 model; sai một ký tự là
+                  combo hỏng và chỉ biết khi gọi thật. Chọn từ danh sách thì không sai được,
+                  và thấy luôn thứ tự thử.
+                */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Targets (comma-separated)</label>
-                  <Input
-                    placeholder="vd: agy/gemini-3-pro, kr/claude-sonnet-4.5:2"
-                    value={form.targets}
-                    onChange={(e) => setForm((f) => ({ ...f, targets: e.target.value }))}
-                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground h-9 text-sm"
-                  />
-                  <p className="text-[10px] text-muted-foreground">Các model ID cách nhau bằng dấu phẩy — thêm :số để đặt trọng số (strategy weighted)</p>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Model trong combo{steps.length ? ` (${steps.length})` : ""}
+                  </label>
+
+                  {steps.length > 0 && (
+                    <div className="space-y-1">
+                      {steps.map((t, i) => (
+                        <div key={`${t.model}-${i}`} className="flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1.5">
+                          {/* Số thứ tự = thứ tự THỬ, thứ quyết định hành vi combo */}
+                          <span className="w-5 shrink-0 text-center text-[10px] tabular-nums text-muted-foreground">{i + 1}</span>
+                          <span className="flex-1 truncate font-mono text-xs text-foreground" title={t.model}>{t.model}</span>
+
+                          {/* Trọng số chỉ có nghĩa với strategy weighted — ẩn ở strategy khác
+                              cho khỏi gây hiểu nhầm là nó luôn tác dụng. */}
+                          {form.strategy === "weighted" && (
+                            <input
+                              type="number"
+                              min={1}
+                              value={t.weight ?? 1}
+                              onChange={(e) => setStepWeight(i, Math.max(1, Number(e.target.value) || 1))}
+                              title="Trọng số"
+                              className="h-6 w-14 rounded border border-border bg-background px-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
+                          )}
+
+                          <button
+                            onClick={() => moveStep(i, -1)}
+                            disabled={i === 0}
+                            title="Lên trên"
+                            aria-label={`Đưa ${t.model} lên trên`}
+                            className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                          >
+                            <ChevronUp className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => moveStep(i, 1)}
+                            disabled={i === steps.length - 1}
+                            title="Xuống dưới"
+                            aria-label={`Đưa ${t.model} xuống dưới`}
+                            className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                          >
+                            <ChevronDown className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => removeStep(i)}
+                            title="Bỏ khỏi combo"
+                            aria-label={`Bỏ ${t.model}`}
+                            className="rounded p-0.5 text-muted-foreground transition-colors hover:text-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <Select value="" onValueChange={(v) => addStep(v)}>
+                    <SelectTrigger className="h-9 w-full text-sm">
+                      <span className="text-muted-foreground">+ Thêm model…</span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableModels.map((id) => (
+                        <SelectItem key={id} value={id} className="text-xs">
+                          {id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <p className="text-[10px] text-muted-foreground">
+                    Thử theo thứ tự từ trên xuống; bước lỗi thì trượt sang bước kế.
+                    {form.strategy === "weighted" ? " Trọng số càng cao càng hay được chọn." : ""}
+                  </p>
                 </div>
 
                 {/* Strategy */}
@@ -372,7 +464,7 @@ export function Combo() {
               <DialogFooter>
                 <Button
                   onClick={handleSave}
-                  disabled={saving || !form.id.trim() || !form.targets.trim()}
+                  disabled={saving || !form.id.trim() || form.steps.length === 0}
                   className="bg-primary hover:bg-primary text-primary-foreground text-xs disabled:opacity-50"
                 >
                   {saving ? (

@@ -70,6 +70,12 @@ export function registerAdminRoutes(app: FastifyInstance): void {
         tokensIn: a.tokensIn,
         tokensOut: a.tokensOut,
         lastUsed: a.lastUsed,
+        /**
+         * Lần KIỂM gần nhất — khác `lastUsed` (lúc phục vụ request thật).
+         * Không có mốc này thì "alive" không nói được nó là kết quả của 1 phút hay
+         * 3 ngày trước, mà độ tin cậy hai trường hợp khác hẳn nhau.
+         */
+        lastCheckAt: a.lastCheckAt || undefined,
         cooldown: (a.cooldownUntil || 0) > now,
         // Bỏ hẳn trường mang giá trị MẶC ĐỊNH: với 700 account, chở số 0 và chuỗi rỗng
         // qua mạng mỗi 10s là lãng phí thật. Client dùng `?? 0` / `?? ''` như bình thường.

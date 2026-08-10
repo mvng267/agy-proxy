@@ -303,7 +303,11 @@ export async function runComboRequest(
       } catch { return true; }
     });
     if (!plan.length) {
-      return o.reply.code(400).send({ error: `${comboName}: không có bước nào hỗ trợ tool-use — thêm model agy/ vào combo.` });
+      // Cùng envelope OpenAI với hai nhánh lỗi ở trên — sót một chỗ là client SDK đọc
+      // `err.error.message` nhận undefined và người dùng thấy lỗi rỗng.
+      return o.reply.code(400).send(
+        openaiError(400, `${comboName}: không có bước nào hỗ trợ tool-use — thêm model agy/ vào combo.`, { param: 'model' }),
+      );
     }
   }
 
@@ -631,6 +635,7 @@ export async function testAccount(a: PoolAccount): Promise<{ alive: boolean; ms:
       await ensureReady(a, dispatcher);
     }
     a.health = 'alive';
+    a.lastCheckAt = Date.now();
     store.setCredentialHealth(a.email, target, 'alive');
     return { alive: true, ms: Date.now() - t0 };
   } catch (e: any) {
@@ -651,6 +656,7 @@ export async function testAccount(a: PoolAccount): Promise<{ alive: boolean; ms:
       || code === 400 || code === 401;
     if (permanent) {
       a.health = 'dead';
+      a.lastCheckAt = Date.now();
       store.setCredentialHealth(a.email, target, 'dead');
     } else {
       a.cooldownUntil = Date.now() + 60_000;
@@ -667,6 +673,7 @@ export async function checkLiveAccount(a: PoolAccount): Promise<{ status: 'ok' |
     const session = await ensureReady(a, dispatcher);
     const r = await PROVIDERS[a.provider].checkLive(a, session, dispatcher);
     a.liveStatus = r.status;
+    a.lastCheckAt = Date.now();
     if (r.status === 'ok') a.health = 'alive';
     // Kiro: 402 hết hạn mức tháng → cho nghỉ dài để pool không chọn lại
     if (r.status === 'quota') a.cooldownUntil = Date.now() + 12 * 3600 * 1000;
@@ -677,6 +684,7 @@ export async function checkLiveAccount(a: PoolAccount): Promise<{ status: 'ok' |
     const quota = e?.status === 429 || e?.status === 402 || /quota|exhaust|resource_exhausted|MONTHLY_REQUEST/i.test(msg);
     if (e?.status === 401 || /invalid_grant/i.test(msg)) a.health = 'dead';
     a.liveStatus = quota ? 'quota' : 'error';
+    a.lastCheckAt = Date.now();
     return { status: quota ? 'quota' : 'error', ms: Date.now() - t0, detail: msg.slice(0, 120) };
   }
 }
