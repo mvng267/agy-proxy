@@ -28,10 +28,19 @@ interface Account {
   proxy?: string
   lastLogin?: number
   enabled?: boolean
+  /** Lý do lỗi gần nhất theo từng flow — server ghép từ bảng `runs`. */
+  lastErrors?: Record<string, string>
 }
 
 interface Proxy {
   label: string
+}
+
+/** Lý do lỗi + số account dính, xếp hạng để biết sửa cái nào cứu được nhiều nhất. */
+interface Reason {
+  reason: string
+  accounts: number
+  flows: string
 }
 
 // ── Constants ─────────────────────────────────────────────────────────
@@ -52,15 +61,34 @@ function fmtAgo(ms?: number) {
   return Math.round(d / 86400000) + "d trước"
 }
 
-function statusBadge(status?: string) {
+/**
+ * `reason` là lý do lỗi lần chạy gần nhất, lấy từ bảng `runs`.
+ *
+ * Trước đây cột này chỉ hiện chữ "failed" trơ trọi: đo trên production có 133 account
+ * failed mà không chỗ nào nói vì sao — nhìn thấy "hỏng 133 cái" rồi bó tay. Lý do thật
+ * (`antigravity_no_code`: OAuth chờ 90s không bắt được authorization code) vẫn nằm trong
+ * DB, chỉ chưa ai nối hai nguồn lại.
+ */
+function statusBadge(status?: string, reason?: string) {
   if (!status) return <Badge className="bg-muted text-muted-foreground">—</Badge>
   const s = status.toLowerCase()
   if (s === "ok" || s === "active" || s === "done")
     return <Badge className="bg-success/15 text-success">{status}</Badge>
   if (s === "running" || s === "pending")
     return <Badge className="bg-info/15 text-info">{status}</Badge>
-  if (s === "error" || s === "failed" || s === "dead")
-    return <Badge className="bg-destructive/15 text-destructive">{status}</Badge>
+  if (s === "error" || s === "failed" || s === "dead" || s === "needs_human") {
+    const tone = s === "needs_human" ? "bg-warning/15 text-[color:var(--warning)]" : "bg-destructive/15 text-destructive"
+    return (
+      <span className="inline-flex flex-col items-start gap-0.5">
+        <Badge className={tone} title={reason ? `Lý do: ${reason}` : undefined}>{status}</Badge>
+        {reason && (
+          <span className="max-w-[13rem] truncate font-mono text-[10px] text-muted-foreground" title={reason}>
+            {reason}
+          </span>
+        )}
+      </span>
+    )
+  }
   if (s === "cooldown")
     return <Badge className="bg-primary/15 text-primary">{status}</Badge>
   return <Badge className="bg-muted text-muted-foreground">{status}</Badge>
@@ -90,13 +118,15 @@ export function Accounts() {
 
   // Filter
   const [statusFilter, setStatusFilter] = useState("all")
+  const [reasons, setReasons] = useState<Reason[]>([])
 
   const fetchAccounts = useCallback(async () => {
     try {
       const res = await fetch("/api/accounts")
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json() as { accounts: Account[] }
+      const json = await res.json() as { accounts: Account[]; reasons?: Reason[] }
       setAccounts(json.accounts ?? [])
+      setReasons(json.reasons ?? [])
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch")
@@ -250,6 +280,36 @@ export function Accounts() {
 
   return (
     <div className="space-y-4">
+      {/* Vì sao account hỏng — xếp theo số account dính, nhiều nhất lên đầu.
+          Không có bảng này thì chỉ thấy "failed" và không biết bắt đầu từ đâu. */}
+      {reasons.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="mb-2 text-xs font-medium text-foreground">
+            Vì sao account hỏng — {reasons.reduce((s, r) => s + r.accounts, 0)} account, {reasons.length} nguyên nhân
+          </p>
+          <div className="space-y-1">
+            {reasons.slice(0, 6).map((r) => {
+              const top = Math.max(1, ...reasons.map((x) => x.accounts))
+              return (
+                <button
+                  key={r.reason}
+                  onClick={() => setSearch("")}
+                  title={`${r.accounts} account · luồng: ${r.flows}`}
+                  className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left"
+                >
+                  <span className="w-56 shrink-0 truncate font-mono text-[11px] text-foreground">{r.reason}</span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-background">
+                    <div className="h-full rounded-full bg-destructive" style={{ width: `${(r.accounts / top) * 100}%` }} />
+                  </div>
+                  <span className="w-10 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">{r.accounts}</span>
+                  <span className="w-24 shrink-0 truncate text-[10px] text-muted-foreground">{r.flows}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-wrap">
         {/* Search */}
@@ -387,7 +447,7 @@ export function Accounts() {
                 key: f.key,
                 header: f.label,
                 sort: (a: Account) => String(a[f.col] ?? ""),
-                render: (a: Account) => statusBadge(a[f.col]),
+                render: (a: Account) => statusBadge(a[f.col], a.lastErrors?.[f.key]),
               })),
               {
                 key: "lastLogin",

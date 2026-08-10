@@ -5,7 +5,7 @@ import { FLOW_KEYS } from './store/models.js';
 import { scheduler } from './queue/scheduler.js';
 import { runSingle, PIPELINE } from './flows/index.js';
 import { resumeHuman, skipHuman, pendingHumanRuns } from './flows/runner.js';
-import { recentRuns, runLogs } from './store/db.js';
+import { recentRuns, runLogs, lastRunErrors, failureReasons } from './store/db.js';
 import { fetchWebshareList, parseProxyList, testProxy } from './proxy/webshare.js';
 import { omniroute } from './omniroute/client.js';
 import { config, CSV, saveSettings, setConfig, applyConfig, getConfigValue, CONFIG_KEYS, SECRET_KEYS, RESTART_KEYS, AGY_HOME, ROOT } from './config.js';
@@ -35,7 +35,30 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   registerToolRoutes(app);
 
   // ---------- accounts ----------
-  app.get('/api/accounts', async () => ({ accounts: store.listAccounts() }));
+  /**
+   * Kèm lý do lỗi gần nhất cho account `failed`/`needs_human`.
+   *
+   * `setStatus()` chỉ lưu trạng thái, không lưu lý do — nên UI trước đây hiện "failed"
+   * trơ trọi. Lý do vẫn còn trong bảng `runs`, chỉ cần nối lại: đo trên production có
+   * 133 account `antigravity_no_code` (OAuth chờ 90s không bắt được authorization code).
+   * Biết mã lỗi mới sửa được; thấy mỗi chữ "failed" thì không.
+   */
+  app.get('/api/accounts', async () => {
+    const accounts = store.listAccounts();
+    const errs = lastRunErrors();
+    return {
+      accounts: accounts.map((a) => {
+        const fails: Record<string, string> = {};
+        for (const flow of FLOW_KEYS) {
+          const hit = errs.get(`${a.email}:${flow}`);
+          if (hit) fails[flow] = hit.error;
+        }
+        return Object.keys(fails).length ? { ...a, lastErrors: fails } : a;
+      }),
+      /** Xếp hạng lý do — trả lời "sửa cái nào thì cứu được nhiều account nhất". */
+      reasons: failureReasons(),
+    };
+  });
 
   app.post('/api/accounts', async (req, reply) => {
     const b = req.body as Partial<Account>;

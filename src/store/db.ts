@@ -320,6 +320,50 @@ export function recentRuns(limit = 50): RunRow[] {
   return db.prepare(`SELECT * FROM runs ORDER BY id DESC LIMIT ?`).all(limit) as unknown as RunRow[];
 }
 
+/**
+ * Lỗi GẦN NHẤT của mỗi account, gom theo (email, flow).
+ *
+ * Vì sao cần: `store.setStatus()` chỉ ghi `'failed'` vào accounts.csv và VỨT thông điệp
+ * lỗi (runner.ts có sẵn `msg` nhưng không truyền xuống). Đo trên production: 133 account
+ * `status_agy=failed` mà không chỗ nào nói vì sao — người vận hành thấy "hỏng 133 cái"
+ * rồi bó tay. Lý do thật vẫn nằm trong bảng `runs` (`antigravity_no_code` ×133), chỉ là
+ * chưa ai nối hai nguồn lại.
+ *
+ * Dùng id lớn nhất thay vì started_at: hai run cùng giây thì thời gian không phân định
+ * được, còn id thì luôn tăng.
+ */
+export function lastRunErrors(): Map<string, { flow: string; error: string; ts: string }> {
+  const rows = db
+    .prepare(
+      `SELECT r.email, r.flow, r.error, r.started_at AS ts
+         FROM runs r
+         JOIN (SELECT email, flow, MAX(id) AS mid
+                 FROM runs WHERE status = 'failed' GROUP BY email, flow) m
+           ON r.id = m.mid
+        WHERE r.error IS NOT NULL AND r.error != ''`,
+    )
+    .all() as Array<{ email: string; flow: string; error: string; ts: string }>;
+  const out = new Map<string, { flow: string; error: string; ts: string }>();
+  for (const r of rows) out.set(`${r.email}:${r.flow}`, { flow: r.flow, error: r.error, ts: r.ts });
+  return out;
+}
+
+/** Đếm account theo từng lý do lỗi — để biết nên sửa cái nào trước. */
+export function failureReasons(): { reason: string; accounts: number; flows: string }[] {
+  return db
+    .prepare(
+      `SELECT r.error AS reason, COUNT(DISTINCT r.email) AS accounts,
+              GROUP_CONCAT(DISTINCT r.flow) AS flows
+         FROM runs r
+         JOIN (SELECT email, flow, MAX(id) AS mid
+                 FROM runs WHERE status = 'failed' GROUP BY email, flow) m
+           ON r.id = m.mid
+        WHERE r.error IS NOT NULL AND r.error != ''
+        GROUP BY r.error ORDER BY accounts DESC LIMIT 20`,
+    )
+    .all() as { reason: string; accounts: number; flows: string }[];
+}
+
 export function runLogs(runId: number): unknown[] {
   return db.prepare(`SELECT * FROM run_logs WHERE run_id = ? ORDER BY id ASC`).all(runId);
 }
