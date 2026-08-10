@@ -98,7 +98,7 @@ const navGroups = [
     items: [
       { title: "Metrics", icon: Activity, tab: "metrics", badge: null },
       { title: "Báo cáo", icon: BarChart3, tab: "usage", badge: null },
-      { title: "Chat thử", icon: MessageSquare, tab: "chat", badge: null },
+      { title: "Playground", icon: MessageSquare, tab: "playground", badge: null },
       { title: "Live Log", icon: ScrollText, tab: "gwlog", badge: null },
     ],
   },

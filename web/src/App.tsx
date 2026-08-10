@@ -24,7 +24,7 @@ const Quota = lazy(() => import("@/components/pages/Quota").then((m) => ({ defau
 // Trang Usage cũ được thay bằng Reports (lọc theo key/combo). Giữ tab "usage" để link cũ vẫn chạy.
 const Reports = lazy(() => import("@/components/pages/Reports").then((m) => ({ default: m.Reports })))
 const Metrics = lazy(() => import("@/components/pages/Metrics").then((m) => ({ default: m.Metrics })))
-const Chat = lazy(() => import("@/components/pages/Chat").then((m) => ({ default: m.Chat })))
+const PlaygroundHub = lazy(() => import("@/components/pages/PlaygroundHub").then((m) => ({ default: m.PlaygroundHub })))
 const LiveLog = lazy(() => import("@/components/pages/LiveLog").then((m) => ({ default: m.LiveLog })))
 const ApiKeys = lazy(() => import("@/components/pages/ApiKeys").then((m) => ({ default: m.ApiKeys })))
 const Scheduler = lazy(() => import("@/components/pages/Scheduler").then((m) => ({ default: m.Scheduler })))
@@ -49,7 +49,8 @@ const tabTitles: Record<string, string> = {
   usage: "Báo cáo",
   reports: "Báo cáo",
   metrics: "Metrics",
-  chat: "Chat thử",
+  chat: "Playground",
+  playground: "Playground",
   gwlog: "Live Log",
   tools: "Cấu hình",
   settings: "Cấu hình",
@@ -89,7 +90,9 @@ function PageContent({ tab }: { tab: string }) {
     case "metrics":
       return <Metrics />
     case "chat":
-      return <Chat />
+    case "playground":
+      // `chat` là link cũ (sidebar, bookmark) — vẫn vào được, mở sẵn tab Chat thử.
+      return <PlaygroundHub initial={tab === "chat" ? "chat" : undefined} />
     case "gwlog":
       return <LiveLog />
     case "tools":
