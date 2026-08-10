@@ -42,6 +42,20 @@ interface AccountQuota {
   tier?: string
 }
 
+/** Tổng hợp hạn mức tách theo provider — hai bên có mô hình khác hẳn nhau. */
+interface QuotaSummary {
+  byProvider?: Record<string, {
+    provider: string
+    label: string
+    /** 'buckets' = nhiều bể độc lập (Antigravity) · 'credits' = một quỹ chung (Kiro). */
+    kind: "buckets" | "credits"
+    fetched: number
+    total: number
+    tiers: Record<string, number>
+    groups: Array<{ key: string; label: string; avg: number | null; min: number | null; n: number }>
+  }>
+}
+
 interface PoolAccount {
   email: string
   provider?: string
@@ -239,6 +253,9 @@ function AutoDisablePanel({ onDone }: { onDone: () => void }) {
 
 export function Quota() {
   const [accounts, setAccounts] = useState<PoolAccount[]>([])
+  const [summary, setSummary] = useState<QuotaSummary | null>(null)
+  /** Lọc theo provider — hai bên mô hình hạn mức khác hẳn, xem lẫn lộn là hiểu sai. */
+  const [prov, setProv] = useState<string>("all")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -278,6 +295,10 @@ export function Quota() {
     try {
       // ?withModels=1: trang này CẦN chi tiết từng model. Payload mặc định đã cắt
       // quota.models[] vì nó chiếm 62% kích thước mà chỉ trang này dùng.
+      fetch("/api/gateway/quota-summary")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => j && setSummary(j))
+        .catch(() => {})
       const res = await fetch("/api/gateway/accounts?withModels=1")
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json() as { accounts: PoolAccount[] }
@@ -351,7 +372,8 @@ export function Quota() {
 
   // ── Filter / sort / paginate
   const filtered = accounts.filter(a =>
-    !search || a.email.toLowerCase().includes(search.toLowerCase())
+    (prov === "all" || a.provider === prov) &&
+    (!search || a.email.toLowerCase().includes(search.toLowerCase()))
   )
 
   const sorted = [...filtered].sort((a, b) => {
@@ -379,8 +401,6 @@ export function Quota() {
 
   // Avg stats
   const withQ = accounts.filter(a => a.quota)
-  const avgGemini = withQ.length ? Math.round(withQ.reduce((s, a) => s + (a.geminiPct ?? 0), 0) / withQ.length) : null
-  const avgClaude = withQ.length ? Math.round(withQ.reduce((s, a) => s + (claudePct(a) ?? 0), 0) / withQ.length) : null
 
   // Chỉ còn dùng cho dòng tóm tắt xu hướng ở cuối trang; biểu đồ đọc `histSeries`.
   const histPoints: number[] = historyData?.series?.map(x => x.gemini ?? 0) ??
@@ -479,28 +499,48 @@ export function Quota() {
           icon={Gauge}
           loading={loading}
         />
-        <Card>
-          <CardContent className="pt-4 flex items-center gap-4">
-            {avgGemini != null && <DonutStat label="Gemini TB" pct={avgGemini} tone="success" size={80} strokeWidth={8} />}
-            <div className="flex-1">
-              <QuotaBar pct={avgGemini ?? undefined} />
-              <p className="text-[10px] text-muted-foreground mt-1">Trung bình pool</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 flex items-center gap-4">
-            {avgClaude != null && <DonutStat label="Claude TB" pct={avgClaude} tone="info" size={80} strokeWidth={8} />}
-            <div className="flex-1">
-              <QuotaBar pct={avgClaude ?? undefined} />
-              <p className="text-[10px] text-muted-foreground mt-1">Trung bình pool</p>
-            </div>
-          </CardContent>
-        </Card>
+        {/*
+          Thẻ dựng theo DỮ LIỆU, không cứng "Gemini/Claude".
+          Antigravity có 2 bể độc lập theo tuần; Kiro có 1 quỹ credit theo tháng và
+          KHÔNG có Gemini. Bản trước gộp cả 702 account vào một số "Gemini TB" — đúng
+          số học, vô nghĩa về ý nghĩa. Thêm provider mới cũng không phải sửa chỗ này.
+        */}
+        {(summary?.byProvider ? Object.values(summary.byProvider) : []).flatMap((p) =>
+          p.groups.map((g) => (
+            <Card key={`${p.provider}-${g.key}`}>
+              <CardContent className="flex items-center gap-4 pt-4">
+                {g.avg != null && (
+                  <DonutStat label={g.label} pct={g.avg} tone={g.key === 'gemini' ? 'success' : g.key === 'credits' ? 'warning' : 'info'} size={80} strokeWidth={8} />
+                )}
+                <div className="flex-1">
+                  <QuotaBar pct={g.avg ?? undefined} />
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    {p.label} · {g.n} account{g.min != null ? ` · thấp nhất ${g.min}%` : ""}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )),
+        )}
       </div>
 
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-wrap">
+        {/* Lọc provider — hai bên mô hình hạn mức khác hẳn nhau (agy 2 bể theo tuần,
+            kr 1 quỹ credit theo tháng), xem lẫn lộn dễ đọc nhầm số. */}
+        <div className="flex items-center gap-1">
+          {([["all", "Tất cả"], ["agy", "Antigravity"], ["kr", "Kiro"]] as const).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => { setProv(k); setPage(1) }}
+              className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
+                prov === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
@@ -610,8 +650,39 @@ export function Quota() {
                     </span>
                   ),
                 },
-                { key: "gemini", header: "Gemini", sort: (a) => a.geminiPct ?? -1, render: (a) => <QuotaBar pct={a.geminiPct} /> },
-                { key: "claude", header: "Claude/GPT", sort: (a) => claudePct(a) ?? -1, render: (a) => <QuotaBar pct={claudePct(a) ?? undefined} /> },
+                /*
+                  Cột hạn mức phụ thuộc PROVIDER, không cứng "Gemini/Claude":
+                    agy  2 bể độc lập theo tuần (Gemini · Claude+GPT)
+                    kr   1 quỹ credit theo tháng, KHÔNG có Gemini
+                  Trước đây account Kiro hiện cùng một con số ở cả hai cột — vì
+                  `geminiPct()` với provider một bể trả về chính quỹ đó (cố ý, để
+                  rotation xếp hạng được). Đúng cho việc chọn account, sai khi hiển thị.
+                */
+                {
+                  key: "q1",
+                  header: prov === "kr" ? "Credits" : prov === "agy" ? "Gemini" : "Hạn mức",
+                  sort: (a) => a.geminiPct ?? -1,
+                  render: (a) => (
+                    <div className="flex items-center gap-2">
+                      <QuotaBar pct={a.geminiPct} />
+                      {prov === "all" && (
+                        <span className="shrink-0 text-[10px] text-muted-foreground">
+                          {a.provider === "kr" ? "credit" : "gemini"}
+                        </span>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  key: "q2",
+                  header: "Claude/GPT",
+                  sort: (a) => claudePct(a) ?? -1,
+                  render: (a) =>
+                    // Kiro không có bể thứ hai — hiện dấu gạch thay vì lặp lại số credit.
+                    a.provider === "kr"
+                      ? <span className="text-xs text-muted-foreground/60" title="Kiro dùng một quỹ credit chung, không chia bể">—</span>
+                      : <QuotaBar pct={claudePct(a) ?? undefined} />,
+                },
                 {
                   key: "reset",
                   header: "Reset",

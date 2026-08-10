@@ -551,20 +551,82 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     };
   });
 
+  /**
+   * Tổng hợp hạn mức — TÁCH THEO PROVIDER, vì hai bên có mô hình khác hẳn nhau:
+   *
+   *   agy (Antigravity)  2 bể độc lập theo tuần: "Gemini Models" và "Claude and GPT
+   *                      models", mỗi bể % riêng + resetTime riêng, kèm % từng model.
+   *   kr  (Kiro)         1 quỹ credit theo THÁNG: 50 credit gói FREE, mỗi model tiêu
+   *                      credit khác nhau (haiku 0.4 · sonnet 1.3). Không có bể nào.
+   *
+   * Bản trước gộp cả 702 account vào một phép trung bình `geminiAvg` — nhưng
+   * `geminiPct()` với Kiro trả về chính quỹ credit (cố ý, để rotation xếp hạng được).
+   * Hệ quả: con số "Gemini TB 85%" trộn 351 account Antigravity với 351 account Kiro
+   * vốn không có Gemini. Số đúng về mặt số học, vô nghĩa về mặt ý nghĩa.
+   *
+   * Giữ nguyên các trường cũ ở cấp gốc cho client đang dùng; thêm `byProvider`.
+   */
   app.get('/api/gateway/quota-summary', async () => {
-    const withQuota = pool.list().filter((a) => a.quota);
-    const gem = withQuota.map((a) => geminiPct(a) ?? 0);
-    const tp = withQuota.map((a) => a.quota?.groups?.find((g) => !/gemini/i.test(g.name))?.pct ?? 0);
     const avg = (arr: number[]) => (arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : null);
+    const withQuota = pool.list().filter((a) => a.quota);
+
+    const byProvider: Record<string, unknown> = {};
+    for (const pid of PROVIDER_IDS) {
+      const list = pool.list(pid).filter((a) => a.quota);
+      if (!pool.list(pid).length) continue;
+
+      const tiers: Record<string, number> = {};
+      for (const a of list) if (a.quota?.tier) tiers[a.quota.tier] = (tiers[a.quota.tier] || 0) + 1;
+
+      // Có chia bể hay không quyết định cách hiển thị — UI đọc cờ này thay vì tự đoán
+      // theo tên provider (thêm provider mới sẽ không phải sửa UI).
+      const buckets = PROVIDERS[pid].models.some((m) => m.bucket);
+      const base = {
+        provider: pid,
+        label: PROVIDERS[pid].label,
+        fetched: list.length,
+        total: pool.list(pid).length,
+        tiers,
+        /** `buckets` = nhiều bể độc lập · `credits` = một quỹ chung. */
+        kind: buckets ? ('buckets' as const) : ('credits' as const),
+      };
+
+      if (buckets) {
+        const gem = list.map((a) => geminiPct(a)).filter((x): x is number => x != null);
+        const cla = list.map((a) => claudePct(a)).filter((x): x is number => x != null);
+        byProvider[pid] = {
+          ...base,
+          groups: [
+            { key: 'gemini', label: 'Gemini', avg: avg(gem), min: gem.length ? Math.min(...gem) : null, n: gem.length },
+            { key: 'claude', label: 'Claude/GPT', avg: avg(cla), min: cla.length ? Math.min(...cla) : null, n: cla.length },
+          ],
+        };
+      } else {
+        // Một quỹ duy nhất: lấy thẳng nhóm đầu, không đi qua geminiPct để tên nhóm
+        // giữ đúng nguyên bản upstream ('Credits') thay vì bị gắn nhãn 'Gemini'.
+        const pcts = list.map((a) => a.quota?.groups?.[0]?.pct).filter((x): x is number => x != null);
+        const name = list.find((a) => a.quota?.groups?.[0]?.name)?.quota?.groups?.[0]?.name ?? 'Credits';
+        byProvider[pid] = {
+          ...base,
+          groups: [{ key: 'credits', label: name, avg: avg(pcts), min: pcts.length ? Math.min(...pcts) : null, n: pcts.length }],
+        };
+      }
+    }
+
+    // ── Tương thích ngược: client cũ (CLI, MCP, skill) vẫn đọc các trường này ──
+    const gemAll = withQuota.map((a) => geminiPct(a) ?? 0);
+    const tpAll = withQuota.map((a) => a.quota?.groups?.find((g) => !/gemini/i.test(g.name))?.pct ?? 0);
     const tierCount: Record<string, number> = {};
     for (const a of withQuota) if (a.quota?.tier) tierCount[a.quota.tier] = (tierCount[a.quota.tier] || 0) + 1;
+
     return {
       fetched: withQuota.length,
       total: pool.list().length,
-      geminiAvg: avg(gem),
-      geminiMin: gem.length ? Math.min(...gem) : null,
-      thirdPartyAvg: avg(tp),
+      geminiAvg: avg(gemAll),
+      geminiMin: gemAll.length ? Math.min(...gemAll) : null,
+      thirdPartyAvg: avg(tpAll),
       tiers: tierCount,
+      byProvider,
     };
   });
 
