@@ -190,11 +190,19 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return { queued: true };
   });
 
+  /**
+   * Chạy lại hàng loạt. `statuses` lọc theo trạng thái để không trộn các nhóm hỏng
+   * khác bản chất — vd chỉ chạy lại `needs_human` (vướng captcha, account thường vẫn
+   * tốt) mà không đụng `failed` (lỗi thật, chạy lại dễ lặp lại đúng lỗi đó).
+   */
   app.post('/api/auto-run', async (req) => {
-    const { flows, noProxy } = (req.body ?? {}) as { flows?: FlowKey[]; noProxy?: boolean };
+    const { flows, noProxy, statuses } = (req.body ?? {}) as {
+      flows?: FlowKey[]; noProxy?: boolean; statuses?: string[];
+    };
     const valid = (flows ?? []).filter((f) => FLOW_KEYS.includes(f));
-    const n = scheduler.enqueueAuto(valid.length ? valid : undefined, noProxy);
-    return { queued: n };
+    const st = (statuses ?? []).filter((s) => ['new', 'failed', 'needs_human', 'running'].includes(s));
+    const n = scheduler.enqueueAuto(valid.length ? valid : undefined, noProxy, st.length ? st : undefined);
+    return { queued: n, statuses: st.length ? st : 'tất cả trạng thái khác ok' };
   });
 
   app.post('/api/stop', async () => {

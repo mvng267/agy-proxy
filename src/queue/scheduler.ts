@@ -55,13 +55,26 @@ class Scheduler {
   }
 
   /** Auto Run: mọi account có target chưa 'ok' -> xếp các flow còn thiếu. */
-  enqueueAuto(flows: FlowKey[] = PIPELINE, noProxy?: boolean) {
+  /**
+   * Xếp hàng chạy lại account CHƯA `ok`.
+   *
+   * `statuses` lọc theo trạng thái cụ thể — cần vì các nhóm hỏng có bản chất khác nhau
+   * và không nên chạy chung:
+   *   needs_human  chỉ vướng captcha, account thường vẫn tốt → chạy lại là cứu được
+   *   failed       lỗi thật (mạng đứt, OAuth hỏng) → chạy lại có thể lặp lại đúng lỗi
+   *   new          chưa từng đăng nhập
+   * Bỏ trống = mọi trạng thái khác `ok`, giữ nguyên hành vi cũ.
+   */
+  enqueueAuto(flows: FlowKey[] = PIPELINE, noProxy?: boolean, statuses?: string[]) {
     const use = flows.length ? flows : PIPELINE;
+    const only = statuses?.length ? new Set(statuses) : null;
     const jobs: Job[] = [];
     for (const acc of store.listAccounts()) {
       for (const flow of use) {
-        const st = acc[`status_${flow}` as keyof typeof acc] as string;
-        if (st !== 'ok') jobs.push({ email: acc.email, flow, noProxy });
+        const st = (acc[`status_${flow}` as keyof typeof acc] as string) || 'new';
+        if (st === 'ok') continue;
+        if (only && !only.has(st)) continue;
+        jobs.push({ email: acc.email, flow, noProxy });
       }
     }
     this.enqueue(jobs);
