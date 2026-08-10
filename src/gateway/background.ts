@@ -1,6 +1,6 @@
 import { config } from '../config.js';
 import { pruneQuotaHistory, pruneUsage, recordMetrics, pruneMetricsHistory } from '../store/db.js';
-import { pool, savePersist, ensureReady, dispatcherFor, refreshQuota } from './pool.js';
+import { pool, savePersist, ensureReady, dispatcherFor, refreshQuota, geminiPct, claudePct } from './pool.js';
 import { log, checkLiveAccount } from './engine.js';
 import { gatewayMetrics } from './metrics.js';
 
@@ -31,7 +31,18 @@ export function startGatewayBackground(): void {
     const mins = Math.max(1, config.gateway.quota?.intervalMin ?? 30);
     quotaTimer = setTimeout(async () => {
       if (config.gateway.quota?.autoRefresh) {
-        for (const a of pool.list().filter((x) => x.enabled)) {
+        /**
+         * Bao gồm CẢ account đang tắt khi bật `autoDisable`.
+         *
+         * Bản trước lọc `x.enabled` — hợp lý khi người ta tắt account thủ công (không
+         * định dùng thì đo làm gì). Nhưng với tự-tắt-theo-hạn-mức thì đó là bẫy chết:
+         * account bị tắt vì cạn quota sẽ không bao giờ được refresh, quota đóng băng ở
+         * giá trị cũ, và không bao giờ đủ điều kiện bật lại.
+         */
+        const soi = config.gateway.autoDisable?.enabled
+          ? pool.list().filter((x) => x.health !== 'dead')
+          : pool.list().filter((x) => x.enabled);
+        for (const a of soi) {
           await waitWhileBusy();
           await refreshQuota(a).catch(() => {});
           await new Promise((r) => setTimeout(r, 500));
@@ -176,4 +187,87 @@ export function startGatewayBackground(): void {
   };
   prune();
   setInterval(prune, 24 * 3600_000).unref?.();
+
+  startAutoDisableLoop();
+}
+
+/**
+ * Quét cả pool mỗi ngày: TẮT account đã cạn hạn mức, BẬT LẠI khi Google reset.
+ *
+ * Vì sao cần: đo thật trên production — pool 351 account có 65 cái quota 0% nằm lẫn với
+ * 203 cái còn 100%. Chiến lược xoay vẫn chọn phải chúng, mỗi lần tốn ~6 giây rồi 429.
+ * Có request thử 20 account liên tiếp, mất hơn 2 phút rồi vẫn hỏng, trong khi 203 account
+ * đầy quota nằm không. Tắt account cạn là bỏ chúng khỏi vòng xoay cho tới khi hồi.
+ *
+ * BẪY LỚN NHẤT: vòng refresh quota thường CHỈ chạy cho account `enabled`. Nếu job này tắt
+ * một account thì quota của nó đóng băng mãi mãi ở giá trị cũ → không bao giờ đủ điều kiện
+ * bật lại. Nên ở đây phải tự refresh cho CẢ account đang tắt (xem `refreshQuota` bên dưới).
+ */
+export async function runAutoDisableSweep(): Promise<{
+  checked: number; disabled: number; enabled: number; skipped: number;
+}> {
+  const cfg = config.gateway.autoDisable;
+  const off = Math.max(0, cfg.offAtPct);
+  // Ngưỡng bật phải CAO hơn ngưỡng tắt. Bằng nhau thì account dao động quanh mốc đó sẽ
+  // bật/tắt liên tục mỗi ngày (hiện tượng chattering).
+  const on = Math.max(off + 1, cfg.onAtPct);
+
+  let checked = 0, disabled = 0, enabledBack = 0, skipped = 0;
+
+  for (const a of pool.list()) {
+    // 'dead' là account hỏng vĩnh viễn (401/invalid_grant) — quota không cứu được,
+    // và bật lại chỉ tạo lỗi. Chỉ người kiểm thủ công mới gỡ được trạng thái này.
+    if (a.health === 'dead') { skipped++; continue; }
+
+    await waitWhileBusy();
+    // force=false: tôn trọng TTL cache. Job chạy 1 lần/ngày nên cache 10 phút không
+    // cản gì, mà lại tránh gọi upstream thừa khi vừa có refresh khác chạy qua.
+    await refreshQuota(a).catch(() => {});
+    checked++;
+
+    const pct = geminiPct(a) ?? claudePct(a);
+    if (pct == null) { skipped++; continue; } // chưa đo được thì đừng đoán
+
+    if (a.enabled && pct <= off) {
+      a.enabled = false;
+      disabled++;
+      log(a.email, 'warn', `Tự tắt: hạn mức còn ${pct}% (ngưỡng ≤${off}%)`);
+    } else if (!a.enabled && pct >= on) {
+      a.enabled = true;
+      enabledBack++;
+      log(a.email, 'info', `Tự bật lại: hạn mức đã hồi ${pct}% (ngưỡng ≥${on}%)`);
+    }
+
+    await new Promise((r) => setTimeout(r, 300));
+  }
+
+  savePersist();
+  log('system', 'info',
+    `Quét hạn mức xong: ${checked} account · tắt ${disabled} · bật lại ${enabledBack} · bỏ qua ${skipped}`);
+  return { checked, disabled, enabled: enabledBack, skipped };
+}
+
+/** Hẹn giờ chạy `runAutoDisableSweep` mỗi ngày vào `autoDisable.hour`. */
+function startAutoDisableLoop(): void {
+  const schedule = () => {
+    const cfg = config.gateway.autoDisable;
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(Math.min(23, Math.max(0, cfg.hour)), 0, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+
+    /**
+     * Hẹn theo MỐC GIỜ tuyệt đối, không phải `setInterval(24h)`.
+     * setInterval trôi dần theo thời gian xử lý mỗi vòng và nhảy lung tung sau khi máy
+     * ngủ/thức; hẹn theo mốc thì luôn chạy đúng giờ đã chọn.
+     */
+    const t = setTimeout(async () => {
+      if (config.gateway.autoDisable.enabled) {
+        await runAutoDisableSweep().catch((e) => log('system', 'error', `Quét hạn mức lỗi: ${e?.message ?? e}`));
+      }
+      schedule(); // tự lên lịch lại → đổi giờ trong cấu hình có hiệu lực từ vòng sau
+    }, next.getTime() - now.getTime());
+    t.unref?.();
+  };
+  schedule();
 }

@@ -30,6 +30,7 @@ import {
 } from './engine.js';
 import { toMessages } from './dialects/wire.js';
 import { gatewayMetrics } from './metrics.js';
+import { runAutoDisableSweep } from './background.js';
 import { providerBreaker } from './breaker.js';
 
 /**
@@ -43,6 +44,9 @@ function maskKey(k: string): string {
   if (k.length <= 12) return '•'.repeat(k.length);
   return `${k.slice(0, 8)}…${k.slice(-4)}`;
 }
+
+/** Chặn hai vòng quét chạy chồng — mỗi vòng đụng cả pool và gọi upstream. */
+let sweepRunning = false;
 
 export function registerAdminRoutes(app: FastifyInstance): void {
   // ---------------- Accounts ----------------
@@ -201,6 +205,7 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     outboundProxy: config.gateway.outboundProxy,
     cooldownSec: config.gateway.cooldownSec,
     quota: config.gateway.quota,
+    autoDisable: config.gateway.autoDisable,
     baseUrl: `http://localhost:${config.port}/proxy/v1`,
   }));
 
@@ -217,6 +222,17 @@ export function registerAdminRoutes(app: FastifyInstance): void {
       if (typeof b.quota.intervalMin === 'number') patch.quotaIntervalMin = b.quota.intervalMin;
       if (typeof b.quota.onCall === 'boolean') patch.quotaOnCall = b.quota.onCall;
       if (typeof b.quota.cacheTtlMin === 'number') patch.quotaCacheTtlMin = b.quota.cacheTtlMin;
+    }
+    // Tự tắt/bật account theo hạn mức. Nhận cả dạng lồng (`autoDisable:{...}`, giống
+    // `quota` ở trên) lẫn dạng phẳng — client cũ và CLI hay gửi phẳng.
+    const ad = (b.autoDisable && typeof b.autoDisable === 'object' ? b.autoDisable : b) as any;
+    if (typeof ad.enabled === 'boolean' && b.autoDisable) patch.autoDisableEnabled = ad.enabled;
+    if (typeof b.autoDisableEnabled === 'boolean') patch.autoDisableEnabled = b.autoDisableEnabled;
+    for (const [k, s] of [
+      ['hour', 'autoDisableHour'], ['offAtPct', 'autoDisableOffPct'], ['onAtPct', 'autoDisableOnPct'],
+    ] as const) {
+      if (b.autoDisable && typeof ad[k] === 'number') patch[s] = ad[k];
+      if (typeof b[s] === 'number') patch[s] = b[s];
     }
     if (b.regenerateKey) patch.gatewayApiKey = 'agy-' + randomUUID().replace(/-/g, '');
     else if (typeof b.apiKey === 'string') patch.gatewayApiKey = b.apiKey;
@@ -427,6 +443,28 @@ export function registerAdminRoutes(app: FastifyInstance): void {
   });
 
   // ---------------- Hạn mức (quota) ----------------
+  /**
+   * Chạy NGAY vòng quét tắt/bật theo hạn mức, không đợi tới giờ hẹn.
+   *
+   * Cần cho hai việc: thử ngay sau khi bật tính năng (không ai muốn chờ tới 3h sáng mới
+   * biết nó có chạy đúng không), và dọn pool thủ công khi thấy nhiều account cạn.
+   */
+  app.post('/api/gateway/quota/sweep', async (_req, reply) => {
+    if (sweepRunning) {
+      // Vòng quét đụng toàn bộ pool và tự gọi upstream — chạy chồng là nhân đôi tải
+      // và hai vòng ghi đè `enabled` của nhau.
+      return reply.code(409).send({ ok: false, error: 'Vòng quét đang chạy' });
+    }
+    sweepRunning = true;
+    try {
+      syncFromStore();
+      const r = await runAutoDisableSweep();
+      return { ok: true, ...r };
+    } finally {
+      sweepRunning = false;
+    }
+  });
+
   app.post('/api/gateway/quota/refresh', async (req) => {
     const { emails } = (req.body as { emails?: string[] }) ?? {};
     const q = (req.query ?? {}) as any;

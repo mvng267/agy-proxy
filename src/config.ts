@@ -113,6 +113,23 @@ export const config = {
       cacheTtlMin: num(S('quotaCacheTtlMin') ?? E('GATEWAY_QUOTA_TTL_MIN'), 10),
       historyDays: num(S('quotaHistoryDays'), 90),
     },
+    /**
+     * Quét cả pool mỗi ngày: TẮT account đã cạn hạn mức, BẬT LẠI khi Google reset.
+     *
+     * Vì sao cần: pool 351 account từng có 65 cái quota 0% nằm lẫn với 203 cái còn
+     * 100%. Chiến lược xoay vẫn chọn phải chúng, mỗi lần tốn ~6 giây rồi 429 —
+     * đo thật có request thử 20 account liên tiếp, mất hơn 2 phút rồi vẫn hỏng.
+     * Tắt account cạn là bỏ chúng khỏi vòng xoay cho tới khi hồi.
+     */
+    autoDisable: {
+      enabled: bool(S('autoDisableEnabled'), false),
+      /** Giờ chạy hằng ngày theo giờ máy chủ (0–23). */
+      hour: num(S('autoDisableHour'), 3),
+      /** Quota ≤ ngưỡng này (%) thì tắt. 0 = chỉ tắt khi cạn hẳn. */
+      offAtPct: num(S('autoDisableOffPct'), 0),
+      /** Quota ≥ ngưỡng này (%) thì bật lại. Phải CAO hơn offAtPct để tránh bật/tắt liên tục. */
+      onAtPct: num(S('autoDisableOnPct'), 20),
+    },
     // Giữ usage bao nhiêu ngày (0 = giữ vĩnh viễn). SPEC đã khai từ lâu nhưng chưa có
     // setter và pruneUsage chưa từng được gọi — bảng gateway_usage chỉ lớn dần mãi.
     usageRetentionDays: num(S('usageRetentionDays') ?? E('USAGE_RETENTION_DAYS'), 90),
@@ -170,6 +187,10 @@ const SETTERS: Record<string, Setter> = {
   quotaOnCall: (v) => (config.gateway.quota.onCall = v === 'true'),
   quotaCacheTtlMin: (v) => (config.gateway.quota.cacheTtlMin = Number(v)),
   quotaHistoryDays: (v) => (config.gateway.quota.historyDays = Number(v)),
+  autoDisableEnabled: (v) => (config.gateway.autoDisable.enabled = v === 'true'),
+  autoDisableHour: (v) => (config.gateway.autoDisable.hour = Number(v)),
+  autoDisableOffPct: (v) => (config.gateway.autoDisable.offAtPct = Number(v)),
+  autoDisableOnPct: (v) => (config.gateway.autoDisable.onAtPct = Number(v)),
   usageRetentionDays: (v) => (config.gateway.usageRetentionDays = Number(v)),
   anthropicBigModel: (v) => (config.gateway.anthropicBigModel = v),
   anthropicSmallModel: (v) => (config.gateway.anthropicSmallModel = v),
