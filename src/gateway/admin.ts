@@ -28,6 +28,7 @@ import {
   listCombos, testAccount, checkLiveAccount, emitCheck, runProviderCall,
   resolveComboPlan, COMBO_MAX_STEPS,
 } from './engine.js';
+import { store } from '../store/index.js';
 import { toMessages } from './dialects/wire.js';
 import { gatewayMetrics } from './metrics.js';
 import { runAutoDisableSweep } from './background.js';
@@ -161,6 +162,41 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     }
     savePersist();
     return { woken };
+  });
+
+  /**
+   * Gỡ trạng thái `dead` hàng loạt, đưa account về `unknown` để được thử lại.
+   *
+   * Vì sao cần: `dead` là VĨNH VIỄN — account rơi vào đó thì biến mất khỏi `candidates()`
+   * cho tới khi có người kiểm thủ công từng cái. Nhưng nó bị đặt bởi những lỗi có thể
+   * nhầm: đo thật trên production có 331/351 account Kiro `dead`, trong đó 313 cái vẫn
+   * `liveStatus='ok'` và gọi model được trong 1 giây. Một đợt lỗi hạ tầng thoáng qua đủ
+   * để xoá sổ cả provider, mà kiểm lại thủ công 351 account mất ~7 phút.
+   *
+   * Chỉ đổi `health` — KHÔNG bật account đang tắt, không xoá cooldown. Sau khi gỡ,
+   * account phải tự chứng minh còn sống qua lần gọi thật kế tiếp.
+   */
+  app.post('/api/gateway/accounts/revive', async (req) => {
+    const { emails, provider } = (req.body as { emails?: string[]; provider?: ProviderId }) ?? {};
+    syncFromStore();
+    const list = emails?.length
+      ? emails.map((e) => (e.includes(':') ? pool.getByKey(e) : pool.get(e, provider ?? 'agy')))
+      : pool.list(provider && PROVIDERS[provider] ? provider : undefined);
+
+    let revived = 0;
+    for (const a of list) {
+      if (!a || a.health !== 'dead') continue;
+      a.health = 'unknown';
+      a.lastError = '';
+      a.consecutiveFails = 0;
+      // Ghi ngược vào store: `syncFromStore` đọc health từ credentials.csv, không xoá ở
+      // đó thì lần đồng bộ sau sẽ dựng lại 'dead'.
+      store.setCredentialHealth(a.email, a.provider === 'kr' ? 'kiro' : 'agy', 'unknown');
+      revived++;
+    }
+    savePersist();
+    log('system', 'info', `Gỡ dead: ${revived} account về trạng thái chưa biết`);
+    return { revived };
   });
 
   // ---------------- API keys (nhiều key, mỗi key 1 user) ----------------

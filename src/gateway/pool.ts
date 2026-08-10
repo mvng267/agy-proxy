@@ -227,6 +227,22 @@ function blankAccount(i: UpsertInput): PoolAccount {
  */
 export function isPermanentAuthError(msg: string, status?: number): boolean {
   if (/invalid_grant|invalid_client|unauthorized_client|revoked|token has been expired/i.test(msg)) return true;
+
+  /**
+   * 403 kèm TRANG HTML = bị chặn ở tầng mạng (WAF/CDN/rate-limit biên), KHÔNG phải token
+   * bị thu hồi. API thật luôn trả JSON; nhận được `<!DOCTYPE html>` nghĩa là request chưa
+   * tới được API.
+   *
+   * Đo thật trên production: 331/351 account Kiro bị đánh `dead`, trong đó 313 cái vẫn
+   * có `liveStatus='ok'` — mâu thuẫn hiển nhiên. Gọi thử một cái (`thehien120`) thì nó
+   * trả lời trong 1 giây. Chúng chết oan vì một đợt `Kiro refresh 403: <!DOCTYPE HTML…`,
+   * và `dead` là trạng thái VĨNH VIỄN — chỉ người kiểm thủ công mới gỡ được.
+   *
+   * Cái giá của hai loại nhầm lẫn không đối xứng: coi nhầm account chết là còn sống chỉ
+   * tốn thêm một lượt thử; coi nhầm account sống là chết thì mất nó khỏi pool mãi mãi.
+   */
+  if (status === 403 && /<!DOCTYPE|<html|<HTML/i.test(msg)) return false;
+
   return status === 401 || status === 403;
 }
 
