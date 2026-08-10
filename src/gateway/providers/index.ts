@@ -138,10 +138,22 @@ export function parseModelId(raw: string | undefined | null): ParsedModel {
   const head = s.slice(0, slash).toLowerCase();
   const rest = s.slice(slash + 1);
 
-  if (head === 'auto') return { kind: 'auto', prefixed: `auto/${rest}`, combo: rest || 'default' };
+  /**
+   * Tên combo/auto chuẩn hoá về CHỮ THƯỜNG.
+   *
+   * `admin.ts` khi tạo combo luôn ép id về chữ thường (`.toLowerCase()` + lọc ký tự),
+   * nên id trong DB không bao giờ có chữ hoa. Bản trước chỉ hạ chữ phần prefix mà giữ
+   * nguyên phần tên, nên `combo/FAST` tra không ra và trả 404 dù combo `fast` tồn tại —
+   * một client viết hoa tên combo là chết mà không hiểu vì sao.
+   */
+  if (head === 'auto') {
+    const name = rest.toLowerCase();
+    return { kind: 'auto', prefixed: `auto/${name}`, combo: name || 'default' };
+  }
   if (head === 'combo') {
     if (!rest) throw new ModelIdError('Combo thiếu tên: dùng combo/<tên>.');
-    return { kind: 'combo', prefixed: `combo/${rest}`, combo: rest };
+    const name = rest.toLowerCase();
+    return { kind: 'combo', prefixed: `combo/${name}`, combo: name };
   }
 
   const pid = ALIAS[head];

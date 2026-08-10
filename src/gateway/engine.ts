@@ -2,7 +2,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
 import { authenticate, type AuthCtx } from './apikeys.js';
-import { toOpenAIFinish } from './openai.js';
+import { toOpenAIFinish, openaiError } from './openai.js';
 import { emitLog } from '../events.js';
 import { store } from '../store/index.js';
 import {
@@ -279,10 +279,19 @@ export async function runComboRequest(
   // resolveComboPlan là NGUỒN DUY NHẤT dựng plan (trước đây khối này tự lặp lại
   // đúng logic đó — hai bản đã bắt đầu phân kỳ ở thông điệp lỗi).
   const resolved = resolveComboPlan(parsed);
-  if ('error' in resolved) return o.reply.code(resolved.status).send({ error: resolved.error });
+  /**
+   * Lỗi phải theo ĐÚNG envelope OpenAI `{error:{message,type,code,param}}`.
+   * Bản trước gửi `{error: "chuỗi"}` — client SDK đọc `err.error.message` nhận
+   * `undefined`, nên combo gõ sai tên hiện ra là lỗi rỗng không hiểu nổi.
+   */
+  if ('error' in resolved) {
+    return o.reply.code(resolved.status).send(openaiError(resolved.status, resolved.error, { param: 'model' }));
+  }
   const comboName = resolved.name;
   let plan = resolved.plan;
-  if (!plan.length) return o.reply.code(503).send({ error: `${comboName}: không có model nào khả dụng` });
+  if (!plan.length) {
+    return o.reply.code(503).send(openaiError(503, `${comboName}: không có model nào khả dụng`, { param: 'model' }));
+  }
 
   // Có tools → bỏ các bước trỏ tới provider không có function calling (bước đó
   // chắc chắn 400, trượt qua luôn cho đỡ tốn 1 lượt trong 3 bước).

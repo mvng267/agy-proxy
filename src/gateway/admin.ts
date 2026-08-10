@@ -814,6 +814,19 @@ export function registerAdminRoutes(app: FastifyInstance): void {
       hasApiKey: !!gwKey,
       keys: listPublicApiKeys().map((k) => ({ id: k.id, name: k.name, prefix: k.prefix, enabled: k.enabled })),
       models: allModels().map((m) => ({ id: m.prefixed, label: m.label, provider: m.provider })),
+      /**
+       * Combo cũng gọi được như một model (`combo/<tên>`), nhưng KHÔNG nằm trong
+       * `allModels()`. Thiếu ở đây thì hộp hướng dẫn kết nối không biết combo nào tồn
+       * tại, và người dùng chỉ phát hiện ra combo khi tình cờ mở trang Combo.
+       * Trả kèm chuỗi bước để thấy ngay combo sẽ thử model nào, theo thứ tự nào.
+       */
+      combos: listCombos().map((c) => ({
+        id: `combo/${c.id}`,
+        name: c.name,
+        strategy: c.strategy,
+        enabled: c.enabled,
+        steps: (c.targets ?? []).map((t) => t.model),
+      })),
     };
   });
 

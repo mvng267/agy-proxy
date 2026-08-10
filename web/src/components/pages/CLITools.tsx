@@ -62,6 +62,8 @@ interface ConnectInfo {
   hasApiKey: boolean
   keys: Array<{ id: string; name: string; prefix: string; enabled: boolean }>
   models: Array<{ id: string; label: string; provider: string }>
+  /** Combo gọi được như model nhưng KHÔNG nằm trong `models` — phải liệt kê riêng. */
+  combos?: Array<{ id: string; name: string; strategy: string; enabled: boolean; steps: string[] }>
 }
 
 /**
@@ -221,7 +223,61 @@ function ConnectPanel() {
           ))}
           {!shown.length ? <span className="p-2 text-xs text-muted-foreground">Đang tải…</span> : null}
         </div>
+
+        {/* Quy tắc đặt model id — thiếu phần này thì người dùng chỉ biết copy id có sẵn,
+            gõ tay là 400/404 mà không hiểu vì sao. */}
+        <div className="rounded-lg border border-border bg-muted/30 p-2.5">
+          <p className="mb-1.5 text-[11px] font-medium text-foreground">Trường <code className="rounded bg-muted px-1">model</code> nhận dạng nào</p>
+          <table className="w-full text-[11px]">
+            <tbody className="text-muted-foreground">
+              {[
+                ["agy/<model>", "Antigravity (Gemini, Claude qua Vertex)", "agy/gemini-3-flash"],
+                ["kr/<model>", "Kiro (Claude, DeepSeek, Qwen…)", "kr/claude-sonnet-4.5"],
+                ["or/<model>", "OpenRouter / upstream OpenAI-compatible", "or/…"],
+                ["combo/<tên>", "Chuỗi model tự dự phòng khi lỗi", "combo/fast"],
+                ["auto", "Combo ảo, gateway tự chọn theo hạn mức", "auto"],
+              ].map(([dang, y, vd]) => (
+                <tr key={dang} className="border-t border-border/50 first:border-0">
+                  <td className="py-1 pr-2 align-top font-mono text-foreground">{dang}</td>
+                  <td className="py-1 pr-2 align-top">{y}</td>
+                  <td className="py-1 align-top font-mono">{vd}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            <strong className="text-foreground">Prefix bắt buộc</strong> — <code className="rounded bg-muted px-1">gemini-3-flash</code> trần
+            sẽ bị từ chối 400, vì <code className="rounded bg-muted px-1">agy/</code> và <code className="rounded bg-muted px-1">kr/</code> có
+            model trùng tên. Tên combo không phân biệt hoa thường; tên model thì có.
+          </p>
+        </div>
       </div>
+
+      {/* ── Combo ───────────────────────────────────────────────────── */}
+      {info?.combos?.length ? (
+        <>
+          <Separator className="bg-border" />
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-foreground">Combo ({info.combos.length})</p>
+            <p className="text-[11px] text-muted-foreground">
+              Gọi như model bình thường. Lỗi ở bước nào thì tự trượt sang bước kế — client không phải xử lý gì.
+            </p>
+            <div className="space-y-1">
+              {info.combos.map((c) => (
+                <div key={c.id} className="flex flex-wrap items-center gap-1.5 rounded-md border border-border px-2 py-1.5">
+                  <span className="font-mono text-[11px] text-foreground">{c.id}</span>
+                  <CopyButton value={c.id} size="xs" title={`Copy ${c.id}`} />
+                  {!c.enabled && <span className="rounded bg-muted px-1.5 text-[10px] text-[color:var(--warning)]">đang tắt</span>}
+                  <span className="text-[10px] text-muted-foreground">{c.strategy}</span>
+                  <span className="ml-auto truncate font-mono text-[10px] text-muted-foreground" title={c.steps.join(" → ")}>
+                    {c.steps.join(" → ")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
 
       <Separator className="bg-border" />
 
