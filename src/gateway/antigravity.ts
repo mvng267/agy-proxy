@@ -404,17 +404,30 @@ function dataUrlToInline(url: string): GeminiPart | null {
   return { inlineData: { mimeType: m[1] ?? 'image/png', data: m[2] ?? '' } };
 }
 
+/**
+ * Text chỉ được thành part khi CÓ KÝ TỰ THẬT.
+ *
+ * Upstream Anthropic từ chối cả hai: `text: ''` → `content.0.text.text: Field required`
+ * (proto3 nuốt chuỗi rỗng nên field biến mất), `text: ' '` → `must contain non-whitespace
+ * text`. Xem test/gateway/emptypart.test.ts để biết số đo đầy đủ.
+ */
+function coChuThat(t: unknown): t is string {
+  return typeof t === 'string' && /\S/.test(t);
+}
+
 function contentToParts(content: OAContent): GeminiPart[] {
-  if (typeof content === 'string') return [{ text: content }];
+  if (typeof content === 'string') return coChuThat(content) ? [{ text: content }] : [];
   const parts: GeminiPart[] = [];
   for (const p of content) {
-    if (p.type === 'text' && p.text != null) parts.push({ text: p.text });
+    if (p.type === 'text' && coChuThat(p.text)) parts.push({ text: p.text });
     else if (p.type === 'image_url' && p.image_url?.url) {
       const inline = dataUrlToInline(p.image_url.url);
       if (inline) parts.push(inline);
     }
   }
-  return parts.length ? parts : [{ text: '' }];
+  // Trả MẢNG RỖNG khi không có gì — KHÔNG bịa ra `{ text: '' }`.
+  // Xem ghi chú ở openaiToAntigravity: part text rỗng làm hỏng mọi model Claude.
+  return parts;
 }
 
 /**
@@ -562,9 +575,29 @@ export function openaiToAntigravity(
         });
       }
     }
-    contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: parts.length ? parts : [{ text: '' }] });
+    /**
+     * BỎ HẲN message không có part nào, thay vì độn `{ text: '' }`.
+     *
+     * Đo thật trên upstream 11/08/2026 (account còn quota Claude, model claude-sonnet-4-6):
+     *   parts: [{ text: '1+1?' }]  → 200
+     *   parts: [{ text: '' }]      → 400  messages.0.content.0.text.text: Field required
+     *   parts: []                  → 400  messages: Field required
+     *   parts: [{ text: ' ' }]     → 400  messages: text content blocks must contain non-whitespace text
+     *   bỏ hẳn message rỗng        → 200  ← chỉ cách này chạy
+     * Số trong câu lỗi trỏ ĐÚNG vị trí message rỗng (`messages.1...` khi nó là message
+     * thứ hai), nên không còn nghi ngờ gì về thủ phạm.
+     *
+     * Vì sao chỉ Claude vỡ: proto3 không emit field scalar rỗng, nên `text: ''` biến mất
+     * lúc serialize. Antigravity dịch parts → block Anthropic ra `{"type":"text"}` thiếu
+     * hẳn field `text`. Gemini không qua bước dịch đó nên vẫn chạy — bug nằm im từ commit
+     * đầu tiên tới khi Antigravity siết validate phía Claude.
+     */
+    if (!parts.length) continue;
+    contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts });
   }
-  if (!contents.length) contents.push({ role: 'user', parts: [{ text: '' }] });
+  // Upstream đòi `messages` KHÔNG rỗng (`messages: Field required`), nên vẫn phải có đúng
+  // một message — nhưng nội dung phải khác rỗng và khác khoảng trắng.
+  if (!contents.length) contents.push({ role: 'user', parts: [{ text: '(trống)' }] });
 
   const request: Record<string, unknown> = {
     contents,
