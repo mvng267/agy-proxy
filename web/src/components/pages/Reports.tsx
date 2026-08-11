@@ -37,6 +37,8 @@ interface LogRow {
   status?: number | null
   requestId?: string | null
   stream?: number | null
+  /** Thông điệp lỗi nguyên văn từ upstream — chỉ có khi ok=0. */
+  err?: string | null
 }
 
 interface LogsResponse {
@@ -192,6 +194,23 @@ export function Reports() {
     {
       key: "status", header: "Mã", align: "right", sort: (r) => r.status ?? 0,
       render: (r) => <span className={`text-xs font-medium tabular-nums ${statusTone(r.status)}`}>{r.status ?? (r.ok ? 200 : "—")}</span>,
+    },
+    {
+      /**
+       * Mã số không đủ để chẩn đoán: cùng là 429 nhưng "Individual quota reached,
+       * resets in 83h" (chờ là xong) khác hẳn "capacity on this model" (đổi account vô
+       * ích) và trần maxOutputTokens (lỗi ở chính request). Trước đây phải mò trong Live
+       * Log — vốn chỉ giữ 500 dòng trong RAM và mất sạch khi F5.
+       */
+      key: "err", header: "Lỗi", sort: (r) => r.err ?? "",
+      render: (r) =>
+        r.err ? (
+          <span className={`block max-w-[22rem] truncate text-xs ${statusTone(r.status)}`} title={r.err}>
+            {r.err}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        ),
     },
     {
       key: "model", header: "Model", sort: (r) => r.model,

@@ -960,7 +960,7 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     const { from, to } = rangeOf(req);
     const rows = usageRows(from, to, filterOf(req));
     // Cột mới thêm vào CUỐI dòng — chèn giữa sẽ phá script người dùng đang parse theo vị trí.
-    const head = 'ts,datetime,email,model,prompt_tokens,completion_tokens,ok,ms,api_key_id,combo,endpoint,status,request_id,stream\n';
+    const head = 'ts,datetime,email,model,prompt_tokens,completion_tokens,ok,ms,api_key_id,combo,endpoint,status,request_id,stream,err\n';
     const csv = (v: unknown) => {
       const t = v == null ? '' : String(v);
       return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
@@ -969,7 +969,7 @@ export function registerAdminRoutes(app: FastifyInstance): void {
       .map((r) => [
         r.ts, new Date(r.ts).toISOString(), r.email, r.model, r.promptTokens, r.completionTokens,
         r.ok ? 1 : 0, r.ms, r.apiKeyId, r.combo, r.endpoint, r.status, r.requestId,
-        r.stream == null ? '' : r.stream ? 1 : 0,
+        r.stream == null ? '' : r.stream ? 1 : 0, r.err,
       ].map(csv).join(','))
       .join('\n');
     reply.header('content-type', 'text/csv; charset=utf-8');

@@ -104,7 +104,7 @@ export interface UsageCtx {
 export function afterCall(
   account: PoolAccount,
   model: string,
-  r: { ok: boolean; promptTokens?: number; completionTokens?: number; ms: number; status?: number },
+  r: { ok: boolean; promptTokens?: number; completionTokens?: number; ms: number; status?: number; err?: string },
   ctx?: UsageCtx,
 ) {
   gatewayMetrics.record(r.ok, r.ms);
@@ -117,6 +117,7 @@ export function afterCall(
     ok: r.ok,
     ms: r.ms,
     status: r.status,
+    err: r.err,
     apiKeyId: ctx?.apiKeyId,
     combo: ctx?.combo,
     endpoint: ctx?.endpoint,
@@ -564,7 +565,7 @@ export async function runProviderCall(opts: {
         ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs,
         bucket, latencyMs: ms,
       });
-      afterCall(ctx.account, labelModel, { ok: false, ms, status: e?.status }, opts.usage);
+      afterCall(ctx.account, labelModel, { ok: false, ms, status: e?.status, err: e?.message }, opts.usage);
       const outOfQuota = e?.status === 402 || e?.status === 429 || /MONTHLY_REQUEST_COUNT|quota|exhaust/i.test(String(e?.message ?? ''));
       // Prompt quá dài KHÔNG phụ thuộc account — thử account khác chỉ tốn thời gian
       // và làm bẩn log. Dừng ngay để tầng combo đổi sang MODEL khác.

@@ -130,9 +130,20 @@ export const config = {
       /** Quota ≥ ngưỡng này (%) thì bật lại. Phải CAO hơn offAtPct để tránh bật/tắt liên tục. */
       onAtPct: num(S('autoDisableOnPct'), 20),
     },
-    // Giữ usage bao nhiêu ngày (0 = giữ vĩnh viễn). SPEC đã khai từ lâu nhưng chưa có
-    // setter và pruneUsage chưa từng được gọi — bảng gateway_usage chỉ lớn dần mãi.
-    usageRetentionDays: num(S('usageRetentionDays') ?? E('USAGE_RETENTION_DAYS'), 90),
+    /**
+     * Giữ usage bao nhiêu ngày. **0 = giữ vĩnh viễn, và đó là mặc định.**
+     *
+     * `gateway_usage` là nguồn duy nhất trả lời được "bản cập nhật hôm qua làm mọi thứ
+     * tốt lên hay xấu đi" — mỗi dòng là một request kèm model, độ trễ, mã lỗi. Dọn nó đi
+     * là mất luôn đường cơ sở để so sánh, mà đúng lúc cần đối chiếu thì đã muộn.
+     *
+     * Đo trên production 11/08: 3.316 dòng/ngày → ~1,2 triệu dòng/năm, cỡ 300 MB, trong
+     * khi đĩa còn 107 GB. Rẻ hơn nhiều so với việc mù thông tin.
+     *
+     * `quota_history` thì NGƯỢC LẠI, vẫn dọn theo `quotaHistoryDays`: nó sinh 12.311
+     * dòng/ngày (gấp 4 lần) mà chỉ dùng để vẽ biểu đồ xu hướng — không dùng để chẩn đoán.
+     */
+    usageRetentionDays: num(S('usageRetentionDays') ?? E('USAGE_RETENTION_DAYS'), 0),
     // Endpoint Anthropic (Claude Code): id Anthropic thật sẽ map sang 2 model này
     anthropicBigModel: S('anthropicBigModel') ?? 'kr/claude-sonnet-4.5',
     anthropicSmallModel: S('anthropicSmallModel') ?? 'kr/claude-haiku-4.5',

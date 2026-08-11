@@ -234,6 +234,26 @@ const MIGRATIONS: Array<{ v: number; name: string; up: (d: MigDb) => void }> = [
       `);
     },
   },
+  {
+    v: 5,
+    /**
+     * Thông điệp lỗi nguyên văn từ upstream.
+     *
+     * Trước đây usage chỉ lưu mã số (`status`), nên "429" không phân biệt được:
+     *   "Individual quota reached, resets in 83h34m" — account cạn, chờ là xong
+     *   "capacity on this model"                    — trần theo MODEL, đổi account vô ích
+     *   trần maxOutputTokens                        — lỗi nằm ở REQUEST, cháy cả pool
+     * Ba thứ này cần ba cách xử lý khác hẳn nhau mà nhìn mã số thì y hệt. Chẩn đoán
+     * phải mò trong Live Log — vốn chỉ giữ 500 dòng trong RAM và mất khi F5.
+     *
+     * Cắt 300 ký tự khi ghi: đủ để nhận dạng, không để một trang HTML lỗi (đã gặp với
+     * `Kiro refresh 403: <!DOCTYPE HTML…`) phình bảng.
+     */
+    name: 'cột err cho gateway_usage — lưu thông điệp lỗi để chẩn đoán',
+    up: (d) => {
+      addColumnIfMissing(d, 'gateway_usage', 'err', 'TEXT');
+    },
+  },
 ];
 
 /** Chạy mọi migration chưa áp dụng. Trả về danh sách version đã chạy. */
@@ -409,6 +429,11 @@ export interface UsageRow {
   status?: number;
   /** Nối các bước combo của CÙNG một request client. */
   requestId?: string;
+  /**
+   * Thông điệp lỗi nguyên văn (chỉ khi ok=false). Mã số không đủ: "429" có thể là
+   * account cạn quota, trần theo model, hay lỗi ở chính request — ba cách xử lý khác nhau.
+   */
+  err?: string;
   stream?: boolean;
 }
 /**
@@ -423,12 +448,15 @@ export function recordGatewayUsage(r: UsageRow): void {
   prep(
     `INSERT INTO gateway_usage
        (ts, email, model, prompt_tokens, completion_tokens, ok, ms,
-        api_key_id, combo, endpoint, status, request_id, stream)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        api_key_id, combo, endpoint, status, request_id, stream, err)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   ).run(
     r.ts, r.email, r.model, r.promptTokens | 0, r.completionTokens | 0, r.ok ? 1 : 0, r.ms | 0,
     r.apiKeyId ?? null, r.combo ?? null, r.endpoint ?? null,
     r.status ?? null, r.requestId ?? null, r.stream == null ? null : r.stream ? 1 : 0,
+    // Chỉ lưu khi LỖI, cắt 300 ký tự: đủ nhận dạng, không để một trang HTML lỗi
+    // (`Kiro refresh 403: <!DOCTYPE HTML…`) phình bảng.
+    r.ok ? null : (r.err ? String(r.err).slice(0, 300) : null),
   );
 }
 
@@ -1030,7 +1058,7 @@ export function usageRows(from: number, to: number, f?: UsageFilter): UsageRow[]
   return db
     .prepare(
       `SELECT ts, email, model, prompt_tokens AS promptTokens, completion_tokens AS completionTokens, ok, ms,
-              api_key_id AS apiKeyId, combo, endpoint, status, request_id AS requestId, stream
+              api_key_id AS apiKeyId, combo, endpoint, status, request_id AS requestId, stream, err
        FROM gateway_usage WHERE ts >= ? AND ts < ?${w.sql} ORDER BY ts ASC`,
     )
     .all(from, to, ...(w.args as any[])) as any[];
@@ -1057,7 +1085,7 @@ export function usageLogs(
   const rows = db
     .prepare(
       `SELECT ts, email, model, prompt_tokens AS promptTokens, completion_tokens AS completionTokens, ok, ms,
-              api_key_id AS apiKeyId, combo, endpoint, status, request_id AS requestId, stream
+              api_key_id AS apiKeyId, combo, endpoint, status, request_id AS requestId, stream, err
        FROM gateway_usage ${where} ORDER BY ts DESC LIMIT ? OFFSET ?`,
     )
     .all(from, to, ...(w.args as any[]), Math.max(1, Math.min(500, limit)), Math.max(0, offset)) as any[];
