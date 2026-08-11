@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseModelId, ModelIdError, allModels, providerOfTarget, getProvider, setBareMode } from '../../src/gateway/providers/index.js';
+import { parseModelId, ModelIdError, allModels, providerOfTarget, getProvider, setBareMode, PROVIDER_IDS } from '../../src/gateway/providers/index.js';
 import { planCombo, planAuto, shouldFallback, isContextTooLong, validateTargets, scoreCandidates, AUTO_VARIANTS, type Combo, type PoolSnapshot } from '../../src/gateway/combo.js';
 import { messagesToCodeWhisperer, parseKiroCredential, resolveKiroUpstream } from '../../src/gateway/kiro.js';
 import { anthropicToMessages, resultToAnthropic, toStopReason, resolveAnthropicModel, sseFrame } from '../../src/gateway/anthropic.js';
@@ -34,7 +34,10 @@ test('combo + auto có namespace riêng', () => {
 test('registry: model đều có prefix, target store map đúng', () => {
   const ms = allModels();
   assert.ok(ms.length >= 13);
-  assert.ok(ms.every((m) => /^(agy|kr|or)\//.test(m.prefixed)));
+  // Suy prefix từ REGISTRY, không khoá cứng: thêm provider mới thì test tự bao phủ,
+  // không phải sửa lại danh sách ở đây.
+  const re = new RegExp(`^(${PROVIDER_IDS.join('|')})/`);
+  assert.ok(ms.every((m) => re.test(m.prefixed)), `model có prefix lạ: ${ms.find((m) => !re.test(m.prefixed))?.prefixed}`);
   assert.equal(new Set(ms.map((m) => m.prefixed)).size, ms.length, 'id không được trùng');
   assert.equal(providerOfTarget('agy')?.id, 'agy');
   assert.equal(providerOfTarget('kiro')?.id, 'kr', "target CSV là 'kiro', không phải 'kr'");

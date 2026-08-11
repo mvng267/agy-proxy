@@ -1,17 +1,19 @@
 import { agyProvider } from './agy.js';
 import { kiroProvider } from './kiro.js';
 import { openrouterProvider } from './openrouter.js';
+import { nousProvider } from './nous.js';
 import type { Provider, ProviderId, ProviderModel } from './types.js';
 
 export * from './types.js';
-export { agyProvider, kiroProvider, openrouterProvider };
+export { agyProvider, kiroProvider, openrouterProvider, nousProvider };
 
 export const PROVIDERS: Record<ProviderId, Provider> = {
   agy: agyProvider,
   kr: kiroProvider,
   or: openrouterProvider,
+  no: nousProvider,
 };
-export const PROVIDER_IDS: readonly ProviderId[] = ['agy', 'kr', 'or'];
+export const PROVIDER_IDS: readonly ProviderId[] = ['agy', 'kr', 'or', 'no'];
 
 /** Bí danh prefix → provider id. */
 const ALIAS: Record<string, ProviderId> = {
@@ -21,6 +23,8 @@ const ALIAS: Record<string, ProviderId> = {
   kiro: 'kr',
   or: 'or',
   openrouter: 'or',
+  no: 'no',
+  nous: 'no',
 };
 
 export function getProvider(id: string): Provider | undefined {

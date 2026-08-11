@@ -13,11 +13,15 @@ import type { ProviderAccount } from '../../src/gateway/providers/types.js';
 
 // ---------------- Registry: provider mới nhập cuộc như công dân hạng nhất ----------------
 
-test('registry: or/ và openrouter/ đều trỏ về provider mới; PROVIDER_IDS đủ 3', () => {
+test('registry: or/ và openrouter/ đều trỏ về provider mới', () => {
   assert.equal(getProvider('or'), openrouterProvider);
   assert.equal(getProvider('openrouter'), openrouterProvider);
-  assert.deepEqual([...PROVIDER_IDS], ['agy', 'kr', 'or']);
+  // KHÔNG khoá cứng danh sách provider — thêm cái mới không được làm đỏ test này.
+  // Điều cần giữ: `or` có mặt, và mỗi provider một credentialTarget riêng.
+  assert.ok(PROVIDER_IDS.includes('or'));
   assert.equal(PROVIDERS.or.credentialTarget, 'openrouter');
+  const targets = PROVIDER_IDS.map((id) => PROVIDERS[id].credentialTarget);
+  assert.equal(new Set(targets).size, targets.length, 'trùng target là nạp nhầm account');
 });
 
 test('parseModelId: id sau or/ được giữ nguyên, kể cả id có dấu gạch chéo', () => {

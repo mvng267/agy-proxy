@@ -7,7 +7,7 @@ import type { ChatMessage, GenResult, QuotaBucket, QuotaInfo, TokenInfo, ToolCal
  * PoolAccount kế thừa ProviderAccount.
  */
 
-export type ProviderId = 'agy' | 'kr' | 'or';
+export type ProviderId = 'agy' | 'kr' | 'or' | 'no';
 
 /** Kết quả ensureReady — phẳng, mỗi provider điền phần của mình. */
 export interface ProviderSession {
@@ -16,6 +16,12 @@ export interface ProviderSession {
   profileArn?: string; // kr
   region?: string; // kr
   baseUrl?: string; // or (upstream OpenAI-compatible tuỳ credential)
+  /**
+   * `${provider}:${email}` — để provider gắn dữ liệu thu được từ response về ĐÚNG account.
+   * Nous cần: hạn mức của nó chỉ đến kèm header response gọi model, không có API để hỏi,
+   * nên phải biết response này thuộc account nào mới lưu đúng chỗ.
+   */
+  accountKey?: string;
 }
 
 /** Thông tin tối thiểu 1 provider cần để chạy 1 account. */
