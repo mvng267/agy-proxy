@@ -1,6 +1,6 @@
-export type FlowKey = 'google' | 'gweb' | 'agy' | 'gcli' | 'kiro';
+export type FlowKey = 'google' | 'gweb' | 'agy' | 'gcli' | 'kiro' | 'nous';
 
-export const FLOW_KEYS: FlowKey[] = ['google', 'gweb', 'agy', 'gcli', 'kiro'];
+export const FLOW_KEYS: FlowKey[] = ['google', 'gweb', 'agy', 'gcli', 'kiro', 'nous'];
 
 export const FLOW_LABEL: Record<FlowKey, string> = {
   google: 'Google Login',
@@ -8,6 +8,7 @@ export const FLOW_LABEL: Record<FlowKey, string> = {
   agy: 'Antigravity',
   gcli: 'Gemini CLI',
   kiro: 'Kiro',
+  nous: 'Nous Research',
 };
 
 /** Trạng thái 1 target trên 1 account. */
@@ -29,6 +30,7 @@ export interface Account {
   status_agycli: TargetStatus;
   status_gcli: TargetStatus;
   status_kiro: TargetStatus;
+  status_nous: TargetStatus;
   last_run: string;
   note: string;
   fingerprint: string; // JSON BrowserFingerprintWithHeaders, sinh 1 lần & cố định
@@ -48,6 +50,9 @@ export const ACCOUNT_HEADERS: (keyof Account)[] = [
   'status_agycli',
   'status_gcli',
   'status_kiro',
+  // Cột MỚI đặt SAU các cột cũ: accounts.csv hiện có 2.7 MB, chèn vào giữa là mọi giá trị
+  // sau đó lệch một ô — 700 account mất proxy/fingerprint trong một lần đọc.
+  'status_nous',
   'last_run',
   'note',
   'fingerprint',

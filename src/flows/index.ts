@@ -4,6 +4,7 @@ import { googleLoginFlow } from './googleLogin.js';
 import { geminiWebFlow } from './geminiWeb.js';
 import { antigravityFlow, geminiCliFlow } from './oauthProvider.js';
 import { kiroFlow } from './kiro.js';
+import { nousFlow } from './nous.js';
 
 export const FLOWS: Record<FlowKey, FlowFn> = {
   google: googleLoginFlow,
@@ -11,6 +12,7 @@ export const FLOWS: Record<FlowKey, FlowFn> = {
   agy: antigravityFlow,
   gcli: geminiCliFlow,
   kiro: kiroFlow,
+  nous: nousFlow,
 };
 
 /**

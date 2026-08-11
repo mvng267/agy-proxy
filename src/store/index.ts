@@ -47,6 +47,7 @@ function defaultAccount(email: string): Account {
     status_agycli: 'new',
     status_gcli: 'new',
     status_kiro: 'new',
+    status_nous: 'new',
     last_run: '',
     note: '',
     fingerprint: '',
