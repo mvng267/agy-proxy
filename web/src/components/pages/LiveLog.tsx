@@ -20,6 +20,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { LogTag, statusTone, type TagTone } from "@/components/common/LogTag"
+import { CopyButton } from "@/components/common/copy"
+import { loLoc, dangLoc, type BoLoc } from "@/lib/loglocs"
 
 /**
  * Live Log — mỗi dòng gồm HAI hàng:
@@ -169,21 +171,14 @@ export function LiveLog() {
     [entries],
   )
 
-  const shown = useMemo(() => {
-    const needle = q.trim().toLowerCase()
-    return entries.filter((e) => {
-      if (kinds.size && !kinds.has(e.kind)) return false
-      if (model && e.model !== model) return false
-      if (apiKey && e.apiKey !== apiKey) return false
-      if (status && String(e.status ?? "") !== status) return false
-      if (account && e.account !== account) return false
-      if (needle) {
-        const hay = `${e.msg} ${e.model ?? ""} ${e.account ?? ""} ${e.apiKey ?? ""} ${e.combo ?? ""}`
-        if (!hay.toLowerCase().includes(needle)) return false
-      }
-      return true
-    })
-  }, [entries, kinds, model, apiKey, status, account, q])
+  // MỘT nguồn sự thật cho bộ lọc: `shown` và `filtering` cùng đọc object này, nên không
+  // thể lệch nhau như bản trước (xem src/lib/loglocs.ts).
+  const boLoc: BoLoc = useMemo(
+    () => ({ kinds, model, apiKey, status, account, q }),
+    [kinds, model, apiKey, status, account, q],
+  )
+
+  const shown = useMemo(() => loLoc(entries, boLoc), [entries, boLoc])
 
   const counts = useMemo(() => {
     const c: Record<Kind, number> = { req: 0, res: 0, err: 0, check: 0, info: 0 }
@@ -191,7 +186,7 @@ export function LiveLog() {
     return c
   }, [entries])
 
-  const filtering = kinds.size > 0 || !!model || !!apiKey || !!q.trim()
+  const filtering = dangLoc(boLoc)
 
   const toggleKind = (k: Kind) =>
     setKinds((prev) => {
@@ -201,10 +196,23 @@ export function LiveLog() {
       return n
     })
 
+  /**
+   * Một dòng log ở dạng text — dùng chung cho nút "Tải log" và nút copy từng dòng.
+   * Cùng một định dạng ở cả hai chỗ, nên dán vào issue hay grep trong file tải về đều khớp.
+   */
+  const dongText = (e: Entry) => {
+    const meta = [e.kind, e.status, e.model, e.account, e.apiKey, e.combo, e.ms && `${e.ms}ms`]
+      .filter(Boolean)
+      .join(" · ")
+    return `${new Date(e.ts).toISOString()}\t${meta}\t${e.msg}`
+  }
+
   const clearFilters = () => {
     setKinds(new Set())
     setModel("")
     setApiKey("")
+    setStatus("")
+    setAccount("")
     setQ("")
   }
 
@@ -255,21 +263,15 @@ export function LiveLog() {
             onClick={() => {
               // Xuất ĐÚNG những dòng đang hiển thị (sau bộ lọc) — xuất cả buffer thì
               // người ta phải lọc lại lần nữa ở ngoài.
-              const text = shown
-                .map((e) => {
-                  const t = new Date(e.ts).toISOString()
-                  const meta = [e.kind, e.status, e.model, e.account, e.apiKey, e.combo, e.ms && `${e.ms}ms`]
-                    .filter(Boolean)
-                    .join(" · ")
-                  return `${t}\t${meta}\t${e.msg}`
-                })
-                .join("\n")
+              const text = shown.map(dongText).join("\n")
               const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }))
               const a = document.createElement("a")
               a.href = url
               a.download = `agyproxy-log-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.txt`
               a.click()
-              URL.revokeObjectURL(url)
+              // Huỷ SAU khi trình duyệt kịp đọc blob. Gọi ngay sau click() là chạy đua với
+              // chính nó — Safari đôi khi huỷ trước khi tải xong và ra file rỗng.
+              setTimeout(() => URL.revokeObjectURL(url), 10_000)
             }}
             className="h-8 gap-1 text-xs"
             title={`Tải ${shown.length} dòng đang hiển thị`}
@@ -422,10 +424,23 @@ export function LiveLog() {
               {shown.map((e) => (
                 <div
                   key={e.id}
-                  className="border-b border-border/40 px-3 py-2 transition-colors hover:bg-background/60"
+                  className="group relative border-b border-border/40 px-3 py-2 transition-colors hover:bg-background/60"
                 >
+                  {/*
+                    Copy MỘT dòng. Buffer chỉ giữ 500 dòng và cuộn liên tục, nên khi thấy
+                    dòng lỗi cần dán vào issue thì bôi đen bằng chuột là chạy đua với luồng
+                    đang chảy. Hiện khi rê chuột để không làm rối hàng thẻ.
+                    Định dạng giống hệt file "Tải log" — dùng chung `dongText`.
+                  */}
+                  <CopyButton
+                    value={() => dongText(e)}
+                    title="Chép dòng này"
+                    size="xs"
+                    className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                  />
+
                   {/* HÀNG 1 — thẻ */}
-                  <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5 pr-6">
                     <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
                       {hhmmss(e.ts)}
                     </span>
