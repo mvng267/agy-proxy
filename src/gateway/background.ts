@@ -225,17 +225,34 @@ export async function runAutoDisableSweep(): Promise<{
     await refreshQuota(a).catch(() => {});
     checked++;
 
-    const pct = geminiPct(a) ?? claudePct(a);
-    if (pct == null) { skipped++; continue; } // chưa đo được thì đừng đoán
+    /**
+     * Xét MỌI BỂ, không chỉ bể đầu tiên.
+     *
+     * Antigravity chia 2 bể ĐỘC LẬP (Gemini · Claude+GPT) với hạn mức riêng. Bản trước
+     * dùng `geminiPct(a) ?? claudePct(a)` — toán tử `??` chỉ rơi sang Claude khi Gemini
+     * là null, nên account cạn Gemini mà còn Claude vẫn bị tắt.
+     *
+     * Đã xảy ra thật: quét ngày 10/08 tắt cả 351 account vì Gemini 0%, trong đó 233 cái
+     * còn quota Claude trung bình 76%. Model `agy/claude-*` chết hẳn — gọi vào nhận
+     * "không có account khả dụng" dù pool còn dư dả.
+     *
+     * Quy tắc đúng: account còn DÙNG ĐƯỢC nếu CÒN ÍT NHẤT MỘT bể có hạn mức. Chỉ tắt khi
+     * mọi bể đều cạn. Cooldown theo bể (`bucketCooldown`) đã lo phần "đừng gọi bể đã cạn".
+     */
+    const buckets = [geminiPct(a), claudePct(a)].filter((x): x is number => x != null);
+    if (!buckets.length) { skipped++; continue; } // chưa đo được thì đừng đoán
 
-    if (a.enabled && pct <= off) {
+    const best = Math.max(...buckets);
+    const moTa = buckets.length > 1 ? `các bể: ${buckets.join('%, ')}%` : `${best}%`;
+
+    if (a.enabled && best <= off) {
       a.enabled = false;
       disabled++;
-      log(a.email, 'warn', `Tự tắt: hạn mức còn ${pct}% (ngưỡng ≤${off}%)`);
-    } else if (!a.enabled && pct >= on) {
+      log(a.email, 'warn', `Tự tắt: mọi bể đều cạn (${moTa}, ngưỡng ≤${off}%)`);
+    } else if (!a.enabled && best >= on) {
       a.enabled = true;
       enabledBack++;
-      log(a.email, 'info', `Tự bật lại: hạn mức đã hồi ${pct}% (ngưỡng ≥${on}%)`);
+      log(a.email, 'info', `Tự bật lại: còn hạn mức (${moTa}, ngưỡng ≥${on}%)`);
     }
 
     await new Promise((r) => setTimeout(r, 300));

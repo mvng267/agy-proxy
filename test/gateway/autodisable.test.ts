@@ -2,7 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { Pool, geminiPct } from '../../src/gateway/pool.js';
+import { Pool, geminiPct, claudePct } from '../../src/gateway/pool.js';
 
 /**
  * Tự TẮT account cạn hạn mức, tự BẬT LẠI khi Google reset.
@@ -76,6 +76,61 @@ describe('ngưỡng tắt/bật', () => {
     a.quota = undefined;
     assert.equal(geminiPct(a), null);
     assert.equal(quyetDinh(a, geminiPct(a), off, on), 'giu');
+  });
+});
+
+describe('nhiều bể — chỉ tắt khi MỌI bể đều cạn', () => {
+  /**
+   * Antigravity chia 2 bể ĐỘC LẬP với hạn mức riêng. Bản trước dùng
+   * `geminiPct(a) ?? claudePct(a)` — `??` chỉ rơi sang Claude khi Gemini là null, nên
+   * account cạn Gemini mà còn Claude vẫn bị tắt.
+   *
+   * Đã xảy ra thật (10/08): vòng quét tắt cả 351 account vì Gemini 0%, trong đó 233 cái
+   * còn quota Claude trung bình 76%. Model `agy/claude-*` chết hẳn — gọi vào nhận
+   * "không có account khả dụng" dù pool còn dư dả.
+   */
+  const mkHaiBe = (gemini: number | null, claude: number | null) => {
+    const p = new Pool();
+    p.upsert({ provider: 'agy', email: 'x@t', refreshToken: 't', credential: 't', proxyLabel: '', health: 'alive' });
+    const a = p.get('x@t', 'agy')!;
+    const groups: any[] = [];
+    if (gemini != null) groups.push({ name: 'Gemini Models', pct: gemini });
+    if (claude != null) groups.push({ name: 'Claude and GPT models', pct: claude });
+    a.quota = { tier: 't', groups, models: [], fetchedAt: Date.now() } as any;
+    return a;
+  };
+
+  /** Bản sao quyết định của vòng quét khi account có nhiều bể. */
+  const nenTat = (a: ReturnType<typeof mkHaiBe>, off: number) => {
+    const bs = [geminiPct(a), claudePct(a)].filter((x): x is number => x != null);
+    return bs.length ? Math.max(...bs) <= off : false;
+  };
+
+  test('cạn Gemini nhưng CÒN Claude → KHÔNG tắt', () => {
+    const a = mkHaiBe(0, 76);
+    assert.equal(nenTat(a, 0), false, 'đây chính là bug đã giết 233 account Claude');
+  });
+
+  test('còn Gemini nhưng cạn Claude → KHÔNG tắt', () => {
+    assert.equal(nenTat(mkHaiBe(80, 0), 0), false);
+  });
+
+  test('cạn CẢ HAI bể → tắt', () => {
+    assert.equal(nenTat(mkHaiBe(0, 0), 0), true);
+  });
+
+  test('còn cả hai → không tắt', () => {
+    assert.equal(nenTat(mkHaiBe(80, 76), 0), false);
+  });
+
+  test('provider một bể (Kiro) vẫn quyết định đúng theo bể đó', () => {
+    const p = new Pool();
+    p.upsert({ provider: 'kr', email: 'k@t', refreshToken: 't', credential: 't', proxyLabel: '', health: 'alive' });
+    const a = p.get('k@t', 'kr')!;
+    a.quota = { tier: 'KIRO FREE', groups: [{ name: 'Credits', pct: 0 }], models: [], fetchedAt: Date.now() } as any;
+    const bs = [geminiPct(a), claudePct(a)].filter((x): x is number => x != null);
+    assert.ok(bs.length, 'geminiPct với provider một bể trả về chính quỹ đó');
+    assert.equal(Math.max(...bs) <= 0, true, 'Kiro cạn credit thì vẫn phải tắt');
   });
 });
 
