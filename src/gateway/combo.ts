@@ -184,6 +184,8 @@ export function shouldFallback(err: unknown): boolean {
   // 400 vì VƯỢT NGỮ CẢNH của model → không phải lỗi người dùng, mà là model này quá nhỏ.
   // Trượt sang model kế (vd Kiro ~100k → Antigravity 1M) thay vì trả lỗi.
   if (isContextTooLong(e)) return true;
+  // 400 vì MODEL NÀY không tương thích → model kế có thể chạy được, phải trượt.
+  if (isModelIncompatible(e)) return true;
   if (status === 400 || status === 401 || status === 403) return false;
   if (status === 402 || status === 429) return true; // hết hạn mức
   if (typeof status === 'number' && status >= 500) return true;
@@ -213,6 +215,24 @@ export function isModelQuotaError(err: unknown): boolean {
 }
 
 /** Lỗi "đầu vào quá dài" của các provider (Kiro/Bedrock/Gemini) — dùng để trượt combo. */
+/**
+ * 400 vì MODEL NÀY không nhận được request, chứ không phải người dùng gửi sai.
+ *
+ * Khác biệt quan trọng: 400 do người dùng (prompt hỏng, tham số sai) thì đổi model cũng
+ * hỏng y hệt — trượt chỉ tốn quota. Nhưng 400 do năng lực model thì model kế chạy được.
+ *
+ * Ca đã gặp thật 11/08/2026: `gemini-3.1-flash-image` không có function calling, gặp lịch
+ * sử hội thoại chứa tool_use thì trả "Function call is missing a thought_signature".
+ * `combo/combo-samlv` có 7 bước, trong đó `kr/claude-sonnet-4.5` thừa sức xử lý — nhưng
+ * quy tắc "400 thì không trượt" chặn lại, nên client hỏng hẳn sau 4 lần thử cùng một model.
+ */
+export function isModelIncompatible(err: unknown): boolean {
+  const e = err as { message?: string } | undefined;
+  return /thought_signature|function calling is not|does not support (function|tool)|tools are not supported/i.test(
+    String(e?.message ?? ''),
+  );
+}
+
 export function isContextTooLong(err: unknown): boolean {
   const e = err as { message?: string } | undefined;
   // Mỗi upstream một cách diễn đạt:

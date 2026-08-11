@@ -558,9 +558,22 @@ export function openaiToAntigravity(
       });
       continue;
     }
-    const parts = m.role === 'assistant' && m.toolCalls?.length ? [] : contentToParts(m.content);
+    /**
+     * Model ảnh KHÔNG có function calling nên `tools` bị bỏ (xem `gtools` bên dưới) —
+     * vậy cũng không được gửi `functionCall` trong lịch sử. Gửi lệch nhau thì Gemini trả
+     * 400 "Function call is missing a thought_signature": nó thấy lượt gọi tool mà không
+     * có khai báo tool nào để đối chiếu.
+     *
+     * Đã xảy ra thật 11/08/2026 trên `combo/combo-samlv`: 4 lần thử liên tiếp cùng model
+     * `gemini-3.1-flash-image` đều 400, client hỏng hẳn.
+     *
+     * Chỉ bỏ phần functionCall — phần TEXT của lượt đó vẫn giữ, vì đó là nội dung thật.
+     */
+    const boToolCall = isImg;
+    const coToolCall = m.role === 'assistant' && !!m.toolCalls?.length && !boToolCall;
+    const parts = coToolCall ? [] : contentToParts(m.content);
     // Lượt assistant có tool_use → kèm functionCall để model thấy lại việc nó đã gọi.
-    if (m.role === 'assistant' && m.toolCalls?.length) {
+    if (coToolCall && m.toolCalls) {
       const txt = typeof m.content === 'string' ? m.content : '';
       if (txt) parts.push({ text: txt });
       for (const c of m.toolCalls) {

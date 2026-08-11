@@ -63,22 +63,34 @@ describe('an toàn dữ liệu', () => {
     );
   });
 
-  test('credential thật không bị suite chạm vào', async () => {
+  test('credential thật không bị suite XOÁ hay làm hỏng', async () => {
     const f = resolve(REAL_DATA, 'credentials.csv');
     if (!existsSync(f)) return; // máy CI chưa có dữ liệu thật — không có gì để bảo vệ
 
-    // KHÔNG đo tuổi file: server agyproxy đang chạy cũng ghi lại credentials.csv đều đặn
-    // (syncFromStore), nên "file vừa mới đổi" không chứng minh được là do test. Thay vào đó
-    // so nội dung trước/sau một khoảng — test ghi vào thì kích thước hoặc nội dung đổi,
-    // còn server ghi lại y nguyên nội dung cũ thì không.
-    const truoc = readFileSync(f);
+    /**
+     * Đo SỐ DÒNG, không đo nội dung byte.
+     *
+     * Bản trước so nguyên nội dung trước/sau, dựa trên giả định "server ghi lại y nguyên
+     * nội dung cũ". Giả định đó SAI: server đang chạy refresh access token liên tục, nên
+     * nội dung đổi thật — đo được trên máy dev, file đổi kích thước mỗi 8 giây kể cả khi
+     * KHÔNG chạy test nào. Canary báo đỏ oan, và một canary hay báo oan thì người ta bắt
+     * đầu bỏ qua nó — nguy hiểm hơn là không có.
+     *
+     * Thứ thật sự cần bảo vệ là ĐỪNG MẤT credential. Test ghi đè vào dữ liệu thật sẽ làm
+     * số dòng tụt hẳn (ghi 1-2 credential của test lên 700 dòng thật); token refresh thì
+     * không bao giờ đổi số dòng.
+     */
+    const demDong = (b: Buffer) => b.toString('utf8').split('\n').filter((x) => x.trim()).length;
+    const truoc = demDong(readFileSync(f));
     await new Promise((r) => setTimeout(r, 300));
-    const sau = readFileSync(f);
+    const sau = demDong(readFileSync(f));
 
-    assert.ok(
-      truoc.equals(sau),
-      `NỘI DUNG credentials.csv đổi trong lúc chạy test — có test đang ghi vào dữ liệu thật. ` +
-        `Trước ${truoc.length} byte, sau ${sau.length} byte. Tìm test chưa cô lập AGY_HOME.`,
+    assert.equal(
+      sau,
+      truoc,
+      `SỐ DÒNG credentials.csv đổi trong lúc chạy test (${truoc} → ${sau}) — có test đang ghi ` +
+        `vào dữ liệu THẬT. Tìm test chưa cô lập AGY_HOME.`,
     );
+    assert.ok(sau > 0, 'credentials.csv rỗng — dữ liệu thật đã bị xoá');
   });
 });
