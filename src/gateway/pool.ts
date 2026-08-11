@@ -752,6 +752,7 @@ export async function refreshQuota(account: PoolAccount, force = false): Promise
       recordQuota({
         ts: account.quota.fetchedAt || Date.now(),
         email: account.email,
+        provider: account.provider,
         tier: account.quota.tier,
         geminiPct: geminiPct(account),
         thirdPct: third ? third.pct : null,

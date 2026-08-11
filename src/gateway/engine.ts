@@ -678,7 +678,9 @@ export async function checkLiveAccount(a: PoolAccount): Promise<{ status: 'ok' |
     if (r.status === 'ok') a.health = 'alive';
     // Kiro: 402 hết hạn mức tháng → cho nghỉ dài để pool không chọn lại
     if (r.status === 'quota') a.cooldownUntil = Date.now() + 12 * 3600 * 1000;
-    recordQuota({ ts: Date.now(), email: a.email, tier: a.provider, geminiPct: null, thirdPct: null, probeOk: r.status === 'ok' });
+    // `provider` đúng cột của nó. Trước đây nhét vào `tier` (`tier: a.provider`) làm cột
+    // đó mang hai nghĩa — production có 1.529 dòng tier='agy'/'kr' lẫn với tên gói thật.
+    recordQuota({ ts: Date.now(), email: a.email, provider: a.provider, geminiPct: null, thirdPct: null, probeOk: r.status === 'ok' });
     return r;
   } catch (e: any) {
     const msg = String(e?.message ?? e);

@@ -983,8 +983,11 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     const to = q.to ? Number(q.to) : Date.now();
     const days = q.range === '90d' ? 90 : q.range === '30d' ? 30 : q.range === '1d' ? 1 : 7;
     const from = q.from ? Number(q.from) : to - days * 86400_000;
+    // `provider` lọc cả hai nhánh: một email có CẢ agy lẫn kr, không lọc thì hai đường
+    // quota khác hẳn nhau vẽ chung một nét (xem migration v6).
+    const prov = q.provider ? String(q.provider) : undefined;
     if (q.email) {
-      return { email: q.email, points: quotaForAccount(String(q.email), from, to) };
+      return { email: q.email, provider: prov ?? null, points: quotaForAccount(String(q.email), from, to, prov) };
     }
 
     /**
@@ -999,13 +1002,15 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     const chosen = q.groupBy === 'hour' || q.groupBy === 'day'
       ? (q.groupBy as 'hour' | 'day')
       : days <= 1 ? 'hour' : 'day';
-    let series = quotaSeries(from, to, chosen);
+    let series = quotaSeries(from, to, chosen, prov);
     let groupBy: 'hour' | 'day' = chosen;
     if (!q.groupBy && groupBy === 'day' && series.length < 3) {
-      const finer = quotaSeries(from, to, 'hour');
+      const finer = quotaSeries(from, to, 'hour', prov);
       if (finer.length > series.length) { series = finer; groupBy = 'hour'; }
     }
-    return { series, groupBy, total: quotaHistoryCount() };
+    // `providers` để UI biết cần vẽ mấy đường mà không phải tự dò trong series.
+    const providers = [...new Set(series.map((x) => x.provider).filter((x): x is string => !!x))].sort();
+    return { series, providers, groupBy, total: quotaHistoryCount() };
   });
 
   /**

@@ -261,7 +261,8 @@ export function Quota() {
 
   // History
   const [historyData, setHistoryData] = useState<{
-    series?: Array<{ bucket: string; gemini?: number; third?: number }>
+    series?: Array<{ bucket: string; provider?: string | null; gemini?: number; third?: number }>
+    providers?: string[]
     points?: Array<{ ts: string; gemini_pct?: number; third_pct?: number }>
   } | null>(null)
   const [histRange, setHistRange] = useState("7d")
@@ -402,9 +403,19 @@ export function Quota() {
   // Avg stats
   const withQ = accounts.filter(a => a.quota)
 
-  // Chỉ còn dùng cho dòng tóm tắt xu hướng ở cuối trang; biểu đồ đọc `histSeries`.
-  const histPoints: number[] = historyData?.series?.map(x => x.gemini ?? 0) ??
-    historyData?.points?.map(p => p.gemini_pct ?? 0) ?? []
+  /**
+   * Dòng tóm tắt xu hướng ở cuối trang — chỉ theo MỘT provider.
+   *
+   * Series giờ có nhiều provider xen kẽ nhau (migration v6). Map thẳng thành mảng số như
+   * bản cũ sẽ cho ra dãy nhảy loạn giữa agy 1% và kr 91%, và câu "hạn mức đang phục hồi"
+   * tính trên hai điểm liền kề của HAI provider khác nhau — vô nghĩa.
+   *
+   * Ưu tiên `agy` vì đó là bể hay cạn nhất; không có thì lấy provider đầu tiên.
+   */
+  const provTomTat = historyData?.providers?.includes('agy') ? 'agy' : historyData?.providers?.[0]
+  const histPoints: number[] = historyData?.series
+    ? historyData.series.filter(x => (x.provider ?? null) === (provTomTat ?? null)).map(x => x.gemini ?? 0)
+    : historyData?.points?.map(p => p.gemini_pct ?? 0) ?? []
 
   /**
    * Dữ liệu cho biểu đồ xu hướng — GIỮ nhãn thời gian.
@@ -413,10 +424,55 @@ export function Quota() {
    * `bucket` — nên không có trục, không nhãn thời gian, không tooltip, và không co giãn
    * theo bề rộng. Có bộ chọn 7/30/90 ngày mà nhìn vào không biết điểm nào là ngày nào.
    */
-  const histSeries = (historyData?.series
-    ? historyData.series.map((x) => ({ t: fmtBucket(x.bucket), gemini: x.gemini ?? null, third: x.third ?? null }))
-    : historyData?.points?.map((p) => ({ t: fmtBucket(p.ts), gemini: p.gemini_pct ?? null, third: p.third_pct ?? null }))
-  ) ?? []
+  /**
+   * XOAY dữ liệu: mỗi (provider, bể) thành MỘT cột riêng.
+   *
+   * Bản trước vẽ đúng hai đường "Gemini" và "Claude/GPT" từ trung bình TOÀN pool — nhưng
+   * trung bình đó cộng chung agy với kr, hai thứ có hạn mức và chu kỳ reset khác hẳn nhau.
+   * Đo trên production 11/08/2026: biểu đồ hiện "Gemini 45%" trong khi thực tế agy còn 1%
+   * và kr còn 91%. Nhìn vào tưởng quota thoải mái, thực ra một bể đã cạn.
+   *
+   * Giờ mỗi provider một đường. Backend trả `provider` trên từng điểm (migration v6).
+   */
+  const histSeries = (() => {
+    const rows = historyData?.series
+    if (!rows?.length) {
+      return historyData?.points?.map((p) => ({ t: fmtBucket(p.ts), 'agy·gemini': p.gemini_pct ?? null, 'agy·third': p.third_pct ?? null })) ?? []
+    }
+    const theoBucket = new Map<string, Record<string, unknown>>()
+    for (const r of rows) {
+      const t = fmtBucket(r.bucket)
+      const hang = theoBucket.get(t) ?? { t }
+      const p = r.provider ?? '?'
+      // Dữ liệu trước migration v6 chưa có provider → gom vào nhóm "?" thay vì vứt đi.
+      if (r.gemini != null) hang[`${p}·${p === 'kr' ? 'credits' : 'gemini'}`] = r.gemini
+      if (r.third != null) hang[`${p}·third`] = r.third
+      theoBucket.set(t, hang)
+    }
+    return [...theoBucket.values()]
+  })()
+
+  /** Định nghĩa đường vẽ — dựng theo DỮ LIỆU CÓ THẬT, không cứng tên provider. */
+  const histDefs = (() => {
+    const keys = new Set<string>()
+    for (const h of histSeries) for (const k of Object.keys(h)) if (k !== 't') keys.add(k)
+    const MAU: Record<string, string> = {
+      'agy·gemini': 'var(--chart-success)',
+      'agy·third': 'var(--chart-info)',
+      'kr·credits': 'var(--chart-warning)',
+      'no·gemini': 'var(--chart-1)',
+    }
+    const NHAN: Record<string, string> = {
+      'agy·gemini': 'Antigravity · Gemini',
+      'agy·third': 'Antigravity · Claude/GPT',
+      'kr·credits': 'Kiro · Credits',
+    }
+    return [...keys].sort().map((k, i) => ({
+      key: k,
+      label: NHAN[k] ?? k.replace('·', ' · '),
+      color: MAU[k] ?? `var(--chart-${(i % 5) + 1})`,
+    }))
+  })()
 
   // ── Loading / Error ──────────────────────────────────────────────────
 
@@ -832,10 +888,7 @@ export function Quota() {
               data={histSeries}
               xKey="t"
               height={200}
-              series={[
-                { key: "gemini", label: "Gemini", color: "var(--chart-success)" },
-                { key: "third", label: "Claude/GPT", color: "var(--chart-info)" },
-              ]}
+              series={histDefs}
             />
           ) : (
             <p className="py-8 text-center text-xs text-muted-foreground">
@@ -865,6 +918,7 @@ export function Quota() {
                   ? <TrendingUp className="h-3 w-3 text-success" />
                   : <TrendingDown className="h-3 w-3 text-warning" />}
                 <span>
+                  {provTomTat ? `${provTomTat}: ` : ""}
                   {up ? "Hạn mức đang phục hồi" : "Hạn mức đang giảm"}
                   {delta > 0 ? ` (${up ? "+" : "−"}${delta}%)` : " (không đổi)"}
                 </span>

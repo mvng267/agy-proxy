@@ -254,6 +254,48 @@ const MIGRATIONS: Array<{ v: number; name: string; up: (d: MigDb) => void }> = [
       addColumnIfMissing(d, 'gateway_usage', 'err', 'TEXT');
     },
   },
+  {
+    v: 6,
+    /**
+     * Cột `provider` cho quota_history — nếu không có, MỘT NỬA dữ liệu bị mất.
+     *
+     * Bảng chỉ khoá theo `email`, mà MỖI email có CẢ HAI credential (đo trên production:
+     * credentials.csv có 351 dòng `agy` + 351 dòng `kiro`). Bản ghi mới nhất của một email
+     * đè lên bản ghi provider kia, nên mọi truy vấn "quota mới nhất mỗi account" chỉ thấy
+     * được một nửa pool.
+     *
+     * Nặng hơn: `quotaSeries` gộp cả hai provider vào MỘT trung bình. Đo trên production
+     * 11/08/2026 — biểu đồ vẽ "Gemini 45%" trong khi thực tế là agy 1% và kr 91%. Trung
+     * bình cộng của hai bể không liên quan gì nhau thì vô nghĩa, và nhìn vào tưởng quota
+     * còn thoải mái trong khi bể Gemini của Antigravity đã cạn.
+     *
+     * Backfill từ `tier` — suy được chắc chắn vì mỗi provider một chuỗi riêng:
+     *   'KIRO FREE'                 → kr
+     *   'Antigravity Starter Quota' → agy
+     * Ngoài ra có 1.529 dòng mà `tier` chứa THẲNG 'agy'/'kr' (do engine.ts ghi nhầm
+     * `tier: a.provider` — đã sửa ở cùng commit này); chúng cũng suy ra được.
+     */
+    name: 'cột provider cho quota_history + backfill từ tier',
+    up: (d) => {
+      if (!addColumnIfMissing(d, 'quota_history', 'provider', 'TEXT')) return;
+      // Backfill CHỈ khi bảng thật sự có cột `tier`. DB tối thiểu (test, hoặc bản rất cũ)
+      // không có nó — chạy UPDATE thẳng sẽ ném `no such column: tier` và chặn mọi
+      // migration sau. Cột `provider` vẫn được thêm, dữ liệu mới vẫn ghi đúng.
+      const cols = (d.prepare(`PRAGMA table_info(quota_history)`).all() as Array<{ name: string }>).map((c) => c.name);
+      if (cols.includes('tier')) {
+        d.exec(`
+          UPDATE quota_history SET provider = CASE
+            WHEN tier IN ('kr', 'agy', 'or', 'no') THEN tier
+            WHEN tier LIKE '%KIRO%'                THEN 'kr'
+            WHEN tier LIKE '%Antigravity%'         THEN 'agy'
+            ELSE NULL
+          END
+          WHERE provider IS NULL
+        `);
+      }
+      d.exec(`CREATE INDEX IF NOT EXISTS idx_qh_provider ON quota_history(provider, ts)`);
+    },
+  },
 ];
 
 /** Chạy mọi migration chưa áp dụng. Trả về danh sách version đã chạy. */
@@ -964,31 +1006,49 @@ export function clearFailedLogins(ip: string): void {
 }
 
 // ---------- lịch sử hạn mức ----------
-export interface QuotaHistoryRow { ts: number; email: string; tier: string | null; gemini_pct: number | null; third_pct: number | null }
-export function recordQuota(r: { ts: number; email: string; tier?: string | null; geminiPct?: number | null; thirdPct?: number | null; models?: unknown; probeOk?: boolean }): void {
-  prep(`INSERT INTO quota_history (ts, email, tier, gemini_pct, third_pct, models_json, probe_ok) VALUES (?,?,?,?,?,?,?)`)
+export interface QuotaHistoryRow { ts: number; email: string; provider: string | null; tier: string | null; gemini_pct: number | null; third_pct: number | null }
+/**
+ * `provider` BẮT BUỘC — không có nó thì hai credential của cùng một email đè lên nhau
+ * và mọi tổng hợp mất một nửa pool. Xem migration v6.
+ */
+export function recordQuota(r: { ts: number; email: string; provider: string; tier?: string | null; geminiPct?: number | null; thirdPct?: number | null; models?: unknown; probeOk?: boolean }): void {
+  prep(`INSERT INTO quota_history (ts, email, provider, tier, gemini_pct, third_pct, models_json, probe_ok) VALUES (?,?,?,?,?,?,?,?)`)
     .run(
-      r.ts, r.email, r.tier ?? null, r.geminiPct ?? null, r.thirdPct ?? null,
+      r.ts, r.email, r.provider, r.tier ?? null, r.geminiPct ?? null, r.thirdPct ?? null,
       r.models ? JSON.stringify(r.models) : null,
       r.probeOk === undefined ? null : r.probeOk ? 1 : 0,
     );
 }
-/** Xu hướng TB toàn pool theo ngày/giờ. */
-export function quotaSeries(from: number, to: number, groupBy: 'hour' | 'day' = 'day'): { bucket: string; gemini: number; third: number; n: number }[] {
+/**
+ * Xu hướng theo ngày/giờ, TÁCH THEO PROVIDER.
+ *
+ * Gộp mọi provider vào một trung bình là vô nghĩa: đo trên production 11/08/2026, gộp cho
+ * "Gemini 45%" trong khi thực tế agy 1% / kr 91%. Hai bể độc lập, hạn mức khác nhau, chu kỳ
+ * reset khác nhau — trung bình cộng của chúng không mô tả cái gì cả, mà lại làm người xem
+ * tưởng quota còn thoải mái.
+ */
+export function quotaSeries(from: number, to: number, groupBy: 'hour' | 'day' = 'day', provider?: string): { bucket: string; provider: string | null; gemini: number; third: number; n: number }[] {
   const fmt = groupBy === 'hour' ? '%Y-%m-%d %H:00' : '%Y-%m-%d';
+  const loc = provider ? 'AND provider = ?' : '';
+  const args = provider ? [from, to, provider] : [from, to];
   return db
     .prepare(
-      `SELECT strftime('${fmt}', ts/1000, 'unixepoch', 'localtime') AS bucket,
+      `SELECT strftime('${fmt}', ts/1000, 'unixepoch', 'localtime') AS bucket, provider,
               ROUND(AVG(gemini_pct)) AS gemini, ROUND(AVG(third_pct)) AS third, COUNT(*) AS n
-       FROM quota_history WHERE ts >= ? AND ts < ? GROUP BY bucket ORDER BY bucket ASC`,
+       FROM quota_history WHERE ts >= ? AND ts < ? ${loc}
+       GROUP BY bucket, provider ORDER BY bucket ASC`,
     )
-    .all(from, to) as any[];
+    .all(...args) as any[];
 }
 /** Lịch sử của 1 account. */
-export function quotaForAccount(email: string, from: number, to: number): QuotaHistoryRow[] {
+export function quotaForAccount(email: string, from: number, to: number, provider?: string): QuotaHistoryRow[] {
+  // Không lọc provider thì một email trả về lịch sử TRỘN của cả agy lẫn kr — hai đường
+  // quota khác hẳn nhau vẽ chung một nét, nhìn như đang dao động loạn xạ.
+  const loc = provider ? 'AND provider = ?' : '';
+  const args = provider ? [email, from, to, provider] : [email, from, to];
   return db
-    .prepare(`SELECT ts, email, tier, gemini_pct, third_pct FROM quota_history WHERE email = ? AND ts >= ? AND ts < ? ORDER BY ts ASC`)
-    .all(email, from, to) as any[];
+    .prepare(`SELECT ts, email, provider, tier, gemini_pct, third_pct FROM quota_history WHERE email = ? AND ts >= ? AND ts < ? ${loc} ORDER BY ts ASC`)
+    .all(...args) as any[];
 }
 export function quotaHistoryCount(): number {
   const r = db.prepare(`SELECT COUNT(*) AS n FROM quota_history`).get() as any;

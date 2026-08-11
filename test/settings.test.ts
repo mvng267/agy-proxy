@@ -42,9 +42,11 @@ test('metadata cấu hình: đủ key, đánh dấu secret + cần restart', () 
 test('quota_history: ghi + gộp theo ngày + lọc theo account', () => {
   const base = Date.UTC(2021, 0, 15, 10, 0, 0);
   db.prepare('DELETE FROM quota_history WHERE email LIKE ?').run('__t%');
-  recordQuota({ ts: base, email: '__t1@x', tier: 'Free', geminiPct: 90, thirdPct: 100 });
-  recordQuota({ ts: base + 3600_000, email: '__t1@x', tier: 'Free', geminiPct: 80, thirdPct: 100 });
-  recordQuota({ ts: base, email: '__t2@x', tier: 'Free', geminiPct: 70, thirdPct: 50 });
+  // `provider` bắt buộc từ migration v6 — một email có cả agy lẫn kr, không có nó thì
+  // hai bản ghi đè lên nhau (xem test/store/quota-provider.test.ts).
+  recordQuota({ ts: base, email: '__t1@x', provider: 'agy', tier: 'Free', geminiPct: 90, thirdPct: 100 });
+  recordQuota({ ts: base + 3600_000, email: '__t1@x', provider: 'agy', tier: 'Free', geminiPct: 80, thirdPct: 100 });
+  recordQuota({ ts: base, email: '__t2@x', provider: 'agy', tier: 'Free', geminiPct: 70, thirdPct: 50 });
 
   const points = quotaForAccount('__t1@x', base - 1000, base + 7200_000);
   assert.equal(points.length, 2);
@@ -58,7 +60,7 @@ test('quota_history: ghi + gộp theo ngày + lọc theo account', () => {
 
 test('pruneQuotaHistory: xoá dòng cũ hơn N ngày', () => {
   const old = Date.now() - 200 * 86400_000; // 200 ngày trước
-  recordQuota({ ts: old, email: '__old@x', geminiPct: 50, thirdPct: 50 });
+  recordQuota({ ts: old, email: '__old@x', provider: 'agy', geminiPct: 50, thirdPct: 50 });
   const before = quotaForAccount('__old@x', old - 1000, old + 1000).length;
   assert.equal(before, 1);
   pruneQuotaHistory(90);
