@@ -432,7 +432,58 @@ export function recordGatewayUsage(r: UsageRow): void {
   );
 }
 
-const AGG = `COUNT(*) AS requests, COALESCE(SUM(prompt_tokens),0) AS tokIn, COALESCE(SUM(completion_tokens),0) AS tokOut`;
+/**
+ * Cột gộp dùng chung cho MỌI bảng tổng hợp usage (7 hàm: totals, series, byModel,
+ * byAccount, byApiKey, byCombo, byProvider).
+ *
+ * Bản trước chỉ đếm request + cộng token, nên `ms` và `ok` — có trong từng bản ghi từ
+ * lâu — không xuất hiện ở bất kỳ tổng hợp nào. Hậu quả đo được trên production: model
+ * chính chạy p50 = 42 giây, p95 = 61 giây mà trang Báo cáo không hiện ở đâu cả. Không
+ * ai trả lời được "model nào chậm nhất" hay "API key nào gây nhiều lỗi nhất".
+ *
+ * `avgMs` và `errors` tính ngay trong SQL vì rẻ. Percentile thì SQLite không có hàm
+ * sẵn — xem `PCT_MS` bên dưới.
+ */
+const AGG = `COUNT(*) AS requests, COALESCE(SUM(prompt_tokens),0) AS tokIn, COALESCE(SUM(completion_tokens),0) AS tokOut,
+  COALESCE(SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END),0) AS errors,
+  CAST(COALESCE(AVG(CASE WHEN ok = 1 THEN ms END),0) AS INTEGER) AS avgMs`;
+
+/**
+ * Percentile độ trễ cho một nhóm — SQLite không có `percentile()`, và window function
+ * trong subquery tương quan thì chậm trên bảng chục nghìn dòng.
+ *
+ * Cách này chạy MỘT truy vấn riêng cho toàn bộ nhóm rồi ghép vào kết quả ở JS: đọc
+ * `ms` đã sắp xếp của các request THÀNH CÔNG (request lỗi thường trả rất nhanh, gộp
+ * vào sẽ kéo p95 xuống và che mất vấn đề thật).
+ */
+function pctByKey(
+  keyExpr: string,
+  from: number,
+  to: number,
+  where: { sql: string; args: unknown[] },
+): Map<string, { p50: number; p95: number }> {
+  const rows = db
+    .prepare(
+      `SELECT ${keyExpr} AS k, ms FROM gateway_usage
+        WHERE ts >= ? AND ts < ? AND ok = 1 AND ms > 0${where.sql}
+        ORDER BY k, ms`,
+    )
+    .all(from, to, ...(where.args as any[])) as Array<{ k: string; ms: number }>;
+
+  const byKey = new Map<string, number[]>();
+  for (const r of rows) {
+    const arr = byKey.get(r.k);
+    if (arr) arr.push(r.ms);
+    else byKey.set(r.k, [r.ms]);
+  }
+  const out = new Map<string, { p50: number; p95: number }>();
+  for (const [k, ms] of byKey) {
+    // `ms` đã sắp xếp sẵn nhờ ORDER BY — không sort lại ở JS.
+    const at = (q: number) => ms[Math.min(ms.length - 1, Math.floor(ms.length * q))] ?? 0;
+    out.set(k, { p50: at(0.5), p95: at(0.95) });
+  }
+  return out;
+}
 
 /** Bộ lọc báo cáo. Trường bỏ trống = không lọc theo tiêu chí đó. */
 export interface UsageFilter {
@@ -491,18 +542,29 @@ function usageWhere(f?: UsageFilter): { sql: string; args: unknown[] } {
   return { sql, args };
 }
 
-export function usageTotals(from: number, to: number, f?: UsageFilter): { requests: number; tokIn: number; tokOut: number; accounts: number } {
+export function usageTotals(from: number, to: number, f?: UsageFilter): UsageAgg & { accounts: number } {
   const w = usageWhere(f);
   const row = db
     .prepare(`SELECT ${AGG}, COUNT(DISTINCT email) AS accounts FROM gateway_usage WHERE ts >= ? AND ts < ?${w.sql}`)
     .get(from, to, ...(w.args as any[])) as any;
-  return { requests: row.requests, tokIn: row.tokIn, tokOut: row.tokOut, accounts: row.accounts };
+  // Trả nguyên hàng: liệt kê tay từng trường thì thêm cột vào AGG mà quên ở đây là
+  // số liệu mới bị vứt âm thầm — đúng lỗi vừa mắc với `errors`/`avgMs`.
+  return {
+    requests: row.requests, tokIn: row.tokIn, tokOut: row.tokOut,
+    errors: row.errors, avgMs: row.avgMs, accounts: row.accounts,
+  };
 }
 
 /** Chuỗi thời gian theo ngày hoặc tuần (mốc YYYY-MM-DD hoặc YYYY-Www). */
-export function usageSeries(from: number, to: number, groupBy: 'day' | 'week', f?: UsageFilter): { bucket: string; requests: number; tokIn: number; tokOut: number }[] {
-  // ts epoch ms → chuỗi ngày/tuần theo local: dùng strftime với ts/1000 (unixepoch).
-  const fmt = groupBy === 'week' ? "%Y-W%W" : "%Y-%m-%d";
+export function usageSeries(
+  from: number,
+  to: number,
+  groupBy: 'hour' | 'day' | 'week',
+  f?: UsageFilter,
+): (UsageAgg & { bucket: string })[] {
+  // ts epoch ms → chuỗi giờ/ngày/tuần theo local: strftime với ts/1000 (unixepoch).
+  // Mức 'hour' cần cho khoảng ngắn: gộp theo ngày cho 24 giờ thì chart chỉ có 1-2 cột.
+  const fmt = groupBy === 'week' ? "%Y-W%W" : groupBy === 'hour' ? "%Y-%m-%d %H:00" : "%Y-%m-%d";
   const w = usageWhere(f);
   return db
     .prepare(
@@ -512,18 +574,37 @@ export function usageSeries(from: number, to: number, groupBy: 'day' | 'week', f
     .all(from, to, ...(w.args as any[])) as any[];
 }
 
-export function usageByModel(from: number, to: number, f?: UsageFilter): { model: string; requests: number; tokIn: number; tokOut: number }[] {
-  const w = usageWhere(f);
-  return db
-    .prepare(`SELECT model, ${AGG} FROM gateway_usage WHERE ts >= ? AND ts < ?${w.sql} GROUP BY model ORDER BY requests DESC`)
-    .all(from, to, ...(w.args as any[])) as any[];
+/** Một hàng tổng hợp: đếm + token + CHẤT LƯỢNG (lỗi, độ trễ). */
+export interface UsageAgg {
+  requests: number;
+  tokIn: number;
+  tokOut: number;
+  /** Số request thất bại — để tính tỉ lệ lỗi mà không phải gọi thêm truy vấn. */
+  errors: number;
+  /** Độ trễ trung bình của request THÀNH CÔNG (request lỗi trả rất nhanh, gộp vào sẽ méo). */
+  avgMs: number;
+  p50?: number;
+  p95?: number;
 }
 
-export function usageByAccount(from: number, to: number, f?: UsageFilter): { email: string; requests: number; tokIn: number; tokOut: number }[] {
+export function usageByModel(from: number, to: number, f?: UsageFilter): (UsageAgg & { model: string })[] {
   const w = usageWhere(f);
-  return db
+  const rows = db
+    .prepare(`SELECT model, ${AGG} FROM gateway_usage WHERE ts >= ? AND ts < ?${w.sql} GROUP BY model ORDER BY requests DESC`)
+    .all(from, to, ...(w.args as any[])) as any[];
+  const pct = pctByKey('model', from, to, w);
+  for (const r of rows) Object.assign(r, pct.get(r.model) ?? { p50: 0, p95: 0 });
+  return rows;
+}
+
+export function usageByAccount(from: number, to: number, f?: UsageFilter): (UsageAgg & { email: string })[] {
+  const w = usageWhere(f);
+  const rows = db
     .prepare(`SELECT email, ${AGG} FROM gateway_usage WHERE ts >= ? AND ts < ?${w.sql} GROUP BY email ORDER BY requests DESC`)
     .all(from, to, ...(w.args as any[])) as any[];
+  const pct = pctByKey('email', from, to, w);
+  for (const r of rows) Object.assign(r, pct.get(r.email) ?? { p50: 0, p95: 0 });
+  return rows;
 }
 
 /** Thống kê theo API key — nguồn cho báo cáo "ai tiêu bao nhiêu". */

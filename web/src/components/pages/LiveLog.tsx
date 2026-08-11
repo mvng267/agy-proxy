@@ -115,6 +115,9 @@ export function LiveLog() {
   const [kinds, setKinds] = useState<Set<Kind>>(new Set())
   const [model, setModel] = useState("")
   const [apiKey, setApiKey] = useState("")
+  /** Lọc theo mã HTTP — "429 đang xảy ra không" là câu hỏi đầu tiên khi pool có vấn đề. */
+  const [status, setStatus] = useState("")
+  const [account, setAccount] = useState("")
   const [q, setQ] = useState("")
 
   const pausedRef = useRef(false)
@@ -156,6 +159,15 @@ export function LiveLog() {
     () => [...new Set(entries.map((e) => e.apiKey).filter(Boolean) as string[])].sort(),
     [entries],
   )
+  // Chỉ liệt kê mã/account CÓ THẬT trong buffer — mời lọc theo thứ không tồn tại là bẫy.
+  const statuses = useMemo(
+    () => [...new Set(entries.map((e) => e.status).filter(Boolean) as number[])].sort((a, b) => a - b),
+    [entries],
+  )
+  const accounts = useMemo(
+    () => [...new Set(entries.map((e) => e.account).filter(Boolean) as string[])].sort(),
+    [entries],
+  )
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -163,13 +175,15 @@ export function LiveLog() {
       if (kinds.size && !kinds.has(e.kind)) return false
       if (model && e.model !== model) return false
       if (apiKey && e.apiKey !== apiKey) return false
+      if (status && String(e.status ?? "") !== status) return false
+      if (account && e.account !== account) return false
       if (needle) {
         const hay = `${e.msg} ${e.model ?? ""} ${e.account ?? ""} ${e.apiKey ?? ""} ${e.combo ?? ""}`
         if (!hay.toLowerCase().includes(needle)) return false
       }
       return true
     })
-  }, [entries, kinds, model, apiKey, q])
+  }, [entries, kinds, model, apiKey, status, account, q])
 
   const counts = useMemo(() => {
     const c: Record<Kind, number> = { req: 0, res: 0, err: 0, check: 0, info: 0 }
@@ -232,6 +246,37 @@ export function LiveLog() {
             {paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
             {paused ? "Tiếp tục" : "Tạm dừng"}
           </Button>
+          {/* Log chỉ sống trong RAM trình duyệt: F5 là mất sạch, và buffer chỉ giữ 500
+              dòng. Muốn giữ lại một đợt sự cố để phân tích sau thì phải tải về được. */}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!shown.length}
+            onClick={() => {
+              // Xuất ĐÚNG những dòng đang hiển thị (sau bộ lọc) — xuất cả buffer thì
+              // người ta phải lọc lại lần nữa ở ngoài.
+              const text = shown
+                .map((e) => {
+                  const t = new Date(e.ts).toISOString()
+                  const meta = [e.kind, e.status, e.model, e.account, e.apiKey, e.combo, e.ms && `${e.ms}ms`]
+                    .filter(Boolean)
+                    .join(" · ")
+                  return `${t}\t${meta}\t${e.msg}`
+                })
+                .join("\n")
+              const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }))
+              const a = document.createElement("a")
+              a.href = url
+              a.download = `agyproxy-log-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.txt`
+              a.click()
+              URL.revokeObjectURL(url)
+            }}
+            className="h-8 gap-1 text-xs"
+            title={`Tải ${shown.length} dòng đang hiển thị`}
+          >
+            <ArrowDownToLine className="h-3 w-3" />
+            Tải log
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -292,6 +337,32 @@ export function LiveLog() {
               <SelectItem value="" className="text-xs">Mọi API key ({apiKeys.length})</SelectItem>
               {apiKeys.map((k) => (
                 <SelectItem key={k} value={k} className="text-xs">{k}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Mã HTTP — "429 đang xảy ra không" là câu hỏi đầu tiên khi pool có vấn đề,
+              mà trước đây phải đọc từng dòng để tìm. */}
+          <Select value={status} onValueChange={(v) => setStatus(v ?? "")}>
+            <SelectTrigger className="h-7 w-32 text-[11px]">
+              <span className="truncate">{status ? `Mã ${status}` : `Mọi mã (${statuses.length})`}</span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="" className="text-xs">Mọi mã ({statuses.length})</SelectItem>
+              {statuses.map((st) => (
+                <SelectItem key={st} value={String(st)} className="text-xs">{st}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={account} onValueChange={(v) => setAccount(v ?? "")}>
+            <SelectTrigger className="h-7 w-40 text-[11px]">
+              <span className="truncate">{account ? account.split("@")[0] : `Mọi account (${accounts.length})`}</span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="" className="text-xs">Mọi account ({accounts.length})</SelectItem>
+              {accounts.map((a) => (
+                <SelectItem key={a} value={a} className="text-xs">{a.split("@")[0]}</SelectItem>
               ))}
             </SelectContent>
           </Select>

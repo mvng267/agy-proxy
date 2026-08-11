@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Activity, ArrowDownToLine, Coins, Info, Timer, X } from "lucide-react"
 import { api } from "@/lib/api"
 import { fmtNum } from "@/lib/format"
-import type { ApiKey, UsageResponse } from "@/lib/types"
+import type { ApiKey, UsageResponse, UsageAgg } from "@/lib/types"
 import { POLL } from "@/lib/queryClient"
 import { DataTable, KpiCard, PageHeader, ChartCard, ErrorState, type Column } from "@/components/common"
 import { BarSeries } from "@/components/common/charts"
@@ -15,7 +15,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
  * Bộ lọc ghi vào URL để chia sẻ được link.
  */
 
-type Range = "7d" | "30d" | "90d"
+/**
+ * `custom` = dùng from/to tự chọn. Backend `rangeOf()` đã đọc `q.from`/`q.to` từ lâu
+ * (admin.ts) — chỉ thiếu widget, nên thêm ở đây không đụng gì phía server.
+ */
+type Range = "1d" | "7d" | "30d" | "90d" | "custom"
 
 /** Một dòng log — mỗi bản ghi là MỘT request đã đi qua gateway. */
 interface LogRow {
@@ -60,6 +64,8 @@ function useUrlFilters() {
     const q = new URLSearchParams(window.location.search)
     return {
       range: (q.get("range") as Range) || "7d",
+      from: q.get("from") || "",
+      to: q.get("to") || "",
       apiKeyId: q.get("apiKeyId") || "",
       combo: q.get("combo") || "",
       // Bộ lọc chi tiết — dữ liệu đã có trong DB từ lâu, chỉ chưa phơi ra.
@@ -83,7 +89,7 @@ function useUrlFilters() {
     const next = { ...f, ...patch }
     const q = new URLSearchParams()
     if (next.range !== "7d") q.set("range", next.range)
-    for (const k of ["apiKeyId", "combo", "email", "model", "endpoint", "status", "ok"] as const) {
+    for (const k of ["apiKeyId", "combo", "email", "model", "endpoint", "status", "ok", "from", "to"] as const) {
       if (next[k]) q.set(k, next[k])
     }
     if (next.tab !== "tong-quan") q.set("tab", next.tab)
@@ -92,6 +98,27 @@ function useUrlFilters() {
     setF(next)
   }
   return [f, update] as const
+}
+
+/**
+ * Nhãn trục X — backend trả 3 dạng tuỳ mức gộp:
+ *   `2026-08-10 14:00` (giờ) · `2026-08-10` (ngày) · `2026-W32` (tuần)
+ * Bản trước cắt cứng `slice(5)`, đúng cho ngày nhưng ra `08-10 14:00` với mức giờ —
+ * chồng chữ lên nhau trên trục hẹp.
+ */
+function fmtBucket(b: string): string {
+  const h = /^\d{4}-(\d{2})-(\d{2}) (\d{2}):/.exec(b)
+  if (h) return `${h[3]}h`
+  const w = /^(\d{4})-W(\d+)$/.exec(b)
+  if (w) return `T${w[2]}`
+  const d = /^\d{4}-(\d{2})-(\d{2})$/.exec(b)
+  return d ? `${d[2]}/${d[1]}` : b
+}
+
+/** Thời lượng đọc được: giây khi đã quá 1s. fmtNum rút gọn 13740 thành "13.7k" — vô nghĩa với ms. */
+function fmtMs(ms?: number): string {
+  if (!ms) return "—"
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`
 }
 
 /** Mã HTTP → vai trò màu. 429 là hết hạn mức (cảnh báo), không phải lỗi hệ thống. */
@@ -111,6 +138,10 @@ export function Reports() {
   for (const k of ["apiKeyId", "combo", "email", "model", "endpoint", "status", "ok"] as const) {
     if (f[k]) qs.set(k, f[k])
   }
+  // Khoảng tự chọn: gửi epoch ms. `to` lấy hết ngày cuối (23:59:59) — chọn "đến 10/08"
+  // mà cắt ở 00:00 thì mất nguyên ngày đó.
+  if (f.range === "custom" && f.from) qs.set("from", String(new Date(f.from + "T00:00:00").getTime()))
+  if (f.range === "custom" && f.to) qs.set("to", String(new Date(f.to + "T23:59:59").getTime()))
 
   const usage = useQuery({
     queryKey: ["usage", qs.toString()],
@@ -217,12 +248,64 @@ export function Reports() {
     },
   ]
 
-  const modelCols: Column<{ model: string; requests: number; tokIn: number; tokOut: number }>[] = [
-    { key: "model", header: "Model", sort: (r) => r.model, render: (r) => <code className="text-xs">{r.model}</code> },
+  /**
+   * Cột chung cho bảng tổng hợp (model / account).
+   *
+   * `errors` và `p95` là thứ quan trọng nhất mà bản trước KHÔNG hiện: dữ liệu có sẵn
+   * trong mọi bản ghi nhưng hàm gộp không đụng tới. Đo thật trên production:
+   * `claude-sonnet-4-6` có 2581/3338 request lỗi (77%) — nhìn bảng cũ chỉ thấy
+   * "3338 request" và tưởng mọi thứ bình thường.
+   */
+  const aggCols = <T extends UsageAgg>(
+    keyCol: Column<T>,
+  ): Column<T>[] => [
+    keyCol,
     { key: "requests", header: "Request", align: "right", sort: (r) => r.requests, render: (r) => <span className="tabular-nums">{fmtNum(r.requests)}</span> },
+    {
+      key: "errors", header: "Lỗi", align: "right", sort: (r) => (r.requests ? r.errors / r.requests : 0),
+      render: (r) => {
+        if (!r.requests) return <span className="text-xs text-muted-foreground">—</span>
+        const pct = Math.round((r.errors / r.requests) * 100)
+        // Sắp theo TỈ LỆ chứ không theo số tuyệt đối: model chạy nhiều tự nhiên nhiều
+        // lỗi hơn, nhưng model 77% lỗi mới là cái cần sửa.
+        return (
+          <span className={`text-xs tabular-nums ${pct >= 50 ? "text-destructive" : pct >= 20 ? "text-[color:var(--warning)]" : "text-muted-foreground"}`}>
+            {r.errors ? `${fmtNum(r.errors)} · ${pct}%` : "0"}
+          </span>
+        )
+      },
+    },
+    {
+      key: "p95", header: "p95", align: "right", sort: (r) => r.p95 ?? -1,
+      render: (r) => (
+        <span className="text-xs tabular-nums text-muted-foreground" title={`trung bình ${fmtMs(r.avgMs)} · p50 ${fmtMs(r.p50)}`}>
+          {r.p95 ? fmtMs(r.p95) : "—"}
+        </span>
+      ),
+    },
     { key: "tokIn", header: "Token vào", align: "right", sort: (r) => r.tokIn, render: (r) => <span className="tabular-nums text-muted-foreground">{fmtNum(r.tokIn)}</span> },
     { key: "tokOut", header: "Token ra", align: "right", sort: (r) => r.tokOut, render: (r) => <span className="tabular-nums text-muted-foreground">{fmtNum(r.tokOut)}</span> },
   ]
+
+  const modelCols = aggCols<UsageAgg & { model: string }>({
+    key: "model", header: "Model", sort: (r) => r.model,
+    // Click để lọc + nhảy sang tab Chi tiết — bảng cũ chỉ render <code>, không bấm được,
+    // nên thấy model lỗi nhiều mà không xuống được log của nó.
+    render: (r) => (
+      <button onClick={() => setF({ model: r.model, tab: "chi-tiet" })} className="text-xs hover:text-primary hover:underline">
+        <code>{r.model}</code>
+      </button>
+    ),
+  })
+
+  const accountCols = aggCols<UsageAgg & { email: string }>({
+    key: "email", header: "Account", sort: (r) => r.email,
+    render: (r) => (
+      <button onClick={() => setF({ email: r.email, tab: "chi-tiet" })} className="text-xs hover:text-primary hover:underline">
+        {r.email.split("@")[0]}
+      </button>
+    ),
+  })
 
   if (usage.error) return <ErrorState error={usage.error} onRetry={() => usage.refetch()} />
 
@@ -246,14 +329,35 @@ export function Reports() {
         <Select value={f.range} onValueChange={(v) => setF({ range: (v ?? "7d") as Range })}>
           <SelectTrigger className="h-8 w-28 text-xs">
             {/* SelectValue hiện value thô ("7d"); render nhãn tiếng Việt cho khớp danh sách. */}
-            <span>{f.range === "90d" ? "90 ngày" : f.range === "30d" ? "30 ngày" : "7 ngày"}</span>
+            <span>
+              {{ "1d": "24 giờ", "7d": "7 ngày", "30d": "30 ngày", "90d": "90 ngày", custom: "Tự chọn" }[f.range] ?? "7 ngày"}
+            </span>
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="1d" className="text-xs">24 giờ</SelectItem>
             <SelectItem value="7d" className="text-xs">7 ngày</SelectItem>
             <SelectItem value="30d" className="text-xs">30 ngày</SelectItem>
             <SelectItem value="90d" className="text-xs">90 ngày</SelectItem>
+            <SelectItem value="custom" className="text-xs">Tự chọn…</SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Khoảng tự chọn — backend đã đọc from/to từ lâu, chỉ thiếu widget này. */}
+        {f.range === "custom" && (
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date" value={f.from} max={f.to || undefined}
+              onChange={(e) => setF({ from: e.target.value })}
+              className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <span className="text-xs text-muted-foreground">→</span>
+            <input
+              type="date" value={f.to} min={f.from || undefined}
+              onChange={(e) => setF({ to: e.target.value })}
+              className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+        )}
 
         <Select value={f.apiKeyId} onValueChange={(v) => setF({ apiKeyId: v ?? "" })}>
           <SelectTrigger className="h-8 w-44 text-xs">
@@ -464,7 +568,7 @@ export function Reports() {
         {series.length ? (
           <BarSeries
             data={series.map((x) => ({
-              bucket: x.bucket.slice(5),
+              bucket: fmtBucket(x.bucket),
               value: metric === "requests" ? x.requests : x.tokIn + x.tokOut,
             }))}
             xKey="bucket"
@@ -524,16 +628,32 @@ export function Reports() {
         </ChartCard>
       </div>
 
-      <ChartCard title="Chi tiết theo model">
-        <DataTable
-          rows={d?.byModel ?? []}
-          columns={modelCols}
-          rowKey={(r) => r.model}
-          loading={usage.isLoading}
-          pageSize={15}
-          initialSort={{ key: "requests", dir: "desc" }}
-        />
-      </ChartCard>
+      <div className="grid gap-3 xl:grid-cols-2">
+        <ChartCard title="Theo model">
+          <DataTable
+            rows={d?.byModel ?? []}
+            columns={modelCols}
+            rowKey={(r) => r.model}
+            loading={usage.isLoading}
+            pageSize={10}
+            initialSort={{ key: "requests", dir: "desc" }}
+          />
+        </ChartCard>
+
+        {/* Account tiêu nhiều nhất — backend trả `byAccount` từ lâu nhưng UI chưa bao
+            giờ vẽ. Với pool 700 account, đây là cách duy nhất thấy account nào đang
+            gánh tải và account nào lỗi bất thường. */}
+        <ChartCard title="Theo account">
+          <DataTable
+            rows={d?.byAccount ?? []}
+            columns={accountCols}
+            rowKey={(r) => r.email}
+            loading={usage.isLoading}
+            pageSize={10}
+            initialSort={{ key: "requests", dir: "desc" }}
+          />
+        </ChartCard>
+      </div>
       </>
       )}
     </div>

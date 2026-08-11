@@ -100,11 +100,26 @@ export interface UsageTotals {
   accounts: number;
 }
 
+/**
+ * Một hàng tổng hợp usage. `errors`/`avgMs` có ở mọi bảng; `p50`/`p95` chỉ có ở
+ * byModel và byAccount (tính riêng, tốn thêm một truy vấn nên không rải khắp nơi).
+ */
+export interface UsageAgg {
+  requests: number;
+  tokIn: number;
+  tokOut: number;
+  errors: number;
+  /** Độ trễ trung bình của request THÀNH CÔNG — request lỗi trả rất nhanh, gộp vào sẽ méo. */
+  avgMs: number;
+  p50?: number;
+  p95?: number;
+}
+
 export interface UsageResponse {
   totals: UsageTotals;
-  series: Array<{ bucket: string; requests: number; tokIn: number; tokOut: number }>;
-  byModel: Array<{ model: string; requests: number; tokIn: number; tokOut: number }>;
-  byAccount: Array<{ email: string; requests: number; tokIn: number; tokOut: number }>;
-  byApiKey?: Array<{ apiKeyId: string; requests: number; tokIn: number; tokOut: number }>;
-  byCombo?: Array<{ combo: string; requests: number; tokIn: number; tokOut: number }>;
+  series: Array<UsageAgg & { bucket: string }>;
+  byModel: Array<UsageAgg & { model: string }>;
+  byAccount: Array<UsageAgg & { email: string }>;
+  byApiKey?: Array<UsageAgg & { apiKeyId: string; name?: string }>;
+  byCombo?: Array<UsageAgg & { combo: string }>;
 }

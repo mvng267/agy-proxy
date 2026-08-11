@@ -839,12 +839,24 @@ export function registerAdminRoutes(app: FastifyInstance): void {
   });
 
   // ---------------- Báo cáo sử dụng ----------------
-  function rangeOf(req: FastifyRequest): { from: number; to: number; groupBy: 'day' | 'week' } {
+  function rangeOf(req: FastifyRequest): { from: number; to: number; groupBy: 'hour' | 'day' | 'week' } {
     const q = req.query as any;
     const to = q.to ? Number(q.to) : Date.now();
-    const days = q.range === '30d' ? 30 : q.range === '90d' ? 90 : 7;
+    const days = q.range === '1d' ? 1 : q.range === '30d' ? 30 : q.range === '90d' ? 90 : 7;
     const from = q.from ? Number(q.from) : to - days * 86400_000;
-    const groupBy = q.groupBy === 'week' ? 'week' : 'day';
+
+    /**
+     * Mức gộp TỰ CHỌN theo độ dài khoảng, trừ khi client chỉ định.
+     *
+     * Gộp theo ngày cho khoảng 24 giờ thì biểu đồ chỉ có 1–2 cột — vô dụng. Đây đúng
+     * là lỗi đã gặp với biểu đồ quota (14.633 điểm dồn vào một ngày) và đã sửa ở đó;
+     * usage thì chưa.
+     */
+    const span = Math.max(0, to - from);
+    const auto: 'hour' | 'day' | 'week' =
+      span <= 3 * 86400_000 ? 'hour' : span <= 60 * 86400_000 ? 'day' : 'week';
+    const groupBy =
+      q.groupBy === 'week' || q.groupBy === 'day' || q.groupBy === 'hour' ? q.groupBy : auto;
     return { from, to, groupBy };
   }
 
