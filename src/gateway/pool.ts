@@ -4,6 +4,7 @@ import type { Dispatcher } from 'undici';
 import { DATA_DIR, config } from '../config.js';
 import { store } from '../store/index.js';
 import { recordQuota } from '../store/db.js';
+import { setNousRotateHook } from './providers/nous.js';
 import { PROVIDERS, providerOfTarget, type ProviderAccount, type ProviderId, type ProviderSession } from './providers/index.js';
 import { proxyDispatcher, type TokenInfo, type QuotaInfo, type QuotaBucket } from './antigravity.js';
 
@@ -600,6 +601,28 @@ export class Pool {
 
 // ---------- singleton + tích hợp store/mạng ----------
 export const pool = new Pool();
+
+/**
+ * Nous XOAY VÒNG refresh token: mỗi lần refresh trả token mới và vô hiệu token cũ. Không
+ * ghi xuống CSV thì restart là mất, và Portal trả `invalid_grant: Refresh token reuse
+ * detected` — account chết vĩnh viễn, phải đăng ký lại từ đầu.
+ *
+ * Cắm ở đây vì `providers/` không được import store (quy tắc chống vòng lặp module).
+ */
+setNousRotateHook((a) => {
+  try {
+    store.upsertCredential({
+      email: a.email,
+      target: PROVIDERS[a.provider].credentialTarget,
+      value: a.credential,
+      expires_at: '',
+      omniroute_connection_id: '',
+      updated_at: '',
+    });
+  } catch {
+    /* ghi hỏng thì token mới vẫn còn trong RAM — lần restart sau mới mất */
+  }
+});
 const PERSIST = resolve(DATA_DIR, 'gateway.json');
 const REFRESH_SKEW_MS = 5 * 60 * 1000;
 

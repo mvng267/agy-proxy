@@ -231,3 +231,40 @@ describe('lỗi hết credit KHÔNG được coi là account chết', () => {
     assert.match(src, /status: 402/);
   });
 });
+
+describe('refresh token XOAY VÒNG — không lưu là account chết vĩnh viễn', () => {
+  const SRC = readFileSync(resolve(ROOT, 'src/gateway/providers/nous.ts'), 'utf8');
+
+  test('refreshNousToken trả về refresh_token mới', () => {
+    /**
+     * Nous vô hiệu token cũ ngay khi cấp token mới. Bỏ qua `refresh_token` trong response
+     * thì lần refresh sau Portal trả:
+     *   invalid_grant: Refresh token reuse detected; please re-authenticate
+     * Đã gặp THẬT trên production khi nạp token copy từ hermes — hermes đã dùng nó và giữ
+     * bản xoay vòng, nên bản tôi copy chết ngay lần gọi đầu.
+     */
+    assert.match(SRC, /refreshToken: j\.refresh_token/);
+  });
+
+  test('ensureReady lưu token mới vào CẢ credential, không chỉ RAM', () => {
+    // Chỉ giữ trong RAM thì restart là mất, mà token cũ đã bị Portal vô hiệu.
+    assert.match(SRC, /a\.refreshToken = r\.refreshToken/);
+    assert.match(SRC, /a\.credential = JSON\.stringify\(\{ provider: 'nous', refreshToken/);
+  });
+
+  test('chỉ ghi khi token THỰC SỰ đổi', () => {
+    // Ghi mỗi lần refresh là 700 lượt ghi CSV vô ích mỗi giờ.
+    assert.match(SRC, /r\.refreshToken !== a\.refreshToken/);
+  });
+
+  test('dùng HOOK, không import store (quy tắc chống vòng lặp module)', () => {
+    assert.match(SRC, /export function setNousRotateHook/);
+    assert.doesNotMatch(SRC, /from '\.\.\/\.\.\/store\//, 'providers/ không được import store');
+  });
+
+  test('pool cắm hook để ghi xuống CSV', () => {
+    const pool = readFileSync(resolve(ROOT, 'src/gateway/pool.ts'), 'utf8');
+    assert.match(pool, /setNousRotateHook\(/);
+    assert.match(pool, /store\.upsertCredential/);
+  });
+});

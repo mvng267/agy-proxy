@@ -64,7 +64,7 @@ export function jwtExpiresAt(token: string): number {
 /** Đổi refresh_token lấy access_token mới. */
 export async function refreshNousToken(
   refreshToken: string, d?: Dispatcher,
-): Promise<{ accessToken: string; expiresAt: number }> {
+): Promise<{ accessToken: string; expiresAt: number; refreshToken?: string }> {
   const res = await fetch(`${PORTAL_URL}/api/oauth/token`, {
     method: 'POST',
     // Refresh token đi ở HEADER riêng, không nằm trong body như OAuth chuẩn.
@@ -80,12 +80,16 @@ export async function refreshNousToken(
   if (!res.ok) {
     throw Object.assign(new Error(`nous refresh ${res.status}: ${text.slice(0, 160)}`), { status: res.status });
   }
-  const j = JSON.parse(text) as { access_token?: string; expires_in?: number };
+  const j = JSON.parse(text) as { access_token?: string; refresh_token?: string; expires_in?: number };
   if (!j.access_token) throw new Error('nous refresh: thiếu access_token');
   const fromJwt = jwtExpiresAt(j.access_token);
   return {
     accessToken: j.access_token,
     expiresAt: fromJwt || Date.now() + (j.expires_in ?? 3600) * 1000,
+    // Nous XOAY VÒNG refresh token: mỗi lần refresh trả về token MỚI và vô hiệu token cũ.
+    // Không lưu lại thì lần sau Portal trả `invalid_grant: Refresh token reuse detected`
+    // và account chết hẳn — đã gặp thật khi nạp token copy từ hermes.
+    refreshToken: j.refresh_token,
   };
 }
 
@@ -149,6 +153,17 @@ function fixCreditError(e: any): never {
 /** Ảnh chụp hạn mức mới nhất, theo account — điền vào bởi mỗi lần gọi thật. */
 const quotaCache = new Map<string, QuotaInfo>();
 
+/**
+ * Gọi khi refresh token vừa bị xoay vòng, để tầng trên ghi xuống CSV.
+ *
+ * Dùng hook thay vì import store thẳng: file trong `providers/` KHÔNG được import store/pool
+ * (quy tắc chống vòng lặp module — xem types.ts).
+ */
+let onRotate: ((a: ProviderAccount) => void) | undefined;
+export function setNousRotateHook(fn: (a: ProviderAccount) => void): void {
+  onRotate = fn;
+}
+
 const WIRE = { label: 'nous', defaultBaseUrl: INFERENCE_URL };
 
 /** Bọc opts để mỗi response đều được bóc hạn mức về đúng account. */
@@ -197,7 +212,15 @@ export const nousProvider: Provider = {
   async ensureReady(a: ProviderAccount, d?: Dispatcher): Promise<ProviderSession> {
     const now = Date.now();
     if (!a.token || a.token.expiresAt - REFRESH_SKEW_MS <= now) {
-      a.token = await refreshNousToken(a.refreshToken, d);
+      const r = await refreshNousToken(a.refreshToken, d);
+      a.token = { accessToken: r.accessToken, expiresAt: r.expiresAt };
+      // LƯU token xoay vòng ngay, cả trong RAM lẫn xuống đĩa. Chỉ giữ trong RAM thì
+      // restart là mất và account chết vĩnh viễn (Portal đã vô hiệu token cũ).
+      if (r.refreshToken && r.refreshToken !== a.refreshToken) {
+        a.refreshToken = r.refreshToken;
+        a.credential = JSON.stringify({ provider: 'nous', refreshToken: r.refreshToken });
+        onRotate?.(a);
+      }
     }
     return this.sessionOf(a);
   },
