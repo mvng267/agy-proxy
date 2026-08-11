@@ -184,7 +184,7 @@ export function registerOpenAIDialect(app: FastifyInstance): void {
     if (!messages.some((m) => m.role !== 'system')) messages.push({ role: 'user', content: '' });
 
     const generationConfig: Record<string, unknown> = {};
-    // Cùng trần với nhánh Anthropic — vượt 64K thì Google trả 429 trần, xem MAX_OUTPUT_TOKENS_CAP.
+    // Cùng trần với nhánh Anthropic (128K, đo lại 10/08) — xem MAX_OUTPUT_TOKENS_CAP.
     if (typeof b.max_output_tokens === 'number') {
       generationConfig.maxOutputTokens = Math.min(b.max_output_tokens, MAX_OUTPUT_TOKENS_CAP);
     }

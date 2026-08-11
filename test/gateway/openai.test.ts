@@ -15,8 +15,10 @@ test('generationConfig: max_tokens được tôn trọng (trước đây bị b�
   assert.equal(openaiGenerationConfig({ max_completion_tokens: 100 }).maxOutputTokens, 100);
 });
 
-test('generationConfig: kẹp trần 64000 — vượt là Google trả 429 trần khó chẩn đoán', () => {
-  assert.equal(openaiGenerationConfig({ max_tokens: 128000 }).maxOutputTokens, 64000);
+test('generationConfig: kẹp trần 128000 — dùng chung MAX_OUTPUT_TOKENS_CAP với nhánh Anthropic', () => {
+  // Trần đo lại 10/08: upstream nói thẳng `131072 > 128000, which is the maximum allowed`.
+  assert.equal(openaiGenerationConfig({ max_tokens: 200000 }).maxOutputTokens, 128000);
+  assert.equal(openaiGenerationConfig({ max_tokens: 128000 }).maxOutputTokens, 128000);
   assert.equal(openaiGenerationConfig({ max_tokens: 64000 }).maxOutputTokens, 64000);
 });
 

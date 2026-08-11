@@ -114,21 +114,27 @@ test('report: hết hạn mức THÁNG (402) → monthlyExhaustedUntil đến đ
 });
 
 /**
- * Vượt trần maxOutputTokens → Google trả 429 RESOURCE_EXHAUSTED TRẦN (không retryDelay,
- * không quotaId) y hệt hết hạn mức. Proxy tưởng account cạn nên cooldown rồi xoay account,
- * và vì lỗi nằm ở REQUEST chứ không ở account, cả pool đều 429. Đo nhị phân trên upstream
- * thật: 64000 → 200, 65536 → 429.
+ * Trần maxOutputTokens — ĐO LẠI 10/08/2026 trên upstream thật:
+ *   64000/80000/100000/120000/128000 → OK · 130000 → lỗi
+ * và upstream nói thẳng: `max_tokens: 131072 > 128000, which is the maximum allowed`.
+ *
+ * Vì sao trần này tồn tại: lần đo cũ (65536) upstream trả 429 RESOURCE_EXHAUSTED TRẦN —
+ * không retryDelay, không quotaId — y hệt hết hạn mức. Proxy tưởng account cạn nên
+ * cooldown rồi xoay account, và vì lỗi nằm ở REQUEST chứ không ở account, cả pool đều
+ * 429. Nay upstream trả 400 kèm lý do rõ ràng nên rủi ro đó không còn, nhưng vẫn kẹp để
+ * client gửi 200000 không nhận lỗi từ upstream.
  */
-test('anthropicGenerationConfig: kẹp max_tokens xuống trần 64K', async () => {
+test('anthropicGenerationConfig: kẹp max_tokens xuống trần 128K', async () => {
   const { anthropicGenerationConfig, MAX_OUTPUT_TOKENS_CAP } = await import('../../src/gateway/anthropic.js');
-  assert.equal(MAX_OUTPUT_TOKENS_CAP, 64000);
-  // Hermes gửi 128000 — đây chính là request làm cháy cả pool.
-  assert.equal(anthropicGenerationConfig({ max_tokens: 128000 } as any).maxOutputTokens, 64000);
-  assert.equal(anthropicGenerationConfig({ max_tokens: 65536 } as any).maxOutputTokens, 64000);
+  assert.equal(MAX_OUTPUT_TOKENS_CAP, 128000);
+  assert.equal(anthropicGenerationConfig({ max_tokens: 200000 } as any).maxOutputTokens, 128000);
+  assert.equal(anthropicGenerationConfig({ max_tokens: 131072 } as any).maxOutputTokens, 128000);
 });
 
 test('anthropicGenerationConfig: giá trị dưới trần giữ nguyên', async () => {
   const { anthropicGenerationConfig } = await import('../../src/gateway/anthropic.js');
+  // 128000 là ĐÚNG trần, không bị kẹp; Hermes gửi đúng số này.
+  assert.equal(anthropicGenerationConfig({ max_tokens: 128000 } as any).maxOutputTokens, 128000);
   assert.equal(anthropicGenerationConfig({ max_tokens: 64000 } as any).maxOutputTokens, 64000);
   assert.equal(anthropicGenerationConfig({ max_tokens: 1024 } as any).maxOutputTokens, 1024);
   assert.equal(anthropicGenerationConfig({} as any).maxOutputTokens, undefined);

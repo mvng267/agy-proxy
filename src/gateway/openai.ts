@@ -12,9 +12,9 @@ import { NoAccountError } from './pool.js';
  * TRƯỚC ĐÂY /chat/completions KHÔNG dựng generationConfig gì cả → max_tokens,
  * temperature, top_p bị BỎ HOÀN TOÀN. Đo thật: gửi max_tokens=5 nhận 211 token.
  *
- * `maxOutputTokens` PHẢI kẹp 64000: vượt trần thì Google trả 429 TRẦN (không
- * retryDelay, không quotaId) trông y hệt hết hạn mức → proxy tưởng account cạn,
- * cooldown rồi xoay account, và cả pool cùng cháy dù lỗi nằm ở REQUEST.
+ * `maxOutputTokens` kẹp theo MAX_OUTPUT_TOKENS_CAP (128000, đo lại 10/08). Trần này
+ * tồn tại vì lần đo cũ upstream trả 429 TRẦN khi vượt — trông y hệt hết hạn mức, làm
+ * proxy cooldown rồi xoay account và cháy cả pool dù lỗi nằm ở REQUEST.
  */
 export function openaiGenerationConfig(b: any): Record<string, unknown> {
   const g: Record<string, unknown> = {};

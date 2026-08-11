@@ -158,15 +158,20 @@ export function anthropicToolDefs(b: AnthropicRequest): ToolDef[] {
 /**
  * Trần `maxOutputTokens` Antigravity thực sự nhận.
  *
- * Đo nhị phân trên upstream thật: 64000 → 200, 65536 → 429. Google KHÔNG trả 400
- * "invalid argument" mà trả `429 RESOURCE_EXHAUSTED` trần (không retryDelay, không
- * quotaId), nên vượt trần trông y hệt hết hạn mức. Hậu quả: proxy tưởng account cạn,
- * cooldown rồi xoay sang account kế — cả 200 account đều 429 vì lỗi nằm ở REQUEST,
- * không ở account. Đây là gốc của chuỗi "429 → đổi account" chạy vô tận.
+ * ĐO LẠI 10/08/2026 trên upstream thật (model claude-sonnet-4-6, account còn quota):
+ *   64000 → OK · 80000 → OK · 100000 → OK · 120000 → OK · 128000 → OK · 130000 → lỗi
+ * và upstream nói thẳng con số:
+ *   `max_tokens: 131072 > 128000, which is the maximum allowed number of output tokens`
  *
- * Client agent hay đặt max_tokens rất lớn (Hermes gửi 128000) nên dính ngay.
+ * Vì sao trước đây để 64000: lần đo cũ thấy 65536 trả `429 RESOURCE_EXHAUSTED` trần
+ * (không retryDelay, không quotaId) — trông y hệt hết hạn mức. Proxy tưởng account cạn,
+ * cooldown rồi xoay sang account kế; cả 200 account đều 429 vì lỗi nằm ở REQUEST chứ
+ * không ở account. Nay upstream trả 400 kèm lý do rõ ràng, nên rủi ro đó không còn.
+ *
+ * Kiểm lại khi Google đổi: gọi thẳng với maxOutputTokens tăng dần, xem lỗi là 400 (rõ)
+ * hay 429 (trần giả). Nếu quay lại 429 giả thì hạ trần ngay — nó làm cháy cả pool.
  */
-export const MAX_OUTPUT_TOKENS_CAP = 64000;
+export const MAX_OUTPUT_TOKENS_CAP = 128000;
 
 export function anthropicGenerationConfig(b: AnthropicRequest): Record<string, unknown> {
   const g: Record<string, unknown> = {};
