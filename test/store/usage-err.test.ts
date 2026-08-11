@@ -19,7 +19,7 @@ import { resolve } from 'node:path';
 const TMP = mkdtempSync(resolve(tmpdir(), 'agy-err-'));
 process.env.AGY_HOME = TMP;
 
-const { db, recordGatewayUsage, usageLogs, pruneUsage } = await import('../../src/store/db.js');
+const { db, recordGatewayUsage, usageLogs, pruneUsage, bocLoi } = await import('../../src/store/db.js');
 
 const NOW = Date.now();
 const GIO = 3600_000;
@@ -125,5 +125,79 @@ describe('đường đi của err từ upstream tới DB', () => {
     const adm = readFileSync(resolve(ROOT, 'src/gateway/admin.ts'), 'utf8');
     const head = adm.match(/const head = '([^']+)\\n';/)![1]!;
     assert.ok(head.endsWith(',err'), `err phải là cột cuối, đang là: ${head}`);
+  });
+});
+
+describe('bocLoi — gỡ lớp JSON lồng nhau', () => {
+  /**
+   * Cắt thẳng 300 ký tự là KHÔNG đủ. Đo thật trên production 11/08: lỗi vượt trần token
+   * về dưới dạng lồng BA lớp, nên 300 ký tự đầu chỉ toàn vỏ `{"error":{"code":400,…` —
+   * còn câu giải thích thật thì nằm sâu bên trong và bị cắt mất. Đúng thứ tính năng này
+   * sinh ra để giữ lại.
+   */
+  const THAT = 'generateContent 400: ' + JSON.stringify({
+    error: {
+      code: 400,
+      status: 'INVALID_ARGUMENT',
+      details: [{ '@type': 'type.googleapis.com/google.rpc.BadRequest', fieldViolations: [{ field: 'generation_config.max_output_tokens', description: 'value out of range' }] }],
+      message: JSON.stringify({
+        type: 'error',
+        error: { type: 'invalid_request_error', message: 'max_tokens: 200000 > 128000, which is the maximum allowed number of output tokens' },
+      }),
+    },
+  });
+
+  test('lỗi THẬT từ production: giữ được câu có ích, bỏ vỏ JSON', () => {
+    const r = bocLoi(THAT);
+    assert.match(r, /max_tokens: 200000 > 128000/, 'mất đúng phần cần nhất');
+    assert.ok(!r.includes('{"error"'), `còn sót vỏ JSON: ${r}`);
+  });
+
+  test('câu có ích phải sống sót SAU khi cắt 300 ký tự', () => {
+    // Đây mới là điều thật sự quan trọng — bóc mà vẫn bị cắt mất thì vô nghĩa.
+    assert.doesNotMatch(THAT.slice(0, 300), /max_tokens: 200000/, 'nếu cắt thẳng vẫn giữ được thì hàm này thừa');
+    assert.match(bocLoi(THAT).slice(0, 300), /max_tokens: 200000 > 128000/, 'bóc rồi mà vẫn mất thì công cốc');
+  });
+
+  test('giữ tiền tố ngoài JSON làm ngữ cảnh', () => {
+    assert.match(bocLoi(THAT), /^generateContent 400: /, 'mất mã lỗi gốc thì khó lần ngược');
+  });
+
+  test('lỗi văn xuôi (không JSON) → giữ nguyên văn', () => {
+    const s = 'Individual quota reached for this account, resets in 83h34m';
+    assert.equal(bocLoi(s), s);
+  });
+
+  test('HTML → giữ nguyên, không crash', () => {
+    const s = 'Kiro refresh 403: <!DOCTYPE HTML><html><body>Forbidden</body></html>';
+    assert.equal(bocLoi(s), s);
+  });
+
+  test('JSON hỏng giữa chừng → giữ nguyên, không nuốt lỗi', () => {
+    const s = 'boom 500: {"error": {"message": "chua dong ngoac';
+    assert.equal(bocLoi(s), s);
+  });
+
+  test('một lớp JSON đơn giản vẫn bóc được', () => {
+    assert.equal(bocLoi('{"error":{"message":"quota exhausted"}}'), 'quota exhausted');
+  });
+
+  test('không lặp vô hạn với cấu trúc tự lồng', () => {
+    // Trần 6 vòng: upstream trả kiểu này thì hàm phải dừng, không treo tiến trình.
+    // 12 lớp: đủ vượt trần 6 vòng. 40 lớp thì chính JSON.stringify nổ bộ nhớ lúc DỰNG
+    // dữ liệu — hỏng ở test chứ không chạm tới hàm cần kiểm.
+    let s = '"day la day"';
+    for (let i = 0; i < 12; i++) s = JSON.stringify({ error: { message: s } });
+    const t0 = Date.now();
+    bocLoi(s);
+    assert.ok(Date.now() - t0 < 1000, 'phải dừng nhanh, không gỡ hết 12 lớp');
+  });
+
+  test('recordGatewayUsage LƯU bản đã bóc, không lưu bản thô', () => {
+    ghi({ ok: false, status: 400, err: THAT });
+    const r = usageLogs(NOW - 2 * GIO, NOW, {}, 100, 0).rows.find(
+      (x) => (x as Record<string, unknown>).status === 400,
+    ) as Record<string, unknown>;
+    assert.match(String(r.err), /max_tokens: 200000 > 128000/, 'ghi vào DB mà vẫn là JSON thô thì bóc ở đâu cũng vô ích');
   });
 });

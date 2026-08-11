@@ -443,6 +443,42 @@ export interface UsageRow {
  */
 let creditsCache: { at: number; prefix: string; data: Record<string, number> } | null = null;
 
+/**
+ * Bóc câu lỗi CÓ ÍCH ra khỏi lớp JSON lồng nhau trước khi cắt 300 ký tự.
+ *
+ * Upstream trả lỗi lồng ba lớp — đo thật trên production 11/08:
+ *   generateContent 400: {"error":{"code":400,"message":"{\"type\":\"error\",\"error\":
+ *   {\"type\":\"invalid_request_error\",\"message\":\"max_tokens: 200000 > 128000…\"}}"}}
+ * Cắt thẳng 300 ký tự chỉ giữ được phần vỏ `{"error": {"code": 400, "message": "{\"` —
+ * đúng phần vô nghĩa, còn câu giải thích thật thì mất. Hàm này lần vào `message` sâu
+ * nhất, nên dòng lưu được là `max_tokens: 200000 > 128000…` thay vì rác JSON.
+ *
+ * Không parse được (lỗi dạng văn xuôi, hay HTML) thì trả nguyên văn — vẫn tốt hơn rỗng.
+ */
+export function bocLoi(raw: string): string {
+  // Giữ tiền tố ngoài JSON (`generateContent 400: `) làm ngữ cảnh nếu bóc được.
+  const i = raw.indexOf('{');
+  if (i < 0) return raw;
+  const dau = raw.slice(0, i).trim();
+  let cur: unknown = raw.slice(i);
+  let sau = '';
+  // Lặp có trần: mỗi vòng gỡ MỘT lớp. 6 là dư cho 3 lớp đã gặp, và chặn vòng vô hạn
+  // nếu upstream trả cấu trúc tự lồng.
+  for (let n = 0; n < 6; n++) {
+    if (typeof cur !== 'string') break;
+    let o: unknown;
+    try { o = JSON.parse(cur); } catch { break; }
+    if (!o || typeof o !== 'object') break;
+    const m = (o as { error?: { message?: unknown }; message?: unknown });
+    const next = m.error?.message ?? m.message;
+    if (typeof next !== 'string') break;
+    sau = next;
+    cur = next;
+  }
+  if (!sau) return raw;
+  return dau ? `${dau} ${sau}` : sau;
+}
+
 export function recordGatewayUsage(r: UsageRow): void {
   creditsCache = null; // usage mới → số credit Kiro tháng này đổi
   prep(
@@ -456,7 +492,7 @@ export function recordGatewayUsage(r: UsageRow): void {
     r.status ?? null, r.requestId ?? null, r.stream == null ? null : r.stream ? 1 : 0,
     // Chỉ lưu khi LỖI, cắt 300 ký tự: đủ nhận dạng, không để một trang HTML lỗi
     // (`Kiro refresh 403: <!DOCTYPE HTML…`) phình bảng.
-    r.ok ? null : (r.err ? String(r.err).slice(0, 300) : null),
+    r.ok ? null : (r.err ? bocLoi(String(r.err)).slice(0, 300) : null),
   );
 }
 
