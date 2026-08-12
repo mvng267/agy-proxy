@@ -1,4 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { api } from "@/lib/api"
+import { POLL } from "@/lib/queryClient"
 import {
   Zap,
   Users,
@@ -90,10 +93,8 @@ function fmtCooldown(until?: number) {
 // ── Pool Page ──────────────────────────────────────────────────────────
 
 export function Pool() {
-  const [accounts, setAccounts] = useState<PoolAccount[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const toast = useToast()
+  const qc = useQueryClient()
 
   // Provider tab
   // KHÔNG khoá cứng "agy" | "kr": provider thêm sau (OpenRouter, Nous) cũng phải có tab,
@@ -120,25 +121,37 @@ export function Pool() {
   const [checkProgress, setCheckProgress] = useState<{ total: number; done: number } | null>(null)
   const evtRef = useRef<EventSource | null>(null)
 
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch("/api/gateway/accounts")
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json() as AccountsResponse
-      setAccounts(json.accounts ?? [])
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch")
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  /**
+   * React Query thay `fetch` trần + `setInterval`.
+   *
+   * `fetch` trần bỏ qua tầng xử lý 401 của `lib/api` — phiên hết hạn thì trang im lặng
+   * thay vì quay về màn đăng nhập. `setInterval` cũng chạy tiếp khi tab ẩn.
+   */
+  const QK = ["pool-accounts"] as const
+  const q = useQuery({
+    queryKey: QK,
+    queryFn: () => api.get<AccountsResponse>("/api/gateway/accounts"),
+    refetchInterval: POLL.normal,
+  })
+  const accounts = q.data?.accounts ?? []
+  const loading = q.isLoading
+  const error = q.error ? (q.error instanceof Error ? q.error.message : String(q.error)) : null
+  const fetchData = useCallback(() => { void qc.invalidateQueries({ queryKey: QK }) }, [qc])
 
-  useEffect(() => {
-    fetchData()
-    const interval = setInterval(fetchData, 30_000)
-    return () => clearInterval(interval)
-  }, [fetchData])
+  /**
+   * Cập nhật LẠC QUAN: sửa ngay trong cache thay vì đợi vòng poll kế.
+   *
+   * Bấm "Kiểm tra" rồi đợi 30 giây mới thấy kết quả là trải nghiệm tệ — bản cũ dùng
+   * `setAccounts(prev => ...)` cho đúng lý do đó. `setQueryData` giữ nguyên hành vi ấy.
+   */
+  const setAccounts = useCallback(
+    (fn: (prev: PoolAccount[]) => PoolAccount[]) => {
+      qc.setQueryData<AccountsResponse>(QK, (old) =>
+        old ? { ...old, accounts: fn(old.accounts ?? []) } : old,
+      )
+    },
+    [qc],
+  )
 
   // Save provider preference
   useEffect(() => {
@@ -157,35 +170,28 @@ export function Pool() {
   // ── Per-account actions
   const handleToggle = async (acc: PoolAccount, enabled: boolean) => {
     await withSpin(acc.email, "toggle", async () => {
-      await fetch(`/api/gateway/accounts/${encodeURIComponent(acc.email)}/toggle?provider=${provider}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled }),
-      })
+      await api.post(`/api/gateway/accounts/${encodeURIComponent(acc.email)}/toggle?provider=${provider}`, { enabled })
       setAccounts(prev => prev.map(a => a.email === acc.email ? { ...a, enabled } : a))
     })
   }
 
   const handleTest = async (email: string) => {
     await withSpin(email, "test", async () => {
-      const r = await fetch(`/api/gateway/accounts/${encodeURIComponent(email)}/test?provider=${provider}`, { method: "POST" })
-      const data = await r.json()
+      const data = await api.post<{ alive?: boolean }>(`/api/gateway/accounts/${encodeURIComponent(email)}/test?provider=${provider}`, {})
       setAccounts(prev => prev.map(a => a.email === email ? { ...a, health: data.alive ? "alive" : "dead", lastCheckAt: Date.now() } : a))
     })
   }
 
   const handleCheckLive = async (email: string) => {
     await withSpin(email, "live", async () => {
-      const r = await fetch(`/api/gateway/accounts/${encodeURIComponent(email)}/checklive?provider=${provider}`, { method: "POST" })
-      const data = await r.json()
+      const data = await api.post<{ status?: string }>(`/api/gateway/accounts/${encodeURIComponent(email)}/checklive?provider=${provider}`, {})
       setAccounts(prev => prev.map(a => a.email === email ? { ...a, liveStatus: data.status, lastCheckAt: Date.now() } : a))
     })
   }
 
   const handleRefreshQuota = async (email: string) => {
     await withSpin(email, "quota", async () => {
-      const r = await fetch(`/api/gateway/quota/${encodeURIComponent(email)}?provider=${provider}`, { method: "POST" })
-      const data = await r.json()
+      const data = await api.post<{ ok?: boolean; quota?: { groups?: Array<{ name: string; pct: number }> } }>(`/api/gateway/quota/${encodeURIComponent(email)}?provider=${provider}`, {})
       if (data.ok) {
         setAccounts(prev => prev.map(a => {
           if (a.email !== email) return a
@@ -201,49 +207,34 @@ export function Pool() {
     const body: Record<string, unknown> = { enabled }
     if (emails && emails.length > 0) body.emails = emails
     try {
-      await fetch("/api/gateway/accounts/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
+      await api.post("/api/gateway/accounts/bulk", body)
       toast({ title: enabled ? "Đã bật tài khoản" : "Đã tắt tài khoản", variant: "success", description: emails?.length ? `${emails.length} account` : "tất cả" })
       fetchData()
-    } catch {
-      toast({ title: "Lỗi khi cập nhật", variant: "error" })
+    } catch (e) {
+      // Kèm lý do thật: "Lỗi khi cập nhật" một mình không cho biết là mất mạng, hết
+      // phiên, hay backend từ chối.
+      toast({ title: "Lỗi khi cập nhật", description: String(e instanceof Error ? e.message : e).slice(0, 120), variant: "error" })
     }
   }
 
   const handleWake = async () => {
     try {
-      await fetch("/api/gateway/accounts/wake", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider }),
-      })
+      await api.post("/api/gateway/accounts/wake", { provider })
       toast({ title: "Đã gửi lệnh wake", variant: "info" })
       fetchData()
-    } catch {
-      toast({ title: "Lỗi khi wake", variant: "error" })
+    } catch (e) {
+      toast({ title: "Lỗi khi wake", description: String(e instanceof Error ? e.message : e).slice(0, 120), variant: "error" })
     }
   }
 
   const handleBulkQuota = async () => {
     const emails = selected.size > 0 ? [...selected] : []
-    await fetch("/api/gateway/quota/refresh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(emails.length > 0 ? { emails } : {}),
-    })
+    await api.post("/api/gateway/quota/refresh", emails.length > 0 ? { emails } : {})
   }
 
   const startCheck = async (mode: "token" | "live" | "both") => {
     const emails = selected.size > 0 ? [...selected] : []
-    const r = await fetch("/api/gateway/accounts/check", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ emails, mode }),
-    })
-    const data = await r.json()
+    const data = await api.post<{ queued: number }>("/api/gateway/accounts/check", { emails, mode })
     setCheckProgress({ total: data.queued, done: 0 })
     // Subscribe to SSE for live updates
     if (evtRef.current) evtRef.current.close()

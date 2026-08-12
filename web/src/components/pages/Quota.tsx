@@ -1,4 +1,7 @@
 import { useEffect, useState, useCallback } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { api } from "@/lib/api"
+import { POLL } from "@/lib/queryClient"
 import { KpiCard, PageHeader } from "@/components/common"
 import { DonutStat, Sparkline, TimeSeries } from "@/components/common/charts"
 import {
@@ -143,11 +146,9 @@ function AutoDisablePanel({ onDone }: { onDone: () => void }) {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch("/api/gateway/config")
-      if (!r.ok) return
-      const j = await r.json()
+      const j = await api.get<{ autoDisable?: NonNullable<typeof cfg> }>("/api/gateway/config")
       if (j.autoDisable) setCfg(j.autoDisable)
-    } catch { /* để trống, panel tự ẩn */ }
+    } catch { /* panel tự ẩn khi không đọc được cấu hình */ }
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -158,16 +159,16 @@ function AutoDisablePanel({ onDone }: { onDone: () => void }) {
     setCfg(next)
     setSaving(true)
     try {
-      await fetch("/api/gateway/config", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          autoDisableEnabled: next.enabled,
-          autoDisableHour: next.hour,
-          autoDisableOffPct: next.offAtPct,
-          autoDisableOnPct: next.onAtPct,
-        }),
+      await api.patch("/api/gateway/config", {
+        autoDisableEnabled: next.enabled,
+        autoDisableHour: next.hour,
+        autoDisableOffPct: next.offAtPct,
+        autoDisableOnPct: next.onAtPct,
       })
+    } catch (e) {
+      // Bản cũ chỉ có `finally` — lưu hỏng thì giao diện vẫn hiện giá trị mới như đã lưu.
+      toast({ title: "Lưu cấu hình thất bại", description: String(e instanceof Error ? e.message : e).slice(0, 120), variant: "error" })
+      load()
     } finally { setSaving(false) }
   }
 
@@ -176,6 +177,8 @@ function AutoDisablePanel({ onDone }: { onDone: () => void }) {
     try {
       // Vòng quét đụng cả pool nên có thể mất vài phút — báo trước để không ai tưởng treo.
       toast({ title: "Đang quét cả pool…", description: "Có thể mất vài phút với pool lớn" })
+      // CỐ Ý `fetch` trần: cần đọc CẢ `!r.ok` lẫn `j.ok` — endpoint trả 200 kèm
+      // `{ok:false, error}` khi vòng quét không chạy được. `api` sẽ ném và mất `j.error`.
       const r = await fetch("/api/gateway/quota/sweep", { method: "POST" })
       const j = await r.json()
       if (!r.ok || !j.ok) {
@@ -251,20 +254,19 @@ function AutoDisablePanel({ onDone }: { onDone: () => void }) {
   )
 }
 
+/** Lịch sử hạn mức — tách ra khỏi `useState` inline để dùng được trong `useQuery`. */
+interface HistoryData {
+  series?: Array<{ bucket: string; provider?: string | null; gemini?: number; third?: number }>
+  providers?: string[]
+  points?: Array<{ ts: string; gemini_pct?: number; third_pct?: number }>
+}
+
 export function Quota() {
-  const [accounts, setAccounts] = useState<PoolAccount[]>([])
-  const [summary, setSummary] = useState<QuotaSummary | null>(null)
+  const qc = useQueryClient()
   /** Lọc theo provider — hai bên mô hình hạn mức khác hẳn, xem lẫn lộn là hiểu sai. */
   const [prov, setProv] = useState<string>("all")
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
-  // History
-  const [historyData, setHistoryData] = useState<{
-    series?: Array<{ bucket: string; provider?: string | null; gemini?: number; third?: number }>
-    providers?: string[]
-    points?: Array<{ ts: string; gemini_pct?: number; third_pct?: number }>
-  } | null>(null)
+
   const [histRange, setHistRange] = useState("7d")
   const [histEmail, setHistEmail] = useState<string | null>(null)
 
@@ -292,52 +294,61 @@ export function Quota() {
   const [toast, setToast] = useState<string | null>(null)
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2600) }
 
-  const fetchAccounts = useCallback(async () => {
-    try {
-      // ?withModels=1: trang này CẦN chi tiết từng model. Payload mặc định đã cắt
-      // quota.models[] vì nó chiếm 62% kích thước mà chỉ trang này dùng.
-      fetch("/api/gateway/quota-summary")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j) => j && setSummary(j))
-        .catch(() => {})
-      const res = await fetch("/api/gateway/accounts?withModels=1")
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json() as { accounts: PoolAccount[] }
-      setAccounts(json.accounts ?? [])
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch")
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  /**
+   * React Query thay `fetch` trần + `setInterval`.
+   *
+   * `fetch` trần bỏ qua tầng xử lý 401 của `lib/api` — phiên hết hạn thì trang im lặng
+   * thay vì quay về màn đăng nhập. `setInterval` cũng chạy tiếp khi tab ẩn.
+   *
+   * `?withModels=1`: trang này CẦN chi tiết từng model. Payload mặc định đã cắt
+   * `quota.models[]` vì nó chiếm 62% kích thước mà chỉ trang này dùng.
+   */
+  const QK_ACC = ["quota-accounts"] as const
+  const qAcc = useQuery({
+    queryKey: QK_ACC,
+    queryFn: () => api.get<{ accounts: PoolAccount[] }>("/api/gateway/accounts?withModels=1"),
+    refetchInterval: POLL.normal,
+  })
+  const qSum = useQuery({
+    queryKey: ["quota-summary"],
+    queryFn: () => api.get<QuotaSummary>("/api/gateway/quota-summary"),
+    refetchInterval: POLL.normal,
+  })
+  /** Lịch sử phụ thuộc (email, range) — đưa vào queryKey để đổi bộ lọc là tự nạp lại. */
+  const qHist = useQuery({
+    queryKey: ["quota-history", histEmail, histRange],
+    queryFn: () =>
+      api.get<HistoryData>(
+        "/api/gateway/quota/history" +
+          (histEmail ? `?email=${encodeURIComponent(histEmail)}&range=${histRange}` : `?range=${histRange}`),
+      ),
+  })
 
-  const fetchHistory = useCallback(async (email: string | null, range: string) => {
-    try {
-      const q = email
-        ? `?email=${encodeURIComponent(email)}&range=${range}`
-        : `?range=${range}`
-      const res = await fetch("/api/gateway/quota/history" + q)
-      if (!res.ok) return
-      const data = await res.json()
-      setHistoryData(data)
-    } catch { /* ignore */ }
-  }, [])
-
-  useEffect(() => {
-    fetchAccounts()
-    const interval = setInterval(fetchAccounts, 30_000)
-    return () => clearInterval(interval)
-  }, [fetchAccounts])
-
-  useEffect(() => {
-    fetchHistory(histEmail, histRange)
-  }, [fetchHistory, histEmail, histRange])
+  const accounts = qAcc.data?.accounts ?? []
+  const summary = qSum.data
+  const historyData = qHist.data
+  const loading = qAcc.isLoading
+  const error = qAcc.error ? (qAcc.error instanceof Error ? qAcc.error.message : String(qAcc.error)) : null
+  const fetchAccounts = useCallback(() => {
+    void qc.invalidateQueries({ queryKey: QK_ACC })
+    void qc.invalidateQueries({ queryKey: ["quota-summary"] })
+  }, [qc])
+  /** Cập nhật lạc quan: bấm refresh một account thì thấy ngay, không đợi vòng poll kế. */
+  const setAccounts = useCallback(
+    (fn: (prev: PoolAccount[]) => PoolAccount[]) => {
+      qc.setQueryData<{ accounts: PoolAccount[] }>(QK_ACC, (old) =>
+        old ? { ...old, accounts: fn(old.accounts ?? []) } : old,
+      )
+    },
+    [qc],
+  )
 
   // ── Per-account quota refresh
   const handleRefreshOne = async (email: string) => {
     setRefreshing(prev => ({ ...prev, [email]: true }))
     try {
+      // CỐ Ý `fetch` trần: endpoint trả 200 kèm `{ok:false, error}` khi nạp hỏng — đó là
+      // thông điệp cần hiện cho người dùng, `api` sẽ ném và mất nó.
       const res = await fetch(`/api/gateway/quota/${encodeURIComponent(email)}`, { method: "POST" })
       const data = await res.json() as { ok?: boolean; quota?: AccountQuota; error?: string }
       if (data.ok && data.quota) {
@@ -359,12 +370,7 @@ export function Quota() {
     setBulkRefreshing(true)
     try {
       const emails = selected.size > 0 ? [...selected] : []
-      const res = await fetch("/api/gateway/quota/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(emails.length > 0 ? { emails } : {}),
-      })
-      const data = await res.json() as { queued?: number }
+      const data = await api.post<{ queued?: number }>("/api/gateway/quota/refresh", emails.length > 0 ? { emails } : {})
       showToast(`Đang nạp hạn mức ${data.queued ?? "?"} account (nền)…`)
     } finally {
       setBulkRefreshing(false)
