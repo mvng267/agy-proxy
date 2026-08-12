@@ -179,13 +179,19 @@ describe('comboRunFacets — dropdown chỉ liệt kê thứ CÓ THẬT', () => 
 describe('endpoint + frontend', () => {
   const doc = (f: string) => readFileSync(resolve(ROOT, f), 'utf8');
 
+  /**
+   * Endpoint này nằm ở `reports.ts` — nó chỉ ĐỌC `combo_runs` nên đi cùng nhóm báo cáo,
+   * không cùng nhóm CRUD combo ở `admin.ts`.
+   */
+  const REPORTS = 'src/gateway/reports.ts';
+
   test('GET /api/combos/runs có mặt', () => {
-    assert.match(doc('src/gateway/admin.ts'), /app\.get\('\/api\/combos\/runs'/);
+    assert.match(doc(REPORTS), /app\.get\('\/api\/combos\/runs'/);
   });
 
   test('endpoint trả cả rows, steps và facets', () => {
-    const i = doc('src/gateway/admin.ts').indexOf("'/api/combos/runs'");
-    const seg = doc('src/gateway/admin.ts').slice(i, i + 1400);
+    const i = doc(REPORTS).indexOf("'/api/combos/runs'");
+    const seg = doc(REPORTS).slice(i, i + 1400);
     for (const k of ['rows', 'total', 'steps:', 'facets:']) {
       assert.ok(seg.includes(k), `endpoint thiếu ${k}`);
     }

@@ -122,7 +122,8 @@ describe('đường đi của err từ upstream tới DB', () => {
 
   test('CSV export có cột err, và ở CUỐI dòng', () => {
     // Chèn giữa sẽ phá script người dùng đang parse theo vị trí cột.
-    const adm = readFileSync(resolve(ROOT, 'src/gateway/admin.ts'), 'utf8');
+    // Export CSV nằm ở `reports.ts` (nhóm báo cáo), tách khỏi `admin.ts` từ đợt chia file.
+    const adm = readFileSync(resolve(ROOT, 'src/gateway/reports.ts'), 'utf8');
     const head = adm.match(/const head = '([^']+)\\n';/)![1]!;
     assert.ok(head.endsWith(',err'), `err phải là cột cuối, đang là: ${head}`);
   });
