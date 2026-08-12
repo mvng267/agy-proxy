@@ -33,6 +33,19 @@ const TRANG = [
   'web/src/components/pages/Quota.tsx',
 ];
 
+/**
+ * Component con tách ra từ ba trang trên.
+ *
+ * Chúng KHÔNG chịu luật "phải có useQuery + POLL" — `AutoDisablePanel` nạp cấu hình đúng
+ * một lần lúc mở, không cần poll. Nhưng luật "đi qua lib/api" và "không nuốt lỗi im lặng"
+ * thì vẫn phải giữ: tách file ra khỏi danh sách quét là cách để một trang lách rào mà
+ * không ai nhận ra.
+ */
+const CON = [
+  'web/src/components/pages/quota/AutoDisablePanel.tsx',
+  'web/src/components/pages/quota/QuotaHistory.tsx',
+];
+
 describe('nạp dữ liệu qua React Query, không phải setInterval', () => {
   for (const f of TRANG) {
     const ten = f.split('/').pop()!;
@@ -75,7 +88,7 @@ describe('lệnh ghi đi qua lib/api (để 401 được xử lý)', () => {
 
   test('không trang nào còn fetch("/api/...") để NẠP dữ liệu', () => {
     // GET qua fetch trần là chỗ dễ quên nhất — nó "chạy được" nên không ai để ý.
-    for (const f of TRANG) {
+    for (const f of [...TRANG, ...CON]) {
       const s = code(f);
       assert.doesNotMatch(s, /await fetch\("\/api\/[^"]*"\)/, `${f}: còn GET bằng fetch trần`);
     }
@@ -126,7 +139,7 @@ describe('fetch trần được GIỮ có chủ đích — phải kèm lý do', 
      * thị, không phải lỗi tầng mạng. `api` sẽ ném và mất chúng. Những chỗ đó giữ `fetch`
      * trần là ĐÚNG, nhưng phải ghi rõ để người sau không "dọn dẹp" nhầm.
      */
-    for (const f of TRANG) {
+    for (const f of [...TRANG, ...CON]) {
       const raw = readFileSync(resolve(ROOT, f), 'utf8');
       const lines = raw.split('\n');
       lines.forEach((l, i) => {

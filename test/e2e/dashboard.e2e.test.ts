@@ -122,6 +122,14 @@ test('mọi route render không pageerror', async () => {
     await page.goto(`${BASE}${r}`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(400);
     assert.deepEqual(pageErrors, [], `route ${r} có pageerror: ${pageErrors[0] ?? ''}`);
+    /**
+     * `pageerror` MỘT MÌNH là không đủ: `ErrorBoundary` bọc toàn bộ nội dung, nên lỗi
+     * render bị nó bắt và không bao giờ nổi lên thành uncaught exception. Trang chết
+     * nhưng test vẫn xanh — đúng thứ đã xảy ra một lần với trang Combo (React #310,
+     * hook đặt sau early-return), và chỉ phát hiện được khi mở trình duyệt bằng tay.
+     */
+    const boundary = await page.getByText('Có lỗi xảy ra', { exact: true }).count();
+    assert.equal(boundary, 0, `route ${r}: ErrorBoundary đã bắt lỗi render`);
   }
 });
 

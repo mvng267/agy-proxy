@@ -1,15 +1,13 @@
-import { useEffect, useState, useCallback } from "react"
+import { useState, useCallback } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import { POLL } from "@/lib/queryClient"
 import { KpiCard, PageHeader } from "@/components/common"
-import { DonutStat, Sparkline, TimeSeries } from "@/components/common/charts"
+import { DonutStat } from "@/components/common/charts"
 import {
   Gauge,
   RefreshCw,
   AlertTriangle,
-  TrendingUp,
-  TrendingDown,
   Search,
   LayoutGrid,
   Table2,
@@ -17,14 +15,13 @@ import {
   ChevronRight,
 } from "lucide-react"
 import { DataTable } from "@/components/common/DataTable"
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Switch } from "@/components/ui/switch"
-import { useToast } from "@/components/ui/toast"
+import { AutoDisablePanel } from "./quota/AutoDisablePanel"
+import { QuotaHistory } from "./quota/QuotaHistory"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -99,20 +96,6 @@ function claudePct(a: PoolAccount): number | null {
  * và với lịch sử 1 account thì `ts` là epoch. Trục hẹp nên rút còn `08/08` / `14:00`,
  * in nguyên chuỗi sẽ chồng chữ lên nhau.
  */
-function fmtBucket(b: string | number): string {
-  const s = String(b)
-  const hour = s.match(/^\d{4}-\d{2}-\d{2}[ T](\d{2}):/)
-  if (hour) return `${hour[1]}:00`
-  const day = s.match(/^\d{4}-(\d{2})-(\d{2})$/)
-  if (day) return `${day[2]}/${day[1]}`
-  const n = Number(b)
-  if (Number.isFinite(n) && n > 0) {
-    const d = new Date(n)
-    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`
-  }
-  return s
-}
-
 // ── Quota Bar ─────────────────────────────────────────────────────────
 
 function QuotaBar({ pct }: { pct?: number }) {
@@ -131,143 +114,15 @@ function QuotaBar({ pct }: { pct?: number }) {
 // ── Quota Page ─────────────────────────────────────────────────────────
 
 
-/**
- * Tự tắt account cạn hạn mức, tự bật lại khi Google reset.
- *
- * Vì sao cần: đo thật trên pool 351 account — 66 cái quota 0% nằm lẫn với 203 cái còn
- * 100%. Chiến lược xoay vẫn chọn phải chúng, mỗi lần ~6 giây rồi 429; có request thử
- * 20 account liên tiếp mất hơn 2 phút rồi vẫn hỏng. Tắt chúng là bỏ khỏi vòng xoay.
- */
-function AutoDisablePanel({ onDone }: { onDone: () => void }) {
-  const toast = useToast()
-  const [cfg, setCfg] = useState<{ enabled: boolean; hour: number; offAtPct: number; onAtPct: number } | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [sweeping, setSweeping] = useState(false)
-
-  const load = useCallback(async () => {
-    try {
-      const j = await api.get<{ autoDisable?: NonNullable<typeof cfg> }>("/api/gateway/config")
-      if (j.autoDisable) setCfg(j.autoDisable)
-    } catch { /* panel tự ẩn khi không đọc được cấu hình */ }
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  const patch = async (v: Partial<NonNullable<typeof cfg>>) => {
-    if (!cfg) return
-    const next = { ...cfg, ...v }
-    setCfg(next)
-    setSaving(true)
-    try {
-      await api.patch("/api/gateway/config", {
-        autoDisableEnabled: next.enabled,
-        autoDisableHour: next.hour,
-        autoDisableOffPct: next.offAtPct,
-        autoDisableOnPct: next.onAtPct,
-      })
-    } catch (e) {
-      // Bản cũ chỉ có `finally` — lưu hỏng thì giao diện vẫn hiện giá trị mới như đã lưu.
-      toast({ title: "Lưu cấu hình thất bại", description: String(e instanceof Error ? e.message : e).slice(0, 120), variant: "error" })
-      load()
-    } finally { setSaving(false) }
-  }
-
-  const sweep = async () => {
-    setSweeping(true)
-    try {
-      // Vòng quét đụng cả pool nên có thể mất vài phút — báo trước để không ai tưởng treo.
-      toast({ title: "Đang quét cả pool…", description: "Có thể mất vài phút với pool lớn" })
-      // CỐ Ý `fetch` trần: cần đọc CẢ `!r.ok` lẫn `j.ok` — endpoint trả 200 kèm
-      // `{ok:false, error}` khi vòng quét không chạy được. `api` sẽ ném và mất `j.error`.
-      const r = await fetch("/api/gateway/quota/sweep", { method: "POST" })
-      const j = await r.json()
-      if (!r.ok || !j.ok) {
-        toast({ title: "Quét không chạy", description: j.error ?? `HTTP ${r.status}`, variant: "error" })
-      } else {
-        toast({
-          title: "Quét xong",
-          description: `${j.checked} account · tắt ${j.disabled} · bật lại ${j.enabled} · bỏ qua ${j.skipped}`,
-          variant: "success",
-        })
-        onDone()
-      }
-    } catch (e) {
-      toast({ title: "Lỗi", description: e instanceof Error ? e.message : String(e), variant: "error" })
-    } finally { setSweeping(false) }
-  }
-
-  if (!cfg) return null
-
-  return (
-    <Card>
-      <CardContent className="flex flex-wrap items-center gap-3 p-3">
-        <label className="flex items-center gap-2 text-sm">
-          <Switch checked={cfg.enabled} onCheckedChange={(v) => patch({ enabled: !!v })} disabled={saving} />
-          <span className="font-medium text-foreground">Tự tắt account cạn hạn mức</span>
-        </label>
-
-        {cfg.enabled && (
-          <>
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              tắt khi ≤
-              <input
-                type="number" min={0} max={99} value={cfg.offAtPct}
-                onChange={(e) => patch({ offAtPct: Math.max(0, Number(e.target.value) || 0) })}
-                className="h-7 w-16 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />%
-            </label>
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              bật lại khi ≥
-              <input
-                type="number" min={1} max={100} value={cfg.onAtPct}
-                onChange={(e) => patch({ onAtPct: Math.max(1, Number(e.target.value) || 1) })}
-                className="h-7 w-16 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />%
-            </label>
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              chạy lúc
-              <input
-                type="number" min={0} max={23} value={cfg.hour}
-                onChange={(e) => patch({ hour: Math.min(23, Math.max(0, Number(e.target.value) || 0)) })}
-                className="h-7 w-14 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />h
-            </label>
-          </>
-        )}
-
-        <Button
-          size="sm" onClick={sweep} disabled={sweeping}
-          className="ml-auto h-8 gap-1.5 border border-border bg-transparent text-xs text-muted-foreground hover:text-foreground"
-          title="Chạy ngay, không đợi tới giờ hẹn"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${sweeping ? "animate-spin" : ""}`} />
-          {sweeping ? "Đang quét…" : "Quét ngay"}
-        </Button>
-
-        <p className="w-full text-[11px] text-muted-foreground">
-          {cfg.enabled
-            ? `Quét cả pool lúc ${cfg.hour}h hằng ngày. Ngưỡng bật (${cfg.onAtPct}%) cao hơn ngưỡng tắt (${cfg.offAtPct}%) để account dao động quanh mốc không bật/tắt liên tục.`
-            : "Đang tắt — account cạn hạn mức vẫn nằm trong vòng xoay và sẽ bị chọn rồi trả 429."}
-        </p>
-      </CardContent>
-    </Card>
-  )
-}
-
-/** Lịch sử hạn mức — tách ra khỏi `useState` inline để dùng được trong `useQuery`. */
-interface HistoryData {
-  series?: Array<{ bucket: string; provider?: string | null; gemini?: number; third?: number }>
-  providers?: string[]
-  points?: Array<{ ts: string; gemini_pct?: number; third_pct?: number }>
-}
-
 export function Quota() {
   const qc = useQueryClient()
   /** Lọc theo provider — hai bên mô hình hạn mức khác hẳn, xem lẫn lộn là hiểu sai. */
   const [prov, setProv] = useState<string>("all")
 
-
-  const [histRange, setHistRange] = useState("7d")
+  /**
+   * Account đang xem lịch sử. Ở lại đây (không xuống `QuotaHistory`) vì CẢ HAI view —
+   * bảng và thẻ — đều đặt được giá trị này khi bấm vào một dòng.
+   */
   const [histEmail, setHistEmail] = useState<string | null>(null)
 
   // UI state
@@ -314,19 +169,9 @@ export function Quota() {
     queryFn: () => api.get<QuotaSummary>("/api/gateway/quota-summary"),
     refetchInterval: POLL.normal,
   })
-  /** Lịch sử phụ thuộc (email, range) — đưa vào queryKey để đổi bộ lọc là tự nạp lại. */
-  const qHist = useQuery({
-    queryKey: ["quota-history", histEmail, histRange],
-    queryFn: () =>
-      api.get<HistoryData>(
-        "/api/gateway/quota/history" +
-          (histEmail ? `?email=${encodeURIComponent(histEmail)}&range=${histRange}` : `?range=${histRange}`),
-      ),
-  })
 
   const accounts = qAcc.data?.accounts ?? []
   const summary = qSum.data
-  const historyData = qHist.data
   const loading = qAcc.isLoading
   const error = qAcc.error ? (qAcc.error instanceof Error ? qAcc.error.message : String(qAcc.error)) : null
   const fetchAccounts = useCallback(() => {
@@ -432,67 +277,6 @@ export function Quota() {
       .sort((a, b) => a[0].localeCompare(b[0])),
   ]
 
-  const provTomTat = historyData?.providers?.includes('agy') ? 'agy' : historyData?.providers?.[0]
-  const histPoints: number[] = historyData?.series
-    ? historyData.series.filter(x => (x.provider ?? null) === (provTomTat ?? null)).map(x => x.gemini ?? 0)
-    : historyData?.points?.map(p => p.gemini_pct ?? 0) ?? []
-
-  /**
-   * Dữ liệu cho biểu đồ xu hướng — GIỮ nhãn thời gian.
-   *
-   * Bản cũ map thẳng thành mảng số rồi ném vào sparkline 500×60 cố định, tức là vứt bỏ
-   * `bucket` — nên không có trục, không nhãn thời gian, không tooltip, và không co giãn
-   * theo bề rộng. Có bộ chọn 7/30/90 ngày mà nhìn vào không biết điểm nào là ngày nào.
-   */
-  /**
-   * XOAY dữ liệu: mỗi (provider, bể) thành MỘT cột riêng.
-   *
-   * Bản trước vẽ đúng hai đường "Gemini" và "Claude/GPT" từ trung bình TOÀN pool — nhưng
-   * trung bình đó cộng chung agy với kr, hai thứ có hạn mức và chu kỳ reset khác hẳn nhau.
-   * Đo trên production 11/08/2026: biểu đồ hiện "Gemini 45%" trong khi thực tế agy còn 1%
-   * và kr còn 91%. Nhìn vào tưởng quota thoải mái, thực ra một bể đã cạn.
-   *
-   * Giờ mỗi provider một đường. Backend trả `provider` trên từng điểm (migration v6).
-   */
-  const histSeries = (() => {
-    const rows = historyData?.series
-    if (!rows?.length) {
-      return historyData?.points?.map((p) => ({ t: fmtBucket(p.ts), 'agy·gemini': p.gemini_pct ?? null, 'agy·third': p.third_pct ?? null })) ?? []
-    }
-    const theoBucket = new Map<string, Record<string, unknown>>()
-    for (const r of rows) {
-      const t = fmtBucket(r.bucket)
-      const hang = theoBucket.get(t) ?? { t }
-      const p = r.provider ?? '?'
-      // Dữ liệu trước migration v6 chưa có provider → gom vào nhóm "?" thay vì vứt đi.
-      if (r.gemini != null) hang[`${p}·${p === 'kr' ? 'credits' : 'gemini'}`] = r.gemini
-      if (r.third != null) hang[`${p}·third`] = r.third
-      theoBucket.set(t, hang)
-    }
-    return [...theoBucket.values()]
-  })()
-
-  /** Định nghĩa đường vẽ — dựng theo DỮ LIỆU CÓ THẬT, không cứng tên provider. */
-  const histDefs = (() => {
-    const keys = new Set<string>()
-    for (const h of histSeries) for (const k of Object.keys(h)) if (k !== 't') keys.add(k)
-    const MAU: Record<string, string> = {
-      'agy·gemini': 'var(--chart-success)',
-      'agy·third': 'var(--chart-info)',
-      'kr·credits': 'var(--chart-warning)',
-      'no·gemini': 'var(--chart-1)',
-    }
-    const NHAN: Record<string, string> = {
-      'agy·gemini': 'Antigravity · Gemini',
-      'agy·third': 'Antigravity · Claude/GPT',
-      'kr·credits': 'Kiro · Credits',
-    }
-    return [...keys].sort().map((k, i) => ({
-      key: k,
-      label: NHAN[k] ?? k.replace('·', ' · '),
-      color: MAU[k] ?? `var(--chart-${(i % 5) + 1})`,
-    }))
-  })()
 
   // ── Loading / Error ──────────────────────────────────────────────────
 
@@ -891,79 +675,7 @@ export function Quota() {
         1366×768 bảng account (thứ người dùng vào trang này để xem) nằm dưới nếp gấp.
         Chuyển xuống cuối, sau bảng.
       */}
-      {/* History chart */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              {histEmail ? `Xu hướng · ${histEmail}` : "Xu hướng toàn pool"}
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              {histEmail && (
-                <Button size="sm" onClick={() => setHistEmail(null)} className="border border-border bg-transparent text-muted-foreground h-7 text-xs">
-                  Xem tất cả
-                </Button>
-              )}
-              <Select value={histRange} onValueChange={(v) => setHistRange(v ?? "7d")}>
-                <SelectTrigger className="h-7 w-24 text-xs">
-                  <span className="truncate">{{ "7d": "7 ngày", "30d": "30 ngày", "90d": "90 ngày" }[histRange] ?? "7 ngày"}</span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7d" className="text-xs">7 ngày</SelectItem>
-                  <SelectItem value="30d" className="text-xs">30 ngày</SelectItem>
-                  <SelectItem value="90d" className="text-xs">90 ngày</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {histSeries.length >= 2 ? (
-            <TimeSeries
-              data={histSeries}
-              xKey="t"
-              height={200}
-              series={histDefs}
-            />
-          ) : (
-            <p className="py-8 text-center text-xs text-muted-foreground">
-              {histSeries.length === 1
-                ? "Mới có 1 mốc thời gian — cần ít nhất 2 mốc mới vẽ được đường. Job nền nạp hạn mức mỗi 4 giờ."
-                : "Chưa có dữ liệu. Bấm Refresh để nạp hạn mức — mỗi lần nạp ghi 1 điểm."}
-            </p>
-          )}
-          {/*
-            Xu hướng gần nhất + sparkline.
-
-            Bản cũ có LOGIC NGƯỢC: `histPoints` là phần trăm quota CÒN LẠI (xem `qColor` —
-            pct cao là xanh/khoẻ), nhưng nó báo "Quota đang giảm" khi con số TĂNG. Người đọc
-            thấy mũi tên đỏ đúng lúc hạn mức vừa hồi lại.
-
-            Và mũi tên một mình không cho biết mức độ: giảm 1% với giảm 40% cùng một icon.
-            Thêm sparkline để thấy hình dạng thật của xu hướng.
-          */}
-          {histPoints.length >= 2 && (() => {
-            const last = histPoints[histPoints.length - 1]!
-            const prev = histPoints[histPoints.length - 2]!
-            const up = last > prev
-            const delta = Math.abs(Math.round(last - prev))
-            return (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {up
-                  ? <TrendingUp className="h-3 w-3 text-success" />
-                  : <TrendingDown className="h-3 w-3 text-warning" />}
-                <span>
-                  {provTomTat ? `${provTomTat}: ` : ""}
-                  {up ? "Hạn mức đang phục hồi" : "Hạn mức đang giảm"}
-                  {delta > 0 ? ` (${up ? "+" : "−"}${delta}%)` : " (không đổi)"}
-                </span>
-                <Sparkline data={histPoints} tone={up ? "success" : "warning"} width={80} height={20} />
-              </div>
-            )
-          })()}
-        </CardContent>
-      </Card>
+      <QuotaHistory email={histEmail} onClear={() => setHistEmail(null)} />
 
     </div>
   )
