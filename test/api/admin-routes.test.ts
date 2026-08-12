@@ -109,16 +109,17 @@ describe('route admin có mặt sau khi boot', () => {
     });
   }
 
-  test('không route nào bị đăng ký HAI lần', () => {
+  test('mọi đường báo cáo nằm đúng trong bảng route với method GET', () => {
     /**
-     * Fastify ném ngay khi trùng đường, nên `app.ready()` ở trên đã là phép thử. Nhưng
-     * `printRoutes` cho thông điệp đọc được nếu có ngày nào đó nó lọt qua — ví dụ một
-     * nhóm bị copy sang module mới mà bản cũ chưa xoá.
+     * `inject` ở trên chứng minh đường CHẠY được, nhưng nó đi qua tầng xác thực nên một
+     * ngày nào đó hook auth trả sớm là mọi khẳng định "không 404" thành vô nghĩa —
+     * chuyện này ĐÃ xảy ra khi kiểm trên production: `/api/khong-he-ton-tai` cũng trả
+     * 401 y hệt đường có thật, vì hook auth chạy trước routing.
+     *
+     * `hasRoute` hỏi thẳng bảng định tuyến, không qua hook nào.
      */
-    const cay = app.printRoutes({ commonPrefix: false });
-    for (const url of BAO_CAO) {
-      const n = cay.split('\n').filter((l) => l.includes(url.split('/').pop()!)).length;
-      assert.ok(n >= 1, `${url} không thấy trong bảng route`);
+    for (const url of [...BAO_CAO, ...POOL_STATUS]) {
+      assert.ok(app.hasRoute({ method: 'GET', url }), `${url} không có trong bảng route`);
     }
   });
 });
