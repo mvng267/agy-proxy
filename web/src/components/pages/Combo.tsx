@@ -120,6 +120,25 @@ export function Combo() {
   /** Model gọi được — nguồn cho dropdown, để không ai gõ sai id. */
   const [models, setModels] = useState<string[]>([])
 
+  /**
+   * Chạy thử combo — TỐN QUOTA THẬT.
+   *
+   * `/api/gateway/chat` đã trả sẵn `steps[]` (model, ok, ms, error) nên không cần endpoint
+   * mới: đúng thứ cần để thấy combo đi qua bước nào, trượt ở đâu, vì sao.
+   *
+   * Hai state này PHẢI khai ở đây, TRƯỚC mọi `return` sớm (loading/error). Đặt sau chúng
+   * thì lượt render đang loading chạy ít hook hơn lượt sau → React error #310 "rendered
+   * more hooks than during the previous render", và cả trang crash — đã xảy ra thật.
+   */
+  const [thuId, setThuId] = useState<string | null>(null)
+  const [ketQua, setKetQua] = useState<{
+    id: string
+    ok: boolean
+    text?: string
+    error?: string
+    steps: Array<{ model: string; ok: boolean; ms: number; error?: string }>
+  } | null>(null)
+
   const steps = form.steps
 
   /**
@@ -286,21 +305,6 @@ export function Combo() {
   })
 
   const enabledCount = combos.filter((c) => c.enabled).length
-
-  /**
-   * Chạy thử combo — TỐN QUOTA THẬT.
-   *
-   * `/api/gateway/chat` đã trả sẵn `steps[]` (model, ok, ms, error) nên không cần endpoint
-   * mới: đúng thứ cần để thấy combo đi qua bước nào, trượt ở đâu, vì sao.
-   */
-  const [thuId, setThuId] = useState<string | null>(null)
-  const [ketQua, setKetQua] = useState<{
-    id: string
-    ok: boolean
-    text?: string
-    error?: string
-    steps: Array<{ model: string; ok: boolean; ms: number; error?: string }>
-  } | null>(null)
 
   const chayThu = async (id: string) => {
     setThuId(id)
