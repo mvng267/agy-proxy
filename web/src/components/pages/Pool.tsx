@@ -96,9 +96,9 @@ export function Pool() {
   const toast = useToast()
 
   // Provider tab
-  const [provider, setProvider] = useState<"agy" | "kr">(() =>
-    (localStorage.getItem("vs_agyProv") === "kr" ? "kr" : "agy") as "agy" | "kr"
-  )
+  // KHÔNG khoá cứng "agy" | "kr": provider thêm sau (OpenRouter, Nous) cũng phải có tab,
+  // nếu không account của chúng nằm trong pool mà giao diện không có lối vào.
+  const [provider, setProvider] = useState<string>(() => localStorage.getItem("vs_agyProv") || "agy")
 
   // Filter / sort / page
   const [search, setSearch] = useState("")
@@ -267,8 +267,23 @@ export function Pool() {
     })
   }
 
+  /**
+   * Tab provider dựng theo account CÓ THẬT trong pool.
+   *
+   * Nhãn ưu tiên lấy từ `providerLabel` do backend gửi; không có thì dùng chính id — thà
+   * hiện "no" còn hơn giấu mất cả nhóm account.
+   */
+  const NHAN: Record<string, string> = { agy: "Antigravity", kr: "Kiro", or: "OpenRouter", no: "Nous Research" }
+  const tabProvider: Array<[string, string]> = [
+    ...new Set(accounts.map(a => a.provider || "agy")),
+  ].sort().map(id => [id, NHAN[id] ?? id])
+
   // ── Filter / sort / paginate
   const provAccounts = accounts.filter(a => (a.provider || "agy") === provider)
+
+  // Nhãn cột hạn mức: tên bể đầu tiên của account đang xem, không đoán theo tên provider.
+  const nhanQuota = provAccounts.find(a => a.quota?.groups?.length)?.quota?.groups?.[0]?.name
+    ?? (provider === "kr" ? "Credit" : "Quota")
 
   const filtered = provAccounts.filter(a => {
     if (search && !a.email.toLowerCase().includes(search.toLowerCase())) return false
@@ -345,7 +360,7 @@ export function Pool() {
         desc="Account trong pool, sức khoẻ và hạn mức từng provider"
         actions={
           <div className="flex items-center gap-2">
-            {([["agy", "Antigravity"], ["kr", "Kiro"]] as const).map(([key, label]) => (
+            {tabProvider.map(([key, label]) => (
               <Button
                 key={key}
                 size="sm"
@@ -509,7 +524,8 @@ export function Pool() {
               },
               {
                 key: "quota",
-                header: provider === "kr" ? "Credit" : "Quota",
+                // Nhãn lấy từ bể thật của provider đang xem, không đoán theo tên.
+                header: nhanQuota,
                 sort: (a) => a.geminiPct ?? -1,
                 render: (a) => (
                   <span className="text-xs tabular-nums text-muted-foreground">

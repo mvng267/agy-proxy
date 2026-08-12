@@ -412,6 +412,20 @@ export function Quota() {
    *
    * Ưu tiên `agy` vì đó là bể hay cạn nhất; không có thì lấy provider đầu tiên.
    */
+  /**
+   * Tab provider dựng theo DỮ LIỆU THẬT, không khoá cứng ['agy','kr'].
+   *
+   * Bản trước liệt kê tay hai provider, nên account của provider thứ ba (OpenRouter, Nous)
+   * không có tab nào để xem — chúng nằm trong pool mà không lối vào trên giao diện.
+   * `byProvider` đã mang sẵn nhãn hiển thị của từng provider.
+   */
+  const tabProvider: Array<[string, string]> = [
+    ['all', 'Tất cả'],
+    ...Object.values(summary?.byProvider ?? {})
+      .map((p) => [p.provider, p.label] as [string, string])
+      .sort((a, b) => a[0].localeCompare(b[0])),
+  ]
+
   const provTomTat = historyData?.providers?.includes('agy') ? 'agy' : historyData?.providers?.[0]
   const histPoints: number[] = historyData?.series
     ? historyData.series.filter(x => (x.provider ?? null) === (provTomTat ?? null)).map(x => x.gemini ?? 0)
@@ -585,7 +599,7 @@ export function Quota() {
         {/* Lọc provider — hai bên mô hình hạn mức khác hẳn nhau (agy 2 bể theo tuần,
             kr 1 quỹ credit theo tháng), xem lẫn lộn dễ đọc nhầm số. */}
         <div className="flex items-center gap-1">
-          {([["all", "Tất cả"], ["agy", "Antigravity"], ["kr", "Kiro"]] as const).map(([k, label]) => (
+          {tabProvider.map(([k, label]) => (
             <button
               key={k}
               onClick={() => { setProv(k); setPage(1) }}
@@ -723,7 +737,7 @@ export function Quota() {
                       <QuotaBar pct={a.geminiPct} />
                       {prov === "all" && (
                         <span className="shrink-0 text-[10px] text-muted-foreground">
-                          {a.provider === "kr" ? "credit" : "gemini"}
+                          {a.quota?.groups?.[0]?.name ?? (a.provider === "kr" ? "credit" : "gemini")}
                         </span>
                       )}
                     </div>
@@ -731,13 +745,29 @@ export function Quota() {
                 },
                 {
                   key: "q2",
-                  header: "Claude/GPT",
+                  header: "Bể 2",
                   sort: (a) => claudePct(a) ?? -1,
-                  render: (a) =>
-                    // Kiro không có bể thứ hai — hiện dấu gạch thay vì lặp lại số credit.
-                    a.provider === "kr"
-                      ? <span className="text-xs text-muted-foreground/60" title="Kiro dùng một quỹ credit chung, không chia bể">—</span>
-                      : <QuotaBar pct={claudePct(a) ?? undefined} />,
+                  /**
+                   * Đọc từ CHÍNH dữ liệu quota, không đoán theo tên provider.
+                   *
+                   * Bản trước giả định "không phải kr thì có bể Claude" — đúng với agy,
+                   * sai với mọi provider thêm sau. Nous có BỐN bể theo nhịp (req/tok ×
+                   * phút/giờ), không có bể nào tên Claude.
+                   */
+                  render: (a) => {
+                    const g = a.quota?.groups ?? []
+                    if (g.length < 2) {
+                      return <span className="text-xs text-muted-foreground/60" title="Provider này dùng một quỹ chung, không chia bể">—</span>
+                    }
+                    return (
+                      <div className="flex items-center gap-2">
+                        <QuotaBar pct={g[1]?.pct} />
+                        {prov === "all" && (
+                          <span className="shrink-0 text-[10px] text-muted-foreground">{g[1]?.name}</span>
+                        )}
+                      </div>
+                    )
+                  },
                 },
                 {
                   key: "reset",
