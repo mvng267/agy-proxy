@@ -61,6 +61,12 @@ export interface Model {
   bare?: string;
   label: string;
   provider: string;
+  /** Nhãn hiển thị của provider ('Antigravity', 'Kiro'…) — dùng gom nhóm trong dropdown. */
+  providerLabel?: string;
+  /** 'combo' = nhiều bước; 'model' = model đơn. Backend gộp combo vào /api/gateway/models. */
+  kind?: 'model' | 'combo' | 'auto';
+  /** Các bước của combo — chỉ có khi kind='combo'. */
+  steps?: string[];
   image?: boolean;
   bucket?: 'gemini' | 'claude';
   status?: 'ok' | 'quota' | 'error' | 'unknown';

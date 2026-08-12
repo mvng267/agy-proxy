@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Play, Square, X, Download, Trophy, Timer } from "lucide-react"
 import { api } from "@/lib/api"
+import { ModelSelect } from "@/components/common/ModelSelect"
 import { fmtNum } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 
 /**
@@ -154,16 +154,13 @@ export function ModelCompare() {
             ))}
 
             {chon.length < MAX_CHON && conLai.length > 0 && (
-              <Select value="" onValueChange={them}>
-                <SelectTrigger className="h-7 w-44 text-xs">
-                  <span className="text-muted-foreground">+ Thêm model</span>
-                </SelectTrigger>
-                <SelectContent>
-                  {conLai.map((m) => (
-                    <SelectItem key={m.id} value={m.id} className="text-xs">{m.id}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ModelSelect
+                value=""
+                onChange={them}
+                exclude={chon}
+                placeholder="+ Thêm model"
+                className="h-7 w-44 text-xs"
+              />
             )}
 
             <span className="ml-1 text-xs text-muted-foreground">

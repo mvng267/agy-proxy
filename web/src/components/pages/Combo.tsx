@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { DataTable } from "@/components/common/DataTable"
 import { ComboRuns } from "./ComboRuns"
+import { ModelSelect } from "@/components/common/ModelSelect"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,7 +25,6 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -118,7 +118,6 @@ export function Combo() {
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   /** Model gọi được — nguồn cho dropdown, để không ai gõ sai id. */
-  const [models, setModels] = useState<string[]>([])
 
   /**
    * Chạy thử combo — TỐN QUOTA THẬT.
@@ -146,7 +145,6 @@ export function Combo() {
    * Combo lồng combo không được engine đệ quy (`runComboRequest` bỏ qua bước non-provider),
    * nên cho chọn là tạo ra bước chết âm thầm.
    */
-  const availableModels = models.filter((id) => !id.startsWith("combo/") && !steps.some((t) => t.model === id))
 
   const addStep = (id: string | null) => {
     if (!id) return
@@ -170,11 +168,6 @@ export function Combo() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json() as CombosResponse
       setCombos(json.combos ?? [])
-      // Danh sách model cho dropdown — tải cùng lúc, hỏng thì để rỗng chứ không chặn trang.
-      fetch("/api/gateway/models")
-        .then((r) => (r.ok ? r.json() : { models: [] }))
-        .then((m: { models?: Array<{ id: string }> }) => setModels((m.models ?? []).map((x) => x.id)))
-        .catch(() => {})
       setAutoVariants(json.autoVariants ?? [])
       setError(null)
     } catch (err) {
@@ -555,18 +548,16 @@ export function Combo() {
                     </div>
                   )}
 
-                  <Select value="" onValueChange={(v) => addStep(v)}>
-                    <SelectTrigger className="h-9 w-full text-sm">
-                      <span className="text-muted-foreground">+ Thêm model…</span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableModels.map((id) => (
-                        <SelectItem key={id} value={id} className="text-xs">
-                          {id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/* `excludeCombo` giữ luật riêng của trang này: không cho combo lồng
+                      combo. `exclude` bỏ model đã chọn khỏi danh sách. */}
+                  <ModelSelect
+                    value=""
+                    onChange={addStep}
+                    excludeCombo
+                    exclude={steps.map((t) => t.model)}
+                    placeholder="+ Thêm model…"
+                    className="h-9 w-full text-sm"
+                  />
 
                   <p className="text-[10px] text-muted-foreground">
                     Thử theo thứ tự từ trên xuống; bước lỗi thì trượt sang bước kế.

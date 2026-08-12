@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ModelSelect } from "@/components/common/ModelSelect"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -323,13 +324,6 @@ export function Chat() {
 
   // ── Group models by provider ───────────────────────────────────────
 
-  const modelGroups: Record<string, Model[]> = {}
-  for (const m of models) {
-    const grp = m.providerLabel ?? m.provider ?? "Other"
-    if (!modelGroups[grp]) modelGroups[grp] = []
-    modelGroups[grp].push(m)
-  }
-
   const enabledAccounts = accounts.filter((a) => a.enabled !== false)
   const currentModel = models.find((m) => m.id === selectedModel)
 
@@ -353,27 +347,14 @@ export function Chat() {
         ) : (
           <div className="flex items-center gap-2 flex-wrap sm:ml-auto">
             {/* Model */}
-            <NativeSelect value={selectedModel} onChange={setSelectedModel} className="max-w-[200px]">
-              {models.length === 0 ? (
-                <option value="">No models</option>
-              ) : Object.keys(modelGroups).length === 1 ? (
-                models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label ?? m.id}
-                  </option>
-                ))
-              ) : (
-                Object.entries(modelGroups).map(([grp, list]) => (
-                  <optgroup key={grp} label={grp}>
-                    {list.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.id}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))
-              )}
-            </NativeSelect>
+            {/* Gom nhóm theo provider — luật riêng của trang này, giờ nằm trong
+                ModelSelect và mọi trang khác cũng được hưởng. */}
+            <ModelSelect
+              value={selectedModel}
+              onChange={setSelectedModel}
+              group
+              className="h-8 max-w-[200px] text-xs"
+            />
 
             {/* Account */}
             <NativeSelect value={selectedAccount} onChange={setSelectedAccount} className="max-w-[180px]">

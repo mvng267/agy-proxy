@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Play, Square, AlertTriangle, Terminal } from "lucide-react"
 import { api } from "@/lib/api"
+import { ModelSelect, useModels } from "@/components/common/ModelSelect"
 import { CopyButton, CodeBlock } from "@/components/common/copy"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -19,16 +20,6 @@ import { Badge } from "@/components/ui/badge"
  * Hiển thị luôn request JSON, response thô và lệnh curl tương đương — để copy sang chỗ
  * khác chạy lại, hoặc gửi cho người khác xem.
  */
-
-interface Model {
-  id: string
-  label?: string
-  providerLabel?: string
-  imageOut?: boolean
-  /** 'model' = model provider · 'combo' = chuỗi model tự dự phòng. */
-  kind?: "model" | "combo"
-  steps?: string[]
-}
 
 /** Bốn tiền tố vì mỗi loại client tự nối path một kiểu — xem chú thích ở src/auth.ts. */
 const PREFIXES = ["/v1", "/proxy/v1", "/openai/v1", "/anthropic/v1"] as const
@@ -104,10 +95,6 @@ export function ApiPlayground() {
 
   const dialect = DIALECTS.find((d) => d.id === dialectId)!
 
-  const models = useQuery({
-    queryKey: ["models"],
-    queryFn: () => api.get<{ models: Model[] }>("/api/gateway/models"),
-  })
 
   /**
    * API key thật — request phải mang key như client ngoài, không dùng phiên dashboard.
@@ -118,6 +105,8 @@ export function ApiPlayground() {
     queryFn: () => api.get<{ apiKey?: string }>("/api/gateway/config?reveal=1"),
   })
   const apiKey = cfg.data?.apiKey ?? ""
+  // Cùng queryKey với ModelSelect → React Query dùng chung cache, không gọi API hai lần.
+  const models = useModels()
 
   useEffect(() => {
     const list = models.data?.models ?? []
@@ -195,8 +184,6 @@ export function ApiPlayground() {
     }
   }
 
-  const list = models.data?.models ?? []
-
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
@@ -237,24 +224,9 @@ export function ApiPlayground() {
 
           <label className="flex flex-col gap-1">
             <span className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground">Model</span>
-            <Select value={model} onValueChange={(v) => setModel(v ?? "")}>
-              <SelectTrigger className="h-8 w-60 text-xs">
-                <span className="truncate">{model || "Chọn model"}</span>
-              </SelectTrigger>
-              <SelectContent>
-                {/* Combo lên đầu: chúng nhiều bước nên dễ hỏng hơn model đơn,
-                    và đây là chỗ duy nhất thử được chúng qua chuẩn API thật. */}
-                {list.filter((m) => m.kind === "combo").map((m) => (
-                  <SelectItem key={m.id} value={m.id} className="text-xs">
-                    {m.id}
-                    {m.steps?.length ? <span className="ml-1.5 text-muted-foreground">({m.steps.length} bước)</span> : null}
-                  </SelectItem>
-                ))}
-                {list.filter((m) => m.kind !== "combo").map((m) => (
-                  <SelectItem key={m.id} value={m.id} className="text-xs">{m.id}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Combo lên đầu: chúng nhiều bước nên dễ hỏng hơn model đơn, và đây là chỗ
+                duy nhất thử được chúng qua chuẩn API thật. */}
+            <ModelSelect value={model} onChange={setModel} comboFirst />
           </label>
 
           <label className="flex flex-col gap-1">
