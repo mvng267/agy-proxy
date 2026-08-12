@@ -127,7 +127,7 @@ export function Combo() {
    * mới: đúng thứ cần để thấy combo đi qua bước nào, trượt ở đâu, vì sao.
    *
    * Hai state này PHẢI khai ở đây, TRƯỚC mọi `return` sớm (loading/error). Đặt sau chúng
-   * thì lượt render đang loading chạy ít hook hơn lượt sau → React error #310 "rendered
+   * thì lượt render đang loading chạy ít hook hơn lượt sau → React error 310 "rendered
    * more hooks than during the previous render", và cả trang crash — đã xảy ra thật.
    */
   const [thuId, setThuId] = useState<string | null>(null)
