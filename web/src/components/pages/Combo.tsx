@@ -16,6 +16,7 @@ import {
   ChevronDown,
 } from "lucide-react"
 import { DataTable } from "@/components/common/DataTable"
+import { ComboRuns } from "./ComboRuns"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -46,11 +47,23 @@ interface Combo {
   targets: ComboTarget[]
   strategy: string
   enabled: boolean
+  /**
+   * Backend TÍNH SẴN hai số này (7 ngày) và trả về từ lâu, nhưng interface cũ không khai
+   * nên chúng bị vứt đi. Production: `translate-question` có 11.703 lần gọi / 6.828 lần
+   * phải trượt bước (58%) mà giao diện không hiện ở đâu.
+   */
+  calls?: number
+  fallbacks?: number
 }
 
 interface CombosResponse {
   combos: Combo[]
-  autoVariants?: boolean
+  /**
+   * MẢNG id biến thể (`["auto","auto/fast","auto/quota","auto/stable"]`), không phải cờ.
+   * Bản trước khai `boolean` rồi render `autoVariants ? "On" : "Off"` — mảng luôn truthy
+   * nên thẻ KPI đó luôn hiện "On", không mang thông tin gì.
+   */
+  autoVariants?: string[]
 }
 
 interface ComboForm {
@@ -81,7 +94,21 @@ const emptyForm: ComboForm = {
 export function Combo() {
   const toast = useToast()
   const [combos, setCombos] = useState<Combo[]>([])
-  const [autoVariants, setAutoVariants] = useState(false)
+  const [autoVariants, setAutoVariants] = useState<string[]>([])
+
+  /**
+   * Tab tự viết tay, KHÔNG dùng TabShell — cả hai cùng ghi `?tab=` vào URL và sẽ giẫm lên
+   * nhau. Reports.tsx đã gặp đúng chuyện này và cũng viết tay vì lý do đó.
+   */
+  const [tab, setTab] = useState<"combo" | "log" | "bao-cao">(
+    () => (new URLSearchParams(location.search).get("ctab") as never) || "combo",
+  )
+  const doiTab = (t: "combo" | "log" | "bao-cao") => {
+    setTab(t)
+    const u = new URL(location.href)
+    u.searchParams.set("ctab", t)
+    history.replaceState(null, "", u)
+  }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
@@ -129,7 +156,7 @@ export function Combo() {
         .then((r) => (r.ok ? r.json() : { models: [] }))
         .then((m: { models?: Array<{ id: string }> }) => setModels((m.models ?? []).map((x) => x.id)))
         .catch(() => {})
-      setAutoVariants(json.autoVariants ?? false)
+      setAutoVariants(json.autoVariants ?? [])
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch")
@@ -260,6 +287,43 @@ export function Combo() {
 
   const enabledCount = combos.filter((c) => c.enabled).length
 
+  /**
+   * Chạy thử combo — TỐN QUOTA THẬT.
+   *
+   * `/api/gateway/chat` đã trả sẵn `steps[]` (model, ok, ms, error) nên không cần endpoint
+   * mới: đúng thứ cần để thấy combo đi qua bước nào, trượt ở đâu, vì sao.
+   */
+  const [thuId, setThuId] = useState<string | null>(null)
+  const [ketQua, setKetQua] = useState<{
+    id: string
+    ok: boolean
+    text?: string
+    error?: string
+    steps: Array<{ model: string; ok: boolean; ms: number; error?: string }>
+  } | null>(null)
+
+  const chayThu = async (id: string) => {
+    setThuId(id)
+    setKetQua(null)
+    try {
+      const r = await fetch("/api/gateway/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          model: `combo/${id}`,
+          messages: [{ role: "user", content: "1+1? Trả lời đúng một từ." }],
+        }),
+      })
+      const j = await r.json()
+      setKetQua({ id, ok: !!j.ok, text: j.text, error: j.error, steps: j.steps ?? [] })
+      if (!j.ok) toast({ title: `Combo "${id}" lỗi`, description: String(j.error ?? "").slice(0, 120), variant: "error" })
+    } catch (e) {
+      setKetQua({ id, ok: false, error: e instanceof Error ? e.message : String(e), steps: [] })
+    } finally {
+      setThuId(null)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader title="Combo" desc="Nhóm nhiều model thành một tên gọi, có thứ tự ưu tiên" />
@@ -274,11 +338,18 @@ export function Combo() {
           icon={Shuffle}
           loading={loading}
         />
-        <KpiCard label="Auto variants" value={autoVariants ? "On" : "Off"} icon={Shuffle} loading={loading} />
+        {/* SỐ biến thể, không phải "On/Off" — backend trả mảng nên cờ boolean luôn true. */}
+        <KpiCard
+          label="Auto variants"
+          value={autoVariants.length}
+          sub={autoVariants.length ? autoVariants.join(" · ") : undefined}
+          icon={Shuffle}
+          loading={loading}
+        />
       </div>
 
       {/* Bật/tắt cộng lại đúng 100% → SegmentBar. */}
-      {combos.length > 0 && (
+      {combos.length > 0 && tab === "combo" && (
         <SegmentBar
           segments={[
             { label: "Bật", value: enabledCount, tone: "success" },
@@ -287,6 +358,78 @@ export function Combo() {
         />
       )}
 
+      <div className="flex gap-1 border-b border-border">
+        {([
+          { k: "combo", label: "Combo" },
+          { k: "log", label: "Log chạy" },
+          { k: "bao-cao", label: "Báo cáo" },
+        ] as const).map((t) => (
+          <button
+            key={t.k}
+            onClick={() => doiTab(t.k)}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
+              tab === t.k
+                ? "border-primary font-medium text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab !== "combo" && <ComboRuns tab={tab} />}
+
+      {tab === "combo" && (
+      <>
+      {/* Kết quả chạy thử — hiện ĐƯỜNG ĐI qua từng bước, thứ mà log lịch sử không cho
+          thấy ngay lúc thử. */}
+      {ketQua && (
+        <Card>
+          <CardContent className="space-y-2 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">
+                Chạy thử <span className="font-mono">{ketQua.id}</span>
+              </span>
+              <button
+                onClick={() => setKetQua(null)}
+                className="text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Đóng kết quả"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {ketQua.steps.length > 0 && (
+              <div className="space-y-1">
+                {ketQua.steps.map((st, i) => (
+                  <div key={`${st.model}-${i}`} className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5">
+                    <span className="w-5 shrink-0 text-center text-[10px] tabular-nums text-muted-foreground">{i + 1}</span>
+                    <Badge className={st.ok ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"}>
+                      {st.ok ? "OK" : "trượt"}
+                    </Badge>
+                    <span className="flex-1 truncate font-mono text-xs text-foreground" title={st.model}>{st.model}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                      {st.ms >= 1000 ? `${(st.ms / 1000).toFixed(1)}s` : `${st.ms}ms`}
+                    </span>
+                    {st.error && (
+                      <span className="max-w-[18rem] shrink-0 truncate text-xs text-muted-foreground" title={st.error}>
+                        {st.error}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <p className={`text-xs ${ketQua.ok ? "text-foreground" : "text-destructive"}`}>
+              {ketQua.ok
+                ? `Trả lời: ${String(ketQua.text ?? "").slice(0, 160)}`
+                : `Lỗi: ${String(ketQua.error ?? "").slice(0, 200)}`}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Toolbar */}
       <div className="flex flex-col flex-wrap gap-3 sm:flex-row sm:items-center">
@@ -517,6 +660,35 @@ export function Combo() {
                 ),
               },
               {
+                /**
+                 * Số backend TÍNH SẴN mà bản trước vứt đi.
+                 *
+                 * Tỉ lệ trượt là thứ đáng nhìn nhất: combo phải trượt bước nghĩa là bước
+                 * đầu hỏng, mỗi lần như vậy tốn thêm cả chục giây chờ trước khi sang bước
+                 * kế. Production: `translate-question` trượt 58% số lần gọi.
+                 */
+                key: "calls",
+                header: "Gọi · Trượt",
+                align: "right",
+                sort: (c) => c.calls ?? 0,
+                render: (c) => {
+                  const g = c.calls ?? 0
+                  const t = c.fallbacks ?? 0
+                  if (!g) return <span className="text-xs text-muted-foreground">—</span>
+                  const pct = Math.round((t / g) * 100)
+                  return (
+                    <div className="flex items-center justify-end gap-1.5 text-xs tabular-nums">
+                      <span className="text-foreground">{g.toLocaleString("vi-VN")}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span className={pct >= 50 ? "text-destructive" : pct >= 20 ? "text-warning" : "text-muted-foreground"}>
+                        {t.toLocaleString("vi-VN")}
+                        {t > 0 ? ` (${pct}%)` : ""}
+                      </span>
+                    </div>
+                  )
+                },
+              },
+              {
                 key: "targets",
                 header: "Targets",
                 render: (c) => (
@@ -548,6 +720,16 @@ export function Combo() {
                 align: "right",
                 render: (c) => (
                   <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={thuId === c.id}
+                      onClick={() => chayThu(c.id)}
+                      title="Gọi thử combo này — TỐN QUOTA THẬT"
+                      className="h-7 px-2 text-xs"
+                    >
+                      {thuId === c.id ? "Đang gọi…" : "Chạy thử"}
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -594,6 +776,8 @@ export function Combo() {
           />
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   )
 }

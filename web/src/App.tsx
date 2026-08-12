@@ -5,7 +5,6 @@ import { queryClient } from "@/lib/queryClient"
 import { api } from "@/lib/api"
 import { RefreshCw } from "lucide-react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
 import { AppSidebar } from "@/components/AppSidebar"
 import { ToastProvider } from "@/components/ui/toast"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
@@ -224,7 +223,6 @@ function AppShell() {
               <div className="mx-auto flex w-full min-w-0 max-w-(--container-app) items-center justify-between gap-2 px-6">
                 <div className="flex min-w-0 items-center gap-2">
                   <SidebarTrigger className="-ml-1.5 shrink-0 text-muted-foreground hover:text-foreground" />
-                  <Separator orientation="vertical" className="mr-1 h-4 bg-border" />
                   <h1 className="truncate text-sm font-medium text-foreground">
                     {tabTitles[activeTab] ?? activeTab}
                   </h1>

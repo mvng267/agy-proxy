@@ -876,6 +876,126 @@ export function comboStatsRows(sinceMs: number): { combo: string; calls: number;
     .all(sinceMs) as any[];
 }
 
+/** Bộ lọc lịch sử chạy combo. Trường bỏ trống = không lọc theo tiêu chí đó. */
+export interface ComboRunFilter {
+  combo?: string;
+  model?: string;
+  /** '1' chỉ bước thành công · '0' chỉ bước trượt. */
+  ok?: string;
+  status?: string;
+}
+
+function comboWhere(f?: ComboRunFilter): { sql: string; args: unknown[] } {
+  const parts: string[] = [];
+  const args: unknown[] = [];
+  if (f?.combo) { parts.push('combo = ?'); args.push(f.combo); }
+  if (f?.model) { parts.push('model = ?'); args.push(f.model); }
+  if (f?.ok === '0' || f?.ok === '1') { parts.push('ok = ?'); args.push(Number(f.ok)); }
+  if (f?.status) { parts.push('status = ?'); args.push(Number(f.status)); }
+  return { sql: parts.length ? ` AND ${parts.join(' AND ')}` : '', args };
+}
+
+export interface ComboRunRow {
+  ts: number; combo: string; step: number; model: string;
+  ok: number; status: number | null; ms: number | null; reason: string | null;
+}
+
+/**
+ * Lịch sử chạy combo — TỪNG BƯỚC, cả thành công lẫn trượt.
+ *
+ * `combo_runs` ghi đủ từ lâu (engine.ts ghi ở cả hai nhánh) nhưng hàm đọc duy nhất là
+ * `comboStatsRows`, và nó chỉ trả hai con số tổng. Production có 18.600 dòng mà không ai
+ * xem được bước nào trượt, vì sao trượt, mất bao lâu — trong khi `translate-question` trượt
+ * tới 74% số bước và có dòng chạy 56 GIÂY.
+ *
+ * Phân trang phía server theo đúng mẫu `usageLogs` — không nghĩ ra kiểu phân trang thứ hai.
+ */
+export function comboRuns(
+  from: number,
+  to: number,
+  f?: ComboRunFilter,
+  limit = 100,
+  offset = 0,
+): { rows: ComboRunRow[]; total: number } {
+  const w = comboWhere(f);
+  const where = `WHERE ts >= ? AND ts < ?${w.sql}`;
+  const total = (
+    db.prepare(`SELECT COUNT(*) n FROM combo_runs ${where}`).get(from, to, ...(w.args as any[])) as any
+  ).n as number;
+  const rows = db
+    .prepare(
+      `SELECT ts, combo, step, model, ok, status, ms, reason
+       FROM combo_runs ${where} ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?`,
+    )
+    .all(from, to, ...(w.args as any[]), Math.max(1, Math.min(500, limit)), Math.max(0, offset)) as any[];
+  return { rows, total };
+}
+
+export interface ComboStepStat {
+  combo: string; step: number; model: string;
+  runs: number; fails: number; p50: number; p95: number;
+}
+
+/**
+ * Gộp theo (combo, bước, model) — trả lời "BƯỚC NÀO hay trượt nhất".
+ *
+ * Đây là câu hỏi mà `comboStatsRows` không trả lời được: nó chỉ nói combo này có bao nhiêu
+ * lần phải trượt, không nói trượt Ở ĐÂU. Biết bước 1 luôn hỏng thì đảo thứ tự là xong.
+ *
+ * p50/p95 tính trên bước THÀNH CÔNG: bước trượt thường trả về gần như tức thì (429/400),
+ * gộp vào sẽ kéo số xuống và che mất việc model đang chậm.
+ */
+export function comboStepStats(from: number, to: number, f?: ComboRunFilter): ComboStepStat[] {
+  const w = comboWhere(f);
+  const where = `WHERE ts >= ? AND ts < ?${w.sql}`;
+  const agg = db
+    .prepare(
+      `SELECT combo, step, model, COUNT(*) AS runs,
+              SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END) AS fails
+       FROM combo_runs ${where} GROUP BY combo, step, model ORDER BY runs DESC`,
+    )
+    .all(from, to, ...(w.args as any[])) as Array<Omit<ComboStepStat, 'p50' | 'p95'>>;
+
+  // SQLite không có percentile() — lấy về đã ORDER BY rồi cắt theo chỉ số (giống pctByKey).
+  const msRows = db
+    .prepare(
+      // Ký tự NUL không nhúng được vào chuỗi SQLite ('unrecognized token'). Dùng '\u0001'
+      // — ký tự điều khiển không bao giờ xuất hiện trong tên combo hay id model.
+      `SELECT combo || char(1) || step || char(1) || model AS k, ms FROM combo_runs
+       ${where} AND ok = 1 AND ms > 0 ORDER BY k, ms`,
+    )
+    .all(from, to, ...(w.args as any[])) as Array<{ k: string; ms: number }>;
+  const byKey = new Map<string, number[]>();
+  for (const r of msRows) {
+    const arr = byKey.get(r.k);
+    if (arr) arr.push(r.ms);
+    else byKey.set(r.k, [r.ms]);
+  }
+  return agg.map((a) => {
+    const ms = byKey.get(`${a.combo}\u0001${a.step}\u0001${a.model}`) ?? [];
+    const at = (q: number) => ms[Math.min(ms.length - 1, Math.floor(ms.length * q))] ?? 0;
+    return { ...a, p50: at(0.5), p95: at(0.95) };
+  });
+}
+
+/** Giá trị CÓ THẬT trong combo_runs — dựng dropdown lọc, không bắt người dùng đoán. */
+export function comboRunFacets(from: number, to: number, f?: ComboRunFilter): {
+  combos: { value: string; n: number }[];
+  models: { value: string; n: number }[];
+  statuses: { value: number; n: number }[];
+} {
+  const w = comboWhere(f);
+  const where = `WHERE ts >= ? AND ts < ?${w.sql}`;
+  const q = (col: string, extra = '') =>
+    db.prepare(`SELECT ${col} AS value, COUNT(*) AS n FROM combo_runs ${where}${extra} GROUP BY value ORDER BY n DESC LIMIT 50`)
+      .all(from, to, ...(w.args as any[])) as any[];
+  return {
+    combos: q('combo'),
+    models: q('model'),
+    statuses: q('status', ' AND status IS NOT NULL'),
+  };
+}
+
 /** Số liệu p95 + tỉ lệ thành công theo provider (prefix của model) trong `sinceMs`. */
 export function providerStats(sinceMs: number): { provider: string; n: number; okRate: number; p95: number }[] {
   const rows = db

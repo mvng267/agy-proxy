@@ -9,6 +9,7 @@ import {
   getComboRow, upsertComboRow, deleteComboRow, comboStatsRows,
   providerStats, creditsUsedThisMonth,
   usageByApiKey, usageByCombo, attributionSince, type UsageFilter,
+  comboRuns, comboStepStats, comboRunFacets, type ComboRunFilter,
   metricsSeries, metricsHistoryCount, getSetting, setSetting,
 } from '../store/db.js';
 import {
@@ -878,6 +879,39 @@ export function registerAdminRoutes(app: FastifyInstance): void {
       stream: bool(q.stream),
     };
   };
+
+  /**
+   * Lịch sử chạy combo — TỪNG BƯỚC.
+   *
+   * `combo_runs` ghi đủ chi tiết từ lâu nhưng chưa endpoint nào phơi ra: hàm đọc duy nhất
+   * `comboStatsRows` chỉ trả hai con số tổng. Production có 19.180 dòng mà không ai xem
+   * được bước nào trượt và vì sao — trong khi bước 1 của `translate-question` trượt 100%
+   * (6.828 lần, không lần nào thành công) và vẫn tốn thêm ~54 giây p95 cho mỗi request.
+   */
+  app.get('/api/combos/runs', async (req) => {
+    const { from, to } = rangeOf(req);
+    const q = (req.query ?? {}) as any;
+    const f: ComboRunFilter = {
+      combo: q.combo ? String(q.combo) : undefined,
+      model: q.model ? String(q.model) : undefined,
+      ok: q.ok === '0' || q.ok === '1' ? String(q.ok) : undefined,
+      status: q.status ? String(q.status) : undefined,
+    };
+    const limit = Number(q.limit) > 0 ? Number(q.limit) : 100;
+    const offset = Number(q.offset) > 0 ? Number(q.offset) : 0;
+    const { rows, total } = comboRuns(from, to, f, limit, offset);
+    return {
+      rows,
+      total,
+      limit,
+      offset,
+      // Gộp theo (combo, bước, model) — trả lời "BƯỚC NÀO hay trượt nhất", thứ mà
+      // comboStatsRows không nói được (nó chỉ đếm tổng số lần phải trượt).
+      steps: comboStepStats(from, to, f),
+      facets: comboRunFacets(from, to, f),
+      period: { from, to },
+    };
+  });
 
   app.get('/api/gateway/usage', async (req) => {
     const { from, to, groupBy } = rangeOf(req);
