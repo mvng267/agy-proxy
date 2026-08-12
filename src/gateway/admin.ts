@@ -25,7 +25,7 @@ import {
 } from './pool.js';
 import { isImageModel } from './antigravity.js';
 import {
-  log, emitGw, afterCall, proxyLabelOf, accOf, bucketOf, pickReady, poolSnapshot,
+  log, emitGw, afterCall, proxyLabelOf, accOf, bucketOf, pickReady, poolSnapshot, modelHealth,
   listCombos, testAccount, checkLiveAccount, emitCheck, runProviderCall,
   resolveComboPlan, COMBO_MAX_STEPS,
 } from './engine.js';
@@ -830,12 +830,14 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     const q = (req.query ?? {}) as any;
     const variant = String(q.variant ?? 'default').replace(/^auto\/?/, '') || 'default';
     const snap = poolSnapshot();
+    // Cùng dữ liệu mà engine dùng để xếp thật — preview không được nói khác thực tế.
+    const mh = modelHealth();
     return {
       variant,
       weights: AUTO_VARIANTS[variant] ?? AUTO_VARIANTS.default,
       snapshot: snap,
-      plan: planAuto(variant, snap),
-      ranking: scoreCandidates(snap, AUTO_VARIANTS[variant] ?? AUTO_VARIANTS.default!).slice(0, 12),
+      plan: planAuto(variant, snap, mh),
+      ranking: scoreCandidates(snap, AUTO_VARIANTS[variant] ?? AUTO_VARIANTS.default!, mh).slice(0, 12),
     };
   });
 

@@ -997,6 +997,32 @@ export function comboRunFacets(from: number, to: number, f?: ComboRunFilter): {
 }
 
 /** Số liệu p95 + tỉ lệ thành công theo provider (prefix của model) trong `sinceMs`. */
+/**
+ * Tỉ lệ thành công theo TỪNG MODEL — thứ `providerStats` không nói được.
+ *
+ * `scoreCandidates` (combo.ts) chấm điểm theo PROVIDER, nên mọi model `agy/` cùng nhận một
+ * điểm sức khoẻ. Hậu quả đo được trên production 12/08/2026: `auto` xếp
+ * `agy/gemini-3-pro-high` ở bước 4 trong khi model đó lỗi **97%** (36/37 lần), và
+ * `agy/gemini-3.6-flash-high` lỗi 93% — cùng lúc `agy/gemini-3.5-flash-low` chỉ 1% lỗi.
+ * Provider khoẻ không có nghĩa mọi model của nó đều khoẻ.
+ *
+ * `minN` để không phạt oan model mới: 2 lần gọi mà trượt cả 2 chưa đủ kết luận gì.
+ */
+export function modelStats(sinceMs: number, minN = 5): Map<string, { n: number; okRate: number }> {
+  const rows = db
+    .prepare(
+      `SELECT model, COUNT(*) AS n, SUM(ok) AS ok FROM gateway_usage
+       WHERE ts >= ? AND instr(model, '/') > 0 GROUP BY model`,
+    )
+    .all(sinceMs) as Array<{ model: string; n: number; ok: number }>;
+  const out = new Map<string, { n: number; okRate: number }>();
+  for (const r of rows) {
+    if (r.n < minN) continue;
+    out.set(r.model, { n: r.n, okRate: r.ok / r.n });
+  }
+  return out;
+}
+
 export function providerStats(sinceMs: number): { provider: string; n: number; okRate: number; p95: number }[] {
   const rows = db
     .prepare(

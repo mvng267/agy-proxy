@@ -37,6 +37,14 @@ export interface ProviderSnapshot {
 }
 export type PoolSnapshot = Record<string, ProviderSnapshot>;
 
+/**
+ * Tỉ lệ thành công theo TỪNG MODEL (`agy/gemini-3-pro-high` → 0..1).
+ *
+ * Truyền vào thay vì import store — file này không được import store/pool (chống vòng lặp
+ * module). Thiếu thì mọi model coi như bình thường, hành vi y hệt bản cũ.
+ */
+export type ModelHealth = Map<string, { n: number; okRate: number }>;
+
 export interface AutoWeights {
   health: number;
   quota: number;
@@ -85,7 +93,7 @@ function modelTier(id: string): number {
   return 0.5;
 }
 
-export function scoreCandidates(snap: PoolSnapshot, weights: AutoWeights): Scored[] {
+export function scoreCandidates(snap: PoolSnapshot, weights: AutoWeights, mh?: ModelHealth): Scored[] {
   const out: Scored[] = [];
   // p95 lớn nhất để chuẩn hoá độ trễ về 0..1
   const maxP95 = Math.max(1, ...PROVIDER_IDS.map((p) => snap[p]?.p95Ms ?? 0));
@@ -102,11 +110,21 @@ export function scoreCandidates(snap: PoolSnapshot, weights: AutoWeights): Score
       // Per-model latency: model nhẹ (flash) bonus, nặng (opus) penalty
       const tier = modelTier(m.id);
       const latency = norm(baseLatency * 0.6 + tier * 0.4);
+      /**
+       * Ưu tiên tỉ lệ thành công của CHÍNH MODEL này, không phải của cả provider.
+       *
+       * Đo trên production 12/08/2026: provider `agy` khoẻ, nhưng trong đó
+       * `gemini-3-pro-high` lỗi 97% và `gemini-3.6-flash-high` lỗi 93%, còn
+       * `gemini-3.5-flash-low` chỉ 1%. Chấm theo provider thì cả ba cùng điểm, và `auto`
+       * xếp model 97%-lỗi lên bước 4 — mỗi lần trúng là một vòng chờ vô ích.
+       */
+      const mstat = mh?.get(`${pid}/${m.id}`);
+      const successM = mstat ? mstat.okRate : success;
       const score =
         weights.health * health +
         weights.quota * quota +
         weights.latency * latency +
-        weights.success * success +
+        weights.success * successM +
         weights.load * load;
       out.push({
         model: `${pid}/${m.id}`,
@@ -120,9 +138,9 @@ export function scoreCandidates(snap: PoolSnapshot, weights: AutoWeights): Score
 }
 
 /** Chuỗi thử cho `auto`: top models xếp theo điểm, đa dạng provider + model tier. */
-export function planAuto(variant: string, snap: PoolSnapshot): ComboTarget[] {
+export function planAuto(variant: string, snap: PoolSnapshot, mh?: ModelHealth): ComboTarget[] {
   const w = AUTO_VARIANTS[variant] || AUTO_VARIANTS.default!;
-  const scored = scoreCandidates(snap, w);
+  const scored = scoreCandidates(snap, w, mh);
   // Lấy tối đa 2 model mỗi provider (đa dạng tier: 1 nhanh + 1 mạnh)
   const count = new Map<ProviderId, number>();
   const out: ComboTarget[] = [];

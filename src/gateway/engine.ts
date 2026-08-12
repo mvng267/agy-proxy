@@ -6,7 +6,7 @@ import { toOpenAIFinish, openaiError } from './openai.js';
 import { emitLog } from '../events.js';
 import { store } from '../store/index.js';
 import {
-  recordGatewayUsage, listComboRows, recordComboRun, providerStats, recordQuota, setSetting,
+  recordGatewayUsage, listComboRows, recordComboRun, providerStats, modelStats, recordQuota, setSetting,
   comboRevision,
 } from '../store/db.js';
 import {
@@ -16,6 +16,7 @@ import {
 import {
   planCombo, planAuto, shouldFallback, isContextTooLong, isModelQuotaError, getRrCursor,
   type Combo, type ComboStrategy, type ComboTarget, type PoolSnapshot,
+  type ModelHealth,
 } from './combo.js';
 import {
   pool,
@@ -224,7 +225,19 @@ export function listCombos(): Combo[] {
   return combos;
 }
 
-let statsCache: { at: number; snap: PoolSnapshot } | null = null;
+let statsCache: { at: number; snap: PoolSnapshot; mh: ModelHealth } | null = null;
+
+/**
+ * Sức khoẻ TỪNG MODEL cho `auto` — cùng nhịp cache 60s với poolSnapshot.
+ *
+ * Không có nó thì `scoreCandidates` chấm theo provider, và `auto` xếp model lỗi 97% lên
+ * bước 4 (xem ghi chú trong combo.ts).
+ */
+export function modelHealth(): ModelHealth {
+  poolSnapshot();
+  return statsCache!.mh;
+}
+
 /** Ảnh chụp pool cho chấm điểm — cache 60s (KHÔNG truy vấn DB mỗi request). */
 export function poolSnapshot(): PoolSnapshot {
   if (statsCache && Date.now() - statsCache.at < 60_000) return statsCache.snap;
@@ -245,7 +258,7 @@ export function poolSnapshot(): PoolSnapshot {
       inflight: all.reduce((s, a) => s + a.inflight, 0),
     };
   }
-  statsCache = { at: Date.now(), snap };
+  statsCache = { at: Date.now(), snap, mh: modelStats(Date.now() - 24 * 3600_000) };
   return snap;
 }
 
@@ -253,7 +266,7 @@ export function poolSnapshot(): PoolSnapshot {
 export function resolveComboPlan(parsed: ParsedModel): { name: string; plan: ComboTarget[] } | { error: string; status: number } {
   const snap = poolSnapshot();
   if (parsed.kind === 'auto') {
-    return { name: parsed.prefixed, plan: planAuto(parsed.combo || 'default', snap) };
+    return { name: parsed.prefixed, plan: planAuto(parsed.combo || 'default', snap, modelHealth()) };
   }
   const c = listCombos().find((x) => x.id === parsed.combo);
   if (!c) return { error: `Combo "${parsed.combo}" không tồn tại`, status: 404 };
