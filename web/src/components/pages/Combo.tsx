@@ -1,4 +1,7 @@
-import { useEffect, useState, useCallback } from "react"
+import { useState, useCallback } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { api } from "@/lib/api"
+import { POLL } from "@/lib/queryClient"
 import { KpiCard, PageHeader, writeClipboard } from "@/components/common"
 import { useToast } from "@/components/ui/toast"
 import { SegmentBar } from "@/components/common/charts"
@@ -93,8 +96,7 @@ const emptyForm: ComboForm = {
 
 export function Combo() {
   const toast = useToast()
-  const [combos, setCombos] = useState<Combo[]>([])
-  const [autoVariants, setAutoVariants] = useState<string[]>([])
+  const qc = useQueryClient()
 
   /**
    * Tab tự viết tay, KHÔNG dùng TabShell — cả hai cùng ghi `?tab=` vào URL và sẽ giẫm lên
@@ -109,8 +111,6 @@ export function Combo() {
     u.searchParams.set("ctab", t)
     history.replaceState(null, "", u)
   }
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -162,26 +162,23 @@ export function Combo() {
   const setStepWeight = (i: number, w: number) =>
     setForm((f) => ({ ...f, steps: f.steps.map((t, k) => (k === i ? { ...t, weight: w } : t)) }))
 
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch("/api/combos")
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json() as CombosResponse
-      setCombos(json.combos ?? [])
-      setAutoVariants(json.autoVariants ?? [])
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch")
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchData()
-    const interval = setInterval(fetchData, 30_000)
-    return () => clearInterval(interval)
-  }, [fetchData])
+  /**
+   * React Query thay `fetch` trần + `setInterval`.
+   *
+   * `fetch` trần bỏ qua tầng xử lý 401 của `lib/api` — phiên hết hạn thì trang chỉ im lặng
+   * thay vì quay về màn đăng nhập. Ngoài ra `setInterval` vẫn chạy khi tab ẩn, còn
+   * `refetchInterval` thì dừng.
+   */
+  const q = useQuery({
+    queryKey: ["combos"],
+    queryFn: () => api.get<CombosResponse>("/api/combos"),
+    refetchInterval: POLL.normal,
+  })
+  const combos = q.data?.combos ?? []
+  const autoVariants = q.data?.autoVariants ?? []
+  const loading = q.isLoading
+  const error = q.error ? (q.error instanceof Error ? q.error.message : String(q.error)) : null
+  const fetchData = useCallback(() => { void qc.invalidateQueries({ queryKey: ["combos"] }) }, [qc])
 
   const handleCreate = () => {
     setEditingId(null)
@@ -211,19 +208,15 @@ export function Combo() {
         enabled: form.enabled,
       }
 
-      const res = await fetch("/api/combos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-
+      await api.post("/api/combos", payload)
       setDialogOpen(false)
       setForm(emptyForm)
       setEditingId(null)
       fetchData()
-    } catch {
-      // keep dialog open on error
+    } catch (e) {
+      // Giữ dialog mở, NHƯNG phải nói vì sao — `catch {}` rỗng làm người dùng bấm Lưu mà
+      // không thấy gì xảy ra và không hiểu tại sao.
+      toast({ title: "Lưu combo thất bại", description: String(e instanceof Error ? e.message : e).slice(0, 120), variant: "error" })
     } finally {
       setSaving(false)
     }
@@ -231,30 +224,20 @@ export function Combo() {
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`/api/combos/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      await api.del(`/api/combos/${encodeURIComponent(id)}`)
       setDeleteConfirm(null)
       fetchData()
-    } catch {
-      // ignore
+    } catch (e) {
+      toast({ title: "Xoá combo thất bại", description: String(e instanceof Error ? e.message : e).slice(0, 120), variant: "error" })
     }
   }
 
   const handleToggle = async (combo: Combo) => {
     try {
-      await fetch("/api/combos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...combo,
-          enabled: !combo.enabled,
-        }),
-      })
+      await api.post("/api/combos", { ...combo, enabled: !combo.enabled })
       fetchData()
-    } catch {
-      // ignore
+    } catch (e) {
+      toast({ title: "Bật/tắt combo thất bại", description: String(e instanceof Error ? e.message : e).slice(0, 120), variant: "error" })
     }
   }
 
@@ -303,6 +286,9 @@ export function Combo() {
     setThuId(id)
     setKetQua(null)
     try {
+      // CỐ Ý dùng `fetch` trần thay vì `api.post`: endpoint này trả HTTP 200 kèm
+      // `{ok:false, error, steps}` khi combo trượt — đó là DỮ LIỆU cần hiển thị, không
+      // phải lỗi tầng mạng. `api` sẽ ném và ta mất luôn `steps[]`.
       const r = await fetch("/api/gateway/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
