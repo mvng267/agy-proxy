@@ -4,7 +4,6 @@ import { RunContext } from './runner.js';
 import { humanClick, think, sleep, rand } from '../browser/human.js';
 import { performGoogleLogin } from './googleAuth.js';
 import { store } from '../store/index.js';
-import { omniroute } from '../omniroute/client.js';
 
 /**
  * Flow OAuth authorization-code dùng chung cho antigravity & gemini-cli.
@@ -79,21 +78,22 @@ async function getAuthUrl(
   provider: string,
   target: string,
   ctx: RunContext,
-): Promise<{ authUrl: string; state: string; codeVerifier: string; redirectUri: string; flowType: string; viaOmni: boolean }> {
-  try {
-    const a = await omniroute.oauthAuthorize(provider);
-    if (a.authUrl) return { ...a, authUrl: a.authUrl, viaOmni: true };
-    throw new Error(`không trả authUrl (flowType=${a.flowType})`);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    // gcli (gemini-cli) dùng client/scope KHÁC hẳn → không tự dựng thay được.
-    if (target === 'gcli') throw new Error(`OmniRoute không sẵn sàng (${msg}) — gemini-cli bắt buộc cần OmniRoute`);
-    // agy dùng chung client_id + endpoint Google với Antigravity CLI, nên thiếu
-    // OmniRoute vẫn lấy được refresh_token thật — đã kiểm chứng: refresh +
-    // discoverProject + gọi model đều OK.
-    ctx.log(`OmniRoute lỗi (${msg}) → tự dựng authUrl, vẫn lấy refresh_token`, 'warn');
-    return { ...localAuthUrl(), viaOmni: false };
+): Promise<{ authUrl: string; state: string; codeVerifier: string; redirectUri: string; flowType: string }> {
+  /**
+   * Tự dựng authUrl — KHÔNG qua OmniRoute nữa.
+   *
+   * `agy` dùng chung client_id + endpoint Google với Antigravity CLI nên tự dựng vẫn lấy
+   * được refresh_token thật (đã kiểm chứng: refresh + discoverProject + gọi model đều OK),
+   * và đó là đường DUY NHẤT chạy suốt từ 10/08 vì OmniRoute báo 401 mọi lần khởi động.
+   *
+   * `gcli` dùng client/scope khác hẳn nên không tự dựng thay được — flow đó đã ngừng dùng
+   * (chưa chạy lần nào trên production, không có trong PIPELINE).
+   */
+  if (target === 'gcli') {
+    throw new Error('flow gemini-cli đã ngừng dùng (cần OmniRoute, mà tích hợp đó đã gỡ)');
   }
+  ctx.log('Tự dựng authUrl (không qua OmniRoute)');
+  return localAuthUrl();
 }
 
 const CONFIRM =
@@ -191,7 +191,7 @@ export function makeOAuthFlow(provider: string, target: 'agy' | 'gcli') {
       ? auth.authUrl
       : auth.authUrl + (auth.authUrl.includes('?') ? '&' : '?') + 'hl=en';
 
-    ctx.log(`Mở link OAuth ${provider} (${auth.viaOmni ? 'từ OmniRoute' : 'tự dựng'})`);
+    ctx.log(`Mở link OAuth ${provider}`);
     await page.goto(authUrlEn, { waitUntil: 'domcontentloaded' }).catch(() => {});
     await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
     await think(1000, 2200);
@@ -216,76 +216,34 @@ export function makeOAuthFlow(provider: string, target: 'agy' | 'gcli') {
     }
 
     if (target === 'agy') {
-      // Antigravity: LÀM CẢ 2. Code hiện tại (round 1) -> đăng ký OmniRoute;
-      // round 2 (account đã login+grant nên nhanh) -> lấy Google refresh_token (1//...).
-      let connId = '';
-      try {
-        if (!auth.viaOmni) throw new Error('OmniRoute không sẵn sàng — bỏ qua bước đăng ký');
-        ctx.log('Round 1: đăng ký vào OmniRoute (exchange)');
-        await omniroute.oauthExchange(provider, {
-          code: capturedCode,
-          state: capturedState ?? auth.state,
-          codeVerifier: auth.codeVerifier,
-          redirectUri: auth.redirectUri,
-        });
-        const conn = await omniroute.findConnection(provider, account.email).catch(() => undefined);
-        connId = conn?.id ?? '';
-        ctx.log(`Đã đăng ký OmniRoute${connId ? ' (' + connId.slice(0, 8) + ')' : ''}`);
-      } catch (e) {
-        ctx.log(`OmniRoute exchange lỗi (vẫn lấy refresh_token): ${e instanceof Error ? e.message : e}`, 'warn');
-      }
-
-      ctx.log('Round 2: lấy refresh_token');
-      const auth2 = await getAuthUrl(provider, target, ctx);
-      capturedCode = null;
-      const url2 = (auth2.authUrl ?? auth.authUrl) + (String(auth2.authUrl).includes('?') ? '&' : '?') + 'hl=en';
-      await page.goto(url2, { waitUntil: 'domcontentloaded' }).catch(() => {});
-      await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
-      await think(700, 1400);
-      const dl2 = Date.now() + 90000;
-      while (!capturedCode && Date.now() < dl2) {
-        await ctx.guardChallenge();
-        await consentStep(ctx, page, account.email).catch(() => false);
-        await sleep(rand(600, 1200));
-      }
-      if (!capturedCode) {
-        const shot = await ctx.screenshot('agy_no_code_r2');
-        ctx.log('Round 2 không bắt được code', 'error', shot);
-        throw new Error('antigravity_no_code_r2');
-      }
-      const refreshToken = await exchangeAntigravityToken(capturedCode, auth2.redirectUri);
+      /**
+       * MỘT vòng là đủ: đổi code lấy refresh_token Google.
+       *
+       * Bản trước làm HAI vòng — vòng 1 đăng ký vào OmniRoute, vòng 2 mới lấy token. Bỏ
+       * vòng 1 cùng lúc gỡ OmniRoute: nó tốn thêm một lượt đăng nhập Google cho mỗi
+       * account (tăng rủi ro checkpoint) mà kết quả không ai dùng.
+       */
+      const refreshToken = await exchangeAntigravityToken(capturedCode, auth.redirectUri);
       store.upsertCredential({
         email: account.email,
         target: 'agy',
         value: refreshToken,
         expires_at: '',
-        omniroute_connection_id: connId,
+        // Cột giữ lại cho accounts.csv cũ đọc được; không còn ghi giá trị vào nữa.
+        omniroute_connection_id: '',
         updated_at: '',
       });
-      ctx.log(`Đã lưu refresh_token + OmniRoute cho ${account.email} (${refreshToken.slice(0, 8)}…)`);
+      ctx.log(`Đã lưu refresh_token cho ${account.email} (${refreshToken.slice(0, 8)}…)`);
       return;
     }
 
 
-    ctx.log('Đã bắt được code — gọi OmniRoute exchange');
-    const state = capturedState ?? auth.state;
-    const result = await omniroute.oauthExchange(provider, {
-      code: capturedCode,
-      state,
-      codeVerifier: auth.codeVerifier,
-      redirectUri: auth.redirectUri,
-    });
-    ctx.log(`Exchange xong: ${JSON.stringify(result).slice(0, 200)}`);
-    const conn = await omniroute.findConnection(provider, `${provider}:${account.email}`).catch(() => undefined);
-    store.upsertCredential({
-      email: account.email,
-      target,
-      value: 'stored_in_omniroute',
-      expires_at: '',
-      omniroute_connection_id: conn?.id ?? '',
-      updated_at: '',
-    });
-    ctx.log(`OAuth ${provider} hoàn tất cho ${account.email}`);
+    /**
+     * Tới đây nghĩa là target KHÔNG phải 'agy' — chỉ còn 'gcli', mà flow đó cần OmniRoute
+     * để đổi code (client/scope khác hẳn, không tự dựng thay được). Tích hợp OmniRoute đã
+     * gỡ nên chặn ngay từ `getAuthUrl`; nhánh này không bao giờ chạy tới.
+     */
+    throw new Error(`flow ${provider} đã ngừng dùng — cần OmniRoute, mà tích hợp đó đã gỡ`);
   };
 }
 

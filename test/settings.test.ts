@@ -32,10 +32,15 @@ test('setConfig: bỏ qua key lạ, nhận boolean/number', () => {
 
 test('metadata cấu hình: đủ key, đánh dấu secret + cần restart', () => {
   assert.ok(CONFIG_KEYS.length >= 25, 'phải quản lý >=25 thiết lập');
-  for (const k of ['port', 'host', 'omnirouteUrl', 'omniroutePassword', 'gatewayApiKey', 'tokenHealthHours', 'kiroRedirectUri', 'browserChannel']) {
+  for (const k of ['port', 'host', 'gatewayApiKey', 'tokenHealthHours', 'kiroRedirectUri', 'browserChannel']) {
     assert.ok(CONFIG_KEYS.includes(k), `thiếu key ${k}`);
   }
-  assert.ok(SECRET_KEYS.has('omniroutePassword') && SECRET_KEYS.has('dashboardPassword'));
+  // OmniRoute đã gỡ — khoá cấu hình của nó KHÔNG được còn lại, nếu không UI vẫn hiện ô
+  // nhập cho thứ không còn tác dụng.
+  for (const k of ['omnirouteUrl', 'omniroutePassword']) {
+    assert.ok(!CONFIG_KEYS.includes(k), `khoá ${k} còn sót sau khi gỡ OmniRoute`);
+  }
+  assert.ok(SECRET_KEYS.has('dashboardPassword'));
   assert.ok(RESTART_KEYS.has('port') && RESTART_KEYS.has('host'));
 });
 

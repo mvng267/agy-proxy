@@ -129,7 +129,6 @@ test('route cũ mở đúng tab con trong hub', async () => {
   const cases: Array<[string, string]> = [
     ['/tokens', 'Tokens'],
     ['/add', 'Thêm tài khoản'],
-    ['/connections', 'Connections'],
     ['/tools', 'CLI Tools'],
   ];
   for (const [path, label] of cases) {

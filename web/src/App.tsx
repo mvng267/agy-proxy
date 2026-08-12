@@ -29,7 +29,6 @@ const ApiKeys = lazy(() => import("@/components/pages/ApiKeys").then((m) => ({ d
 const Scheduler = lazy(() => import("@/components/pages/Scheduler").then((m) => ({ default: m.Scheduler })))
 const Runs = lazy(() => import("@/components/pages/Runs").then((m) => ({ default: m.Runs })))
 const PendingHuman = lazy(() => import("@/components/pages/PendingHuman").then((m) => ({ default: m.PendingHuman })))
-const Omniroute = lazy(() => import("@/components/pages/Omniroute").then((m) => ({ default: m.Omniroute })))
 const Security = lazy(() => import("@/components/pages/Security").then((m) => ({ default: m.Security })))
 
 // ── Page title mapping ─────────────────────────────────────────────────
@@ -57,7 +56,6 @@ const tabTitles: Record<string, string> = {
   scheduler: "Scheduler",
   runs: "Runs",
   pending: "Chờ duyệt",
-  omniroute: "OmniRoute",
   security: "Bảo mật",
 }
 
@@ -95,9 +93,11 @@ function PageContent({ tab }: { tab: string }) {
     case "gwlog":
       return <LiveLog />
     case "tools":
+    // `/connections` là link CŨ — tab đó đã gỡ cùng tích hợp OmniRoute. Vẫn nhận route
+    // để bookmark của người dùng không rơi vào "not found", mở về tab Cấu hình.
     case "connections":
     case "settings":
-      return <SettingsHub initial={tab === "connections" ? "connections" : tab === "tools" ? "cli" : undefined} />
+      return <SettingsHub initial={tab === "tools" ? "cli" : undefined} />
     case "keys":
       return <ApiKeys />
     case "scheduler":
@@ -106,8 +106,6 @@ function PageContent({ tab }: { tab: string }) {
       return <Runs />
     case "pending":
       return <PendingHuman />
-    case "omniroute":
-      return <Omniroute />
     case "security":
       return <Security />
     default:

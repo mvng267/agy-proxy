@@ -7,7 +7,6 @@ import { runSingle, PIPELINE } from './flows/index.js';
 import { resumeHuman, skipHuman, pendingHumanRuns } from './flows/runner.js';
 import { recentRuns, runLogs, lastRunErrors, failureReasons } from './store/db.js';
 import { fetchWebshareList, parseProxyList, testProxy } from './proxy/webshare.js';
-import { omniroute } from './omniroute/client.js';
 import { config, CSV, saveSettings, setConfig, applyConfig, getConfigValue, CONFIG_KEYS, SECRET_KEYS, RESTART_KEYS, AGY_HOME, ROOT } from './config.js';
 import { checkAll, restartHealthLoop } from './health/tokenHealth.js';
 import { checkUpdate, runUpdate } from './updater.js';
@@ -240,14 +239,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         bucket[st] = (bucket[st] ?? 0) + 1;
       }
     }
-    let connectionCount = 0;
-    let omniOk = false;
-    try {
-      connectionCount = (await omniroute.listConnections()).length;
-      omniOk = true;
-    } catch {
-      /* offline */
-    }
+    // OmniRoute đã gỡ — giữ hai trường để client cũ đọc không vỡ, luôn báo offline.
+    const connectionCount = 0;
+    const omniOk = false;
     // Số account/mỗi proxy (IP) — cảnh báo checkpoint chain nếu quá đông.
     const proxyLoad: Record<string, number> = {};
     for (const a of accounts) {
@@ -337,7 +331,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         estimated: pid === 'kr', // Kiro không trả usage → token là ước lượng
       };
     });
-    let omniOk = false; try { await omniroute.listConnections(); omniOk = true; } catch { /* offline */ }
+    const omniOk = false; // OmniRoute đã gỡ
     // Phân bố account trên mỗi IP — nhiều account chung 1 IP dễ kéo checkpoint chain
     // (xem docs/DECISIONS.md §5). Trước đây chỉ /api/summary có, Tổng quan không vẽ được.
     const proxyLoad: Record<string, number> = {};
@@ -390,7 +384,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
     const { changed, rejected } = applyConfig(patch);
     // Áp nóng những thứ cần
-    if (changed.includes('omnirouteUrl') || changed.includes('omniroutePassword')) omniroute.reset();
     if (changed.includes('tokenHealthHours')) restartHealthLoop(config.tokenHealthHours);
     const needRestart = changed.filter((k) => RESTART_KEYS.has(k));
     // `rejected` cho biết khoá nào bị từ chối và VÌ SAO — trước đây bỏ qua im lặng nên
@@ -398,16 +391,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true, changed, rejected, needRestart };
   });
 
-  // Test/đăng nhập OmniRoute ngay trong Cấu hình
-  app.post('/api/settings/omniroute/test', async () => {
-    omniroute.reset();
-    try {
-      const conns = await omniroute.listConnections();
-      return { ok: true, connections: conns.length };
-    } catch (e: any) {
-      return { ok: false, error: e?.message ?? String(e) };
-    }
-  });
 
   // ---------- cập nhật bản mới ----------
   // Có sẵn CLI `agyproxy update` nhưng phải SSH vào máy chủ mới chạy được; hai endpoint
@@ -532,33 +515,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // ---------- omniroute ----------
-  app.get('/api/omniroute/connections', async () => {
-    try {
-      const connections = await omniroute.listConnections();
-      return { ok: true, connections };
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) };
-    }
-  });
-
-  app.get('/api/omniroute/models', async () => {
-    try {
-      return { ok: true, models: await omniroute.listModels() };
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) };
-    }
-  });
-
-  app.post('/api/omniroute/chat', async (req) => {
-    const { model, content } = req.body as { model: string; content: string };
-    if (!model) return { ok: false, error: 'thiếu model' };
-    return omniroute.chat(model, content || 'Say hi in 3 words.');
-  });
 
   // ---------- config / credentials ----------
   app.get('/api/config', async () => ({
-    omnirouteUrl: config.omniroute.url,
     pacing: config.pacing,
     dailyCap: config.dailyLoginCap,
     headless: config.headless,

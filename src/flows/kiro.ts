@@ -5,7 +5,6 @@ import { performGoogleLogin } from './googleAuth.js';
 import { think, sleep, rand } from '../browser/human.js';
 import { store } from '../store/index.js';
 import { config } from '../config.js';
-import { omniroute } from '../omniroute/client.js';
 
 /**
  * Kiro social auth (Google) — PKCE tự chạy để LẤY REFRESH TOKEN trực tiếp.
@@ -140,26 +139,6 @@ export async function kiroFlow(ctx: RunContext): Promise<void> {
     updated_at: '',
   });
 
-  // Đẩy vào OmniRoute qua endpoint import token của Kiro (không phải /api/providers)
-  try {
-    const result = (await omniroute.oauthImport('kiro', {
-      refreshToken: data.refreshToken,
-      profileArn: data.profileArn,
-      region: KIRO.region,
-    })) as { connection?: { id?: string } };
-    const connId = result?.connection?.id ?? '';
-    ctx.log(`Đã import Kiro refreshToken vào OmniRoute${connId ? ` (${connId})` : ''}`);
-    store.upsertCredential({
-      email: account.email,
-      target: 'kiro',
-      value: payload,
-      expires_at: '',
-      omniroute_connection_id: connId,
-      updated_at: '',
-    });
-  } catch (e) {
-    ctx.log(`Không import được vào OmniRoute (vẫn đã lưu refreshToken vào CSV): ${e instanceof Error ? e.message : e}`, 'warn');
-  }
 
   ctx.log('Kiro hoàn tất — refreshToken đã lưu vào credentials.csv');
 }

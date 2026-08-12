@@ -67,11 +67,6 @@ export const config = {
   // chống brute-force
   loginMaxFail: num(S('loginMaxFail'), 5),
   loginLockMin: num(S('loginLockMin'), 15),
-  // ---- OmniRoute ----
-  omniroute: {
-    url: (S('omnirouteUrl') ?? E('OMNIROUTE_URL') ?? 'http://localhost:20128').replace(/\/+$/, ''),
-    password: S('omniroutePassword') ?? E('OMNIROUTE_PASSWORD') ?? '',
-  },
   // ---- harvest ----
   pacing: {
     minSec: num(S('pacingMinSec') ?? E('PACING_MIN_SEC'), 180),
@@ -171,8 +166,6 @@ const SETTERS: Record<string, Setter> = {
   sessionSecret: (v) => (config.sessionSecret = v),
   loginMaxFail: (v) => (config.loginMaxFail = Number(v)),
   loginLockMin: (v) => (config.loginLockMin = Number(v)),
-  omnirouteUrl: (v) => (config.omniroute.url = v.replace(/\/+$/, '')),
-  omniroutePassword: (v) => (config.omniroute.password = v),
   pacingMinSec: (v) => (config.pacing.minSec = Number(v)),
   pacingMaxSec: (v) => (config.pacing.maxSec = Number(v)),
   dailyLoginCap: (v) => (config.dailyLoginCap = Number(v)),
@@ -212,7 +205,7 @@ const SETTERS: Record<string, Setter> = {
 };
 
 /** Key là secret — API trả về dạng che. */
-export const SECRET_KEYS = new Set(['dashboardPassword', 'sessionSecret', 'omniroutePassword', 'gatewayApiKey']);
+export const SECRET_KEYS = new Set(['dashboardPassword', 'sessionSecret', 'gatewayApiKey']);
 /** Key đổi xong phải khởi động lại mới có hiệu lực. */
 export const RESTART_KEYS = new Set(['port', 'host', 'maxBodyMb']);
 export const CONFIG_KEYS = Object.keys(SETTERS);
@@ -310,8 +303,6 @@ export function setConfig(patch: Record<string, unknown>): string[] {
 /** Giá trị hiện tại theo key (để API settings trả về). */
 export function getConfigValue(key: string): unknown {
   switch (key) {
-    case 'omnirouteUrl': return config.omniroute.url;
-    case 'omniroutePassword': return config.omniroute.password;
     case 'pacingMinSec': return config.pacing.minSec;
     case 'pacingMaxSec': return config.pacing.maxSec;
     case 'gatewayEnabled': return config.gateway.enabled;

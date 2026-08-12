@@ -1,7 +1,6 @@
 import { RunContext } from './runner.js';
 import { think, sleep, rand, humanScroll } from '../browser/human.js';
 import { store } from '../store/index.js';
-import { omniroute } from '../omniroute/client.js';
 
 /**
  * Gemini Web (gweb): mở gemini.google.com, warm-up, rút cookie __Secure-1PSID
@@ -46,34 +45,7 @@ export async function geminiWebFlow(ctx: RunContext): Promise<void> {
     updated_at: '',
   });
 
-  // Đẩy vào OmniRoute (idempotent theo tên = email)
-  const name = `gweb:${account.email}`;
-  const existing = await omniroute.findConnection('gemini-web', name);
-  if (existing) {
-    ctx.log(`Connection gemini-web đã tồn tại (${existing.id}) — xoá để cập nhật cookie mới`);
-    await omniroute.deleteConnection(existing.id);
-  }
-  const conn = await omniroute.createConnection({
-    provider: 'gemini-web',
-    name,
-    apiKey: cookieString,
-  });
-  ctx.log(`Đã tạo connection gemini-web: ${conn.id}`);
-
-  store.upsertCredential({
-    email: account.email,
-    target: 'gweb',
-    value: cookieString,
-    expires_at: psid.expires > 0 ? new Date(psid.expires * 1000).toISOString() : '',
-    omniroute_connection_id: conn.id,
-    updated_at: '',
-  });
-
-  // Test connection
-  try {
-    await omniroute.testConnection(conn.id);
-    ctx.log('Test connection gemini-web: gửi OK (xem kết quả trên OmniRoute)');
-  } catch (e) {
-    ctx.log(`Test connection cảnh báo: ${e instanceof Error ? e.message : e}`, 'warn');
-  }
+  // Cookie đã lưu vào credentials.csv ở trên. Phần đẩy sang OmniRoute đã gỡ cùng tích hợp
+  // đó — flow này chưa chạy lần nào trên production và không có trong PIPELINE.
+  ctx.log('Đã lưu cookie gemini-web vào credentials.csv');
 }

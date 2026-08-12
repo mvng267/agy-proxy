@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react"
-import { Link2, Settings2, Terminal } from "lucide-react"
+import { Settings2, Terminal } from "lucide-react"
 import { TabShell } from "@/components/common/TabShell"
 import { PageHeader } from "@/components/common"
 
@@ -11,7 +11,6 @@ import { PageHeader } from "@/components/common"
  * thì hai phần nằm cạnh nhau, chuyển tab là thấy.
  */
 const Settings = lazy(() => import("./Settings").then((m) => ({ default: m.Settings })))
-const Connections = lazy(() => import("./Connections").then((m) => ({ default: m.Connections })))
 const CLITools = lazy(() => import("./CLITools").then((m) => ({ default: m.CLITools })))
 
 const ic = "h-3.5 w-3.5"
@@ -34,16 +33,6 @@ export function SettingsHub({ initial }: { initial?: string }) {
           render: () => (
             <Suspense fallback={<Loading />}>
               <Settings />
-            </Suspense>
-          ),
-        },
-        {
-          key: "connections",
-          label: "Connections",
-          icon: <Link2 className={ic} />,
-          render: () => (
-            <Suspense fallback={<Loading />}>
-              <Connections />
             </Suspense>
           ),
         },

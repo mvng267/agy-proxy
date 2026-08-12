@@ -5,7 +5,6 @@ import { config, PUBLIC_DIR, SCREENSHOTS_DIR } from './config.js';
 import { store } from './store/index.js';
 import { registerRoutes } from './routes.js';
 import { bus, type AppEvent } from './events.js';
-import { omniroute } from './omniroute/client.js';
 import { startHealthLoop } from './health/tokenHealth.js';
 import { registerAuth } from './auth.js';
 import { verifyPassword } from './security.js';
@@ -86,7 +85,6 @@ async function main() {
   await app.listen({ port: config.port, host: config.host });
 
   console.log(`\n  Dashboard:  http://localhost:${config.port}`);
-  console.log(`  OmniRoute:  ${config.omniroute.url}`);
   console.log(`  Accounts:   ${store.listAccounts().length} | Proxies: ${store.listProxies().length}\n`);
 
   /**
@@ -107,12 +105,6 @@ async function main() {
       console.log('    Đặt trong .env rồi khởi động lại trước khi dùng thật.\n');
     }
   }
-
-  // Kiểm tra kết nối OmniRoute (không chặn khởi động)
-  omniroute
-    .ensureAuth()
-    .then(() => console.log('  ✓ OmniRoute login OK'))
-    .catch((e) => console.log(`  ⚠ OmniRoute chưa kết nối được: ${e instanceof Error ? e.message : e}`));
 
   // Vòng lặp tự kiểm token health định kỳ
   startHealthLoop(config.tokenHealthHours);

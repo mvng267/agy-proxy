@@ -11,7 +11,6 @@ import {
   Power,
   Shield,
   Trash2,
-  TestTube2,
   RotateCcw,
   Lock,
 } from "lucide-react"
@@ -116,10 +115,6 @@ export function Settings() {
   const [pwdCurrent, setPwdCurrent] = useState("")
   const [pwdNew, setPwdNew] = useState("")
   const [pwdSaving, setPwdSaving] = useState(false)
-
-  // OmniRoute test
-  const [omniTestResult, setOmniTestResult] = useState<string | null>(null)
-  const [omniTesting, setOmniTesting] = useState(false)
 
   // Restart
   const [restarting, setRestarting] = useState(false)
@@ -302,25 +297,6 @@ export function Settings() {
     const data = await res.json() as { revoked?: number }
     showToast(`Đã đăng xuất ${data.revoked ?? 0} phiên khác`)
     fetchSessions()
-  }
-
-  const handleOmniTest = async () => {
-    setOmniTesting(true)
-    setOmniTestResult(null)
-    try {
-      const res = await fetch("/api/settings/omniroute/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      })
-      const data = await res.json() as { ok?: boolean; error?: string; connections?: number }
-      setOmniTestResult(data.ok
-        ? `✓ Kết nối OK · ${data.connections ?? 0} connection`
-        : `✕ ${data.error ?? "lỗi"}`)
-      showToast(data.ok ? "OmniRoute OK" : "OmniRoute lỗi")
-    } finally {
-      setOmniTesting(false)
-    }
   }
 
   // ── Loading / Error ──────────────────────────────────────────────────
@@ -543,33 +519,6 @@ export function Settings() {
           </div>
         )}
       </div>
-
-      {/* ── OmniRoute Test ────────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
-            <TestTube2 className="h-4 w-4 text-muted-foreground" /> OmniRoute
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-3">
-            <Button
-              size="sm"
-              onClick={handleOmniTest}
-              disabled={omniTesting}
-              className="border border-border bg-transparent text-foreground hover:text-foreground h-8 text-xs gap-1"
-            >
-              {omniTesting ? <RefreshCw className="h-3 w-3 animate-spin" /> : <TestTube2 className="h-3 w-3" />}
-              Test OmniRoute
-            </Button>
-            {omniTestResult && (
-              <span className={`text-xs font-medium ${omniTestResult.startsWith("✓") ? "text-success" : "text-destructive"}`}>
-                {omniTestResult}
-              </span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Cập nhật đứng TRƯỚC restart: cài xong thì bước kế là khởi động lại. */}
       <UpdatePanel />
