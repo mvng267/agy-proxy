@@ -9,6 +9,7 @@ import {
   refreshKiroToken,
   fetchKiroUsage,
 } from '../kiro.js';
+import { luuTokenXoay } from './types.js';
 import type { GenArgs, LiveResult, Provider, ProviderAccount, ProviderSession, StreamEvent } from './types.js';
 import type { GenResult, QuotaInfo } from '../antigravity.js';
 
@@ -27,6 +28,28 @@ export function isKiroQuotaError(e: unknown): boolean {
   if (!err) return false;
   if (err.status === 402 || err.status === 429) return true;
   return /MONTHLY_REQUEST_COUNT|Throttling|ServiceQuotaExceeded|reached the limit/i.test(String(err.message ?? ''));
+}
+
+/**
+ * Ghi refresh token vừa xoay vào RAM **và** xuống đĩa.
+ *
+ * Chỉ gán `a.refreshToken` là vô nghĩa: `pool.upsert()` ghi đè nó bằng bản từ CSV sau mỗi
+ * nhịp sync 2 giây, nên token mới sống nhiều nhất 2 giây. Phải cập nhật cả `a.credential`
+ * (thứ thực sự được ghi xuống CSV) rồi báo hook.
+ *
+ * Credential Kiro là JSON nhiều trường — giữ nguyên các trường cũ, chỉ thay phần đổi. Ghi
+ * đè bằng `{refreshToken}` trần là mất `profileArn`/`region`: account vẫn refresh được
+ * nhưng gọi model thì hỏng.
+ */
+function ghiTokenMoi(a: ProviderAccount, refreshToken: string, profileArn?: string): void {
+  a.refreshToken = refreshToken;
+  const cu = parseKiroCredential(a.credential ?? '') ?? {};
+  a.credential = JSON.stringify({
+    ...cu,
+    refreshToken,
+    ...(profileArn ? { profileArn } : {}),
+  });
+  luuTokenXoay(a);
 }
 
 export const kiroProvider: Provider = {
@@ -71,7 +94,7 @@ export const kiroProvider: Provider = {
       // refresh trả profileArn mới → dùng bản mới nhất
       if (t.profileArn) a.profileArn = t.profileArn;
       // Kiro xoay refresh token: cập nhật để lần sau còn dùng được
-      if (t.refreshToken && t.refreshToken !== a.refreshToken) a.refreshToken = t.refreshToken;
+      if (t.refreshToken && t.refreshToken !== a.refreshToken) ghiTokenMoi(a, t.refreshToken, t.profileArn);
     }
     return { accessToken: a.token!.accessToken, profileArn: a.profileArn, region: a.region };
   },
@@ -103,6 +126,9 @@ export const kiroProvider: Provider = {
       const t = await refreshKiroToken(a.refreshToken, d);
       a.token = { accessToken: t.accessToken, expiresAt: t.expiresAt };
       if (t.profileArn) a.profileArn = t.profileArn;
+      // Health check cũng refresh thật → cũng nhận token xoay. Bản trước VỨT nó đi, mà
+      // đường này chạy thường xuyên hơn cả `ensureReady`.
+      if (t.refreshToken && t.refreshToken !== a.refreshToken) ghiTokenMoi(a, t.refreshToken, t.profileArn);
       return true;
     } catch {
       return false;

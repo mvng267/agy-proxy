@@ -15,6 +15,7 @@ import { registerGatewayRoutes } from './gateway/routes.js';
 import { registerToolRoutes } from './tools/routes.js';
 import { buildBackup, restoreBackup } from './backup.js';
 import { pool, geminiPct } from './gateway/pool.js';
+import { tuoiQuota } from './gateway/poolScore.js';
 import { PROVIDERS, PROVIDER_IDS } from './gateway/providers/index.js';
 import { usageTotals, usageSeries, usageByModel, usageByAccount, usageByProvider } from './store/db.js';
 import { readFileSync } from 'node:fs';
@@ -308,6 +309,13 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       return null;
     };
     const tierName = withQ.find((a) => a.quota?.tier)?.quota?.tier ?? null;
+    /**
+     * ĐỘ TƯƠI của dữ liệu quota — thiết bị đo, không phải trang trí.
+     *
+     * Sự cố 12/08/2026 ẩn được 28 giờ vì màn hình hiện số quota rất đẹp mà không nói nó
+     * được đo khi nào. Engine chọn account bằng đúng những con số cũ đó.
+     */
+    const quotaAge = tuoiQuota(pl, now);
     // usage 7 ngày
     const to = now, from = to - 7 * 86400_000;
     const usage = { totals: usageTotals(from, to), series: usageSeries(from, to, 'day'), byModel: usageByModel(from, to).slice(0, 6), byAccount: usageByAccount(from, to).slice(0, 6) };
@@ -347,6 +355,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       providers,
       quota: {
         fetched: withQ.length,
+        quotaAge,
         geminiAvg: avg(gem),
         thirdPartyAvg: avg(tp),
         tier: tierName,

@@ -205,7 +205,10 @@ export function Pool() {
   // ── Bulk actions
   const handleBulkEnable = async (enabled: boolean, emails?: string[]) => {
     const body: Record<string, unknown> = { enabled }
+    // Nói RÕ ý định "cả pool". Backend từ chối body không có `emails` lẫn `all` — một
+    // request lạc từng đủ để tắt toàn bộ 703 account.
     if (emails && emails.length > 0) body.emails = emails
+    else body.all = true
     try {
       await api.post("/api/gateway/accounts/bulk", body)
       toast({ title: enabled ? "Đã bật tài khoản" : "Đã tắt tài khoản", variant: "success", description: emails?.length ? `${emails.length} account` : "tất cả" })

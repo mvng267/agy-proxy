@@ -101,6 +101,17 @@ interface OverviewData {
     geminiReset?: string
     thirdPartyReset?: string
     providers?: QuotaProvider[]
+    /**
+     * Độ TƯƠI của số quota bên trên. Thiếu nó thì màn hình hiện số rất đẹp mà không ai
+     * biết nó cũ 28 giờ — đúng cách sự cố 12/08/2026 ẩn được suốt hơn một ngày.
+     */
+    quotaAge?: {
+      moiNhatMin: number | null
+      cuNhatMin: number | null
+      trungViMin: number | null
+      coQuota: number
+      tong: number
+    }
   }
   usage?: {
     totals?: { requests?: number; tokIn?: number; tokOut?: number }
@@ -132,6 +143,33 @@ function fmtReset(iso?: string | null) {
 
 function reqOf(item: { requests?: number; count?: number }): number {
   return item.requests ?? item.count ?? 0
+}
+
+function fmtTuoi(phut: number) {
+  if (phut < 60) return `${phut} phút`
+  const h = Math.floor(phut / 60)
+  return h < 48 ? `${h} giờ` : `${Math.floor(h / 24)} ngày`
+}
+
+/**
+ * Tuổi của dữ liệu quota.
+ *
+ * Vì sao thứ này đáng một dòng trên màn hình: sự cố 12/08/2026 ẩn được 28 giờ vì dashboard
+ * hiện số quota rất đẹp mà không nói nó được đo KHI NÀO. Vòng refresh nền chết im lặng,
+ * còn engine vẫn chọn account bằng đúng những con số cũ đó — tải dồn vào bể Gemini đã cạn
+ * trong khi 149 account còn nguyên hạn mức Claude nằm không.
+ *
+ * Ngưỡng: quá 2 giờ là bất thường (chu kỳ refresh mặc định tính bằng chục phút).
+ */
+function TuoiQuota({ age }: { age?: { cuNhatMin: number | null; trungViMin: number | null; coQuota: number } }) {
+  if (!age || age.trungViMin == null || age.cuNhatMin == null) return null
+  const cu = age.cuNhatMin > 120
+  return (
+    <p className={cu ? "text-warning" : undefined}>
+      Hạn mức đo cách đây: {fmtTuoi(age.trungViMin)} (cũ nhất {fmtTuoi(age.cuNhatMin)})
+      {cu ? " — vòng làm mới có thể đang tắc" : ""}
+    </p>
+  )
 }
 
 // ── Stacked health bar ─────────────────────────────────────────────────
@@ -505,6 +543,7 @@ export function Overview() {
               {quota.fetched != null && (
                 <p>{quota.fetched}/{poolTotal || (acc.total ?? 0)} pool entry đã nạp hạn mức</p>
               )}
+              <TuoiQuota age={quota.quotaAge} />
               {quota.tier && <p>Tier: {quota.tier}</p>}
               {quota.geminiReset && (
                 <p>Gemini reset: {fmtReset(quota.geminiReset)}</p>

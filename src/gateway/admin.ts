@@ -16,6 +16,7 @@ import {
   pool, syncFromStore, savePersist, geminiPct, claudePct,
   type PoolAccount,
 } from './pool.js';
+import { mucTieuBulk } from './poolScore.js';
 import { log, accOf, poolSnapshot, modelHealth, listCombos } from './engine.js';
 import { store } from '../store/index.js';
 import { registerReportRoutes } from './reports.js';
@@ -111,13 +112,31 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     return { ok: !!a, enabled: a?.enabled };
   });
 
-  app.post('/api/gateway/accounts/bulk', async (req) => {
-    const { emails, enabled } = (req.body as { emails?: string[]; enabled?: boolean }) ?? {};
+  /**
+   * Bật/tắt hàng loạt.
+   *
+   * Hai bẫy đã sửa:
+   *  1. Bản trước ngầm hiểu "không truyền `emails` = cả pool". Body rỗng `{}` khiến
+   *     `enabled` là `undefined` → `!!undefined` = false → TẮT toàn bộ 703 account. Nay
+   *     phải nói rõ bằng `all: true`.
+   *  2. `pool.get(e, 'agy')` hard-code provider: danh sách lấy `a.email` (không prefix) nên
+   *     với 351 email có cả hai provider, thao tác luôn trúng bản `agy` và KHÔNG BAO GIỜ
+   *     đụng được account Kiro. Nay dùng khoá ghép `provider:email`.
+   */
+  app.post('/api/gateway/accounts/bulk', async (req, reply) => {
+    const { emails, enabled, all } = (req.body as { emails?: string[]; enabled?: boolean; all?: boolean }) ?? {};
+    const { keys, loi } = mucTieuBulk(emails, !!all, pool.list().map((a) => a.key));
+    if (loi) return reply.code(400).send({ error: loi });
+
     let n = 0;
-    const list = emails && emails.length ? emails : pool.list().map((a) => a.email);
-    for (const e of list) {
-      const a = e.includes(':') ? pool.getByKey(e) : pool.get(e, 'agy');
-      if (a) {
+    for (const e of keys) {
+      // Email trần vẫn nhận (client cũ) — nhưng khi đó phải áp cho MỌI provider của email
+      // đó, không im lặng chỉ sửa bản `agy`.
+      const targets = e.includes(':')
+        ? [pool.getByKey(e)]
+        : pool.list().filter((a) => a.email === e);
+      for (const a of targets) {
+        if (!a) continue;
         a.enabled = !!enabled;
         n++;
       }

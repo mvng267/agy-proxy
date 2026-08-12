@@ -4,8 +4,9 @@ import type { Dispatcher } from 'undici';
 import { DATA_DIR, config } from '../config.js';
 import { store } from '../store/index.js';
 import { recordQuota } from '../store/db.js';
-import { setNousRotateHook } from './providers/nous.js';
-import { PROVIDERS, providerOfTarget, type ProviderAccount, type ProviderId, type ProviderSession } from './providers/index.js';
+import { logger } from '../lib/logger.js';
+
+import { PROVIDERS, providerOfTarget, setRotateHook, type ProviderAccount, type ProviderId, type ProviderSession } from './providers/index.js';
 import { proxyDispatcher, type TokenInfo, type QuotaInfo, type QuotaBucket } from './antigravity.js';
 
 /**
@@ -41,7 +42,7 @@ export {
 import {
   poolKey, geminiPct, claudePct, recordOutcome, scoreAccount, bucketPct,
   isPermanentAuthError, isTransientError, nextMonthResetMs, blankAccount,
-  NoAccountError, SCORE_STALE_MS,
+  NoAccountError, SCORE_STALE_MS, xoaAnToan,
   type Strategy, type UpsertInput, type PoolAccount, type ReportInfo,
 } from './poolScore.js';
 
@@ -388,7 +389,7 @@ export const pool = new Pool();
  *
  * Cắm ở đây vì `providers/` không được import store (quy tắc chống vòng lặp module).
  */
-setNousRotateHook((a) => {
+setRotateHook((a) => {
   try {
     store.upsertCredential({
       email: a.email,
@@ -398,8 +399,11 @@ setNousRotateHook((a) => {
       omniroute_connection_id: '',
       updated_at: '',
     });
-  } catch {
-    /* ghi hỏng thì token mới vẫn còn trong RAM — lần restart sau mới mất */
+  } catch (e) {
+    // Ghi hỏng thì token mới vẫn còn trong RAM — nhưng `upsert()` sẽ ghi đè nó bằng bản
+    // CSV cũ sau 2 giây, và bản cũ đã bị upstream vô hiệu. Đây là đường dẫn tới "account
+    // chết vĩnh viễn", phải kêu lên chứ không nuốt.
+    logger.error(`[${a.email}] LƯU token xoay vòng THẤT BẠI: ${e instanceof Error ? e.message : String(e)}`);
   }
 });
 const PERSIST = resolve(DATA_DIR, 'gateway.json');
@@ -438,7 +442,21 @@ export function syncFromStore(force = false): void {
     });
     seen.add(a.key);
   }
-  for (const a of pool.list()) if (!seen.has(a.key)) pool.remove(a.key);
+  /**
+   * CHỐT AN TOÀN trước khi xoá.
+   *
+   * `readCsvFile` trả mảng rỗng khi file không tồn tại — không phân biệt "rỗng thật" với
+   * "không đọc được". Không có chốt này thì một lần đọc hụt xoá sạch 703 account trong 2
+   * giây, rồi `flushPersist()` ghi đè `gateway.json` (1,8 MB state) bằng pool rỗng.
+   */
+  const dangGiu = pool.list().length;
+  const kt = xoaAnToan(dangGiu, seen.size);
+  if (kt.choPhep) {
+    for (const a of pool.list()) if (!seen.has(a.key)) pool.remove(a.key);
+  } else {
+    // Giữ nguyên pool cũ và kêu lên. Nhịp sync sau đọc lại được thì tự khớp.
+    logger.error(`[pool] TỪ CHỐI đồng bộ: ${kt.lyDo}. Giữ nguyên ${dangGiu} account.`);
+  }
   lastSyncAt = Date.now();
   loadPersist();
 }

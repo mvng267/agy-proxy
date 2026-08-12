@@ -266,3 +266,85 @@ export function nextMonthResetMs(now: number): number {
   const firstOfNextMonthVN = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
   return firstOfNextMonthVN - RESET_TZ_OFFSET_H * 3600_000 + 3600_000; // về UTC + buffer
 }
+
+/**
+ * Có nên cho phép nhịp sync này xoá bớt account khỏi pool không?
+ *
+ * `syncFromStore` xoá mọi account không có trong CSV. Nhưng `readCsvFile` trả mảng RỖNG khi
+ * file không tồn tại — không phân biệt "rỗng thật" với "không đọc được". Một lần đọc hụt là
+ * 703 account biến khỏi pool trong 2 giây, rồi `flushPersist()` ghi đè `gateway.json` (1,8 MB
+ * state: quota, cooldown, projectId, token) bằng pool rỗng. Mất kép, không có đường lùi.
+ *
+ * Xoá account là việc bình thường nên không chặn hẳn được; chỉ chặn cái gần như chắc chắn là
+ * lỗi đọc: mất SẠCH, hoặc mất quá nửa một pool đủ lớn, trong một nhịp.
+ */
+export const XOA_AN_TOAN_MIN = 10; // pool nhỏ hơn thì không áp ngưỡng %
+
+export function xoaAnToan(dangGiu: number, sapCon: number): { choPhep: boolean; lyDo?: string } {
+  // Pool rỗng (lúc boot) thì không có gì để mất.
+  if (dangGiu === 0) return { choPhep: true };
+
+  if (sapCon === 0) {
+    return { choPhep: false, lyDo: `nguồn account rỗng trong khi pool đang giữ ${dangGiu} — nghi đọc hụt` };
+  }
+  // Pool nhỏ: xoá 1/2 account là thao tác tay bình thường, ngưỡng % vô nghĩa.
+  if (dangGiu < XOA_AN_TOAN_MIN) return { choPhep: true };
+
+  if (sapCon * 2 < dangGiu) {
+    return { choPhep: false, lyDo: `nguồn chỉ còn ${sapCon}/${dangGiu} account (mất quá nửa) — nghi đọc hụt` };
+  }
+  return { choPhep: true };
+}
+
+/**
+ * Xác định danh sách account cho thao tác hàng loạt.
+ *
+ * `POST /api/gateway/accounts/bulk` trước đây ngầm hiểu "không truyền emails = cả pool".
+ * Body rỗng `{}` khiến `enabled` là `undefined`, `!!undefined` = `false` → TẮT toàn bộ 703
+ * account, không xác nhận, không ghi ai làm.
+ *
+ * Frontend có dùng dạng "cả pool" một cách cố ý, nên không bỏ được tính năng — chỉ bắt nói
+ * rõ ý định bằng cờ `all`.
+ */
+export function mucTieuBulk(
+  emails: string[] | undefined,
+  all: boolean,
+  caPool: string[],
+): { keys: string[]; loi?: string } {
+  if (emails?.length) return { keys: emails };
+  if (all) return { keys: caPool };
+  return { keys: [], loi: 'thiếu `emails`; muốn áp cho cả pool thì gửi `all: true`' };
+}
+
+/**
+ * Độ tươi của dữ liệu quota trong pool.
+ *
+ * Vì sao cần đo: sự cố 12/08/2026 ẩn được 28 giờ vì dashboard hiện SỐ quota nhưng không hiện
+ * nó được đo KHI NÀO. Vòng refresh chết im lặng, engine tiếp tục chọn account bằng số cũ, và
+ * không có tín hiệu nào cho tới khi soi tay vào `gateway.json`.
+ *
+ * Dùng TRUNG VỊ chứ không phải trung bình: một account vừa refresh tay sẽ kéo trung bình
+ * xuống và che mất việc 700 cái còn lại đều cũ.
+ */
+export function tuoiQuota(
+  list: Array<{ quota?: { fetchedAt?: number } }>,
+  now = Date.now(),
+): { moiNhatMin: number | null; cuNhatMin: number | null; trungViMin: number | null; coQuota: number; tong: number } {
+  const tuoi: number[] = [];
+  for (const a of list) {
+    const t = a.quota?.fetchedAt;
+    // Chưa đo lần nào ≠ đo rất lâu rồi. Account mới thêm không được kéo "cũ nhất" lên trời.
+    if (typeof t === 'number' && t > 0) tuoi.push(Math.max(0, Math.round((now - t) / 60_000)));
+  }
+  if (!tuoi.length) {
+    return { moiNhatMin: null, cuNhatMin: null, trungViMin: null, coQuota: 0, tong: list.length };
+  }
+  tuoi.sort((x, y) => x - y);
+  return {
+    moiNhatMin: tuoi[0]!,
+    cuNhatMin: tuoi[tuoi.length - 1]!,
+    trungViMin: tuoi[Math.floor(tuoi.length / 2)]!,
+    coQuota: tuoi.length,
+    tong: list.length,
+  };
+}

@@ -258,13 +258,18 @@ describe('refresh token XOAY VÒNG — không lưu là account chết vĩnh vi�
   });
 
   test('dùng HOOK, không import store (quy tắc chống vòng lặp module)', () => {
-    assert.match(SRC, /export function setNousRotateHook/);
+    /**
+     * Hook nay là CHUNG (`luuTokenXoay` trong `providers/types.ts`), không còn mang tên
+     * Nous — vì Kiro cũng nhận `refreshToken` mới từ endpoint refresh mà trước đây vứt đi.
+     * Xem `test/gateway/rotatehook.test.ts`.
+     */
+    assert.match(SRC, /luuTokenXoay\(/, 'phải báo lên qua hook chung');
     assert.doesNotMatch(SRC, /from '\.\.\/\.\.\/store\//, 'providers/ không được import store');
   });
 
   test('pool cắm hook để ghi xuống CSV', () => {
     const pool = readFileSync(resolve(ROOT, 'src/gateway/pool.ts'), 'utf8');
-    assert.match(pool, /setNousRotateHook\(/);
+    assert.match(pool, /setRotateHook\(/);
     assert.match(pool, /store\.upsertCredential/);
   });
 });

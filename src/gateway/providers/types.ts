@@ -128,3 +128,28 @@ export interface Provider {
 }
 
 export type { ChatMessage, GenResult, QuotaBucket, QuotaInfo, TokenInfo, ToolCall, ToolDef, Usage };
+
+/**
+ * Refresh token vừa bị XOAY VÒNG → tầng trên ghi `a.credential` xuống CSV.
+ *
+ * Dùng hook thay vì import store thẳng: file trong `providers/` KHÔNG được import
+ * store/pool (quy tắc chống vòng lặp module).
+ *
+ * Vì sao là hook CHUNG chứ không phải mỗi provider một hook riêng: Nous từng có
+ * `setNousRotateHook` mang tên provider trong khi việc nó làm đúng với mọi provider — và
+ * Kiro, vốn cũng nhận `refreshToken` mới từ endpoint refresh, không có gì cả. Token mới chỉ
+ * nằm trong RAM, rồi `pool.upsert()` ghi đè bằng bản từ CSV sau mỗi nhịp sync 2 giây.
+ *
+ * Đo trên production 12/08/2026: log có 0 dòng `invalid_grant`, 315/351 account Kiro vẫn
+ * sống → Kiro không xoay token trong thực tế. Mìn chưa nổ, nhưng giá gỡ chỉ vài dòng.
+ */
+let onRotate: ((a: ProviderAccount) => void) | undefined;
+
+export function setRotateHook(fn: (a: ProviderAccount) => void): void {
+  onRotate = fn;
+}
+
+/** Provider gọi khi refresh token đổi. Đã cập nhật `a.refreshToken` + `a.credential` trước. */
+export function luuTokenXoay(a: ProviderAccount): void {
+  onRotate?.(a);
+}

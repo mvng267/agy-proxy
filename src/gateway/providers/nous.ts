@@ -2,6 +2,7 @@ import type { Dispatcher } from 'undici';
 import type {
   GenArgs, GenResult, LiveResult, Provider, ProviderAccount, ProviderSession, QuotaInfo, StreamEvent,
 } from './types.js';
+import { luuTokenXoay } from './types.js';
 import { checkTokenOpenAI, generateOpenAI, probeModel, streamOpenAI } from './openaiWire.js';
 
 /**
@@ -153,17 +154,6 @@ function fixCreditError(e: any): never {
 /** Ảnh chụp hạn mức mới nhất, theo account — điền vào bởi mỗi lần gọi thật. */
 const quotaCache = new Map<string, QuotaInfo>();
 
-/**
- * Gọi khi refresh token vừa bị xoay vòng, để tầng trên ghi xuống CSV.
- *
- * Dùng hook thay vì import store thẳng: file trong `providers/` KHÔNG được import store/pool
- * (quy tắc chống vòng lặp module — xem types.ts).
- */
-let onRotate: ((a: ProviderAccount) => void) | undefined;
-export function setNousRotateHook(fn: (a: ProviderAccount) => void): void {
-  onRotate = fn;
-}
-
 const WIRE = { label: 'nous', defaultBaseUrl: INFERENCE_URL };
 
 /** Bọc opts để mỗi response đều được bóc hạn mức về đúng account. */
@@ -219,7 +209,7 @@ export const nousProvider: Provider = {
       if (r.refreshToken && r.refreshToken !== a.refreshToken) {
         a.refreshToken = r.refreshToken;
         a.credential = JSON.stringify({ provider: 'nous', refreshToken: r.refreshToken });
-        onRotate?.(a);
+        luuTokenXoay(a);
       }
     }
     return this.sessionOf(a);

@@ -1,25 +1,45 @@
 import { config } from '../config.js';
 import { pruneQuotaHistory, pruneUsage, recordMetrics, pruneMetricsHistory } from '../store/db.js';
 import { pool, savePersist, ensureReady, dispatcherFor, refreshQuota, geminiPct, claudePct } from './pool.js';
+import { PROVIDERS } from './providers/index.js';
 import { log, checkLiveAccount } from './engine.js';
 import { gatewayMetrics } from './metrics.js';
+import { quetQuota, nhuongDuong, type QuotaLoopDeps } from './quotaLoop.js';
 
 /**
  * Các job nền của gateway: auto refresh quota/token, dò hạn mức Kiro, dọn lịch sử.
  * Gọi một lần lúc đăng ký route — mọi timer đều unref để không giữ process sống.
  */
 
+const nghi = (ms: number) => new Promise<void>((r) => { setTimeout(r, ms); });
+
+/** Tổng số request đang chạy trong pool. */
+const dangBan = () => pool.list().reduce((n, a) => n + (a.inflight || 0), 0);
+
 /**
- * Chờ tới khi pool rảnh. Công việc nền (refresh quota/token) gọi hàm này trước mỗi
- * account để không cạnh tranh băng thông với request của client.
+ * Nhường đường cho request thật, theo NGƯỠNG.
+ *
+ * Bản cũ (`waitWhileBusy`) đòi TỔNG inflight toàn pool = 0 — điều kiện không bao giờ đúng
+ * khi 700 account phục vụ liên tục, nên nó biến thành `sleep(30s)` cố định trước MỖI
+ * account. Đo thật trên production: vòng quota cần ~6 giờ trong khi chu kỳ đặt 4 giờ, và
+ * lần đo cuối là 28,3 giờ trước.
+ *
+ * Ý định ban đầu vẫn giữ: job nền không tranh băng thông với client.
  */
-async function waitWhileBusy(maxWaitMs = 30_000) {
-  const until = Date.now() + maxWaitMs;
-  while (Date.now() < until) {
-    const busy = pool.list().reduce((n, a) => n + (a.inflight || 0), 0);
-    if (busy === 0) return;
-    await new Promise((r) => setTimeout(r, 1_000));
-  }
+const nhuong = () => nhuongDuong({ dangBan, nghi }, { tran: 4, toiDaCho: 10 });
+
+/** Deps để vòng quét hạn mức chạy trên pool thật. */
+function quotaDeps(danhSach: () => ReturnType<typeof pool.list>): QuotaLoopDeps {
+  return {
+    danhSach: () => danhSach() as never,
+    // Kiro không có API hạn mức — `refreshQuota` trả `undefined` ngay ở dòng đầu
+    // (`pool.ts` `if (!p.quota) return undefined`). Cho vào vòng chỉ tốn lượt chờ.
+    coApiQuota: (a) => Boolean(PROVIDERS[(a as { provider: keyof typeof PROVIDERS }).provider]?.quota),
+    doQuota: (a) => refreshQuota(a as never),
+    dangBan,
+    nghi,
+    ghiLog: (m) => log('system', 'info', m),
+  };
 }
 
 export function startGatewayBackground(): void {
@@ -39,14 +59,10 @@ export function startGatewayBackground(): void {
          * account bị tắt vì cạn quota sẽ không bao giờ được refresh, quota đóng băng ở
          * giá trị cũ, và không bao giờ đủ điều kiện bật lại.
          */
-        const soi = config.gateway.autoDisable?.enabled
+        const soi = () => (config.gateway.autoDisable?.enabled
           ? pool.list().filter((x) => x.health !== 'dead')
-          : pool.list().filter((x) => x.enabled);
-        for (const a of soi) {
-          await waitWhileBusy();
-          await refreshQuota(a).catch(() => {});
-          await new Promise((r) => setTimeout(r, 500));
-        }
+          : pool.list().filter((x) => x.enabled));
+        await quetQuota(quotaDeps(soi), { song: 6, nghiMs: 200, choMs: 1_000, toiDaCho: 10 });
       }
       scheduleQuotaLoop();
     }, mins * 60_000);
@@ -60,15 +76,11 @@ export function startGatewayBackground(): void {
    * hiển thị là dữ liệu cũ từ persist. Đo thật: tuổi trung vị 558 phút.
    */
   if (config.gateway.quota?.autoRefresh) {
-    setTimeout(async () => {
-      for (const a of pool.list().filter((x) => x.enabled && x.health !== 'dead')) {
-        // NHƯỜNG ĐƯỜNG cho request thật: đo được 7/20 request stream thất bại khi vòng
-        // refresh (700 account) chạy song song với tải. Quota là việc nền, không được
-        // cạnh tranh với client.
-        await waitWhileBusy();
-        await refreshQuota(a).catch(() => {});
-        await new Promise((r) => setTimeout(r, 500));
-      }
+    setTimeout(() => {
+      // NHƯỜNG ĐƯỜNG cho request thật nằm trong `quetQuota` — đo được 7/20 request stream
+      // thất bại khi vòng refresh (700 account) chạy song song với tải.
+      void quetQuota(quotaDeps(() => pool.list().filter((x) => x.enabled && x.health !== 'dead')),
+        { song: 6, nghiMs: 200, choMs: 1_000, toiDaCho: 10 });
     }, 5_000).unref?.();
   }
 
@@ -93,12 +105,18 @@ export function startGatewayBackground(): void {
           // Chỉ account ĐÃ có token và sắp hết hạn. Account chưa có token thì để
           // request đầu tiên tự lo — refresh sẵn cả pool sẽ tự tạo burst.
           .filter((a) => a.token && a.token.expiresAt - now < aheadMs);
+        let loi = 0;
         for (const a of due) {
-          await waitWhileBusy();
-          await ensureReady(a, dispatcherFor(a)).catch(() => {});
-          await new Promise((r) => setTimeout(r, 300)); // giãn nhịp
+          await nhuong();
+          // Đếm lỗi thay vì nuốt: đây là vòng làm mới token chủ động. Nuốt lỗi ở đây nghĩa
+          // là không bao giờ biết token đang hỏng hàng loạt, cho tới khi request thật đâm vào.
+          await ensureReady(a, dispatcherFor(a)).catch(() => { loi++; });
+          await nghi(300); // giãn nhịp
         }
-        if (due.length) savePersist();
+        if (due.length) {
+          savePersist();
+          if (loi) log('system', 'warn', `làm mới token: ${due.length - loi}/${due.length} ok · lỗi ${loi}`);
+        }
       } catch {
         /* vòng sau thử lại */
       }
@@ -214,15 +232,23 @@ export async function runAutoDisableSweep(): Promise<{
 
   let checked = 0, disabled = 0, enabledBack = 0, skipped = 0;
 
+  /**
+   * PHA 1 — đo hạn mức cả pool, SONG SONG.
+   *
+   * Bản cũ đo tuần tự ngay trong vòng xét, mỗi account chờ `waitWhileBusy()` tới 30 giây.
+   * Với 703 account thì một lượt quét mất tới ~6 giờ — vòng hẹn 3h sáng có thể chạy tới
+   * trưa, và nó GHI `a.enabled` dựa trên quota đo được nhiều giờ trước.
+   *
+   * force=false: tôn trọng TTL cache. Job chạy 1 lần/ngày nên cache 10 phút không cản gì,
+   * mà lại tránh gọi upstream thừa khi vừa có vòng refresh khác chạy qua.
+   */
+  await quetQuota(quotaDeps(() => pool.list()), { song: 6, nghiMs: 200, choMs: 1_000, toiDaCho: 10 });
+
+  // PHA 2 — xét bật/tắt. Thuần RAM, không gọi mạng, nên chạy tuần tự là đủ nhanh.
   for (const a of pool.list()) {
     // 'dead' là account hỏng vĩnh viễn (401/invalid_grant) — quota không cứu được,
     // và bật lại chỉ tạo lỗi. Chỉ người kiểm thủ công mới gỡ được trạng thái này.
     if (a.health === 'dead') { skipped++; continue; }
-
-    await waitWhileBusy();
-    // force=false: tôn trọng TTL cache. Job chạy 1 lần/ngày nên cache 10 phút không
-    // cản gì, mà lại tránh gọi upstream thừa khi vừa có refresh khác chạy qua.
-    await refreshQuota(a).catch(() => {});
     checked++;
 
     /**
@@ -254,8 +280,6 @@ export async function runAutoDisableSweep(): Promise<{
       enabledBack++;
       log(a.email, 'info', `Tự bật lại: còn hạn mức (${moTa}, ngưỡng ≥${on}%)`);
     }
-
-    await new Promise((r) => setTimeout(r, 300));
   }
 
   savePersist();
