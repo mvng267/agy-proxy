@@ -54,6 +54,13 @@ const BAO_CAO = [
   '/api/metrics/history',
 ];
 
+/** Nhóm trạng thái pool tức thời — vừa rời sang `poolStatus.ts`. */
+const POOL_STATUS = [
+  '/api/metrics',
+  '/api/gateway/stats',
+  '/api/gateway/quota-summary',
+];
+
 /** Vài đường tiêu biểu còn ở `admin.ts` — để lần tách sau không kéo nhầm chúng đi. */
 const CON_LAI = [
   '/api/gateway/accounts',
@@ -65,7 +72,7 @@ const CON_LAI = [
 ];
 
 describe('route admin có mặt sau khi boot', () => {
-  for (const url of [...BAO_CAO, ...CON_LAI]) {
+  for (const url of [...BAO_CAO, ...POOL_STATUS, ...CON_LAI]) {
     test(`GET ${url} không 404`, async () => {
       const r = await app.inject({ method: 'GET', url });
       assert.notEqual(r.statusCode, 404, `${url} chưa được đăng ký (route bị rơi khi tách file?)`);
