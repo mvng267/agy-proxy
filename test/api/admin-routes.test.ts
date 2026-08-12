@@ -61,6 +61,21 @@ const POOL_STATUS = [
   '/api/gateway/quota-summary',
 ];
 
+/**
+ * Nhóm thử nghiệm — vừa rời sang `adminTest.ts`.
+ *
+ * Toàn POST và chúng TỐN QUOTA THẬT, nên ở đây chỉ kiểm sự có mặt bằng cách bắn GET:
+ * route tồn tại thì Fastify trả 404 kèm thân `Route GET:... not found`, còn vắng mặt thì
+ * cũng 404 — không phân biệt được. Dùng `printRoutes` thay vì gọi thẳng.
+ */
+const THU_NGHIEM = [
+  '/api/gateway/chat',
+  '/api/gateway/accounts/check',
+  '/api/gateway/accounts/test-bulk',
+  '/api/gateway/models/check',
+  '/api/gateway/probe',
+];
+
 /** Vài đường tiêu biểu còn ở `admin.ts` — để lần tách sau không kéo nhầm chúng đi. */
 const CON_LAI = [
   '/api/gateway/accounts',
@@ -78,6 +93,19 @@ describe('route admin có mặt sau khi boot', () => {
       assert.notEqual(r.statusCode, 404, `${url} chưa được đăng ký (route bị rơi khi tách file?)`);
       // 500 cũng là hỏng — nhưng phân biệt được với "vắng mặt" nên nói rõ trong thông điệp.
       assert.ok(r.statusCode < 500, `${url} trả ${r.statusCode}: ${r.body.slice(0, 200)}`);
+    });
+  }
+
+  for (const url of THU_NGHIEM) {
+    test(`POST ${url} có trong bảng route`, () => {
+      /**
+       * Không `inject` — gọi thật là tiêu quota thật. Bảng route đủ để biết nó có mặt.
+       *
+       * Phải khớp ĐƯỜNG ĐẦY ĐỦ. Bản đầu dò theo hậu tố (`url.split('/').pop()`) và
+       * `/api/gateway/chat` khớp nhầm `/v1/chat/completions` — test vẫn xanh sau khi gỡ
+       * hẳn `registerTestRoutes`, đúng loại lỗi mà chính test này sinh ra để bắt.
+       */
+      assert.ok(app.hasRoute({ method: 'POST', url }), `${url} không thấy trong bảng route`);
     });
   }
 
