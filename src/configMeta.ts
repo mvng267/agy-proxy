@@ -54,6 +54,11 @@ export const CONFIG_FIELDS: Record<string, ConfigField> = {
     desc: 'debug in mọi thứ, error chỉ in lỗi',
     group: NHOM.server, type: 'enum', values: ['debug', 'info', 'warn', 'error'],
   },
+  updateBranch: {
+    label: 'Nhánh cập nhật',
+    desc: 'production = chỉ bản đã phát hành · main = nhận bản mới nhất (máy test)',
+    group: NHOM.server, type: 'string',
+  },
 
   // ---- Bảo mật ----
   dashboardUser: { label: 'Tên đăng nhập', desc: 'Bỏ trống thì chỉ hỏi mật khẩu', group: NHOM.baoMat, type: 'string' },

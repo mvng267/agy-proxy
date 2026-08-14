@@ -55,6 +55,16 @@ export const config = {
   maxBodyMb: num(S('maxBodyMb') ?? E('MAX_BODY_MB'), 32),
   /** Mức log — áp nóng qua `setLogLevel`, không cần khởi động lại. */
   logLevel: S('logLevel') ?? E('AGY_LOG_LEVEL') ?? 'info',
+  /**
+   * Nhánh GitHub để lấy bản cập nhật.
+   *
+   * Mặc định `production` — nhánh CHỈ nhận bản đã phát hành. Trước đây mọi máy kéo thẳng
+   * từ `main`, nên mỗi commit dở dang đều lập tức hiện thành "có bản mới" trên dashboard
+   * của máy thật, không có chỗ nào để code chín trước khi tới tay người dùng.
+   *
+   * Máy test có thể đặt `main` để nhận bản sớm.
+   */
+  updateBranch: S('updateBranch') ?? E('AGY_UPDATE_BRANCH') ?? 'production',
   // ---- đăng nhập dashboard ----
   dashboardPassword: S('dashboardPassword') ?? E('DASHBOARD_PASSWORD') ?? '123456',
   /**
@@ -204,6 +214,7 @@ const SETTERS: Record<string, Setter> = {
   gatewayTimeoutSec: (v) => (config.gateway.timeoutSec = Number(v)),
   // Áp NGAY vào logger — đổi mức log mà phải khởi động lại thì không ai dùng.
   logLevel: (v) => { config.logLevel = v; setLogLevel(v); },
+  updateBranch: (v) => (config.updateBranch = v.trim() || 'production'),
   tokenRefreshAheadMin: (v) => (config.gateway.tokenRefreshAheadMin = Number(v)),
   quotaAutoRefresh: (v) => (config.gateway.quota.autoRefresh = v === 'true'),
   quotaIntervalMin: (v) => (config.gateway.quota.intervalMin = Number(v)),

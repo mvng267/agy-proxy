@@ -100,10 +100,49 @@ git('commit', '-m', `chore(release): v${moi}`);
 git('tag', '-a', `v${moi}`, '-m', `v${moi}`);
 console.log(`✓ Đã ghi v${moi}, commit và tạo tag v${moi}`);
 
+/**
+ * Đưa bản vừa phát hành sang nhánh `production`.
+ *
+ * Vì sao cần hai nhánh: máy thật kéo bản cập nhật từ `production` (khoá `updateBranch`,
+ * mặc định đúng nhánh này). `main` là nơi commit tự do — không tách ra thì mọi refactor dở
+ * dang lập tức hiện thành "có bản mới" trên dashboard của máy đang phục vụ thật.
+ *
+ * Merge `--ff-only`: `production` chỉ được đi theo sau `main`, không bao giờ có commit
+ * riêng. Nếu ai đó lỡ commit thẳng vào `production` thì lệnh này DỪNG thay vì tạo commit
+ * merge làm hai nhánh phân kỳ vĩnh viễn.
+ */
+const NHANH_PH = 'production';
+const nhanhHienTai = git('rev-parse', '--abbrev-ref', 'HEAD');
+let daMerge = false;
+try {
+  const coNhanh = git('branch', '--list', NHANH_PH) || git('ls-remote', '--heads', 'origin', NHANH_PH);
+  if (coNhanh) {
+    git('checkout', NHANH_PH);
+    git('merge', '--ff-only', nhanhHienTai);
+  } else {
+    // Lần đầu: tạo nhánh ngay tại mốc phát hành này.
+    git('checkout', '-b', NHANH_PH);
+    console.log(`  (tạo mới nhánh ${NHANH_PH})`);
+  }
+  daMerge = true;
+  git('checkout', nhanhHienTai);
+  console.log(`✓ Đã đưa v${moi} sang nhánh ${NHANH_PH}`);
+} catch (e) {
+  // Quay về nhánh cũ để không bỏ người chạy ở trạng thái lơ lửng.
+  try { git('checkout', nhanhHienTai); } catch { /* đã ở đó rồi */ }
+  console.error(`✗ Không merge được sang ${NHANH_PH}: ${e?.message ?? e}`);
+  console.error(`  Bản phát hành v${moi} vẫn nằm trên ${nhanhHienTai}. Xử lý tay rồi merge lại.`);
+}
+
 if (PUSH) {
-  git('push', 'origin', 'HEAD');
+  git('push', 'origin', nhanhHienTai);
+  if (daMerge) git('push', 'origin', NHANH_PH);
   git('push', 'origin', `v${moi}`);
-  console.log('✓ Đã push commit và tag');
+  console.log('✓ Đã push cả hai nhánh và tag');
 } else {
-  console.log(`Đẩy lên: git push origin HEAD && git push origin v${moi}`);
+  console.log(
+    `Đẩy lên: git push origin ${nhanhHienTai}` +
+      (daMerge ? ` && git push origin ${NHANH_PH}` : '') +
+      ` && git push origin v${moi}`,
+  );
 }

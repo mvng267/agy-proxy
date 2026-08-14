@@ -4,6 +4,7 @@ import { resolve, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { config } from './config.js';
 import log from './lib/logger.js';
 
 /**
@@ -111,18 +112,32 @@ export function coBanMoi(v: {
   return true;
 }
 
+/**
+ * Nhánh lấy bản cập nhật. Mặc định `production` — nhánh CHỈ nhận bản đã phát hành.
+ *
+ * Trước đây khoá cứng `main` ở sáu chỗ, nên mọi commit dở dang lập tức hiện thành "có bản
+ * mới" trên dashboard máy thật. Đọc từ config để máy test đặt `main` mà nhận bản sớm.
+ */
+function nhanhCapNhat(): string {
+  return config.updateBranch || 'production';
+}
+
 async function fetchRemoteVersion(): Promise<string> {
+  const nhanh = nhanhCapNhat();
   // API GitHub trước: raw.githubusercontent.com dính CDN cache tới vài phút, nên vừa
   // push xong hỏi ngay vẫn ra bản cũ.
-  const api = await fetch(`https://api.github.com/repos/${REPO}/contents/package.json?ref=main`, {
-    headers: { accept: 'application/vnd.github+json', 'user-agent': 'agyproxy' },
-    signal: AbortSignal.timeout(15_000),
-  });
+  const api = await fetch(
+    `https://api.github.com/repos/${REPO}/contents/package.json?ref=${encodeURIComponent(nhanh)}`,
+    {
+      headers: { accept: 'application/vnd.github+json', 'user-agent': 'agyproxy' },
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
   if (api.ok) {
     const j = (await api.json()) as { content?: string };
     if (j.content) return JSON.parse(Buffer.from(j.content, 'base64').toString('utf8')).version;
   }
-  const raw = await fetch(`https://raw.githubusercontent.com/${REPO}/main/package.json`, {
+  const raw = await fetch(`https://raw.githubusercontent.com/${REPO}/${encodeURIComponent(nhanh)}/package.json`, {
     // Ép bỏ cache CDN bằng query, `cache:'no-store'` không có trong undici RequestInit.
     headers: { 'cache-control': 'no-cache' },
     signal: AbortSignal.timeout(15_000),
@@ -153,9 +168,9 @@ async function localCommit(): Promise<string | null> {
   }
 }
 
-/** SHA mới nhất của `main` trên GitHub. */
+/** SHA mới nhất của nhánh cập nhật trên GitHub. */
 async function fetchRemoteCommit(): Promise<string | null> {
-  const r = await fetch(`https://api.github.com/repos/${REPO}/commits/main`, {
+  const r = await fetch(`https://api.github.com/repos/${REPO}/commits/${encodeURIComponent(nhanhCapNhat())}`, {
     headers: { accept: 'application/vnd.github+json', 'user-agent': 'agyproxy' },
     signal: AbortSignal.timeout(15_000),
   });
@@ -167,16 +182,18 @@ async function fetchRemoteCommit(): Promise<string | null> {
 /**
  * Đếm commit đang thiếu + lấy tiêu đề của chúng.
  *
- * `git fetch` trước, nếu không `origin/main` là bản đã cache từ lần pull cuối và số đếm
+ * `git fetch` trước, nếu không `origin/<nhánh>` là bản đã cache từ lần pull cuối và số đếm
  * luôn ra 0. Fetch không đụng gì tới cây làm việc nên an toàn khi đang phục vụ request.
  */
 async function dangThieu(): Promise<{ behind: number | null; commits: string[] }> {
+  const nhanh = nhanhCapNhat();
+  const doi = `HEAD..origin/${nhanh}`;
   try {
-    await execFileAsync('git', ['-C', ROOT, 'fetch', '--quiet', 'origin', 'main'], { timeout: 60_000 });
-    const { stdout: n } = await execFileAsync('git', ['-C', ROOT, 'rev-list', '--count', 'HEAD..origin/main'], { timeout: 30_000 });
+    await execFileAsync('git', ['-C', ROOT, 'fetch', '--quiet', 'origin', nhanh], { timeout: 60_000 });
+    const { stdout: n } = await execFileAsync('git', ['-C', ROOT, 'rev-list', '--count', doi], { timeout: 30_000 });
     const { stdout: ds } = await execFileAsync(
       'git',
-      ['-C', ROOT, 'log', '--oneline', '--no-decorate', '-8', 'HEAD..origin/main'],
+      ['-C', ROOT, 'log', '--oneline', '--no-decorate', '-8', doi],
       { timeout: 30_000 },
     );
     return {
@@ -376,7 +393,9 @@ export async function runUpdate(onStep?: (s: UpdateStep) => void): Promise<Updat
     }
   };
 
-  if (!(await run('git pull', 'git', ['-C', ROOT, 'pull', '--ff-only']))) return steps;
+  // Nói RÕ nhánh: `git pull` trần đi theo upstream đang cấu hình, có thể khác nhánh mà
+  // `checkUpdate` vừa so — khi đó thẻ báo "có bản mới" mà bấm vào lại kéo về thứ khác.
+  if (!(await run('git pull', 'git', ['-C', ROOT, 'pull', '--ff-only', 'origin', nhanhCapNhat()]))) return steps;
   if (!(await run('npm install', 'npm', ['install', '--omit=dev', '--no-fund', '--no-audit']))) {
     // Dependency không cài được thì code mới chắc chắn không chạy — lùi.
     await lui('npm install thất bại');
