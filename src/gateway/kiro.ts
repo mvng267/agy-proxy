@@ -199,25 +199,12 @@ export async function fetchKiroUsage(
   };
 }
 
-/** Danh sách model thật của account (dùng để đối chiếu khi Kiro đổi danh mục). */
-export async function fetchKiroModels(accessToken: string, profileArn?: string, dispatcher?: Dispatcher): Promise<{ id: string; name: string; credit: number }[]> {
-  const res = await fetch(KIRO_Q_URL, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${accessToken}`,
-      'content-type': 'application/x-amz-json-1.0',
-      'x-amz-target': 'AmazonCodeWhispererService.ListAvailableModels',
-      'user-agent': 'aws-sdk-js/1.28.1 KiroIDE-0.7.45',
-      'amz-sdk-invocation-id': randomUUID(),
-    },
-    body: JSON.stringify({ origin: 'AI_EDITOR', ...(profileArn ? { profileArn } : {}) }),
-    signal: AbortSignal.timeout(30_000),
-    ...(dispatcher ? ({ dispatcher } as any) : {}),
-  });
-  if (!res.ok) return [];
-  const j = (await res.json()) as any;
-  return (j?.models ?? []).map((m: any) => ({ id: m.modelId, name: m.modelName, credit: Number(m.rateMultiplier ?? 1) }));
-}
+/**
+ * ĐÃ GỠ `fetchKiroModels()` — hỏi upstream danh mục model, 0 caller.
+ *
+ * Danh sách dùng thật là hằng `KIRO_MODELS` trong file này. Cần đối chiếu khi Kiro đổi
+ * danh mục thì gọi tay `ListAvailableModels` một lần, không cần giữ hàm chết trong repo.
+ */
 
 export interface KiroCredential {
   accessToken?: string;

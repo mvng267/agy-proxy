@@ -151,12 +151,7 @@ export async function consentStep(ctx: RunContext, page: Page, email: string): P
   return false;
 }
 
-/** Tiện: lặp consentStep vài lần (cho luồng không cần chờ code song song). */
-export async function pickAccountAndConsent(ctx: RunContext, page: Page): Promise<void> {
-  for (let i = 0; i < 6; i++) {
-    if (!(await consentStep(ctx, page, ctx.account.email))) break;
-  }
-}
+// ĐÃ GỠ `pickAccountAndConsent()` — 0 caller; `makeOAuthFlow` tự lặp `consentStep`.
 
 export function makeOAuthFlow(provider: string, target: 'agy' | 'gcli') {
   return async function oauthFlow(ctx: RunContext): Promise<void> {

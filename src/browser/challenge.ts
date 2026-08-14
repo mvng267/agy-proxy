@@ -71,11 +71,4 @@ export async function detectChallenge(page: Page): Promise<ChallengeHit | null> 
   return null;
 }
 
-/** Đã đăng nhập Google thành công? */
-export async function isGoogleLoggedIn(page: Page): Promise<boolean> {
-  const url = page.url();
-  if (/myaccount\.google\.com/i.test(url)) return true;
-  // trang account chọn dịch vụ, hoặc đã rời khỏi luồng signin
-  if (/accounts\.google\.com\/(b\/0\/)?ManageAccount/i.test(url)) return true;
-  return false;
-}
+// ĐÃ GỠ `isGoogleLoggedIn()` — 0 caller; các flow tự kiểm bằng URL đích của riêng chúng.

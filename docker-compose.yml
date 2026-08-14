@@ -11,8 +11,7 @@ services:
       HEADLESS: "true"
       CHROME_NO_SANDBOX: "1"
       # OmniRoute chạy ngoài container (trên host) → host.docker.internal
-      OMNIROUTE_URL: "http://host.docker.internal:20128"
-      # Các env khác (OMNIROUTE_PASSWORD, GATEWAY_*, PACING_*, DAILY_LOGIN_CAP…)
+      # Các env khác (GATEWAY_*, PACING_*, DAILY_LOGIN_CAP…)
       # đọc từ .env nếu có (bỏ comment env_file bên dưới).
     # env_file:
     #   - .env

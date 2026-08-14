@@ -184,11 +184,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return { queued: true };
   });
 
-  app.post('/api/run-pipeline', async (req) => {
-    const { email, flows } = req.body as { email: string; flows?: FlowKey[] };
-    scheduler.enqueuePipeline(email, flows ?? PIPELINE);
-    return { queued: true };
-  });
+  // ĐÃ GỠ: `POST /api/run-pipeline` — 0 caller; UI dùng `/api/run` và `/api/auto-run`.
 
   /**
    * Chạy lại hàng loạt. `statuses` lọc theo trạng thái để không trộn các nhóm hỏng
@@ -228,48 +224,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
   app.get('/api/pending-human', async () => ({ pending: pendingHumanRuns() }));
 
-  // ---------- summary (stats) ----------
-  app.get('/api/summary', async () => {
-    const accounts = store.listAccounts();
-    const counts: Record<string, Record<string, number>> = {};
-    for (const f of PIPELINE) counts[f] = { ok: 0, failed: 0, needs_human: 0, new: 0, running: 0 };
-    for (const a of accounts) {
-      for (const f of PIPELINE) {
-        const st = a[`status_${f}` as keyof typeof a] as string;
-        const bucket = counts[f]!;
-        bucket[st] = (bucket[st] ?? 0) + 1;
-      }
-    }
-    // OmniRoute đã gỡ — giữ hai trường để client cũ đọc không vỡ, luôn báo offline.
-    const connectionCount = 0;
-    const omniOk = false;
-    // Số account/mỗi proxy (IP) — cảnh báo checkpoint chain nếu quá đông.
-    const proxyLoad: Record<string, number> = {};
-    for (const a of accounts) {
-      const key = a.proxy || '(direct)';
-      proxyLoad[key] = (proxyLoad[key] ?? 0) + 1;
-    }
-    const maxPerProxy = Math.max(0, ...Object.values(proxyLoad));
-    // health tổng hợp
-    const creds = store.listCredentials();
-    const health = {
-      alive: creds.filter((c) => c.health === 'alive').length,
-      dead: creds.filter((c) => c.health === 'dead').length,
-    };
-    return {
-      totalAccounts: accounts.length,
-      totalProxies: store.listProxies().length,
-      flows: PIPELINE,
-      counts,
-      omniOk,
-      connectionCount,
-      proxyLoad,
-      maxPerProxy,
-      health,
-      dailyCap: config.dailyLoginCap,
-      sched: scheduler.status(),
-    };
-  });
+  /**
+   * ĐÃ GỠ: `GET /api/summary` — `/api/overview` đã thay thế hoàn toàn (0 caller).
+   *
+   * Nó còn giữ hai trường `omniOk`/`connectionCount` cứng bằng 0/false "để client cũ đọc
+   * không vỡ" — mà không còn client cũ nào. Phần `proxyLoad` đã có trong `/api/overview`.
+   */
 
   // ---------- overview (gộp cho trang Tổng quan) ----------
   app.get('/api/overview', async () => {
@@ -339,9 +299,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         estimated: pid === 'kr', // Kiro không trả usage → token là ước lượng
       };
     });
-    const omniOk = false; // OmniRoute đã gỡ
     // Phân bố account trên mỗi IP — nhiều account chung 1 IP dễ kéo checkpoint chain
-    // (xem docs/DECISIONS.md §5). Trước đây chỉ /api/summary có, Tổng quan không vẽ được.
+    // (xem docs/DECISIONS.md §5).
     const proxyLoad: Record<string, number> = {};
     for (const a of accounts) {
       const k = a.proxy || '(direct)';
@@ -364,7 +323,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       },
       usage,
       sched: scheduler.status(),
-      omniOk,
     };
   });
 
@@ -525,42 +483,15 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
 
 
-  // ---------- config / credentials ----------
-  app.get('/api/config', async () => ({
-    pacing: config.pacing,
-    dailyCap: config.dailyLoginCap,
-    headless: config.headless,
-    fingerprint: config.fingerprint,
-    chromeMajor: config.chromeMajor,
-    tokenHealthHours: config.tokenHealthHours,
-    flows: PIPELINE,
-  }));
-
-  // Cập nhật config runtime (pacing / cap / headless). Không ghi .env.
-  app.patch('/api/config', async (req) => {
-    const b = req.body as {
-      pacingMinSec?: number;
-      pacingMaxSec?: number;
-      dailyCap?: number;
-      headless?: boolean;
-      fingerprint?: boolean;
-    };
-    // Tương thích ngược — nay GHI DB qua setConfig để sống qua restart.
-    const patch: Record<string, unknown> = {};
-    if (typeof b.pacingMinSec === 'number') patch.pacingMinSec = Math.max(0, b.pacingMinSec);
-    if (typeof b.pacingMaxSec === 'number') patch.pacingMaxSec = Math.max(0, b.pacingMaxSec);
-    if (typeof b.dailyCap === 'number') patch.dailyLoginCap = Math.max(0, b.dailyCap);
-    if (typeof b.headless === 'boolean') patch.headless = b.headless;
-    if (typeof b.fingerprint === 'boolean') patch.fingerprint = b.fingerprint;
-    setConfig(patch);
-    return {
-      ok: true,
-      pacing: config.pacing,
-      dailyCap: config.dailyLoginCap,
-      headless: config.headless,
-      fingerprint: config.fingerprint,
-    };
-  });
+  // ---------- credentials ----------
+  /**
+   * ĐÃ GỠ: `GET/PATCH /api/config` — đường ghi cấu hình thứ BA, 0 caller ở web, CLI, MCP.
+   *
+   * Nó dịch tay 5 trường (`pacingMinSec`, `dailyCap`…) thay vì đi qua `applyConfig()`, nên
+   * không có validate lẫn `rejected`. Hai đường còn lại là đủ và đều dùng `applyConfig`:
+   *   · `PATCH /api/settings`       — CLI (`agyproxy model --big/--small`)
+   *   · `PATCH /api/gateway/config` — dashboard
+   */
 
   app.get('/api/credentials', async () => ({ credentials: store.listCredentials() }));
 
@@ -571,50 +502,13 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true, ...stats };
   });
 
-  // Export cho "antigravity manager": [{ email, refresh_token }] — chỉ account đã có refresh_token thật.
-  app.get('/api/export/antigravity', async (_req, reply) => {
-    const rows = store
-      .listCredentials()
-      .filter((c) => c.target === 'agy' && c.value.startsWith('1//'))
-      .map((c) => ({ email: c.email, refresh_token: c.value }));
-    const date = new Date().toISOString().slice(0, 10);
-    reply
-      .header('content-type', 'application/json; charset=utf-8')
-      .header('content-disposition', `attachment; filename="antigravity_accounts_${date}.json"`);
-    return rows;
-  });
-
-  // Export Kiro: [{ email, refresh_token }] từ credential kiro (value JSON).
-  app.get('/api/export/kiro', async (_req, reply) => {
-    const rows = store
-      .listCredentials()
-      .filter((c) => c.target === 'kiro')
-      .map((c) => {
-        let rt = c.value;
-        try {
-          rt = (JSON.parse(c.value) as { refreshToken?: string }).refreshToken ?? c.value;
-        } catch {
-          /* value thô */
-        }
-        return { email: c.email, refresh_token: rt };
-      })
-      .filter((r) => r.refresh_token);
-    const date = new Date().toISOString().slice(0, 10);
-    reply
-      .header('content-type', 'application/json; charset=utf-8')
-      .header('content-disposition', `attachment; filename="kiro_accounts_${date}.json"`);
-    return rows;
-  });
-
-  // Export accounts.csv (backup).
-  app.get('/api/export/accounts', async (_req, reply) => {
-    const csv = readFileSync(CSV.accounts, 'utf8');
-    const date = new Date().toISOString().slice(0, 10);
-    reply
-      .header('content-type', 'text/csv; charset=utf-8')
-      .header('content-disposition', `attachment; filename="accounts_${date}.csv"`);
-    return csv;
-  });
+  /**
+   * ĐÃ GỠ: `/api/export/{antigravity,kiro,accounts}`.
+   *
+   * Không trang nào, CLI nào, MCP nào gọi (grep 0 hit ở cả bốn nơi). Và chúng trả
+   * **refresh token nguyên văn** của cả pool — xoá vừa dọn code vừa bớt một đường rò.
+   * Muốn sao lưu thì dùng `/api/backup/export` (CLI đang dùng, có đủ ngữ cảnh khôi phục).
+   */
 
   // Retry: xếp lại các flow đã chọn cho account đang failed/needs_human.
   app.post('/api/retry-failed', async (req) => {

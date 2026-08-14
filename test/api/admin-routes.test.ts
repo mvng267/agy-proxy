@@ -71,7 +71,8 @@ const POOL_STATUS = [
 const THU_NGHIEM = [
   '/api/gateway/chat',
   '/api/gateway/accounts/check',
-  '/api/gateway/accounts/test-bulk',
+  // `test-bulk` ĐÃ GỠ — nó chỉ là alias của `/accounts/check` mode token, 0 caller ở web,
+  // CLI lẫn MCP. Xem `test/api/dead-routes.test.ts`.
   '/api/gateway/models/check',
   '/api/gateway/probe',
 ];
@@ -131,9 +132,13 @@ describe('cắt file không làm mất endpoint', () => {
      * `printRoutes` — cả hai đều ra **48**. Con số này chỉ được TĂNG; giảm nghĩa là một
      * nhóm rơi mất trong lúc dọn file, thứ khó thấy nhất vì typecheck vẫn sạch và mọi
      * test quét-chữ vẫn xanh.
+     *
+     * 48 → **47** ngày 13/08/2026: gỡ CÓ CHỦ ĐÍCH `POST /accounts/test-bulk`, vốn chỉ là
+     * alias của `/accounts/check` mode token và không có caller nào (web, CLI, MCP đều 0
+     * hit). Hạ mốc là việc phải làm TỪNG LẦN, kèm lý do — không được hạ để cho test xanh.
      */
     const cay = app.printRoutes({ commonPrefix: false });
     const n = cay.split('\n').filter((l) => /\((GET|POST|PATCH|DELETE)/.test(l)).length;
-    assert.ok(n >= 48, `chỉ còn ${n} route, trước khi tách có 48 — có nhóm bị rơi`);
+    assert.ok(n >= 47, `chỉ còn ${n} route, mốc hiện tại là 47 — có nhóm bị rơi`);
   });
 });

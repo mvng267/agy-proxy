@@ -66,9 +66,6 @@ let bareMode = false;
 export function setBareMode(on: boolean): void {
   bareMode = on;
 }
-export function isBareMode(): boolean {
-  return bareMode;
-}
 
 export type ModelKind = 'provider' | 'combo' | 'auto';
 

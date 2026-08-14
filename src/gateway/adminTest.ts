@@ -194,12 +194,26 @@ export function registerTestRoutes(app: FastifyInstance): void {
     return { ok: true, email, ...r };
   });
 
-  /** Danh sách account đích cho check hàng loạt: theo emails/khoá ghép, hoặc cả pool. */
+  /**
+   * Danh sách account đích cho check hàng loạt: theo emails/khoá ghép, hoặc cả pool.
+   *
+   * Email TRẦN áp cho MỌI provider của email đó. Bản trước hard-code `pool.get(e, 'agy')`,
+   * nên với 351 email có cả hai provider thì lệnh check không bao giờ chạm được account
+   * Kiro — người dùng chọn account rồi bấm Kiểm tra, chỉ nửa số account được kiểm.
+   */
   function bulkTargets(emails?: string[]): PoolAccount[] {
     syncFromStore();
-    return (emails && emails.length
-      ? emails.map((e) => (e.includes(':') ? pool.getByKey(e) : pool.get(e, 'agy'))).filter(Boolean)
-      : pool.list()) as PoolAccount[];
+    if (!emails?.length) return pool.list();
+    const out: PoolAccount[] = [];
+    for (const e of emails) {
+      if (e.includes(':')) {
+        const a = pool.getByKey(e);
+        if (a) out.push(a);
+      } else {
+        out.push(...pool.list().filter((a) => a.email === e));
+      }
+    }
+    return out;
   }
 
   /**
@@ -240,13 +254,7 @@ export function registerTestRoutes(app: FastifyInstance): void {
     return { queued: targets.length, mode: m };
   });
 
-  // giữ tương thích: test-bulk = check mode token
-  app.post('/api/gateway/accounts/test-bulk', async (req) => {
-    const { emails } = (req.body as { emails?: string[] }) ?? {};
-    const targets = bulkTargets(emails);
-    runBulkCheck(targets, 'token').catch(() => {});
-    return { queued: targets.length };
-  });
+  // ĐÃ GỠ: `test-bulk` — alias của `/accounts/check` mode token, 0 caller.
 
   // ---------------- Check live model ----------------
   app.post('/api/gateway/models/check', async (req) => {

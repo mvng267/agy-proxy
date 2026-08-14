@@ -555,27 +555,12 @@ export async function* generateStream(
   yield { usage, finishReason, done: true };
 }
 
-// ---------- models & credits (best-effort) ----------
-export async function fetchModels(
-  accessToken: string,
-  projectId: string,
-  dispatcher?: Dispatcher,
-): Promise<ModelInfo[]> {
-  try {
-    const data = await apiCall(accessToken, 'listModels', { project: projectId }, { dispatcher, control: true });
-    const raw: any[] = data?.models ?? [];
-    const list = raw
-      .map((m) => {
-        const id = m.name || m.id || m.model;
-        if (!id) return null;
-        return { id: String(id), label: m.displayName || String(id), image: isImageModel(String(id)) };
-      })
-      .filter(Boolean) as ModelInfo[];
-    return list.length ? list : MODELS;
-  } catch {
-    return MODELS;
-  }
-}
+/**
+ * ĐÃ GỠ `fetchModels()` — hỏi upstream danh sách model, 0 caller.
+ *
+ * Danh sách dùng thật là hằng `MODELS` ngay trong file này: nó mang thêm `bucket`,
+ * `maxInput`, `imageIn/imageOut` mà `listModels` của upstream không trả.
+ */
 
 // ---------- hạn mức (retrieveUserQuotaSummary + fetchAvailableModels) ----------
 export interface QuotaBucketInfo {

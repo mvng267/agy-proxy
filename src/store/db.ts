@@ -791,9 +791,6 @@ export function getApiKeyByPrefix(prefix: string): ApiKeyRow | undefined {
   return prep(`SELECT * FROM api_keys WHERE prefix = ?`).get(prefix) as any;
 }
 
-export function getApiKey(id: string): ApiKeyRow | undefined {
-  return db.prepare(`SELECT * FROM api_keys WHERE id = ?`).get(id) as any;
-}
 
 export function insertApiKey(r: Omit<ApiKeyRow, 'last_used'>): void {
   db.prepare(
@@ -844,9 +841,6 @@ export function comboRevision(): number {
 
 export function listComboRows(): ComboRow[] {
   return db.prepare(`SELECT * FROM combos ORDER BY id`).all() as any[];
-}
-export function getComboRow(id: string): ComboRow | undefined {
-  return db.prepare(`SELECT * FROM combos WHERE id = ?`).get(id) as any;
 }
 export function upsertComboRow(r: { id: string; name: string; strategy: string; targets: unknown; enabled?: boolean }): void {
   const now = Date.now();
@@ -1375,6 +1369,13 @@ export function usageFacets(
 // ---------------------------------------------------------------------------
 
 /** Bảng đi theo backup, kèm ghi chú vì sao. */
+/**
+ * Danh sách TRẮNG — bảng nào không có tên ở đây thì không bao giờ được backup.
+ *
+ * Cố ý vắng mặt: `sessions` (cookie đăng nhập của riêng máy đó, mang sang máy khác là lỗ
+ * hổng) và `auth_log` (nhật ký đăng nhập theo IP của máy cũ, vô nghĩa ở máy mới — tệ hơn
+ * là mang theo lịch sử đăng nhập sai sẽ khoá nhầm người dùng ở máy mới).
+ */
 export const BACKUP_TABLES = {
   /** Định danh người dùng. Hash không tái tạo được → mất là phải phát lại key. */
   api_keys: 'core',
@@ -1391,13 +1392,6 @@ export const BACKUP_TABLES = {
 } as const;
 
 export type BackupTable = keyof typeof BACKUP_TABLES;
-
-/**
- * KHÔNG backup: `sessions` (cookie đăng nhập của riêng máy đó, mang sang máy khác là
- * lỗ hổng) và `auth_log` (nhật ký đăng nhập theo IP của máy cũ, vô nghĩa ở máy mới —
- * tệ hơn là mang theo lịch sử đăng nhập sai sẽ khoá nhầm người dùng ở máy mới).
- */
-export const BACKUP_SKIP_TABLES = ['sessions', 'auth_log', 'settings', 'combos'] as const;
 
 export function dumpTable(table: BackupTable, limit?: number): Record<string, unknown>[] {
   if (!(table in BACKUP_TABLES)) throw new Error(`bảng không nằm trong danh sách backup: ${table}`);
