@@ -38,19 +38,35 @@ interface Step {
   detail?: string
 }
 
+/**
+ * Trạng thái cập nhật — MỘT nguồn dùng chung cho cả sidebar lẫn trang Cài đặt.
+ *
+ * Cùng `queryKey` nên React Query gộp làm một lời gọi mạng, và hai nơi không thể lệch
+ * nhau. Tách ra vì `UpdatePanel` chỉ nằm trong trang Cài đặt, mà chỉ báo thì phải hiện ở
+ * sidebar — chỗ luôn nhìn thấy.
+ *
+ * CÓ poll, khác bản trước. Không poll thì thẻ đứng im tới khi người dùng tự nhớ mà vào
+ * bấm "Kiểm tra lại" — production từng chạy 8 commit cũ nhiều ngày mà không ai biết.
+ *
+ * 30 phút, không dày hơn: mỗi lần hỏi là một request ra GitHub API, vốn giới hạn 60
+ * lượt/giờ theo IP khi không có token. Bản mới không xuất hiện theo phút.
+ */
+export function useUpdateCheck() {
+  return useQuery({
+    queryKey: ["systemUpdate"],
+    queryFn: () => api.get<UpdateInfo>("/api/system/update"),
+    refetchInterval: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60_000,
+  })
+}
+
 export function UpdatePanel() {
   const [steps, setSteps] = useState<Step[]>([])
   const [running, setRunning] = useState(false)
   const [done, setDone] = useState<string | null>(null)
 
-  const q = useQuery({
-    queryKey: ["systemUpdate"],
-    queryFn: () => api.get<UpdateInfo>("/api/system/update"),
-    // Không poll: mỗi lần hỏi là một request ra GitHub, và bản mới không xuất hiện
-    // theo phút. Người dùng bấm "Kiểm tra lại" khi cần.
-    refetchOnWindowFocus: false,
-    staleTime: 5 * 60_000,
-  })
+  const q = useUpdateCheck()
 
   const d = q.data
 

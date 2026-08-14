@@ -31,6 +31,7 @@ import {
 
 const REPO_URL = "https://github.com/mvng267/agy-proxy"
 import { api } from "@/lib/api"
+import { useUpdateCheck } from "@/components/common/UpdatePanel"
 import { getTheme, setTheme, type Theme } from "@/lib/theme"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -167,6 +168,13 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
   })
   const pendingCount = pendingData?.pending?.length ?? 0
 
+  /**
+   * Có bản mới không — dùng CHUNG `queryKey` với `UpdatePanel` nên React Query gộp thành
+   * một lời gọi mạng, và hai nơi không thể hiện hai câu trả lời khác nhau.
+   */
+  const { data: capNhat } = useUpdateCheck()
+  const coBanMoi = !!capNhat?.hasUpdate
+
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
       {/* Atlas: header cao 52px, padding 8px, logo 14px/600 — không có dòng version phụ và
@@ -232,6 +240,18 @@ export function AppSidebar({ activeTab, onTabChange, accountCount, poolCount }: 
                     {item.tab === "agy" && poolCount != null && (
                       <SidebarMenuBadge className="bg-primary/12 text-primary text-[10px] px-1.5 rounded-[6px]">
                         {poolCount}
+                      </SidebarMenuBadge>
+                    )}
+                    {/*
+                      Có bản mới → báo ngay ở sidebar.
+
+                      `UpdatePanel` nằm trong trang Cấu hình, mà không ai vào đó hằng ngày:
+                      production từng chạy 8 commit cũ suốt nhiều ngày không ai biết. Chỉ
+                      báo phải ở chỗ luôn nhìn thấy, và bấm vào là tới đúng nơi cập nhật.
+                    */}
+                    {item.tab === "settings" && coBanMoi && (
+                      <SidebarMenuBadge className="bg-primary/12 text-primary text-[10px] px-1.5 rounded-[6px]">
+                        mới
                       </SidebarMenuBadge>
                     )}
                   </SidebarMenuItem>
