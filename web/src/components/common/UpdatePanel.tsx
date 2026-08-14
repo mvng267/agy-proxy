@@ -17,6 +17,17 @@ interface UpdateInfo {
   latest: string | null
   hasUpdate: boolean
   canSelfUpdate: boolean
+  /**
+   * Bản mới được nhận ra bằng COMMIT, không phải version.
+   *
+   * Version là thứ hay quên bump: đo 12/08/2026, 8 commit gần nhất — kể cả bản vá vòng
+   * quota tắc 28 giờ — đều giữ nguyên `2.18.1`, nên thẻ này báo "đã là bản mới nhất"
+   * suốt trong khi thiếu 8 commit.
+   */
+  localSha: string | null
+  remoteSha: string | null
+  behind: number | null
+  commits: string[]
   error?: string
 }
 interface Step {
@@ -84,7 +95,8 @@ export function UpdatePanel() {
             <span className="text-xs text-warning">không kiểm tra được: {d.error.slice(0, 60)}</span>
           ) : d?.hasUpdate ? (
             <span className="rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
-              có bản mới v{d.latest}
+              {d.behind ? `thiếu ${d.behind} commit` : "có bản mới"}
+              {d.latest && d.latest !== d.current ? ` · v${d.latest}` : ""}
             </span>
           ) : (
             <span className="text-xs text-success">đã là bản mới nhất</span>
@@ -104,7 +116,7 @@ export function UpdatePanel() {
             {d?.hasUpdate && d.canSelfUpdate ? (
               <Button size="sm" onClick={doUpdate} disabled={running} className="h-8 gap-1 text-xs">
                 {running ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                {running ? "Đang cập nhật…" : `Cập nhật lên v${d.latest}`}
+                {running ? "Đang cập nhật…" : "Cập nhật ngay"}
               </Button>
             ) : null}
           </div>
@@ -116,6 +128,23 @@ export function UpdatePanel() {
             Bản cài này không phải git checkout nên không tự cập nhật được. Chạy trên máy chủ:{" "}
             <code className="rounded bg-muted px-1 text-foreground">agyproxy update</code>
           </p>
+        ) : null}
+
+        {/*
+          Cho biết SẮP CÀI GÌ trước khi bấm. Bản trước chỉ hiện số version, mà version lại
+          hay không đổi — người dùng không có cách nào biết mình đang thiếu những gì.
+        */}
+        {d?.hasUpdate && d.commits?.length && !steps.length ? (
+          <ul className="space-y-0.5 rounded-md border border-border bg-background/60 p-2 text-xs text-muted-foreground">
+            {d.commits.map((c) => (
+              <li key={c} className="truncate font-mono">
+                {c}
+              </li>
+            ))}
+            {d.behind && d.behind > d.commits.length ? (
+              <li className="text-muted-foreground">… và {d.behind - d.commits.length} commit nữa</li>
+            ) : null}
+          </ul>
         ) : null}
 
         {done ? <p className="text-xs text-foreground">{done}</p> : null}

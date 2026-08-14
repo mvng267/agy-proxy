@@ -10,7 +10,7 @@
  *   agyproxy version      phiên bản hiện tại
  */
 import { spawn, execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, openSync, statSync, readdirSync } from 'node:fs';
 import { homedir, networkInterfaces } from 'node:os';
@@ -367,67 +367,68 @@ function gitAvailable() {
   try { execFileSync('git', ['-C', ROOT, 'rev-parse', '--git-dir'], { stdio: 'ignore' }); return true; } catch { return false; }
 }
 
-async function update(check) {
-  console.log(c.d(`Hiện tại: v${PKG.version} · kiểm tra ${REPO}…`));
-  let remote;
+/**
+ * Cập nhật — dùng CHUNG `src/updater.ts` với dashboard.
+ *
+ * Trước đây đây là bản thứ hai, chép gần y hệt (~65 dòng). Chúng ĐÃ lệch nhau thật:
+ * dashboard dọn `web/dist` trước khi pull còn CLI thì chưa, nên `agyproxy update` trên
+ * production chết với "local changes to web/dist/index.html would be overwritten". Vá
+ * xong bên này thì bên kia lại thiếu thứ khác.
+ *
+ * CLI vẫn giữ hai việc mà dashboard không làm được: DỪNG tiến trình trước khi cập nhật
+ * (tránh ghi đè file đang chạy) và KHỞI ĐỘNG LẠI sau khi xong.
+ */
+/**
+ * Nạp `src/updater.ts` từ CLI (chạy bằng `node` thuần, không hiểu TypeScript).
+ *
+ * `tsx/esm/api` cho phép đăng ký loader ngay trong tiến trình, thay vì phải chạy lại
+ * chính mình dưới `node --import tsx`.
+ */
+async function napUpdater() {
+  const { register } = await import('tsx/esm/api');
+  const unregister = register();
   try {
-    // GitHub API trước (không dính CDN cache như raw.githubusercontent.com)
-    const api = await fetch(`https://api.github.com/repos/${REPO}/contents/package.json?ref=main`, {
-      headers: { accept: 'application/vnd.github+json', 'user-agent': 'agyproxy-cli' },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (api.ok) {
-      const j = await api.json();
-      remote = JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
-    } else {
-      const raw = await fetch(`https://raw.githubusercontent.com/${REPO}/main/package.json`, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
-      if (!raw.ok) throw new Error(`HTTP ${raw.status}`);
-      remote = JSON.parse(await raw.text());
-    }
-  } catch (e) {
-    console.log(c.r('✗ Không kiểm tra được phiên bản: ') + (e?.message ?? e));
+    return await import(pathToFileURL(resolve(ROOT, 'src/updater.ts')).href);
+  } finally {
+    unregister();
+  }
+}
+
+async function update(check) {
+  const { checkUpdate, runUpdate } = await napUpdater();
+
+  console.log(c.d(`Hiện tại: v${PKG.version} · kiểm tra ${REPO}…`));
+  const info = await checkUpdate();
+  if (info.error && !info.hasUpdate) {
+    console.log(c.r('✗ Không kiểm tra được: ') + info.error);
     return;
   }
-  const cmp = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; };
-  if (cmp(remote.version, PKG.version) <= 0) { console.log(c.g(`✓ Đang dùng bản mới nhất (v${PKG.version})`)); return; }
-  console.log(c.y(`→ Có bản mới: v${remote.version}`));
+  if (!info.hasUpdate) {
+    console.log(c.g(`✓ Đang dùng bản mới nhất (v${info.current})`));
+    return;
+  }
+
+  // So theo COMMIT nên phải nói rõ thiếu gì — version thường không đổi giữa các bản vá.
+  console.log(c.y(`→ Thiếu ${info.behind ?? '?'} commit` + (info.latest !== info.current ? ` · v${info.latest}` : '')));
+  for (const l of info.commits ?? []) console.log(c.d('    ' + l));
   if (check) { console.log(c.d('  Chạy: agyproxy update')); return; }
+
+  if (!info.canSelfUpdate) {
+    console.log(c.r('✗ Bản cài không phải git checkout.'));
+    console.log(c.d(`  Cài lại: npm i -g github:${REPO}`));
+    return;
+  }
 
   const wasRunning = readPid();
   if (wasRunning) { console.log(c.d('  Dừng tiến trình để cập nhật…')); stop(); }
-  try {
-    if (gitAvailable()) {
-      // `web/dist` ĐƯỢC commit (server serve dashboard từ đó) nên chính bước build của
-      // lần cập nhật trước làm thư mục bẩn → `pull --ff-only` chết với "local changes
-      // would be overwritten". Dist là sản phẩm build, không phải code: dọn trước.
-      // Bản trên dashboard (src/updater.ts) đã làm việc này; CLI thiếu nên hai đường
-      // lệch nhau — gặp thật khi cập nhật production bằng CLI.
-      console.log(c.d('  dọn web/dist…'));
-      try { execFileSync('git', ['-C', ROOT, 'checkout', '--', 'web/dist'], { stdio: 'ignore' }); } catch {}
-      try { execFileSync('git', ['-C', ROOT, 'clean', '-fd', 'web/dist'], { stdio: 'ignore' }); } catch {}
-      try { execFileSync('git', ['-C', ROOT, 'checkout', '--', 'package-lock.json'], { stdio: 'ignore' }); } catch {}
-      console.log(c.d('  git pull…'));
-      execFileSync('git', ['-C', ROOT, 'pull', '--ff-only'], { stdio: 'inherit' });
-      execFileSync('npm', ['install', '--omit=dev'], { cwd: ROOT, stdio: 'inherit' });
-      // Web build cần devDeps (vite, @types/node); NODE_ENV=production khiến npm bỏ chúng.
-      if (existsSync(resolve(ROOT, 'web/package.json'))) {
-        console.log(c.d('  build web…'));
-        const webDir = resolve(ROOT, 'web');
-        // install cần development (để có devDeps: vite, @types/node);
-        // build cần production (nếu không Vite bỏ minify — 477KB thay vì 281KB).
-        execFileSync('npm', ['install', '--no-fund', '--no-audit'],
-          { cwd: webDir, stdio: 'inherit', env: { ...process.env, NODE_ENV: 'development' } });
-        execFileSync('npm', ['run', 'build'],
-          { cwd: webDir, stdio: 'inherit', env: { ...process.env, NODE_ENV: 'production' } });
-      }
-    } else {
-      console.log(c.d(`  npm install -g github:${REPO}…`));
-      execFileSync('npm', ['install', '-g', `github:${REPO}`], { stdio: 'inherit' });
-    }
-    console.log(c.g(`✓ Đã cập nhật lên v${remote.version}`));
-  } catch (e) {
-    console.log(c.r('✗ Cập nhật lỗi: ') + (e?.message ?? e));
-    return;
+
+  const steps = await runUpdate((s) => {
+    console.log((s.ok ? c.g('  ✓ ') : c.r('  ✗ ')) + s.step + (s.detail ? c.d(' — ' + s.detail) : ''));
+  });
+
+  if (!steps.every((s) => s.ok)) {
+    console.log(c.r('✗ Cập nhật không hoàn tất.'));
+    // Vẫn khởi động lại: bước lùi trong runUpdate đã đưa cây mã về trạng thái chạy được.
   }
   if (wasRunning) { console.log(c.d('  Khởi động lại…')); start(true); }
 }

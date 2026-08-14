@@ -41,7 +41,52 @@ export interface UpdateCheck {
   hasUpdate: boolean;
   /** Cài bằng git pull được không — quyết định UI hiện nút hay chỉ hướng dẫn. */
   canSelfUpdate: boolean;
+  /** SHA đang chạy / SHA mới nhất trên main. Null khi không đọc được. */
+  localSha: string | null;
+  remoteSha: string | null;
+  /** Số commit đang thiếu so với origin/main. Null khi chưa đo được. */
+  behind: number | null;
+  /** Tiêu đề vài commit mới nhất — để người bấm biết mình sắp cài gì. */
+  commits: string[];
   error?: string;
+}
+
+/**
+ * Có bản mới không? So theo COMMIT, không theo version.
+ *
+ * Bản cũ dùng `cmpVersion(latest, current) > 0`. Nhưng version là thứ người ta QUÊN bump:
+ * đo ngày 12/08/2026, 8 commit gần nhất — kể cả bản vá vòng quota tắc 28 giờ — đều không
+ * tăng version, nên local và remote cùng `2.18.1` và dashboard báo "đã là bản mới nhất"
+ * suốt trong khi thiếu 8 commit. Commit SHA thì không thể quên.
+ *
+ * So bằng TIỀN TỐ vì hai nguồn cho độ dài khác nhau: `git rev-parse --short` trả 7 ký tự,
+ * API GitHub trả đủ 40. So thẳng chuỗi là luôn khác → báo có bản mới vĩnh viễn.
+ */
+export function coBanMoi(v: {
+  localSha: string | null;
+  remoteSha: string | null;
+  /** Số commit đang thiếu, khi đã đo được bằng `git rev-list HEAD..origin/main`. */
+  behind?: number | null;
+}): boolean {
+  const { localSha: a, remoteSha: b, behind } = v;
+  // Thiếu một trong hai thì KHÔNG đoán bừa — báo nhầm khiến người dùng bấm vào một tiến
+  // trình chắc chắn thất bại.
+  if (!a || !b) return false;
+  const n = Math.min(a.length, b.length);
+  if (a.slice(0, n) === b.slice(0, n)) return false;
+
+  /**
+   * SHA khác nhau CHƯA CHẮC là có bản mới — có thể local đang ĐI TRƯỚC remote.
+   *
+   * Bắt được đúng lỗi này khi chạy thử trên máy dev: vừa commit xong chưa push, `behind`
+   * = 0 mà `hasUpdate` = true. Người dùng bấm Cập nhật thì `git pull --ff-only` không kéo
+   * gì về, còn thẻ vẫn báo "có bản mới" mãi.
+   *
+   * Đo được `behind` thì nó là câu trả lời chính xác. Không đo được (chưa fetch, không
+   * phải git checkout) thì đành dựa vào SHA khác nhau.
+   */
+  if (typeof behind === 'number') return behind > 0;
+  return true;
 }
 
 async function fetchRemoteVersion(): Promise<string> {
@@ -69,22 +114,92 @@ export function isGitCheckout(): boolean {
   return existsSync(resolve(ROOT, '.git'));
 }
 
+/** SHA của HEAD cục bộ. Null nếu không phải git checkout. */
+async function localCommit(): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync('git', ['-C', ROOT, 'rev-parse', 'HEAD'], { timeout: 15_000 });
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** SHA mới nhất của `main` trên GitHub. */
+async function fetchRemoteCommit(): Promise<string | null> {
+  const r = await fetch(`https://api.github.com/repos/${REPO}/commits/main`, {
+    headers: { accept: 'application/vnd.github+json', 'user-agent': 'agyproxy' },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!r.ok) return null;
+  const j = (await r.json()) as { sha?: string };
+  return j.sha ?? null;
+}
+
+/**
+ * Đếm commit đang thiếu + lấy tiêu đề của chúng.
+ *
+ * `git fetch` trước, nếu không `origin/main` là bản đã cache từ lần pull cuối và số đếm
+ * luôn ra 0. Fetch không đụng gì tới cây làm việc nên an toàn khi đang phục vụ request.
+ */
+async function dangThieu(): Promise<{ behind: number | null; commits: string[] }> {
+  try {
+    await execFileAsync('git', ['-C', ROOT, 'fetch', '--quiet', 'origin', 'main'], { timeout: 60_000 });
+    const { stdout: n } = await execFileAsync('git', ['-C', ROOT, 'rev-list', '--count', 'HEAD..origin/main'], { timeout: 30_000 });
+    const { stdout: ds } = await execFileAsync(
+      'git',
+      ['-C', ROOT, 'log', '--oneline', '--no-decorate', '-8', 'HEAD..origin/main'],
+      { timeout: 30_000 },
+    );
+    return {
+      behind: Number(n.trim()) || 0,
+      commits: ds.trim().split('\n').filter(Boolean),
+    };
+  } catch {
+    return { behind: null, commits: [] };
+  }
+}
+
 export async function checkUpdate(): Promise<UpdateCheck> {
   const current = localVersion();
+  const canSelfUpdate = isGitCheckout();
+  const localSha = await localCommit();
   try {
-    const latest = await fetchRemoteVersion();
+    // Hỏi song song: hai lời gọi mạng độc lập, không cần đợi nhau.
+    const [latest, remoteSha] = await Promise.all([
+      fetchRemoteVersion().catch(() => null),
+      fetchRemoteCommit().catch(() => null),
+    ]);
+    /**
+     * Đo `behind` TRƯỚC khi kết luận. SHA khác nhau chưa đủ: local có thể đang đi trước
+     * remote (vừa commit chưa push) — khi đó không có gì để kéo về.
+     *
+     * Chỉ `git fetch` khi SHA đã khác nhau, để không tốn mạng cho trường hợp thường gặp
+     * nhất là "đang ở bản mới nhất".
+     */
+    const shaKhac = coBanMoi({ localSha, remoteSha });
+    const { behind, commits } = shaKhac && canSelfUpdate ? await dangThieu() : { behind: 0, commits: [] };
+    const hasUpdate = coBanMoi({ localSha, remoteSha, behind: canSelfUpdate ? behind : null });
     return {
       current,
       latest,
-      hasUpdate: cmpVersion(latest, current) > 0,
-      canSelfUpdate: isGitCheckout(),
+      hasUpdate,
+      canSelfUpdate,
+      localSha,
+      remoteSha,
+      behind,
+      commits,
+      ...(latest === null && remoteSha === null ? { error: 'không hỏi được GitHub' } : {}),
     };
   } catch (e: any) {
     return {
       current,
       latest: null,
       hasUpdate: false,
-      canSelfUpdate: isGitCheckout(),
+      canSelfUpdate,
+      localSha,
+      remoteSha: null,
+      behind: null,
+      commits: [],
       error: String(e?.message ?? e),
     };
   }
@@ -164,8 +279,31 @@ export async function runUpdate(onStep?: (s: UpdateStep) => void): Promise<Updat
     await execFileAsync('git', ['-C', ROOT, 'checkout', '--', 'package-lock.json', 'web/package-lock.json'], { timeout: 60_000 });
   } catch { /* file có thể không tồn tại */ }
 
+  /**
+   * Ghi lại mốc để LÙI ĐƯỢC.
+   *
+   * Trước đây `git pull` xong mà `npm install` chết là cây làm việc ở code MỚI với
+   * dependency CŨ — trạng thái lai không chạy nổi và không có đường về. Phải SSH vào
+   * `git reset --hard` bằng tay, mà muốn thế thì phải biết SHA cũ là gì.
+   */
+  const mocCu = await localCommit();
+  const lui = async (viSao: string) => {
+    if (!mocCu) return;
+    try {
+      await execFileAsync('git', ['-C', ROOT, 'reset', '--hard', mocCu], { timeout: 60_000 });
+      push({ step: 'lùi lại', ok: true, detail: `${viSao} → đã quay về ${mocCu.slice(0, 8)}` });
+    } catch (e: any) {
+      // Lùi cũng hỏng: nói rõ SHA để người vận hành làm tay, đừng để họ tự mò.
+      push({ step: 'lùi lại', ok: false, detail: `KHÔNG lùi được, chạy tay: git reset --hard ${mocCu.slice(0, 12)} (${String(e?.message ?? e).slice(0, 120)})` });
+    }
+  };
+
   if (!(await run('git pull', 'git', ['-C', ROOT, 'pull', '--ff-only']))) return steps;
-  if (!(await run('npm install', 'npm', ['install', '--omit=dev', '--no-fund', '--no-audit']))) return steps;
+  if (!(await run('npm install', 'npm', ['install', '--omit=dev', '--no-fund', '--no-audit']))) {
+    // Dependency không cài được thì code mới chắc chắn không chạy — lùi.
+    await lui('npm install thất bại');
+    return steps;
+  }
 
   // Web build nằm trong repo nhưng dist có thể cũ hơn src sau khi pull.
   //
@@ -188,10 +326,16 @@ export async function runUpdate(onStep?: (s: UpdateStep) => void): Promise<Updat
     if (webOk) webOk = await run('build web', 'npm', ['run', 'build'], webDir, { NODE_ENV: 'production' });
   }
 
-  // Build web hỏng = dashboard sẽ chạy bản dist CŨ. Trước đây bước này vẫn báo "xong"
-  // dù build lỗi, nên người dùng tưởng đã cập nhật xong.
+  /**
+   * Build web hỏng = dashboard chạy bản dist CŨ. Trước đây bước này vẫn báo "xong" dù
+   * build lỗi, nên người dùng tưởng đã cập nhật xong.
+   *
+   * CỐ Ý KHÔNG lùi ở đây, khác với nhánh `npm install`: backend đã lên code mới và chạy
+   * được: chỉ giao diện là cũ. Lùi lại là vứt luôn bản vá backend để đổi lấy một dashboard
+   * mới — đánh đổi sai, nhất là khi bản vá đó đang sửa sự cố production.
+   */
   if (!webOk) {
-    push({ step: 'xong', ok: false, detail: `mã nguồn đã lên v${localVersion()} nhưng BUILD WEB LỖI — dashboard vẫn chạy giao diện cũ` });
+    push({ step: 'xong', ok: false, detail: `mã nguồn đã lên v${localVersion()} nhưng BUILD WEB LỖI — backend đã cập nhật, dashboard vẫn chạy giao diện cũ` });
     return steps;
   }
 

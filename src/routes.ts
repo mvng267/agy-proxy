@@ -365,12 +365,19 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/system/update', async () => checkUpdate());
 
   app.post('/api/system/update', async (req, reply) => {
-    const b = (req.body as { restart?: boolean }) ?? {};
+    const b = (req.body as { restart?: boolean; force?: boolean }) ?? {};
     const info = await checkUpdate();
     if (!info.canSelfUpdate) {
       return reply.code(400).send({ ok: false, error: 'Bản cài không phải git checkout — cập nhật bằng `agyproxy update` trên máy chủ', steps: [] });
     }
-    if (!info.hasUpdate) {
+    /**
+     * `force` để chạy được cả khi KHÔNG phát hiện ra bản mới.
+     *
+     * Cần vì `hasUpdate` phụ thuộc GitHub API: hết hạn ngạch (60 lượt/giờ theo IP, không
+     * token) hoặc mất mạng là `remoteSha` null → `coBanMoi` trả false cho an toàn. Khi đó
+     * `git pull --ff-only` vẫn là thao tác vô hại nếu đã ở bản mới nhất.
+     */
+    if (!info.hasUpdate && !b.force) {
       return { ok: true, upToDate: true, ...info, steps: [] };
     }
     const steps = await runUpdate();
