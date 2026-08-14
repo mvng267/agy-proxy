@@ -2,7 +2,7 @@
 #
 # Deploy agyproxy lên máy production Debian — CHẠY TRÊN CHÍNH MÁY ĐÓ.
 #
-#   ssh mvng@100.112.240.4
+#   ssh <user>@<may-chu>
 #   cd <thư-mục-agyproxy> && bash scripts/deploy-debian.sh
 #
 # Vì sao git pull chứ không rsync: bản cài production là git checkout, và nút "Cập nhật"

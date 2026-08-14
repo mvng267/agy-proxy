@@ -10,7 +10,22 @@ const LEVEL_ORDER: Record<LogLevel, number> = {
   error: 40,
 };
 
+/**
+ * Mức đặt từ cấu hình (trang Cấu hình / DB), ưu tiên hơn biến môi trường.
+ *
+ * Không import `config` ở đây: logger nằm dưới cùng cây phụ thuộc, mọi tầng đều dùng nó —
+ * import ngược lên là tạo vòng lặp module. `config.ts` đẩy giá trị xuống thay vì logger
+ * tự đi hỏi.
+ */
+let mucTuConfig: LogLevel | null = null;
+
+export function setLogLevel(v: string): void {
+  const s = String(v).toLowerCase();
+  mucTuConfig = s in LEVEL_ORDER ? (s as LogLevel) : null;
+}
+
 function threshold(): LogLevel {
+  if (mucTuConfig) return mucTuConfig;
   const v = (process.env.AGY_LOG_LEVEL || 'info').toLowerCase();
   return (v as LogLevel) in LEVEL_ORDER ? (v as LogLevel) : 'info';
 }

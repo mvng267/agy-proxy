@@ -10,9 +10,10 @@
   "files": [
     "bin",
     "src",
-    "public",
+    "web/dist",
     ".env.example",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=22"
@@ -47,5 +48,10 @@
   "devDependencies": {
     "@types/node": "^22.13.5",
     "typescript": "^5.7.3"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mvng267/agy-proxy.git"
   }
 }

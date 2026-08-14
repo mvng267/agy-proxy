@@ -2,6 +2,7 @@ import type { Dispatcher } from 'undici';
 import type {
   ChatMessage, GenArgs, GenResult, LiveResult, Provider, ProviderSession, StreamEvent, ToolCall, ToolDef,
 } from './types.js';
+import { timeoutMs } from '../antigravity.js';
 
 /**
  * Wire-format OpenAI `/chat/completions` — phần DÙNG CHUNG cho mọi upstream nói chuẩn này.
@@ -100,7 +101,7 @@ export async function callOpenAI(
       'content-type': 'application/json',
     },
     body: JSON.stringify(body),
-    signal: o.signal ?? AbortSignal.timeout(120_000),
+    signal: o.signal ?? AbortSignal.timeout(timeoutMs()),
     ...(o.dispatcher ? ({ dispatcher: o.dispatcher } as any) : {}),
   });
   // Gọi CẢ khi lỗi: header hạn mức vẫn có mặt trên response 429, và đó chính là lúc số

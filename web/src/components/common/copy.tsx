@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
  *
  * Vì sao phải có fallback chứ không chỉ gọi `navigator.clipboard`:
  * API đó CHỈ tồn tại trong "secure context" — HTTPS hoặc localhost. Production chạy
- * `http://100.112.240.4:7788` (IP thuần, không HTTPS) nên `navigator.clipboard` là
+ * `http://<may-chu>:7788` (IP thuần, không HTTPS) nên `navigator.clipboard` là
  * `undefined` — tức đường fallback là đường chạy THẬT hằng ngày, không phải trường hợp hiếm.
  * Bản cũ ở `Proxy.tsx` nuốt lỗi nên người dùng bấm copy, dán ra giá trị cũ, và không hề biết.
  */

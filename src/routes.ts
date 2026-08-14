@@ -8,6 +8,7 @@ import { resumeHuman, skipHuman, pendingHumanRuns } from './flows/runner.js';
 import { recentRuns, runLogs, lastRunErrors, failureReasons } from './store/db.js';
 import { fetchWebshareList, parseProxyList, testProxy } from './proxy/webshare.js';
 import { config, CSV, saveSettings, setConfig, applyConfig, getConfigValue, CONFIG_KEYS, SECRET_KEYS, RESTART_KEYS, AGY_HOME, ROOT } from './config.js';
+import { CONFIG_FIELDS } from './configMeta.js';
 import { checkAll, restartHealthLoop } from './health/tokenHealth.js';
 import { checkUpdate, runUpdate } from './updater.js';
 import { hashPassword, verifyPassword, isWeakPasscode, isPasscode } from './security.js';
@@ -336,6 +337,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
     return {
       values,
+      /**
+       * Mô tả TỪNG khoá (nhãn, giải thích, nhóm, ràng buộc) để trang Cấu hình TỰ SINH.
+       *
+       * Trước đây `Settings.tsx` viết tay từng ô, nên chỉ 11/46 khoá chỉnh được — 35 khoá
+       * còn lại muốn đổi phải SSH vào máy chủ ghi thẳng vào SQLite. Thêm khoá mới vào
+       * `SETTERS` mà quên sửa giao diện là nó vô hình mãi mãi.
+       */
+      fields: CONFIG_FIELDS,
       secretKeys: [...SECRET_KEYS],
       restartKeys: [...RESTART_KEYS],
       meta: { dataDir: AGY_HOME, version: pkgVersion(), baseUrl: `http://localhost:${config.port}/proxy/v1` },

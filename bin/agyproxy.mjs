@@ -892,7 +892,7 @@ function tokenCmd() {
  * lộ ra ở lệnh sau đó, và người dùng sẽ đi tìm nhầm chỗ.
  */
 async function connectCmd(url) {
-  if (!url) die('Dùng: agyproxy connect <url> --token <token>\n  vd: agyproxy connect http://100.112.240.4:7788 --token abc123');
+  if (!url) die('Dùng: agyproxy connect <url> --token <token>\n  vd: agyproxy connect http://<may-chu>:7788 --token abc123');
   const clean = String(url).replace(/\/+$/, '');
   const token = flagVal('--token') || process.env.AGY_TOKEN;
   if (!token) die('Thiếu --token. Lấy bằng cách chạy `agyproxy token` trên máy chủ.');

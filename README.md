@@ -154,9 +154,9 @@ Hoặc làm bằng dòng lệnh:
 agyproxy token
 
 # 2. TRÊN MÁY TOOL: lưu lại (kiểm tra ngay, sai token là báo liền)
-agyproxy connect http://100.112.240.4:7788 --token <token>
+agyproxy connect http://<may-chu>:7788 --token <token>
 
-agyproxy ping        # ✓ http://100.112.240.4:7788  23ms  v2.18.1  700 account
+agyproxy ping        # ✓ http://<may-chu>:7788  23ms  v2.18.1  700 account
 ```
 
 Lưu ở `~/.agyproxy/cli.json` (chmod 600). Từ đây mọi lệnh đều chạy trên server đó.
@@ -164,7 +164,7 @@ Lưu ở `~/.agyproxy/cli.json` (chmod 600). Từ đây mọi lệnh đều ch�
 Không muốn lưu file thì dùng biến môi trường — hợp với CI/container:
 
 ```bash
-export AGY_URL=http://100.112.240.4:7788
+export AGY_URL=http://<may-chu>:7788
 export AGY_TOKEN=<token>
 ```
 
@@ -206,15 +206,15 @@ agyproxy status --json | jq -e '.up'      # exit≠0 nếu server chết → dù
 Token đi qua HTTP Basic, nên bất cứ thứ gì gọi được HTTP đều điều khiển được:
 
 ```bash
-curl -u ":$AGY_TOKEN" http://100.112.240.4:7788/api/overview
+curl -u ":$AGY_TOKEN" http://<may-chu>:7788/api/overview
 
-curl -u ":$AGY_TOKEN" -X PATCH http://100.112.240.4:7788/api/gateway/config \
+curl -u ":$AGY_TOKEN" -X PATCH http://<may-chu>:7788/api/gateway/config \
   -H 'content-type: application/json' -d '{"rotation":"smart"}'
 ```
 
 ```python
 import requests
-r = requests.get("http://100.112.240.4:7788/api/overview", auth=("", TOKEN))
+r = requests.get("http://<may-chu>:7788/api/overview", auth=("", TOKEN))
 ```
 
 ### Lệnh chỉ chạy được tại máy chủ
@@ -265,7 +265,7 @@ cp ../public/login.html dist/login.html   # (chỉ lần đầu, login.html đã
 | Máy | Vai trò | Gateway | Cập nhật code |
 |-----|---------|---------|---------------|
 | macOS (local) | **Test** — chạy test, thử tính năng | `agyproxy off` | `git pull` như thường |
-| Debian `100.112.240.4` | **Production** — phục vụ client thật | BẬT | nút "Cập nhật" trên dashboard, hoặc `agyproxy update` |
+| Debian (máy chủ) | **Production** — phục vụ client thật | BẬT | nút "Cập nhật" trên dashboard, hoặc `agyproxy update` |
 
 Máy test để `off` để hai máy không cùng đốt quota của một pool credential — không có
 cơ chế điều phối giữa hai instance, cùng gọi thì dễ 429 chéo. Bật lại khi cần test

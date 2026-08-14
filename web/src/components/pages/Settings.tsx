@@ -15,6 +15,7 @@ import {
   Lock,
 } from "lucide-react"
 import { UpdatePanel } from "@/components/common/UpdatePanel"
+import { AllSettings } from "@/components/pages/settings/AllSettings"
 import { PageHeader, writeClipboard } from "@/components/common"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -30,9 +31,6 @@ interface GatewayConfig {
   enabled?: boolean
   rotation?: string
   cooldownSec?: number
-  maxRetries?: number
-  timeout?: number
-  logLevel?: string
   apiKey?: string
   baseUrl?: string
   outboundProxy?: string
@@ -96,9 +94,6 @@ export function Settings() {
   const [enabled, setEnabled] = useState(true)
   const [rotation, setRotation] = useState("round-robin")
   const [cooldownSec, setCooldownSec] = useState("60")
-  const [maxRetries, setMaxRetries] = useState("3")
-  const [timeout, setTimeout_] = useState("30")
-  const [logLevel, setLogLevel] = useState("info")
   const [apiKey, setApiKey] = useState("")
   const [outboundProxy, setOutboundProxy] = useState("")
   const [showKey, setShowKey] = useState(false)
@@ -130,9 +125,6 @@ export function Settings() {
       setEnabled(json.enabled !== false)
       setRotation(json.rotation ?? "round-robin")
       setCooldownSec(String(json.cooldownSec ?? 60))
-      setMaxRetries(String(json.maxRetries ?? 3))
-      setTimeout_(String(json.timeout ?? 30))
-      setLogLevel(json.logLevel ?? "info")
       setApiKey(json.apiKey ?? "")
       setOutboundProxy(json.outboundProxy ?? "")
       setError(null)
@@ -169,9 +161,6 @@ export function Settings() {
         enabled,
         rotation,
         cooldownSec: parseInt(cooldownSec, 10) || 60,
-        maxRetries: parseInt(maxRetries, 10) || 3,
-        timeout: parseInt(timeout, 10) || 30,
-        logLevel,
         outboundProxy,
       }
       const res = await fetch("/api/gateway/config", {
@@ -455,51 +444,25 @@ export function Settings() {
                 className="bg-muted border-border text-foreground h-9 text-sm"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm text-foreground">Max Retries</label>
-              <Input
-                type="number" min={0} max={10}
-                value={maxRetries}
-                onChange={e => setMaxRetries(e.target.value)}
-                className="bg-muted border-border text-foreground h-9 text-sm"
-              />
-            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* ── Advanced ─────────────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-foreground">Advanced</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm text-foreground">Timeout (giây)</label>
-              <Input
-                type="number" min={5} max={300}
-                value={timeout}
-                onChange={e => setTimeout_(e.target.value)}
-                className="bg-muted border-border text-foreground h-9 text-sm"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm text-foreground">Log Level</label>
-              <select
-                value={logLevel}
-                onChange={e => setLogLevel(e.target.value)}
-                className="w-full h-9 px-3 rounded-md bg-muted border border-border text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="debug">Debug</option>
-                <option value="info">Info</option>
-                <option value="warn">Warn</option>
-                <option value="error">Error</option>
-              </select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/*
+        ĐÃ GỠ thẻ "Advanced" cùng ba ô Max Retries / Timeout / Log Level.
+
+        Cả ba là ĐỒ GIẢ: backend không có `maxRetries` lẫn `logLevel` (grep src/ ra 0 file),
+        còn `timeout` chỉ là `AbortSignal.timeout` hard-code. `PATCH /api/gateway/config` bỏ
+        qua cả ba im lặng và `GET` không trả chúng, nên sau mỗi lần bấm Lưu giá trị lại
+        nhảy về 3/30/info — người dùng thấy toast xanh rồi thấy số cũ quay lại.
+
+        Nay `logLevel` và `gatewayTimeoutSec` là khoá THẬT, hiện trong thẻ "Tất cả cấu hình"
+        bên dưới cùng 44 khoá còn lại. `maxRetries` bỏ hẳn — engine đã có cơ chế trượt bước
+        riêng, thêm một con số không ai đọc chỉ gây hiểu nhầm.
+      */}
+
+      {/* Mọi khoá còn lại — tự sinh, nên khoá mới thêm ở backend là có ô ngay. */}
+      <AllSettings />
 
       {/* Save button */}
       {error && config && (

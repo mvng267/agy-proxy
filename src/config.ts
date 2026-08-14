@@ -3,6 +3,8 @@ import { existsSync, readFileSync, renameSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { ROOT, AGY_HOME, DATA_DIR, PROFILES_DIR, SCREENSHOTS_DIR, PUBLIC_DIR, CSV, STATE_DB, SETTINGS_FILE } from './paths.js';
 import { allSettings, setSetting } from './store/db.js';
+import { setLogLevel } from './lib/logger.js';
+import { CONFIG_FIELDS } from './configMeta.js';
 
 // Re-export đường dẫn để mọi nơi vẫn `import { DATA_DIR } from './config.js'` như cũ.
 export { ROOT, AGY_HOME, DATA_DIR, PROFILES_DIR, SCREENSHOTS_DIR, PUBLIC_DIR, CSV, STATE_DB };
@@ -51,6 +53,8 @@ export const config = {
   host: S('host') ?? E('HOST') ?? '127.0.0.1',
   // Giới hạn body request (MB). Fastify mặc định 1 MB — quá nhỏ cho tool coding.
   maxBodyMb: num(S('maxBodyMb') ?? E('MAX_BODY_MB'), 32),
+  /** Mức log — áp nóng qua `setLogLevel`, không cần khởi động lại. */
+  logLevel: S('logLevel') ?? E('AGY_LOG_LEVEL') ?? 'info',
   // ---- đăng nhập dashboard ----
   dashboardPassword: S('dashboardPassword') ?? E('DASHBOARD_PASSWORD') ?? '123456',
   /**
@@ -98,6 +102,18 @@ export const config = {
     // cũ `{error:"<chuỗi>"}` nếu có client đang đọc `body.error` như chuỗi —
     // rollback không cần deploy lại.
     openaiStrictErrors: bool(S('openaiStrictErrors') ?? E('OPENAI_STRICT_ERRORS'), true),
+    /**
+     * Hết giờ chờ upstream trả lời.
+     *
+     * Trước đây hard-code ở 4 chỗ với 3 giá trị khác nhau (120s ở openaiWire, 180s ở
+     * kiro và luồng non-stream của agy, 300s ở luồng stream) — không ai chỉnh được, và
+     * cũng không ai biết là chúng khác nhau.
+     *
+     * 300 giây vì độ trễ tỉ lệ với SỐ TOKEN SINH RA, không phải kích thước prompt: đo
+     * trên production, `gemini-3.5-flash-low` sinh ~16.000 token/lượt mất tới 56 giây,
+     * và đó là lúc bình thường.
+     */
+    timeoutSec: num(S('gatewayTimeoutSec') ?? E('GATEWAY_TIMEOUT_SEC'), 300),
     // Làm mới access token trước khi hết hạn bao nhiêu phút. Đủ rộng để vòng quét
     // (mỗi phút) kịp giãn nhịp qua hết số account sắp hết hạn.
     tokenRefreshAheadMin: num(S('tokenRefreshAheadMin') ?? E('TOKEN_REFRESH_AHEAD_MIN'), 15),
@@ -185,6 +201,9 @@ const SETTERS: Record<string, Setter> = {
   gatewayCooldownSec: (v) => (config.gateway.cooldownSec = Number(v)),
   gatewayCooldown5xxSec: (v) => (config.gateway.cooldown5xxSec = Number(v)),
   openaiStrictErrors: (v) => (config.gateway.openaiStrictErrors = v === 'true'),
+  gatewayTimeoutSec: (v) => (config.gateway.timeoutSec = Number(v)),
+  // Áp NGAY vào logger — đổi mức log mà phải khởi động lại thì không ai dùng.
+  logLevel: (v) => { config.logLevel = v; setLogLevel(v); },
   tokenRefreshAheadMin: (v) => (config.gateway.tokenRefreshAheadMin = Number(v)),
   quotaAutoRefresh: (v) => (config.gateway.quota.autoRefresh = v === 'true'),
   quotaIntervalMin: (v) => (config.gateway.quota.intervalMin = Number(v)),
@@ -210,35 +229,30 @@ export const SECRET_KEYS = new Set(['dashboardPassword', 'sessionSecret', 'gatew
 export const RESTART_KEYS = new Set(['port', 'host', 'maxBodyMb']);
 export const CONFIG_KEYS = Object.keys(SETTERS);
 
-/** Đổi cấu hình: áp vào RAM + GHI DB (sống qua restart). Trả về các key đã đổi. */
 /**
- * Đặc tả giá trị hợp lệ. Chỉ liệt kê khoá CẦN chặn — khoá không có ở đây vẫn ghi được
- * như cũ (giữ tương thích ngược, tránh chặn nhầm khoá đang dùng).
+ * Đặc tả giá trị hợp lệ — SINH TỪ `CONFIG_FIELDS`, không khai tay lần thứ hai.
+ *
+ * Trước đây đây là bảng riêng, chỉ phủ 17/46 khoá, và nó không biết gì về nhãn hiển thị.
+ * Hai bảng tách rời nghĩa là thêm khoá mới phải nhớ sửa cả hai — mà người ta chỉ sửa một.
+ *
+ * Khoá kiểu `string`/`password`/`model` không sinh spec: chúng nhận mọi chuỗi, chặn ở đây
+ * là chặn nhầm.
  */
 type Spec =
   | { type: 'int'; min?: number; max?: number }
   | { type: 'enum'; values: readonly string[] };
 
-const SPECS: Record<string, Spec> = {
-  port: { type: 'int', min: 1, max: 65535 },
-  maxBodyMb: { type: 'int', min: 1, max: 512 },
-  // TRƯỚC ĐÂY nhận BẤT KỲ chuỗi nào, gán vào config.gateway.rotation rồi pool.pick()
-  // rơi vào nhánh `default` IM LẶNG — người dùng tưởng đã đổi chiến lược.
-  gatewayRotation: { type: 'enum', values: ['round-robin', 'full-first', 'failover', 'highest-first', 'smart'] },
-  gatewayCooldownSec: { type: 'int', min: 1, max: 86_400 },
-  gatewayCooldown5xxSec: { type: 'int', min: 1, max: 3_600 },
-  tokenRefreshAheadMin: { type: 'int', min: 1, max: 240 },
-  quotaIntervalMin: { type: 'int', min: 1, max: 1_440 },
-  quotaCacheTtlMin: { type: 'int', min: 1, max: 1_440 },
-  quotaHistoryDays: { type: 'int', min: 1, max: 3_650 },
-  usageRetentionDays: { type: 'int', min: 0, max: 3_650 },
-  loginMaxFail: { type: 'int', min: 1, max: 100 },
-  loginLockMin: { type: 'int', min: 1, max: 1_440 },
-  pacingMinSec: { type: 'int', min: 0, max: 86_400 },
-  pacingMaxSec: { type: 'int', min: 0, max: 86_400 },
-  dailyLoginCap: { type: 'int', min: 0, max: 10_000 },
-  tokenHealthHours: { type: 'int', min: 0, max: 720 },
-};
+const SPECS: Record<string, Spec> = Object.fromEntries(
+  Object.entries(CONFIG_FIELDS)
+    .map(([k, f]) => {
+      if (f.type === 'int') return [k, { type: 'int', min: f.min, max: f.max } as Spec];
+      // TRƯỚC ĐÂY `gatewayRotation` nhận BẤT KỲ chuỗi nào, gán vào config rồi `pool.pick()`
+      // rơi vào nhánh `default` IM LẶNG — người dùng tưởng đã đổi chiến lược.
+      if (f.type === 'enum') return [k, { type: 'enum', values: f.values ?? [] } as Spec];
+      return null;
+    })
+    .filter(Boolean) as [string, Spec][],
+);
 
 /** Kiểm 1 giá trị. Trả lý do từ chối, hoặc null nếu hợp lệ. */
 function rejectReason(key: string, v: string): string | null {
@@ -311,6 +325,7 @@ export function getConfigValue(key: string): unknown {
     case 'gatewayBareModels': return config.gateway.bareModels;
     case 'gatewayProxy': return config.gateway.outboundProxy;
     case 'gatewayCooldownSec': return config.gateway.cooldownSec;
+    case 'gatewayTimeoutSec': return config.gateway.timeoutSec;
     case 'quotaAutoRefresh': return config.gateway.quota.autoRefresh;
     case 'quotaIntervalMin': return config.gateway.quota.intervalMin;
     case 'quotaOnCall': return config.gateway.quota.onCall;

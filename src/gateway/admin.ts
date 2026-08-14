@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { config, applyConfig } from '../config.js';
+import { config, applyConfig, CONFIG_KEYS } from '../config.js';
 import { createApiKey, listPublicApiKeys, patchApiKey, removeApiKey } from './apikeys.js';
 import {
   upsertComboRow, deleteComboRow, comboStatsRows,
@@ -278,6 +278,21 @@ export function registerAdminRoutes(app: FastifyInstance): void {
     }
     if (b.regenerateKey) patch.gatewayApiKey = 'agy-' + randomUUID().replace(/-/g, '');
     else if (typeof b.apiKey === 'string') patch.gatewayApiKey = b.apiKey;
+
+    /**
+     * Nhận thêm khoá PHẲNG đúng tên trong `CONFIG_KEYS`.
+     *
+     * Phần dịch tay bên trên chỉ biết 12 trường và dùng tên riêng (`cooldownSec` thay vì
+     * `gatewayCooldownSec`) — đó là lý do 35/46 khoá không có đường vào từ dashboard, kể
+     * cả `quotaIntervalMin` mà hôm qua phải SSH vào ghi thẳng SQLite.
+     *
+     * Giữ nguyên phần dịch tay để client cũ (Pool, AutoDisablePanel, CLI, MCP) chạy y
+     * nguyên; khoá đã dịch rồi thì không ghi đè.
+     */
+    for (const k of CONFIG_KEYS) {
+      if (k in b && !(k in patch)) patch[k] = b[k];
+    }
+
     // TRƯỚC ĐÂY vứt `rejected` rồi vẫn trả ok:true — bấm nút mà không có gì đổi và
     // không ai được báo. Nay giá trị bị từ chối đi kèm lý do để UI hiển thị.
     const { changed, rejected } = applyConfig(patch);

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Dispatcher } from 'undici';
 import { EventStreamParser, framesToText } from './eventstream.js';
+import { timeoutMs } from './antigravity.js';
 import type { ChatMessage, GenResult, ProviderModel, StreamEvent, ToolDef } from './providers/types.js';
 
 /**
@@ -376,7 +377,7 @@ async function callKiro(
       'amz-sdk-invocation-id': randomUUID(),
     },
     body: JSON.stringify(body),
-    signal: signal ?? AbortSignal.timeout(180_000),
+    signal: signal ?? AbortSignal.timeout(timeoutMs()),
     ...(dispatcher ? ({ dispatcher } as any) : {}),
   });
   if (!res.ok) {

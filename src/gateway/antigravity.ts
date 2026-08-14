@@ -8,7 +8,20 @@ import { ProxyAgent, type Dispatcher } from 'undici';
  * Không phụ thuộc store — thao tác thuần trên access_token + project để dễ unit-test.
  */
 
-import { AGY_TOKEN_URL as TOKEN_URL, AGY_CLIENT_ID as CLIENT_ID, AGY_CLIENT_SECRET as CLIENT_SECRET } from '../config.js';
+import { AGY_TOKEN_URL as TOKEN_URL, AGY_CLIENT_ID as CLIENT_ID, AGY_CLIENT_SECRET as CLIENT_SECRET, config } from '../config.js';
+
+/**
+ * Hết giờ chờ upstream, tính bằng ms.
+ *
+ * Đọc config MỖI LẦN GỌI chứ không cache: đổi giá trị trên trang Cấu hình phải có hiệu
+ * lực ngay, không đợi khởi động lại.
+ *
+ * Trước đây hard-code ở 4 chỗ với 3 giá trị khác nhau (120s/180s/300s) — không ai chỉnh
+ * được, và cũng không ai biết chúng khác nhau.
+ */
+export function timeoutMs(): number {
+  return Math.max(10, config.gateway.timeoutSec ?? 300) * 1000;
+}
 const UA = 'antigravity/1.104.0 darwin/arm64'; // generateContent (data-plane)
 // Control-plane (loadCodeAssist/onboardUser): node UA làm account đủ điều kiện free-tier
 // → Google tự cấp project managed thật (đã kiểm chứng: onboard free-tier trả project chạy được).
@@ -320,7 +333,7 @@ async function apiCall(accessToken: string, method: string, body: unknown, o: Ap
         method: 'POST',
         headers,
         body: JSON.stringify(body),
-        signal: signal ?? AbortSignal.timeout(180_000),
+        signal: signal ?? AbortSignal.timeout(timeoutMs()),
         ...(dispatcher ? { dispatcher } : {}),
       } as RequestInit);
       const text = await res.text();
@@ -453,8 +466,7 @@ export async function* generateStream(
         body: JSON.stringify(body),
         // Không có timeout thì stream hỏng giữa chừng sẽ treo request vĩnh viễn
         // (routes.ts không tạo AbortController nên opts.signal thường undefined).
-        // Rộng hơn non-stream vì stream dài hơi là bình thường.
-        signal: opts.signal ?? AbortSignal.timeout(300_000),
+        signal: opts.signal ?? AbortSignal.timeout(timeoutMs()),
         ...(opts.dispatcher ? { dispatcher: opts.dispatcher } : {}),
       } as RequestInit);
       if (res.ok && res.body) break;
