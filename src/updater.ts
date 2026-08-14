@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import log from './lib/logger.js';
@@ -39,8 +40,16 @@ export interface UpdateCheck {
   current: string;
   latest: string | null;
   hasUpdate: boolean;
-  /** Cài bằng git pull được không — quyết định UI hiện nút hay chỉ hướng dẫn. */
+  /**
+   * Tự cập nhật từ dashboard được không.
+   *
+   * Bản trước buộc bằng `isGitCheckout()`, nên gói npm (không có `.git`) luôn false và UI
+   * ẩn nút Cập nhật — publish npm xong là mọi máy cài kiểu đó mất nút. Nay CẢ HAI kiểu
+   * đều tự cập nhật được, chỉ khác cách làm (xem `kieu`).
+   */
   canSelfUpdate: boolean;
+  /** Cài kiểu gì: `git` → pull + build; `npm` → `npm i -g <pkg>@latest`. */
+  kieu: KieuCaiDat;
   /** SHA đang chạy / SHA mới nhất trên main. Null khi không đọc được. */
   localSha: string | null;
   remoteSha: string | null;
@@ -67,8 +76,21 @@ export function coBanMoi(v: {
   remoteSha: string | null;
   /** Số commit đang thiếu, khi đã đo được bằng `git rev-list HEAD..origin/main`. */
   behind?: number | null;
+  /** Dùng khi KHÔNG có SHA (bản cài từ npm) — khi đó version là thứ duy nhất so được. */
+  localVersion?: string;
+  remoteVersion?: string | null;
 }): boolean {
-  const { localSha: a, remoteSha: b, behind } = v;
+  const { localSha: a, remoteSha: b, behind, localVersion, remoteVersion } = v;
+
+  /**
+   * Bản cài từ npm KHÔNG có git nên `localSha` là null — quay về so VERSION.
+   *
+   * Không có nhánh này thì gói npm không bao giờ thấy bản mới: `!a` trả false ngay. Với
+   * bản npm thì version đủ tin cậy, vì mỗi lần publish đều bắt buộc tăng version (npm từ
+   * chối publish trùng), khác hẳn commit vào git.
+   */
+  if (!a && localVersion && remoteVersion) return cmpVersion(remoteVersion, localVersion) > 0;
+
   // Thiếu một trong hai thì KHÔNG đoán bừa — báo nhầm khiến người dùng bấm vào một tiến
   // trình chắc chắn thất bại.
   if (!a || !b) return false;
@@ -112,6 +134,13 @@ async function fetchRemoteVersion(): Promise<string> {
 /** Có phải bản cài từ git (pull được) không. */
 export function isGitCheckout(): boolean {
   return existsSync(resolve(ROOT, '.git'));
+}
+
+/** Bản này được cài kiểu gì — quyết định cách cập nhật. */
+export type KieuCaiDat = 'git' | 'npm';
+
+export function kieuCaiDat(goc = ROOT): KieuCaiDat {
+  return existsSync(resolve(goc, '.git')) ? 'git' : 'npm';
 }
 
 /** SHA của HEAD cục bộ. Null nếu không phải git checkout. */
@@ -161,7 +190,10 @@ async function dangThieu(): Promise<{ behind: number | null; commits: string[] }
 
 export async function checkUpdate(): Promise<UpdateCheck> {
   const current = localVersion();
-  const canSelfUpdate = isGitCheckout();
+  const kieu = kieuCaiDat();
+  // CẢ HAI kiểu cài đều tự cập nhật được — chỉ khác cách làm.
+  const canSelfUpdate = true;
+  const laGit = kieu === 'git';
   const localSha = await localCommit();
   try {
     // Hỏi song song: hai lời gọi mạng độc lập, không cần đợi nhau.
@@ -177,13 +209,19 @@ export async function checkUpdate(): Promise<UpdateCheck> {
      * nhất là "đang ở bản mới nhất".
      */
     const shaKhac = coBanMoi({ localSha, remoteSha });
-    const { behind, commits } = shaKhac && canSelfUpdate ? await dangThieu() : { behind: 0, commits: [] };
-    const hasUpdate = coBanMoi({ localSha, remoteSha, behind: canSelfUpdate ? behind : null });
+    // `git fetch`/`rev-list` chỉ có nghĩa với bản git checkout.
+    const { behind, commits } = shaKhac && laGit ? await dangThieu() : { behind: 0, commits: [] };
+    const hasUpdate = coBanMoi({
+      localSha, remoteSha,
+      behind: laGit ? behind : null,
+      localVersion: current, remoteVersion: latest,
+    });
     return {
       current,
       latest,
       hasUpdate,
       canSelfUpdate,
+      kieu,
       localSha,
       remoteSha,
       behind,
@@ -196,6 +234,7 @@ export async function checkUpdate(): Promise<UpdateCheck> {
       latest: null,
       hasUpdate: false,
       canSelfUpdate,
+      kieu,
       localSha,
       remoteSha: null,
       behind: null,
@@ -212,11 +251,53 @@ export interface UpdateStep {
 }
 
 /**
+ * Cập nhật bản cài bằng `npm i -g github:mvng267/agy-proxy`.
+ *
+ * BẪY: lệnh này ghi đè lên ĐÚNG thư mục mà tiến trình hiện tại đang chạy code từ đó. Node
+ * đã nạp module vào bộ nhớ nên tiến trình không chết ngay, nhưng mọi `import` động sau đó
+ * sẽ đọc file đã bị thay giữa chừng. Vì vậy PHẢI restart ngay sau khi lệnh xong — route
+ * `/api/system/update` đã lo việc đó.
+ *
+ * Vẫn `await` chứ không chạy nền: cần biết npm thành công hay thất bại để báo cho người
+ * bấm. Restart mù sau một lần cài hỏng là cách chắc chắn nhất để mất dịch vụ.
+ *
+ * `cwd` là thư mục HOME, không phải ROOT — npm không nên chạy bên trong chính gói mà nó
+ * đang ghi đè.
+ *
+ * Cài thẳng từ GitHub, không qua registry npm (gói không publish công khai).
+ */
+async function capNhatNpm(push: (s: UpdateStep) => void): Promise<UpdateStep[]> {
+  const steps: UpdateStep[] = [];
+  const ghiLai = (s: UpdateStep) => { steps.push(s); push(s); };
+
+  const dich = `github:${REPO}`;
+  try {
+    const { stdout, stderr } = await execFileAsync('npm', ['install', '-g', dich, '--no-fund', '--no-audit'], {
+      timeout: 600_000,
+      maxBuffer: 8 << 20,
+      // `npm i -g` cần chạy ở thư mục BẤT KỲ trừ chính gói đang bị ghi đè.
+      cwd: homedir(),
+    });
+    const out = (stdout || stderr).trim().split('\n').slice(-2).join(' ').slice(0, 200);
+    ghiLai({ step: `npm i -g ${dich}`, ok: true, detail: out });
+    ghiLai({ step: 'xong', ok: true, detail: 'đã cài bản mới — khởi động lại để áp dụng' });
+  } catch (e: any) {
+    ghiLai({
+      step: `npm i -g ${dich}`,
+      ok: false,
+      detail: String(e?.stderr || e?.message || e).slice(0, 300),
+    });
+  }
+  return steps;
+}
+
+/**
  * Cài bản mới. KHÔNG tự restart — người gọi quyết định thời điểm, vì restart giữa lúc
  * đang phục vụ request sẽ cắt ngang stream của client.
  *
- * Chỉ chạy được trên bản cài từ git. Bản npm global thì `git pull` vô nghĩa, và tự
- * `npm install -g` từ tiến trình server là tự ghi đè lên chính mình khi đang chạy.
+ * Hai kiểu cài, hai đường:
+ *   · `git`  — pull + npm install + build web (giữ nguyên, đã chạy ổn trên production)
+ *   · `npm`  — `npm i -g github:mvng267/agy-proxy`
  */
 export async function runUpdate(onStep?: (s: UpdateStep) => void): Promise<UpdateStep[]> {
   const steps: UpdateStep[] = [];
@@ -226,10 +307,7 @@ export async function runUpdate(onStep?: (s: UpdateStep) => void): Promise<Updat
     log[s.ok ? 'info' : 'error'](`update: ${s.step}${s.detail ? ' — ' + s.detail : ''}`);
   };
 
-  if (!isGitCheckout()) {
-    push({ step: 'kiểm tra', ok: false, detail: 'không phải bản cài từ git — cập nhật bằng `agyproxy update` trên máy chủ' });
-    return steps;
-  }
+  if (kieuCaiDat() === 'npm') return capNhatNpm(push);
 
   const run = async (step: string, cmd: string, args: string[], cwd = ROOT, env?: NodeJS.ProcessEnv) => {
     try {

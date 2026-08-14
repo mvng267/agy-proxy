@@ -376,9 +376,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/system/update', async (req, reply) => {
     const b = (req.body as { restart?: boolean; force?: boolean }) ?? {};
     const info = await checkUpdate();
-    if (!info.canSelfUpdate) {
-      return reply.code(400).send({ ok: false, error: 'Bản cài không phải git checkout — cập nhật bằng `agyproxy update` trên máy chủ', steps: [] });
-    }
+    // CẢ HAI kiểu cài đều tự cập nhật được: `git` → pull+build, `npm` → npm i -g.
+    // `runUpdate()` tự chọn đường theo `kieuCaiDat()`.
     /**
      * `force` để chạy được cả khi KHÔNG phát hiện ra bản mới.
      *

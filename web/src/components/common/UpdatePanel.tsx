@@ -17,6 +17,8 @@ interface UpdateInfo {
   latest: string | null
   hasUpdate: boolean
   canSelfUpdate: boolean
+  /** Cài kiểu gì: `git` → pull + build; `npm` → `npm i -g github:…`. */
+  kieu?: "git" | "npm"
   /**
    * Bản mới được nhận ra bằng COMMIT, không phải version.
    *
@@ -113,7 +115,7 @@ export function UpdatePanel() {
               <RefreshCw className={`h-3 w-3 ${q.isFetching ? "animate-spin" : ""}`} />
               Kiểm tra lại
             </Button>
-            {d?.hasUpdate && d.canSelfUpdate ? (
+            {d?.hasUpdate ? (
               <Button size="sm" onClick={doUpdate} disabled={running} className="h-8 gap-1 text-xs">
                 {running ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                 {running ? "Đang cập nhật…" : "Cập nhật ngay"}
@@ -122,11 +124,16 @@ export function UpdatePanel() {
           </div>
         </div>
 
-        {/* Bản cài không phải git thì nút cập nhật vô dụng — nói rõ phải làm gì thay thế. */}
-        {d?.hasUpdate && !d.canSelfUpdate ? (
+        {/*
+          CẢ HAI kiểu cài đều tự cập nhật được — chỉ khác cách làm, nên nói rõ sẽ chạy gì.
+
+          Bản trước ẩn hẳn nút khi không phải git checkout (`canSelfUpdate` = có `.git`),
+          nghĩa là mọi máy cài bằng `npm i -g` đều mất nút Cập nhật.
+        */}
+        {d?.hasUpdate && d.kieu === "npm" ? (
           <p className="text-xs text-muted-foreground">
-            Bản cài này không phải git checkout nên không tự cập nhật được. Chạy trên máy chủ:{" "}
-            <code className="rounded bg-muted px-1 text-foreground">agyproxy update</code>
+            Bản cài từ npm — sẽ chạy{" "}
+            <code className="rounded bg-muted px-1 text-foreground">npm i -g github:mvng267/agy-proxy</code>
           </p>
         ) : null}
 
