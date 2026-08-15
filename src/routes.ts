@@ -15,7 +15,7 @@ import { hashPassword, verifyPassword, isWeakPasscode, isPasscode } from './secu
 import { registerGatewayRoutes } from './gateway/routes.js';
 import { registerToolRoutes } from './tools/routes.js';
 import { buildBackup, restoreBackup } from './backup.js';
-import { pool, geminiPct } from './gateway/pool.js';
+import { pool, geminiPct, syncFromStore } from './gateway/pool.js';
 import { tuoiQuota } from './gateway/poolScore.js';
 import { PROVIDERS, PROVIDER_IDS } from './gateway/providers/index.js';
 import { usageTotals, usageSeries, usageByModel, usageByAccount, usageByProvider } from './store/db.js';
@@ -234,6 +234,17 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- overview (gộp cho trang Tổng quan) ----------
   app.get('/api/overview', async () => {
+    /**
+     * Đồng bộ pool từ store TRƯỚC khi đếm.
+     *
+     * `/api/gateway/accounts` gọi `syncFromStore()` còn endpoint này thì không, nên hai
+     * nơi đếm cùng một thứ ra hai số khác nhau. Đo trên production 15/08/2026: Tổng quan
+     * báo **183** account chết trong khi danh sách thật là **461** — người vận hành nhìn
+     * dashboard thấy 26% pool chết, thực tế 66%.
+     *
+     * `syncFromStore` tự chặn gọi lại trong 2 giây nên đây không phải chi phí thật.
+     */
+    syncFromStore();
     const accounts = store.listAccounts();
     const counts: Record<string, { ok: number; failed: number; needs_human: number; new: number; running: number }> = {};
     for (const f of PIPELINE) counts[f] = { ok: 0, failed: 0, needs_human: 0, new: 0, running: 0 };

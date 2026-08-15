@@ -348,3 +348,27 @@ export function tuoiQuota(
     tong: list.length,
   };
 }
+
+/**
+ * Vòng quét này có đang giết account HÀNG LOẠT không?
+ *
+ * `dead` là vĩnh viễn và không tự hồi, nên đánh nhầm hàng loạt là mất pool. Đo trên
+ * production 15/08/2026: 457/703 account bị đánh chết, trong đó **272 cái có
+ * `liveStatus='ok'`** — gọi model thật thành công — và 6/6 mẫu thử refresh đều sống.
+ * Chúng chết theo cụm: 153 cái trong 6 phút, 62 cái trong 2 phút.
+ *
+ * 153 token không tự dưng cùng hỏng trong 6 phút. Đó là rate-limit hoặc upstream chập —
+ * lỗi của MÔI TRƯỜNG, không phải của token. Vượt trần thì dừng đánh chết và cho cooldown.
+ *
+ * Ngưỡng 10%: đủ rộng để token hỏng lẻ tẻ (chuyện thật) đi qua, đủ chặt để một sự cố quét
+ * cả pool bị chặn ngay từ đầu.
+ */
+export const NGUONG_CHET_HANG_LOAT = 0.1;
+/** Pool nhỏ hơn mức này thì tỉ lệ phần trăm vô nghĩa — 2/3 account chết là bình thường. */
+export const CHET_HANG_LOAT_MIN = 20;
+
+export function chetHangLoat(v: { daChet: number; tong: number }): boolean {
+  const { daChet, tong } = v;
+  if (tong < CHET_HANG_LOAT_MIN) return false;
+  return daChet > Math.floor(NGUONG_CHET_HANG_LOAT * tong);
+}

@@ -26,11 +26,13 @@ import {
   refreshQuota,
   geminiPct,
   isTransientError,
+  isPermanentAuthError,
   NoAccountError,
   streamLimiter,
   type PoolAccount,
   type Strategy,
 } from './pool.js';
+import { chetHangLoat } from './poolScore.js';
 import { providerBreaker } from './breaker.js';
 import { refreshAccessToken, type ChatMessage, type GenResult, type ToolCall, type ToolDef } from './antigravity.js';
 import { openaiCompletion, sseChunk } from './dialects/wire.js';
@@ -634,6 +636,44 @@ export async function runProviderCall(opts: {
 }
 
 // ---------------- Health check account (token / live) ----------------
+
+/**
+ * Đánh dấu account CHẾT — một đường duy nhất, có ghi lý do và có chốt chặn.
+ *
+ * `dead` loại account VĨNH VIỄN khỏi `pool.candidates()` và không tự hồi. Vì vậy nó đáng
+ * được đối xử như một thao tác nguy hiểm, không phải một phép gán.
+ *
+ * Hai điều bản trước thiếu, đo được trên production 15/08/2026:
+ *
+ *  1. **Không ghi lý do** — 457/457 account chết có `lastError` rỗng. Muốn biết vì sao thì
+ *     phải suy ngược từ trạng thái cuối.
+ *  2. **Không có trần** — 153 account chết trong 6 phút sáng 15/08, 62 cái trong 2 phút
+ *     ngày 11/08. Đó không phải 153 token cùng hỏng mà là một sự cố hệ thống (rate-limit,
+ *     mạng, upstream chập). Chặn ở đây rẻ hơn nhiều so với gỡ tay 457 account sau đó.
+ */
+function danhDauChet(a: PoolAccount, lyDo: string): void {
+  a.lastError = lyDo;
+  a.lastCheckAt = Date.now();
+
+  const tong = pool.list().length;
+  const daChet = pool.list().filter((x) => x.health === 'dead').length;
+  if (chetHangLoat({ daChet: daChet + 1, tong })) {
+    /**
+     * Vượt trần thì KHÔNG đánh chết nữa — cho cooldown ngắn để account tự thử lại.
+     * Thà giữ một account hỏng thật trong vòng xoay (nó sẽ lỗi rồi bị cooldown) còn hơn
+     * mất sạch pool vì một sự cố thoáng qua.
+     */
+    a.cooldownUntil = Date.now() + 10 * 60_000;
+    log(a.email, 'error',
+      `TỪ CHỐI đánh chết: đã có ${daChet}/${tong} account chết — nghi sự cố hệ thống, không phải token hỏng (${lyDo.slice(0, 80)})`);
+    return;
+  }
+
+  a.health = 'dead';
+  store.setCredentialHealth(a.email, PROVIDERS[a.provider].credentialTarget, 'dead');
+  log(a.email, 'warn', `đánh dấu CHẾT: ${lyDo.slice(0, 120)}`);
+}
+
 export async function testAccount(a: PoolAccount): Promise<{ alive: boolean; ms: number; detail?: string }> {
   const t0 = Date.now();
   // Target phải theo ĐÚNG provider của account. Hard-code 'agy' khiến test một account
@@ -669,9 +709,7 @@ export async function testAccount(a: PoolAccount): Promise<{ alive: boolean; ms:
     const permanent = /invalid_grant|invalid_client|unauthorized_client|revoked|token has been expired/i.test(msg)
       || code === 400 || code === 401;
     if (permanent) {
-      a.health = 'dead';
-      a.lastCheckAt = Date.now();
-      store.setCredentialHealth(a.email, target, 'dead');
+      danhDauChet(a, `refresh ${code || '?'}: ${msg.slice(0, 100)}`);
     } else {
       a.cooldownUntil = Date.now() + 60_000;
     }
@@ -688,7 +726,21 @@ export async function checkLiveAccount(a: PoolAccount): Promise<{ status: 'ok' |
     const r = await PROVIDERS[a.provider].checkLive(a, session, dispatcher);
     a.liveStatus = r.status;
     a.lastCheckAt = Date.now();
-    if (r.status === 'ok') a.health = 'alive';
+    if (r.status === 'ok') {
+      a.health = 'alive';
+      /**
+       * GHI XUỐNG CSV, không chỉ đặt trong RAM.
+       *
+       * `syncFromStore()` chạy mỗi 2 giây và `pool.upsert()` đẩy health từ CSV vào RAM:
+       *     if (i.health && i.health !== 'unknown') cur.health = i.health;
+       * Không ghi thì kết quả kiểm live bị xoá sau 2 giây và account quay lại 'dead'.
+       *
+       * Đo trên production 15/08/2026: 272 account có `liveStatus='ok'` — tức GỌI MODEL
+       * THẬT THÀNH CÔNG — mà vẫn nằm ở `health='dead'` vĩnh viễn, đúng vì thiếu dòng này.
+       * `testAccount` ngay bên trên đã ghi; đây là nhánh song song bị bỏ sót.
+       */
+      store.setCredentialHealth(a.email, PROVIDERS[a.provider].credentialTarget, 'alive');
+    }
     // Kiro: 402 hết hạn mức tháng → cho nghỉ dài để pool không chọn lại
     if (r.status === 'quota') a.cooldownUntil = Date.now() + 12 * 3600 * 1000;
     // `provider` đúng cột của nó. Trước đây nhét vào `tier` (`tier: a.provider`) làm cột
@@ -698,7 +750,14 @@ export async function checkLiveAccount(a: PoolAccount): Promise<{ status: 'ok' |
   } catch (e: any) {
     const msg = String(e?.message ?? e);
     const quota = e?.status === 429 || e?.status === 402 || /quota|exhaust|resource_exhausted|MONTHLY_REQUEST/i.test(msg);
-    if (e?.status === 401 || /invalid_grant/i.test(msg)) a.health = 'dead';
+    /**
+     * Dùng CHUNG `isPermanentAuthError` với `pool.report()`.
+     *
+     * Bản trước chỉ xét `status === 401 || /invalid_grant/`, bỏ qua lá chắn vốn loại trừ
+     * "403 kèm HTML" (proxy/Cloudflare chen ngang) — thứ đã từng đánh chết oan cả provider.
+     * Hai đường phân loại lỗi khác nhau cho cùng một quyết định là nguồn lệch cố hữu.
+     */
+    if (isPermanentAuthError(msg, e?.status)) danhDauChet(a, `checkLive: ${msg.slice(0, 100)}`);
     a.liveStatus = quota ? 'quota' : 'error';
     a.lastCheckAt = Date.now();
     return { status: quota ? 'quota' : 'error', ms: Date.now() - t0, detail: msg.slice(0, 120) };
