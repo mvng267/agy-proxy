@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import {
   usageTotals, usageSeries, usageByModel, usageByAccount, usageRows, usageSamples,
-  usageLogs, usageFacets, usageByApiKey, usageByCombo, attributionSince, thanPhien, type UsageFilter,
+  usageLogs, usageFacets, usageByApiKey, usageByCombo, attributionSince, thanPhien, usageErrors, type UsageFilter,
   quotaSeries, quotaForAccount, quotaHistoryCount,
   comboRuns, comboStepStats, comboRunFacets, type ComboRunFilter,
   metricsSeries, metricsHistoryCount,
@@ -144,6 +144,21 @@ export function registerReportRoutes(app: FastifyInstance): void {
       offset,
       facets: usageFacets(from, to, f),
       attributionSince: attributionSince(),
+    };
+  });
+
+  /**
+   * Gom lỗi theo THÔNG ĐIỆP — trả lời "đang lỗi gì" mà không phải cuộn log thô.
+   *
+   * Đây là câu hỏi vận hành số một, và trước đây không có đường nào trả lời: `err` chỉ
+   * hiện từng dòng rời rạc trong 13.100 dòng log.
+   */
+  app.get('/api/gateway/usage/errors', async (req) => {
+    const { from, to } = rangeOf(req);
+    const nhom = usageErrors(from, to, filterOf(req));
+    return {
+      nhom,
+      tong: nhom.reduce((s, x) => s + x.n, 0),
     };
   });
 

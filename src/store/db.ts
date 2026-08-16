@@ -797,6 +797,87 @@ export function pruneUsage(days = 90): number {
   return total;
 }
 
+// ---------- gom lỗi ----------
+
+/**
+ * Chuẩn hoá thông điệp lỗi để gom được những cái chỉ khác nhau ở con số.
+ *
+ * Upstream nhúng số biến thiên vào thông điệp:
+ *     "Individual quota reached. … Resets in 164h53m59s."
+ *     "Individual quota reached. … Resets in 12h04m11s."
+ * Gom thô thì mỗi request thành một nhóm riêng và bảng vô dụng.
+ *
+ * Nhưng chuẩn hoá QUÁ TAY còn tệ hơn: gộp hai lỗi khác bản chất làm một thì bảng nói dối.
+ * Nên chỉ thay CHỮ SỐ, giữ nguyên toàn bộ phần chữ — `CONTENT_LENGTH_EXCEEDS` và
+ * `INSUFFICIENT_MODEL_CAPACITY` vẫn là hai nhóm.
+ */
+export function chuanHoaLoi(raw: string | undefined | null): string {
+  const s = String(raw ?? '').trim();
+  if (!s) return '(không ghi lý do)';
+  return bocLoi(s)
+    .replace(/\s+/g, ' ')
+    .replace(/\d+/g, 'N')
+    .trim()
+    .slice(0, 200);
+}
+
+export interface NhomLoi {
+  /** Thông điệp đã chuẩn hoá — khoá gom nhóm. */
+  err: string;
+  n: number;
+  /** Một bản NGUYÊN VĂN: chuẩn hoá làm mất chi tiết (reset lúc nào, retry bao lâu). */
+  viDu: string;
+  models: string[];
+  statuses: number[];
+  lanDau: number;
+  lanCuoi: number;
+}
+
+/**
+ * Gom lỗi theo thông điệp trong khoảng thời gian.
+ *
+ * `lanDau`/`lanCuoi` quan trọng hơn vẻ ngoài: production có 4.310 lỗi 429 nhưng TOÀN BỘ
+ * từ ngày 10–11/08, trước bản vá vòng quota. Không có mốc thời gian thì chúng trông y hệt
+ * lỗi đang cháy — đúng cái bẫy tôi đã mắc một lần.
+ *
+ * Gom trong JS chứ không GROUP BY: chuẩn hoá cần regex, mà SQLite không có sẵn.
+ */
+export function usageErrors(from: number, to: number, f?: UsageFilter, limit = 5000): NhomLoi[] {
+  const w = usageWhere(f);
+  const rows = prep(
+    `SELECT ts, model, status, err FROM gateway_usage
+      WHERE ts >= ? AND ts <= ? AND ok = 0 ${w.sql}
+      ORDER BY ts DESC LIMIT ?`,
+  ).all(from, to, ...(w.args as any[]), Math.max(1, Math.min(20_000, limit))) as unknown as
+    { ts: number; model: string; status: number | null; err: string | null }[];
+
+  const m = new Map<string, NhomLoi & { _models: Set<string>; _statuses: Set<number> }>();
+  for (const r of rows) {
+    const k = chuanHoaLoi(r.err);
+    let g = m.get(k);
+    if (!g) {
+      g = {
+        err: k, n: 0, viDu: String(r.err ?? ''),
+        models: [], statuses: [], lanDau: r.ts, lanCuoi: r.ts,
+        _models: new Set(), _statuses: new Set(),
+      };
+      m.set(k, g);
+    }
+    g.n++;
+    if (r.ts < g.lanDau) g.lanDau = r.ts;
+    if (r.ts > g.lanCuoi) g.lanCuoi = r.ts;
+    if (r.model) g._models.add(r.model);
+    if (r.status != null) g._statuses.add(r.status);
+  }
+  return [...m.values()]
+    .map((g) => ({
+      err: g.err, n: g.n, viDu: g.viDu,
+      models: [...g._models], statuses: [...g._statuses],
+      lanDau: g.lanDau, lanCuoi: g.lanCuoi,
+    }))
+    .sort((a, b) => b.n - a.n);
+}
+
 // ---------- thân phiên (nội dung request/response) ----------
 
 /**
