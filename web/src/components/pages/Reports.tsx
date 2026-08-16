@@ -60,6 +60,22 @@ interface CompareResponse {
   changePct: { requests: number; tokIn: number; tokOut: number; accounts: number }
 }
 
+/** Lỗi đã gom theo thông điệp (số biến thiên thay bằng `N` để gom được). */
+interface NhomLoi {
+  err: string
+  n: number
+  /** Một bản NGUYÊN VĂN — chuẩn hoá làm mất chi tiết (reset lúc nào, retry bao lâu). */
+  viDu: string
+  models: string[]
+  statuses: number[]
+  lanDau: number
+  lanCuoi: number
+}
+interface ErrorsResponse {
+  nhom: NhomLoi[]
+  tong: number
+}
+
 /** Đọc/ghi bộ lọc trên URL — link chia sẻ được, F5 giữ nguyên trạng thái. */
 function useUrlFilters() {
   const read = () => {
@@ -76,6 +92,10 @@ function useUrlFilters() {
       endpoint: q.get("endpoint") || "",
       status: q.get("status") || "",
       ok: q.get("ok") || "",
+      // Backend đã nhận ba tham số này từ lâu, chỉ chưa có nút trên giao diện.
+      stream: q.get("stream") || "",
+      provider: q.get("provider") || "",
+      groupBy: q.get("groupBy") || "",
       tab: q.get("tab") || "tong-quan",
     }
   }
@@ -91,7 +111,7 @@ function useUrlFilters() {
     const next = { ...f, ...patch }
     const q = new URLSearchParams()
     if (next.range !== "7d") q.set("range", next.range)
-    for (const k of ["apiKeyId", "combo", "email", "model", "endpoint", "status", "ok", "from", "to"] as const) {
+    for (const k of ["apiKeyId", "combo", "email", "model", "endpoint", "status", "ok", "stream", "provider", "groupBy", "from", "to"] as const) {
       if (next[k]) q.set(k, next[k])
     }
     if (next.tab !== "tong-quan") q.set("tab", next.tab)
@@ -123,6 +143,20 @@ function fmtMs(ms?: number): string {
   return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`
 }
 
+/**
+ * "3 giờ trước" thay vì dấu thời gian tuyệt đối.
+ *
+ * Với bảng lỗi, câu hỏi là "còn đang xảy ra không" — `08-11T04:32` bắt người đọc tự trừ,
+ * còn "5 ngày trước" thì trả lời ngay.
+ */
+function fmtLucNao(ts: number): string {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000))
+  if (s < 60) return "vừa xong"
+  if (s < 3600) return `${Math.round(s / 60)} phút trước`
+  if (s < 86400) return `${Math.round(s / 3600)} giờ trước`
+  return `${Math.round(s / 86400)} ngày trước`
+}
+
 /** Mã HTTP → vai trò màu. 429 là hết hạn mức (cảnh báo), không phải lỗi hệ thống. */
 function statusTone(s?: number | null): string {
   if (!s) return "text-muted-foreground"
@@ -131,13 +165,29 @@ function statusTone(s?: number | null): string {
   return "text-destructive"
 }
 
+/** Tên hiển thị của provider — khớp `PROVIDER_IDS` ở backend. */
+const PROVIDER_TEN: Record<string, string> = {
+  agy: "Antigravity",
+  kr: "Kiro",
+  or: "OpenRouter",
+  no: "Nous Research",
+}
+
+/** Mức gộp trục thời gian. Rỗng = để backend tự chọn theo độ dài khoảng. */
+const GOP_TEN: Record<string, string> = {
+  "": "Gộp: tự động",
+  hour: "Theo giờ",
+  day: "Theo ngày",
+  week: "Theo tuần",
+}
+
 export function Reports() {
   const [f, setF] = useUrlFilters()
   const [metric, setMetric] = useState<"requests" | "tokens">("requests")
   const [page, setPage] = useState(0)
 
   const qs = new URLSearchParams({ range: f.range })
-  for (const k of ["apiKeyId", "combo", "email", "model", "endpoint", "status", "ok"] as const) {
+  for (const k of ["apiKeyId", "combo", "email", "model", "endpoint", "status", "ok", "stream", "provider", "groupBy"] as const) {
     if (f[k]) qs.set(k, f[k])
   }
   // Khoảng tự chọn: gửi epoch ms. `to` lấy hết ngày cuối (23:59:59) — chọn "đến 10/08"
@@ -174,6 +224,18 @@ export function Reports() {
     refetchInterval: POLL.slow,
   })
 
+  /**
+   * Lỗi gom theo thông điệp — câu hỏi vận hành số một là "đang lỗi gì".
+   *
+   * Trước đây phải cuộn hàng nghìn dòng log thô. Đo trên production: 4.977 lỗi gom lại
+   * chỉ còn 10 nhóm.
+   */
+  const errs = useQuery({
+    queryKey: ["usageErrors", qs.toString()],
+    queryFn: () => api.get<ErrorsResponse>(`/api/gateway/usage/errors?${qs}`),
+    enabled: f.tab === "loi",
+  })
+
   // Đổi bộ lọc thì về trang đầu — giữ nguyên trang 7 trên tập kết quả mới là bảng rỗng.
   useEffect(() => { setPage(0) }, [qs.toString()])
 
@@ -181,6 +243,67 @@ export function Reports() {
   const series = d?.series ?? []
   const days = f.range === "90d" ? 90 : f.range === "30d" ? 30 : 7
   const facets = logs.data?.facets
+
+  /**
+   * Bảng lỗi đã gom.
+   *
+   * `Lần cuối` là cột quan trọng nhất, không phải `Số lần`: production có 4.310 lỗi 429
+   * nhưng TOÀN BỘ từ 10–11/08, trước bản vá vòng quota. Không có mốc thời gian thì chúng
+   * trông y hệt lỗi đang cháy — đúng cái bẫy đã mắc một lần.
+   */
+  const errCols: Column<NhomLoi>[] = [
+    {
+      key: "err", header: "Thông điệp", sort: (r) => r.err,
+      render: (r) => (
+        <button
+          onClick={() => setF({ status: r.statuses.length === 1 ? String(r.statuses[0]) : "", ok: "false", tab: "chi-tiet" })}
+          className="block max-w-[30rem] truncate text-left text-xs hover:text-primary hover:underline"
+          title={r.viDu || r.err}
+        >
+          {r.err}
+        </button>
+      ),
+    },
+    {
+      key: "n", header: "Số lần", align: "right", sort: (r) => r.n,
+      render: (r) => {
+        const tong = errs.data?.tong ?? 0
+        const pct = tong ? Math.round((r.n / tong) * 100) : 0
+        return (
+          <span className="text-xs tabular-nums">
+            {fmtNum(r.n)}
+            <span className="ml-1 text-muted-foreground">{pct}%</span>
+          </span>
+        )
+      },
+    },
+    {
+      key: "models", header: "Model", sort: (r) => r.models.length,
+      render: (r) => (
+        <span className="block max-w-[16rem] truncate text-xs text-muted-foreground" title={r.models.join(", ")}>
+          {r.models.length === 1 ? r.models[0] : `${r.models.length} model`}
+        </span>
+      ),
+    },
+    {
+      key: "statuses", header: "Mã", align: "right", sort: (r) => r.statuses[0] ?? 0,
+      render: (r) => (
+        <span className="text-xs tabular-nums">
+          {r.statuses.map((s) => (
+            <span key={s} className={`ml-1 ${statusTone(s)}`}>{s}</span>
+          ))}
+        </span>
+      ),
+    },
+    {
+      key: "lanCuoi", header: "Lần cuối", align: "right", sort: (r) => r.lanCuoi,
+      render: (r) => (
+        <span className="text-xs tabular-nums text-muted-foreground" title={`lần đầu ${new Date(r.lanDau).toLocaleString("vi")}`}>
+          {fmtLucNao(r.lanCuoi)}
+        </span>
+      ),
+    },
+  ]
 
   const logCols: Column<LogRow>[] = [
     {
@@ -445,14 +568,55 @@ export function Reports() {
                 <SelectItem value="false" className="text-xs">Lỗi</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Backend nhận `stream` từ lâu; thiếu nút này nên không ai lọc được. */}
+            <Select value={f.stream} onValueChange={(v) => setF({ stream: v ?? "" })}>
+              <SelectTrigger className="h-8 w-36 text-xs">
+                <span className="truncate">
+                  {f.stream === "true" ? "Stream" : f.stream === "false" ? "Không stream" : "Mọi kiểu gửi"}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="" className="text-xs">Mọi kiểu gửi</SelectItem>
+                <SelectItem value="true" className="text-xs">Stream</SelectItem>
+                <SelectItem value="false" className="text-xs">Không stream</SelectItem>
+              </SelectContent>
+            </Select>
           </>
         )}
 
-        {(f.apiKeyId || f.combo || f.email || f.model || f.endpoint || f.status || f.ok) && (
+        {/* Provider — áp cho CẢ HAI tab: câu hỏi "Kiro hay Antigravity đang lỗi" là câu
+            hỏi tổng quan, không phải chi tiết. */}
+        <Select value={f.provider} onValueChange={(v) => setF({ provider: v ?? "" })}>
+          <SelectTrigger className="h-8 w-40 text-xs">
+            <span className="truncate">{f.provider ? PROVIDER_TEN[f.provider] ?? f.provider : "Mọi provider"}</span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="" className="text-xs">Mọi provider</SelectItem>
+            {Object.entries(PROVIDER_TEN).map(([id, ten]) => (
+              <SelectItem key={id} value={id} className="text-xs">{ten}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Mức gộp: backend tự chọn theo độ dài khoảng, nhưng đôi khi cần ép về giờ để
+            soi một sự cố ngắn, hoặc về tuần để thấy xu hướng dài. */}
+        <Select value={f.groupBy} onValueChange={(v) => setF({ groupBy: v ?? "" })}>
+          <SelectTrigger className="h-8 w-32 text-xs">
+            <span className="truncate">{GOP_TEN[f.groupBy] ?? "Gộp: tự động"}</span>
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(GOP_TEN).map(([v, ten]) => (
+              <SelectItem key={v || "auto"} value={v} className="text-xs">{ten}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {(f.apiKeyId || f.combo || f.email || f.model || f.endpoint || f.status || f.ok || f.stream || f.provider || f.groupBy) && (
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setF({ apiKeyId: "", combo: "", email: "", model: "", endpoint: "", status: "", ok: "" })}
+            onClick={() => setF({ apiKeyId: "", combo: "", email: "", model: "", endpoint: "", status: "", ok: "", stream: "", provider: "", groupBy: "" })}
             className="h-8"
           >
             Xoá lọc
@@ -492,6 +656,7 @@ export function Reports() {
       <div className="flex gap-1 border-b border-border">
         {([
           { k: "tong-quan", label: "Tổng quan" },
+          { k: "loi", label: "Lỗi" },
           { k: "chi-tiet", label: "Chi tiết từng request" },
         ] as const).map((t) => (
           <button
@@ -524,7 +689,29 @@ export function Reports() {
         />
       </div>
 
-      {f.tab === "chi-tiet" ? (
+      {f.tab === "loi" ? (
+        <ChartCard
+          title="Lỗi gom theo thông điệp"
+          actions={
+            <span className="text-xs text-muted-foreground">
+              {fmtNum(errs.data?.tong)} lỗi · {errs.data?.nhom.length ?? 0} nhóm
+            </span>
+          }
+        >
+          <DataTable
+            rows={errs.data?.nhom ?? []}
+            columns={errCols}
+            rowKey={(r) => r.err}
+            loading={errs.isLoading}
+            pageSize={25}
+          />
+          {errs.data && errs.data.nhom.length === 0 && !errs.isLoading && (
+            <p className="py-8 text-center text-sm text-[color:var(--success)]">
+              Không có lỗi nào trong khoảng đã chọn.
+            </p>
+          )}
+        </ChartCard>
+      ) : f.tab === "chi-tiet" ? (
         <ChartCard
           title="Từng request"
           actions={
