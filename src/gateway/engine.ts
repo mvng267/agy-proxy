@@ -7,6 +7,7 @@ import { emitLog } from '../events.js';
 import { store } from '../store/index.js';
 import {
   recordGatewayUsage, listComboRows, recordComboRun, providerStats, modelStats, recordQuota, setSetting,
+  nenGhiThan, catThan, locBiMat, ghiThanPhien,
   comboRevision,
 } from '../store/db.js';
 import {
@@ -103,14 +104,47 @@ export interface UsageCtx {
   stream: boolean;
 }
 
+/**
+ * Lưu NỘI DUNG phiên xuống đĩa, nếu cấu hình cho phép.
+ *
+ * Trước đây nội dung bị vứt ngay tại đây: `engine.ts` chỉ lấy KÍCH THƯỚC của `messages`
+ * (`JSON.stringify(messages).length / 1024`) rồi bỏ chính chuỗi đó đi, còn `r` (GenResult
+ * đầy đủ) thì chỉ lấy `r.usage`. Gặp lỗi thật là không biết client gửi gì.
+ *
+ * Nuốt lỗi có chủ đích: ghi log phụ hỏng KHÔNG được làm hỏng request đang phục vụ.
+ */
+function ghiThan(requestId: string | undefined, ok: boolean, req: unknown, res: unknown): void {
+  if (!requestId) return;
+  const muc = config.gateway.sessionBodyMode ?? 'error';
+  if (!nenGhiThan(muc, ok)) return;
+  try {
+    const maxKb = Math.max(1, config.gateway.sessionBodyMaxKb ?? 64);
+    const q = catThan(JSON.stringify(locBiMat(req) ?? null), maxKb);
+    const p = catThan(JSON.stringify(res ?? null), maxKb);
+    ghiThanPhien({
+      requestId, ts: Date.now(),
+      reqBody: q.text, resBody: p.text,
+      truncated: q.truncated || p.truncated,
+      bytes: q.bytes + p.bytes,
+    });
+  } catch {
+    /* ghi thân hỏng thì thôi — không được kéo theo request thật */
+  }
+}
+
 /** Ghi usage + (tuỳ chọn) cập nhật quota kèm mỗi lần gọi. */
 export function afterCall(
   account: PoolAccount,
   model: string,
-  r: { ok: boolean; promptTokens?: number; completionTokens?: number; ms: number; status?: number; err?: string },
+  r: {
+    ok: boolean; promptTokens?: number; completionTokens?: number; ms: number; status?: number; err?: string;
+    /** Nội dung request/response — chỉ truyền khi có, `ghiThan` tự quyết định lưu hay không. */
+    reqBody?: unknown; resBody?: unknown;
+  },
   ctx?: UsageCtx,
 ) {
   gatewayMetrics.record(r.ok, r.ms);
+  ghiThan(ctx?.requestId, r.ok, r.reqBody, r.resBody);
   recordGatewayUsage({
     ts: Date.now(),
     email: account.email,
@@ -527,8 +561,21 @@ export async function runProviderCall(opts: {
         let toolIndex = 0;
         let sawToolCall = false;
         let finishReason: string | undefined;
+        /**
+         * Gom nội dung stream để lưu — CHỈ khi cấu hình là `all`.
+         *
+         * Stream ghi thẳng `ev.delta` ra socket rồi quên; muốn lưu thì phải tự tích luỹ.
+         * Nhưng ở mức mặc định `error` thì phiên thành công không cần gom, nên không trả
+         * giá bộ nhớ cho 13.000 phiên chạy tốt.
+         *
+         * `gomStream` có TRẦN: một response 5.000 token không được phình bộ nhớ.
+         */
+        const gomStream = config.gateway.sessionBodyMode === 'all';
+        const TRAN_GOM = Math.max(1, config.gateway.sessionBodyMaxKb ?? 64) * 1024;
+        let thanStream = '';
         for await (const ev of p.generateStream({ session: ctx.session, model: bare, messages, ...genArgs, dispatcher: ctx.dispatcher })) {
           if (ev.delta) {
+            if (gomStream && thanStream.length < TRAN_GOM) thanStream += ev.delta;
             if (opts.sseWriter) opts.sseWriter(ev.delta);
             else sseChunk(reply, labelModel, id, { content: ev.delta }, null);
           }
@@ -559,7 +606,11 @@ export async function runProviderCall(opts: {
         const ms = Date.now() - t0;
         providerBreaker.ok(provider);
         pool.report(ctx.account, { ok: true, promptTokens: pt, completionTokens: ct, latencyMs: ms });
-        afterCall(ctx.account, labelModel, { ok: true, promptTokens: pt, completionTokens: ct, ms, status: 200 }, opts.usage);
+        afterCall(ctx.account, labelModel, {
+          ok: true, promptTokens: pt, completionTokens: ct, ms, status: 200,
+          reqBody: { model: labelModel, messages, tools: opts.tools },
+          resBody: { text: thanStream, stream: true, usage: { promptTokens: pt, completionTokens: ct } },
+        }, opts.usage);
         savePersist();
         gw({ kind: 'res', account: ctx.account.email, model: labelModel, ms, tokens: pt + ct, status: 200, msg: `← 200 · stream · ${pt + ct} tok · ${ms}ms` });
         return { done: true };
@@ -568,7 +619,11 @@ export async function runProviderCall(opts: {
       const ms = Date.now() - t0;
       providerBreaker.ok(provider);
       pool.report(ctx.account, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, latencyMs: ms });
-      afterCall(ctx.account, labelModel, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, ms, status: 200 }, opts.usage);
+      afterCall(ctx.account, labelModel, {
+        ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, ms, status: 200,
+        reqBody: { model: labelModel, messages, tools: opts.tools },
+        resBody: { text: r.text, toolCalls: r.toolCalls, usage: r.usage },
+      }, opts.usage);
       savePersist();
       gw({ kind: 'res', account: ctx.account.email, model: labelModel, ms, tokens: r.usage.totalTokens, status: 200, msg: `← 200 · ${r.usage.totalTokens} tok · ${ms}ms` });
       return { result: r };
@@ -580,7 +635,13 @@ export async function runProviderCall(opts: {
         ok: false, status: e?.status, err: e?.message, retryAfterMs: e?.retryAfterMs,
         bucket, latencyMs: ms,
       });
-      afterCall(ctx.account, labelModel, { ok: false, ms, status: e?.status, err: e?.message }, opts.usage);
+      // Phiên LỖI là thứ đáng lưu nhất — không biết client gửi gì thì không biết vì sao
+      // upstream từ chối. `err` trong `gateway_usage` bị cắt còn 300 ký tự.
+      afterCall(ctx.account, labelModel, {
+        ok: false, ms, status: e?.status, err: e?.message,
+        reqBody: { model: labelModel, messages, tools: opts.tools },
+        resBody: { error: String(e?.message ?? e), status: e?.status },
+      }, opts.usage);
       const outOfQuota = e?.status === 402 || e?.status === 429 || /MONTHLY_REQUEST_COUNT|quota|exhaust/i.test(String(e?.message ?? ''));
       // Prompt quá dài KHÔNG phụ thuộc account — thử account khác chỉ tốn thời gian
       // và làm bẩn log. Dừng ngay để tầng combo đổi sang MODEL khác.

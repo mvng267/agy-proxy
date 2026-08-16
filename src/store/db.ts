@@ -98,6 +98,20 @@ db.exec(`
     model TEXT NOT NULL, ok INTEGER NOT NULL, status INTEGER, ms INTEGER, reason TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_combo_runs_ts ON combo_runs(ts);
+  -- NỘI DUNG từng phiên gửi/nhận — bảng RIÊNG, không nhét vào gateway_usage.
+  -- Tách ra vì gateway_usage bị quét liên tục cho mọi truy vấn báo cáo; thêm cột TEXT lớn
+  -- vào đó là làm chậm tất cả chúng, kể cả khi không ai đọc thân phiên.
+  -- request_id là PRIMARY KEY chứ không phải id tự tăng: một request client sinh N dòng
+  -- gateway_usage (mỗi bước combo một dòng) nhưng chỉ có MỘT thân.
+  CREATE TABLE IF NOT EXISTS session_body (
+    request_id TEXT PRIMARY KEY,
+    ts INTEGER NOT NULL,
+    req_body TEXT,
+    res_body TEXT,
+    truncated INTEGER NOT NULL DEFAULT 0,
+    bytes INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_session_body_ts ON session_body(ts);
   CREATE INDEX IF NOT EXISTS idx_runs_email ON runs(email);
   CREATE INDEX IF NOT EXISTS idx_logs_run ON run_logs(run_id);
   CREATE INDEX IF NOT EXISTS idx_usage_ts ON gateway_usage(ts);
@@ -607,6 +621,10 @@ export interface UsageFilter {
   ok?: boolean;
   /** `true` chỉ lấy request stream. */
   stream?: boolean;
+  /** Mọi bước của MỘT request client — chúng dùng chung id này. */
+  requestId?: string;
+  /** Lọc theo provider (`agy`, `kr`, `or`, `no`) — khớp tiền tố của `model`. */
+  provider?: string;
 }
 
 /** Dựng mệnh đề WHERE động — dùng chung cho mọi hàm tổng hợp. */
@@ -640,6 +658,15 @@ function usageWhere(f?: UsageFilter): { sql: string; args: unknown[] } {
   if (f?.ok !== undefined) {
     sql += ' AND ok = ?';
     args.push(f.ok ? 1 : 0);
+  }
+  if (f?.requestId) {
+    sql += ' AND request_id = ?';
+    args.push(f.requestId);
+  }
+  if (f?.provider) {
+    // Model lưu dạng đã prefix (`agy/gemini-3-flash`) nên khớp tiền tố là đủ.
+    sql += ' AND model LIKE ?';
+    args.push(`${f.provider}/%`);
   }
   if (f?.stream !== undefined) {
     sql += ' AND stream = ?';
@@ -768,6 +795,108 @@ export function pruneUsage(days = 90): number {
     if (n < 50000) break;
   }
   return total;
+}
+
+// ---------- thân phiên (nội dung request/response) ----------
+
+/**
+ * Mức ghi thân phiên. Mặc định `error` — cân bằng đúng chỗ.
+ *
+ * Đo trên production: p90 là **273 KB/phiên**, nên `all` với 3.000 phiên/ngày là
+ * ~1,7 GB/tháng. Trong khi 3 ngày gần nhất chỉ có **11 lỗi** — ghi hết chúng gần như miễn
+ * phí, mà mỗi cái đều đáng đọc. Còn 13.000 phiên thành công thì không ai mở ra xem.
+ */
+export type MucGhiThan = 'off' | 'error' | 'all';
+
+export function nenGhiThan(muc: MucGhiThan, ok: boolean): boolean {
+  if (muc === 'off') return false;
+  if (muc === 'all') return true;
+  // Giá trị lạ (cấu hình hỏng, khoá cũ) rơi về 'error' — KHÔNG được tự bật ghi hết.
+  return !ok;
+}
+
+/** Header không bao giờ được ghi xuống đĩa. */
+const HEADER_BI_MAT = ['authorization', 'x-api-key', 'cookie', 'proxy-authorization', 'x-auth-token'];
+
+/**
+ * Xoá khoá xác thực khỏi body trước khi lưu.
+ *
+ * Thân phiên nằm trên đĩa và hiện lên dashboard; header xác thực lọt vào đó là rò khoá.
+ * Chỉ đụng `headers` — phần còn lại là nội dung người dùng, giữ nguyên.
+ */
+export function locBiMat(body: unknown): unknown {
+  if (!body || typeof body !== 'object') return body;
+  const o = { ...(body as Record<string, unknown>) };
+  const h = o.headers;
+  if (h && typeof h === 'object') {
+    const sach: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(h as Record<string, unknown>)) {
+      sach[k] = HEADER_BI_MAT.includes(k.toLowerCase()) ? '(đã ẩn)' : v;
+    }
+    o.headers = sach;
+  }
+  return o;
+}
+
+/**
+ * Cắt thân về dưới trần, GIỮ CẢ HAI ĐẦU.
+ *
+ * Giữ đầu để biết request mở bằng gì (system prompt, model), giữ cuối vì lỗi hầu như luôn
+ * nằm ở message cuối — cắt mất đuôi là mất đúng chỗ cần đọc.
+ */
+export function catThan(s: string, maxKb: number): { text: string; truncated: boolean; bytes: number } {
+  const bytes = Buffer.byteLength(s);
+  const tran = Math.max(1, maxKb) * 1024;
+  if (bytes <= tran) return { text: s, truncated: false, bytes };
+  const nua = Math.floor(tran / 2);
+  const mat = Math.round((bytes - tran) / 1024);
+  return {
+    text: `${s.slice(0, nua)}\n…(đã cắt ${mat} KB)…\n${s.slice(-nua)}`,
+    truncated: true,
+    bytes,
+  };
+}
+
+export interface ThanPhien {
+  requestId: string;
+  ts: number;
+  reqBody?: string | null;
+  resBody?: string | null;
+  truncated: boolean;
+  bytes: number;
+}
+
+/** Ghi thân phiên. Cùng `requestId` thì GHI ĐÈ — combo nhiều bước chỉ có một thân. */
+export function ghiThanPhien(t: ThanPhien): void {
+  prep(
+    `INSERT INTO session_body (request_id, ts, req_body, res_body, truncated, bytes)
+     VALUES (?,?,?,?,?,?)
+     ON CONFLICT(request_id) DO UPDATE SET
+       ts = excluded.ts, req_body = excluded.req_body, res_body = excluded.res_body,
+       truncated = excluded.truncated, bytes = excluded.bytes`,
+  ).run(t.requestId, t.ts, t.reqBody ?? null, t.resBody ?? null, t.truncated ? 1 : 0, t.bytes | 0);
+}
+
+export function thanPhien(requestId: string): ThanPhien | undefined {
+  const r = prep(
+    `SELECT request_id AS requestId, ts, req_body AS reqBody, res_body AS resBody, truncated, bytes
+       FROM session_body WHERE request_id = ?`,
+  ).get(requestId) as (Omit<ThanPhien, 'truncated'> & { truncated: number }) | undefined;
+  return r ? { ...r, truncated: !!r.truncated } : undefined;
+}
+
+/**
+ * Dọn thân phiên quá hạn.
+ *
+ * Bảng mới PHẢI dọn được ngay từ đầu: `combo_runs` (19.180 dòng production), `runs`,
+ * `run_logs`, `auth_log` hiện không có hàm prune nào và phình vô hạn. `days <= 0` = giữ
+ * vĩnh viễn, cùng quy ước với `pruneUsage` để không phải nhớ hai luật.
+ */
+export function pruneSessionBody(days = 7): number {
+  if (days <= 0) return 0;
+  const cutoff = Date.now() - days * 86400_000;
+  const r = db.prepare('DELETE FROM session_body WHERE ts < ?').run(cutoff);
+  return Number(r.changes ?? 0);
 }
 
 // ---------- api keys ----------

@@ -110,6 +110,13 @@ export const CONFIG_FIELDS: Record<string, ConfigField> = {
 
   // ---- Dữ liệu ----
   usageRetentionDays: { label: 'Giữ lịch sử dùng (ngày)', desc: '0 = giữ vĩnh viễn', group: NHOM.duLieu, type: 'int', min: 0, max: 3_650 },
+  sessionBodyMode: {
+    label: 'Lưu nội dung phiên',
+    desc: 'Tắt · Chỉ khi lỗi · Mọi phiên. "Mọi phiên" LƯU TOÀN BỘ nội dung hội thoại xuống đĩa (đo thật: ~1,7 GB/tháng).',
+    group: NHOM.duLieu, type: 'enum', values: ['off', 'error', 'all'],
+  },
+  sessionBodyMaxKb: { label: 'Trần nội dung mỗi phiên (KB)', desc: 'Dài hơn thì cắt giữa, giữ đầu và cuối', group: NHOM.duLieu, type: 'int', min: 1, max: 1_024, advanced: true },
+  sessionBodyDays: { label: 'Giữ nội dung phiên (ngày)', desc: '0 = giữ vĩnh viễn', group: NHOM.duLieu, type: 'int', min: 0, max: 365, advanced: true },
   quotaHistoryDays: { label: 'Giữ lịch sử hạn mức (ngày)', group: NHOM.duLieu, type: 'int', min: 1, max: 3_650 },
 
   // ---- Claude Code ----

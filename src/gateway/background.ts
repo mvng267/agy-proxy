@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { pruneQuotaHistory, pruneUsage, recordMetrics, pruneMetricsHistory } from '../store/db.js';
+import { pruneQuotaHistory, pruneUsage, recordMetrics, pruneMetricsHistory, pruneSessionBody } from '../store/db.js';
 import { pool, savePersist, ensureReady, dispatcherFor, refreshQuota, geminiPct, claudePct } from './pool.js';
 import { PROVIDERS } from './providers/index.js';
 import { log, checkLiveAccount } from './engine.js';
@@ -201,6 +201,8 @@ export function startGatewayBackground(): void {
       // gateway_usage TRƯỚC ĐÂY không bao giờ được dọn (pruneUsage có sẵn mà không
       // nơi nào gọi) — chỉ lớn dần mãi. 0 = giữ vĩnh viễn.
       pruneUsage(config.gateway.usageRetentionDays);
+      // Thân phiên nặng hơn usage nhiều (p90 273 KB/phiên) nên mặc định chỉ giữ 7 ngày.
+      pruneSessionBody(config.gateway.sessionBodyDays ?? 7);
     } catch { /* bỏ qua */ }
   };
   prune();

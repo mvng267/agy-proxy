@@ -165,6 +165,15 @@ export const config = {
      * dòng/ngày (gấp 4 lần) mà chỉ dùng để vẽ biểu đồ xu hướng — không dùng để chẩn đoán.
      */
     usageRetentionDays: num(S('usageRetentionDays') ?? E('USAGE_RETENTION_DAYS'), 0),
+    /**
+     * Ghi NỘI DUNG request/response xuống đĩa. Mặc định `error` — chỉ khi phiên lỗi.
+     *
+     * Đo trên production: p90 là 273 KB/phiên, nên `all` với 3.000 phiên/ngày là
+     * ~1,7 GB/tháng. Còn phiên lỗi thì 3 ngày gần nhất chỉ có 11 cái.
+     */
+    sessionBodyMode: (S('sessionBodyMode') ?? E('SESSION_BODY_MODE') ?? 'error') as 'off' | 'error' | 'all',
+    sessionBodyMaxKb: num(S('sessionBodyMaxKb') ?? E('SESSION_BODY_MAX_KB'), 64),
+    sessionBodyDays: num(S('sessionBodyDays') ?? E('SESSION_BODY_DAYS'), 7),
     // Endpoint Anthropic (Claude Code): id Anthropic thật sẽ map sang 2 model này
     anthropicBigModel: S('anthropicBigModel') ?? 'kr/claude-sonnet-4.5',
     anthropicSmallModel: S('anthropicSmallModel') ?? 'kr/claude-haiku-4.5',
@@ -226,6 +235,9 @@ const SETTERS: Record<string, Setter> = {
   autoDisableOffPct: (v) => (config.gateway.autoDisable.offAtPct = Number(v)),
   autoDisableOnPct: (v) => (config.gateway.autoDisable.onAtPct = Number(v)),
   usageRetentionDays: (v) => (config.gateway.usageRetentionDays = Number(v)),
+  sessionBodyMode: (v) => (config.gateway.sessionBodyMode = (['off', 'error', 'all'].includes(v) ? v : 'error') as never),
+  sessionBodyMaxKb: (v) => (config.gateway.sessionBodyMaxKb = Number(v)),
+  sessionBodyDays: (v) => (config.gateway.sessionBodyDays = Number(v)),
   anthropicBigModel: (v) => (config.gateway.anthropicBigModel = v),
   anthropicSmallModel: (v) => (config.gateway.anthropicSmallModel = v),
   kiroProbeEnabled: (v) => (config.gateway.kiroProbeEnabled = v === 'true'),
@@ -343,6 +355,9 @@ export function getConfigValue(key: string): unknown {
     case 'quotaCacheTtlMin': return config.gateway.quota.cacheTtlMin;
     case 'quotaHistoryDays': return config.gateway.quota.historyDays;
     case 'usageRetentionDays': return config.gateway.usageRetentionDays;
+    case 'sessionBodyMode': return config.gateway.sessionBodyMode;
+    case 'sessionBodyMaxKb': return config.gateway.sessionBodyMaxKb;
+    case 'sessionBodyDays': return config.gateway.sessionBodyDays;
     case 'anthropicBigModel': return config.gateway.anthropicBigModel;
     case 'anthropicSmallModel': return config.gateway.anthropicSmallModel;
     case 'kiroProbeEnabled': return config.gateway.kiroProbeEnabled;

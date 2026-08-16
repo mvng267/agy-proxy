@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import {
   usageTotals, usageSeries, usageByModel, usageByAccount, usageRows, usageSamples,
-  usageLogs, usageFacets, usageByApiKey, usageByCombo, attributionSince, type UsageFilter,
+  usageLogs, usageFacets, usageByApiKey, usageByCombo, attributionSince, thanPhien, type UsageFilter,
   quotaSeries, quotaForAccount, quotaHistoryCount,
   comboRuns, comboStepStats, comboRunFacets, type ComboRunFilter,
   metricsSeries, metricsHistoryCount,
@@ -54,6 +54,7 @@ export function registerReportRoutes(app: FastifyInstance): void {
       email: chuoi(q.email),
       model: chuoi(q.model),
       endpoint: chuoi(q.endpoint),
+      provider: chuoi(q.provider),
       status: Number.isFinite(Number(q.status)) && q.status !== '' && q.status !== undefined ? Number(q.status) : undefined,
       ok: bool(q.ok),
       stream: bool(q.stream),
@@ -143,6 +144,26 @@ export function registerReportRoutes(app: FastifyInstance): void {
       offset,
       facets: usageFacets(from, to, f),
       attributionSince: attributionSince(),
+    };
+  });
+
+  /**
+   * TOÀN BỘ một phiên: nội dung gửi/nhận + mọi bước đã đi qua.
+   *
+   * Một request client sinh N dòng `gateway_usage` (mỗi bước combo một dòng) nhưng chỉ có
+   * MỘT thân. Đo trên production: 12% request phải thử nhiều account, nhiều nhất 7 lần —
+   * log phẳng nên chúng hiện thành 7 dòng rời rạc, không thấy quan hệ.
+   */
+  app.get('/api/gateway/usage/session/:requestId', async (req, reply) => {
+    const { requestId } = req.params as { requestId: string };
+    if (!requestId) return reply.code(400).send({ error: 'thiếu requestId' });
+    const buoc = usageLogs(0, Date.now(), { requestId }, 50, 0);
+    if (!buoc.rows.length) return reply.code(404).send({ error: 'không có phiên này' });
+    return {
+      requestId,
+      than: thanPhien(requestId) ?? null,
+      buoc: buoc.rows,
+      tongMs: buoc.rows.reduce((s, r) => s + (r.ms ?? 0), 0),
     };
   });
 
