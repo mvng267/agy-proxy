@@ -7,6 +7,7 @@ import type { ApiKey, UsageResponse, UsageAgg } from "@/lib/types"
 import { POLL } from "@/lib/queryClient"
 import { DataTable, KpiCard, PageHeader, ChartCard, ErrorState, type Column } from "@/components/common"
 import { BarSeries } from "@/components/common/charts"
+import { ChiTietPhien } from "@/components/pages/reports/ChiTietPhien"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 
@@ -185,6 +186,8 @@ export function Reports() {
   const [f, setF] = useUrlFilters()
   const [metric, setMetric] = useState<"requests" | "tokens">("requests")
   const [page, setPage] = useState(0)
+  /** Dòng log đang mở rộng để xem toàn phiên. */
+  const [moRong, setMoRong] = useState<Set<string>>(new Set())
 
   const qs = new URLSearchParams({ range: f.range })
   for (const k of ["apiKeyId", "combo", "email", "model", "endpoint", "status", "ok", "stream", "provider", "groupBy"] as const) {
@@ -728,6 +731,31 @@ export function Reports() {
             loading={logs.isLoading}
             pageSize={PAGE}
             initialSort={{ key: "ts", dir: "desc" }}
+            /**
+             * Bấm một dòng để xem TOÀN phiên: nội dung gửi/nhận + mọi bước đã đi qua.
+             *
+             * Log phẳng nên một request thử 7 account hiện thành 7 dòng rời rạc — đo thật
+             * 12% request phải thử nhiều account. Mở rộng là cách duy nhất thấy quan hệ đó.
+             */
+            expand={{
+              expanded: moRong,
+              onToggle: (k) =>
+                setMoRong((s) => {
+                  const next = new Set(s)
+                  if (next.has(k)) next.delete(k)
+                  else next.add(k)
+                  return next
+                }),
+              render: (r) =>
+                r.requestId ? (
+                  <ChiTietPhien requestId={r.requestId} />
+                ) : (
+                  // Dòng cũ hơn lúc thêm `request_id` (migration v3) thì không nối được.
+                  <p className="px-2 py-3 text-xs text-muted-foreground">
+                    Bản ghi này không có mã phiên — có từ trước khi hệ thống ghi `requestId`.
+                  </p>
+                ),
+            }}
           />
           {/* Phân trang phía SERVER: DataTable chỉ phân trang trong tập đã tải về,
               mà tập đó chỉ là 50 dòng của trang hiện tại. */}
