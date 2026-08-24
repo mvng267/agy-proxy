@@ -158,6 +158,15 @@ export class Pool {
     this.modelFails.delete(model);
   }
 
+  /**
+   * Xoá mọi cooldown model. Dùng khi cần trạng thái sạch — test dùng chung pool singleton,
+   * và người vận hành đôi khi muốn thử lại ngay thay vì đợi hết 5 phút.
+   */
+  clearAllModelCooldown(): void {
+    this.modelCooldown.clear();
+    this.modelFails.clear();
+  }
+
 /** Account đủ điều kiện phục vụ tại thời điểm now (lọc theo provider nếu có). */
   candidates(now = Date.now(), provider?: ProviderId, bucket?: QuotaBucket): PoolAccount[] {
     return this.list(provider).filter(

@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { config } from '../config.js';
 
 /**
@@ -301,3 +303,33 @@ class OmniRouteClient {
 }
 
 export const omniroute = new OmniRouteClient();
+
+/**
+ * Thư mục cài OmniRoute trên máy này, hoặc null nếu không thấy.
+ *
+ * Dùng để tự vá lại sau khi `npm update -g` ghi đè. Chỉ có nghĩa khi OmniRoute chạy CÙNG
+ * MÁY — máy khác thì trả null và bên gọi bỏ qua.
+ *
+ * Thử `npm root -g` trước (chính xác nhất), rồi các đường mặc định. `npm root -g` tốn
+ * ~200ms nên bên gọi phải cache, đừng gọi mỗi request.
+ */
+export function duongDanOmniroute(): string | null {
+  const thu: string[] = [];
+  try {
+    const goc = execFileSync('npm', ['root', '-g'], { encoding: 'utf8', timeout: 10_000 }).trim();
+    if (goc) thu.push(`${goc}/omniroute`);
+  } catch {
+    // npm không có trong PATH (systemd service với PATH tối giản) → dùng đường mặc định.
+  }
+  const home = process.env.HOME ?? '';
+  thu.push(
+    `${home}/.local/lib/node_modules/omniroute`,
+    '/usr/local/lib/node_modules/omniroute',
+    '/usr/lib/node_modules/omniroute',
+  );
+
+  for (const d of thu) {
+    if (existsSync(`${d}/dist/.build/next/server/chunks`)) return d;
+  }
+  return null;
+}

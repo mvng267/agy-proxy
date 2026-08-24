@@ -210,6 +210,7 @@ export function startGatewayBackground(): void {
   setInterval(prune, 24 * 3600_000).unref?.();
 
   startOmnirouteSync();
+  startOmnirouteVaLoop();
   startAutoDisableLoop();
 }
 
@@ -235,6 +236,61 @@ function startOmnirouteSync(): void {
   };
 
   setInterval(chay, NHIP_MS).unref?.();
+}
+
+/**
+ * Tự vá lại OmniRoute sau khi `npm update -g` ghi đè bản vá.
+ *
+ * Vì sao phải tự động: bản vá dedupe sống trong `dist/.build` (gói npm không ship `app/`
+ * lẫn `next.config` nên không build lại từ nguồn được), nên MỖI lần cập nhật OmniRoute là
+ * mất. Quên vá lại thì 400 account Kiro gộp thành 1 — và **không có dấu hiệu nào**: API
+ * trả `{"success":true}` cả 400 lần, dashboard hiện xanh, gọi model vẫn ra kết quả. Chỉ
+ * khi đếm connection mới thấy 1 thay vì 400.
+ *
+ * Nhịp 10 phút: cập nhật là việc hiếm, kiểm dày hơn chỉ tốn I/O đọc ~200 chunk. Kiểm ngay
+ * lúc khởi động vì đó là thời điểm hay xảy ra nhất (cập nhật xong thì khởi động lại).
+ */
+function startOmnirouteVaLoop(): void {
+  const NHIP_MS = 10 * 60_000;
+
+  const chay = async () => {
+    if (!dangBat()) return;
+    try {
+      const { duongDanOmniroute } = await import('../omniroute/client.js');
+      const goc = duongDanOmniroute();
+      if (!goc) return;
+
+      const { xemTrangThai, apVa } = await import('../omniroute/vaDedupe.js');
+      const t = xemTrangThai(goc);
+      if (!t.timThay || t.daAp) return;
+
+      const n = apVa(goc);
+      if (n > 0) {
+        const sau = xemTrangThai(goc);
+        log(
+          'omniroute',
+          'warn',
+          `Bản vá OmniRoute đã mất (cập nhật ghi đè?) — đã vá lại ${n} chunk ` +
+            `(thân ${sau.than}, gọi ${sau.goi}${sau.daAp ? '' : ', VẪN CHƯA ĐỦ'}). ` +
+            'Khởi động lại OmniRoute để áp dụng.',
+        );
+      } else {
+        // Có thư mục chunk mà không vá được gì ⇒ mẫu không khớp, khả năng OmniRoute đổi
+        // phiên bản. Cảnh báo một lần mỗi nhịp, đừng im lặng — đây đúng là ca nguy hiểm.
+        log(
+          'omniroute',
+          'warn',
+          `OmniRoute CHƯA có bản vá dedupe và mẫu vá KHÔNG khớp (thân ${t.than}, gọi ${t.goi}) ` +
+            '— nhiều account Kiro sẽ gộp thành 1 connection. Phiên bản OmniRoute có thể đã đổi.',
+        );
+      }
+    } catch {
+      // Không đọc được thư mục OmniRoute → bỏ qua êm, đừng làm chết vòng nền.
+    }
+  };
+
+  void chay();
+  setInterval(() => void chay(), NHIP_MS).unref?.();
 }
 
 /**

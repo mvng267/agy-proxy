@@ -73,7 +73,14 @@ before(async () => {
   await registerGatewayRoutes(app);
   await app.ready();
   PROVIDERS.agy = fakeProvider({ supportsTools: true });
-  PROVIDERS.kr = fakeProvider({ id: 'kr', label: 'Kiro', supportsTools: false } as any);
+  // `credentialTarget` BẮT BUỘC: `fakeProvider` sao từ `realAgy` nên mặc định là 'agy'.
+  // Thiếu nó thì `providerOfTarget('kiro')` trả undefined → credential kiro không vào pool
+  // → "Không có account Kiro khả dụng" (503) thay vì gọi provider giả.
+  PROVIDERS.kr = fakeProvider({
+    id: 'kr', label: 'Kiro', supportsTools: false, credentialTarget: 'kiro',
+    accepts: (v: string) => v.trim().startsWith('{'),
+    parseCredential: (v: string) => { try { return JSON.parse(v); } catch { return null; } },
+  } as any);
 });
 
 after(() => {
@@ -255,6 +262,15 @@ test('provider KHÔNG hỗ trợ tool (kr/) + có tools → 400 nói rõ lý do,
 });
 
 test('kr/ KHÔNG có tools vẫn chạy bình thường (không phá luồng cũ)', async (t) => {
+  /**
+   * Dọn cooldown model trước khi đo.
+   *
+   * `Pool` là singleton dùng chung giữa MỌI file test, và `node --test` chạy chúng trong
+   * cùng process. File khác (`gateway/quota.test.ts`) gây 503 "hết chỗ" ba lần → model bị
+   * đánh dấu nghỉ 5 phút → test này nhận 503 thay vì 200. Chạy riêng thì pass, chạy cả bộ
+   * thì hỏng — đúng kiểu lỗi khó tìm nhất.
+   */
+  pool.clearAllModelCooldown();
   nonStreamResult = {
     text: 'chao ban', images: [], toolCalls: [],
     usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 }, finishReason: 'STOP', model: 'm',

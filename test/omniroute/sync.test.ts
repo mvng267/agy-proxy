@@ -18,8 +18,16 @@ import { resolve } from 'node:path';
  * 3. **Chia lô đúng 50.** Trần của `importAgyAuthBulkSchema` — gửi 51 là cả lô bị từ chối.
  */
 
+/**
+ * KHÔNG đặt `process.env.AGY_HOME` ở đây.
+ *
+ * File này không chạm store — nó chỉ kiểm `dangBat()`, khoá chống chạy chồng, và nội dung
+ * mã nguồn. Nhưng `node --test` chạy mọi file trong CÙNG process, nên `AGY_HOME` đặt ở đây
+ * thắng luôn file khác load sau: `test/api/anthropic-tools.test.ts` gieo credential Kiro vào
+ * thư mục tạm của NÓ, rồi `loadCredentials()` đọc CSV của thư mục NÀY và không thấy gì →
+ * pool hết account Kiro → 503 thay vì 200. Chạy riêng thì pass, chạy cả bộ thì hỏng.
+ */
 const TMP = mkdtempSync(resolve(tmpdir(), 'agy-omni-'));
-process.env.AGY_HOME = TMP;
 
 let sync: typeof import('../../src/omniroute/sync.js');
 let cfg: typeof import('../../src/config.js');
