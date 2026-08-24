@@ -48,21 +48,7 @@ echo
 read -rp "Gõ ĐÚNG chữ 'XOA' để tiếp tục: " tra
 [[ "$tra" == "XOA" ]] || { vang "Huỷ — không đụng gì."; exit 0; }
 
-# ── 2. Sao lưu TRƯỚC khi xoá ────────────────────────────────────────────────
-# Backup chứa credential ở dạng đọc được → 0600, để trong $HOME.
-BK="$HOME/agyproxy-truoc-khi-lam-moi-$(date +%Y%m%d-%H%M%S).tar.gz"
-if [[ -d "$AGY_HOME" ]]; then
-  tar czf "$BK" -C "$HOME" .agyproxy 2>/dev/null || {
-    loi "LỖI: sao lưu hỏng — DỪNG, không xoá gì cả."
-    exit 1
-  }
-  chmod 600 "$BK"
-  xanh "✓ Sao lưu: $BK ($(du -h "$BK" | cut -f1))"
-else
-  vang "⚠ Chưa có $AGY_HOME — bỏ qua sao lưu."
-fi
-
-# ── 3. Dừng mọi dịch vụ ─────────────────────────────────────────────────────
+# ── 2. Dừng mọi dịch vụ ─────────────────────────────────────────────────────
 vang "Dừng dịch vụ…"
 if command -v systemctl >/dev/null && systemctl list-units --type=service 2>/dev/null | grep -q agyproxy; then
   sudo systemctl stop agyproxy || true
@@ -71,6 +57,32 @@ command -v pm2 >/dev/null && pm2 stop agyproxy 2>/dev/null || true
 pkill -f 'agyproxy|omniroute' 2>/dev/null || true
 sleep 3
 xanh "✓ Đã dừng"
+
+# ── 3. Sao lưu — SAU khi dừng dịch vụ ───────────────────────────────────────
+# Thứ tự này là bắt buộc: sao lưu trong lúc dịch vụ còn chạy thì `state.db-wal` và
+# `profiles/` (Chrome đang mở) thay đổi giữa lúc `tar` đọc → tar trả exit code khác 0
+# ("file changed as we read it") → script tưởng sao lưu hỏng và dừng. Đã bị đúng lỗi này.
+#
+# Backup chứa credential ở dạng đọc được → 0600, để trong $HOME.
+BK="$HOME/agyproxy-truoc-khi-lam-moi-$(date +%Y%m%d-%H%M%S).tar.gz"
+if [[ -d "$AGY_HOME" ]]; then
+  # Exit code 1 của tar = "file đổi khi đang đọc", chấp nhận được (chỉ 2 mới là lỗi thật).
+  set +e
+  tar czf "$BK" -C "$HOME" .agyproxy 2>"$HOME/.tar-loi.txt"
+  MA=$?
+  set -e
+  if (( MA > 1 )) || [[ ! -s "$BK" ]]; then
+    loi "LỖI: sao lưu hỏng (tar exit $MA) — DỪNG, không xoá gì cả."
+    [[ -s "$HOME/.tar-loi.txt" ]] && sed 's/^/    /' "$HOME/.tar-loi.txt" | head -5
+    exit 1
+  fi
+  (( MA == 1 )) && vang "⚠ Vài tệp đổi khi đang đọc (bình thường) — bản sao vẫn dùng được."
+  chmod 600 "$BK"
+  rm -f "$HOME/.tar-loi.txt"
+  xanh "✓ Sao lưu: $BK ($(du -h "$BK" | cut -f1))"
+else
+  vang "⚠ Chưa có $AGY_HOME — bỏ qua sao lưu."
+fi
 
 # ── 4. Xoá sạch ─────────────────────────────────────────────────────────────
 rm -rf "$AGY_HOME/data" "$AGY_HOME/profiles" "$AGY_HOME/screenshots" "$OMNI_HOME"
