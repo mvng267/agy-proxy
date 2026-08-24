@@ -130,10 +130,18 @@ if [[ -f "$ROOT/deploy/systemd/omniroute.service" ]]; then
   sed -i "s#/home/mvng/.local/node/bin/node#$(command -v node)#g" "$UNIT_DIR/omniroute.service"
   sed -i "s#^User=.*#User=$USER#" "$UNIT_DIR/omniroute.service"
   sed -i "s#^WorkingDirectory=.*#WorkingDirectory=$HOME#" "$UNIT_DIR/omniroute.service"
-  sed -i "s#ReadWritePaths=.*#ReadWritePaths=$OMNI_HOME#" "$UNIT_DIR/omniroute.service"
+  sed -i "s#ReadWritePaths=.*#ReadWritePaths=$OMNI_HOME $OMNI_DIR#" "$UNIT_DIR/omniroute.service"
+  sed -i "s#EnvironmentFile=-.*#EnvironmentFile=-$OMNI_HOME/.env#" "$UNIT_DIR/omniroute.service"
   systemctl --user daemon-reload
   systemctl --user enable --now omniroute 2>&1 | tail -1
-  xanh "✓ OmniRoute chạy qua systemd"
+  sleep 3
+  if systemctl --user is-active --quiet omniroute; then
+    xanh "✓ OmniRoute chạy qua systemd"
+  else
+    loi "✗ OmniRoute không lên. Lý do:"
+    systemctl --user status omniroute --no-pager -l 2>&1 | sed -n '1,8p' | sed 's/^/    /'
+    journalctl --user -u omniroute -n 12 --no-pager 2>&1 | sed 's/^/    /'
+  fi
 else
   vang "⚠ Thiếu deploy/systemd/omniroute.service → chạy tạm bằng nohup (mất khi reboot)"
   nohup node "$OMNI_DIR/bin/omniroute.mjs" > "$HOME/omniroute.log" 2>&1 &
@@ -173,7 +181,13 @@ console.log('  agyproxy  : v'+o.version+' · accounts '+o.accounts+' · pool '+o
 if curl -sf -m 5 "http://127.0.0.1:20128/api/health/ping" >/dev/null 2>&1; then
   xanh "  OmniRoute : chạy (cổng 20128)"
 else
-  vang "  OmniRoute : KHÔNG lên — xem $HOME/omniroute.log"
+  loi "  OmniRoute : KHÔNG lên"
+  if systemctl --user list-unit-files 2>/dev/null | grep -q omniroute; then
+    echo "    journalctl --user -u omniroute -n 30 --no-pager"
+    journalctl --user -u omniroute -n 8 --no-pager 2>&1 | sed 's/^/    /'
+  else
+    echo "    tail -30 $HOME/omniroute.log"
+  fi
 fi
 
 echo

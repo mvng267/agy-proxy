@@ -11,6 +11,11 @@ WorkingDirectory=/home/mvng
 Environment=PATH=/home/mvng/.local/node/bin:/usr/local/bin:/usr/bin:/bin
 Environment=NODE_ENV=production
 
+# OmniRoute đọc STORAGE_ENCRYPTION_KEY từ đây. Thiếu nó thì token đã mã hoá trong
+# storage.sqlite không giải được — dịch vụ lên rồi chết, hoặc chạy mà không đọc nổi
+# credential nào. `-` = không có file cũng không sao (lần cài đầu).
+EnvironmentFile=-/home/mvng/.omniroute/.env
+
 # Đường dẫn tuyệt đối tới bản cài global. Đổi nếu `npm root -g` trả chỗ khác:
 #   sudo sed -i "s#/home/mvng/.local/lib/node_modules#$(npm root -g)#" omniroute.service
 ExecStart=/home/mvng/.local/node/bin/node /home/mvng/.local/lib/node_modules/omniroute/bin/omniroute.mjs
@@ -29,8 +34,11 @@ SyslogIdentifier=omniroute
 
 NoNewPrivileges=true
 PrivateTmp=true
+
+# `ProtectSystem=full` (chỉ đọc /usr, /boot, /etc) hợp lý, nhưng Next.js còn ghi cache
+# vào chính thư mục cài, nên phải mở thêm đường đó — nếu không dịch vụ chết lúc khởi động.
 ProtectSystem=full
-ReadWritePaths=/home/mvng/.omniroute
+ReadWritePaths=/home/mvng/.omniroute /home/mvng/.local/lib/node_modules/omniroute
 
 [Install]
 WantedBy=multi-user.target
