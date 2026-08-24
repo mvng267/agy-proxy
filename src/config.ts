@@ -184,6 +184,20 @@ export const config = {
     // Gói KIRO FREE = 50 credit/tháng (theo listAvailableSubscriptions). Pro=1000, Pro+=2000.
     kiroCreditLimit: num(S('kiroCreditLimit'), 50),
   },
+  /**
+   * OmniRoute — gateway thứ hai dùng chung bộ account.
+   *
+   * Tích hợp này TỪNG bị gỡ (commit 55bce31) vì OmniRoute trả 401 Invalid password
+   * mọi lần khởi động, sinh 303 dòng cảnh báo trong `run_logs`. Đưa lại vì v3.8.49 đăng
+   * nhập được và đang phục vụ thật — nhưng giữ đúng bài học: **mật khẩu rỗng = tắt hẳn**,
+   * và mọi lỗi OmniRoute phải nuốt gọn, không được làm hỏng vòng nền khác.
+   */
+  omniroute: {
+    url: (S('omnirouteUrl') ?? E('OMNIROUTE_URL') ?? 'http://localhost:20128').replace(/\/+$/, ''),
+    password: S('omniroutePassword') ?? E('OMNIROUTE_PASSWORD') ?? '',
+    /** Chu kỳ đồng bộ định kỳ (phút). 0 = chỉ đồng bộ sau khi đăng nhập, không chạy nền. */
+    syncMin: num(S('omnirouteSyncMin'), 60),
+  },
 };
 
 export type RotationStrategy = 'round-robin' | 'full-first' | 'failover' | 'highest-first' | 'smart';
@@ -244,10 +258,20 @@ const SETTERS: Record<string, Setter> = {
   kiroProbeHours: (v) => (config.gateway.kiroProbeHours = Number(v)),
   kiroProbeBatch: (v) => (config.gateway.kiroProbeBatch = Number(v)),
   kiroCreditLimit: (v) => (config.gateway.kiroCreditLimit = Number(v)),
+  // Đổi URL/mật khẩu phải xoá phiên đã cache, nếu không client vẫn dùng cookie cũ.
+  omnirouteUrl: (v) => {
+    config.omniroute.url = v.replace(/\/+$/, '');
+    void import('./omniroute/client.js').then((m) => m.omniroute.reset()).catch(() => {});
+  },
+  omniroutePassword: (v) => {
+    config.omniroute.password = v;
+    void import('./omniroute/client.js').then((m) => m.omniroute.reset()).catch(() => {});
+  },
+  omnirouteSyncMin: (v) => (config.omniroute.syncMin = Number(v)),
 };
 
 /** Key là secret — API trả về dạng che. */
-export const SECRET_KEYS = new Set(['dashboardPassword', 'sessionSecret', 'gatewayApiKey']);
+export const SECRET_KEYS = new Set(['dashboardPassword', 'sessionSecret', 'gatewayApiKey', 'omniroutePassword']);
 /** Key đổi xong phải khởi động lại mới có hiệu lực. */
 export const RESTART_KEYS = new Set(['port', 'host', 'maxBodyMb']);
 export const CONFIG_KEYS = Object.keys(SETTERS);
@@ -345,6 +369,9 @@ export function getConfigValue(key: string): unknown {
     case 'gatewayEnabled': return config.gateway.enabled;
     case 'gatewayApiKey': return config.gateway.apiKey;
     case 'gatewayRotation': return config.gateway.rotation;
+    case 'omnirouteUrl': return config.omniroute.url;
+    case 'omniroutePassword': return config.omniroute.password;
+    case 'omnirouteSyncMin': return config.omniroute.syncMin;
     case 'gatewayBareModels': return config.gateway.bareModels;
     case 'gatewayProxy': return config.gateway.outboundProxy;
     case 'gatewayCooldownSec': return config.gateway.cooldownSec;

@@ -1,0 +1,80 @@
+- generic [ref=f6e3]:
+  - generic [ref=f6e4]:
+    - generic [ref=f6e6]:
+      - generic [ref=f6e7]: Loading
+      - progressbar [ref=f6e8]
+    - main [ref=f6e15]:
+      - heading "Welcome" [level=1] [ref=f6e20]
+      - generic [ref=f6e26]:
+        - heading "Welcome to your new account" [level=2] [ref=f6e28]
+        - generic [ref=f6e31]:
+          - generic [ref=f6e32]: "Welcome to your new Google Workspace for Education account: agyproxy1@luongthevinhhp.edu.vn."
+          - generic [ref=f6e33]:
+            - text: "Your school manages this account, which means:"
+            - list [ref=f6e34]:
+              - listitem [ref=f6e35]: Your school chooses which services you can access when using this account, like Gmail, Docs, and Google Maps
+              - listitem [ref=f6e36]:
+                - text: Your school manages
+                - link "data saved in the account" [ref=f6e37] [cursor=pointer]:
+                  - /url: https://support.google.com/accounts/answer/181692?hl=en-US
+                - text: and can choose if you can access that data
+              - listitem [ref=f6e38]: Your school can see how you use the account, including the emails you send and the Docs you create
+              - listitem [ref=f6e39]: Your school can also see and change your privacy settings and delete your account
+          - generic [ref=f6e40]:
+            - text: The
+            - link "Google Workspace for Education Privacy Notice" [ref=f6e41] [cursor=pointer]:
+              - /url: https://workspace.google.com/terms/education_privacy?hl=en-US
+            - text: describes additional details about what information is collected and how it's used.
+          - generic [ref=f6e42]: "Here are the types of Google services you may be able to access with your account:"
+          - list [ref=f6e45]:
+            - listitem [ref=f6e46]:
+              - generic [ref=f6e47]:
+                - generic [ref=f6e48]: Google Workspace services. Core services include Gmail, Calendar, Contacts, Drive, Docs, Forms, Groups, Sheets, Sites, Slides, Chat, Meet, Vault, and others.
+                - generic [ref=f6e49]:
+                  - text: You can learn more about these services in the
+                  - link "Services Summary" [ref=f6e50] [cursor=pointer]:
+                    - /url: https://workspace.google.com/terms/user_features?hl=en-US
+                  - text: . You can learn more about your privacy while using these services in the
+                  - link "Google Cloud Privacy Notice" [ref=f6e51] [cursor=pointer]:
+                    - /url: https://cloud.google.com/terms/cloud-privacy-notice?hl=en-US
+                  - text: . Your school's agreement with Google describes your use of these services.
+                - generic [ref=f6e52]:
+                  - text: There are no ads shown in Google Workspace for Education core services. Also, none of the personal information collected in the core services is used for advertising purposes.
+                  - link "Other Services" [ref=f6e53] [cursor=pointer]:
+                    - /url: https://workspace.google.com/terms/user_features?hl=en-US
+                  - text: may also be made available under your school's Workspace agreement.
+            - listitem [ref=f6e54]:
+              - generic [ref=f6e55]:
+                - generic [ref=f6e56]: Google Workspace additional services include Google Search, Maps, YouTube, and others.
+                - generic [ref=f6e57]:
+                  - text: Your school decides which additional services you can use with your account. If you use this account to access additional services, your use of those services is explained by their terms, such as the
+                  - link "Google Terms of Service" [ref=f6e58] [cursor=pointer]:
+                    - /url: https://accounts.google.com/TOS?hl=en-US
+                  - text: ", the"
+                  - link "Google Privacy Policy" [ref=f6e59] [cursor=pointer]:
+                    - /url: https://policies.google.com/privacy?hl=en-US
+                  - text: ", and any"
+                  - link "service-specific terms" [ref=f6e60] [cursor=pointer]:
+                    - /url: https://policies.google.com/terms/service-specific?hl=en-US
+                  - text: . If you access third-party services with your account, separate terms and policies set by those third parties will apply.
+                - generic [ref=f6e61]: Some additional services show ads. But if you're using this new account(agyproxy1@luongthevinhhp.edu.vn) in primary and secondary schools (K-12), we don't show you personalized ads, which means we don't use information from your account or past activity to target ads. However, we may show ads based on other things like your search query, the time of day, or the content of a page you're reading.
+          - generic [ref=f6e62]: Your use of Google services on this agyproxy1@luongthevinhhp.edu.vn account is also limited by your school's internal policies.
+          - generic [ref=f6e63]: You can review and change your privacy settings at myaccount.google.com.
+          - generic [ref=f6e64]: You should ask your school, parent, or guardian for help understanding this notice or any of the information at the links shared above.
+      - button "I understand" [ref=f6e70]
+  - contentinfo [ref=f6e77]:
+    - combobox "Change language English (United States)" [ref=f6e81] [cursor=pointer]:
+      - generic: English (United States)
+    - list [ref=f6e83]:
+      - listitem [ref=f6e84]:
+        - link "Open Google Account Help Center (external, opens in a new window)" [ref=f6e85] [cursor=pointer]:
+          - /url: https://support.google.com/accounts?hl=en-US&p=account_iph
+          - text: Help
+      - listitem [ref=f6e86]:
+        - link "Privacy Policy (external, opens in a new window)" [ref=f6e87] [cursor=pointer]:
+          - /url: https://accounts.google.com/TOS?loc=VN&hl=en-US&privacy=true
+          - text: Privacy
+      - listitem [ref=f6e88]:
+        - link "Google Terms of Service (external, opens in a new window)" [ref=f6e89] [cursor=pointer]:
+          - /url: https://accounts.google.com/TOS?loc=VN&hl=en-US
+          - text: Terms

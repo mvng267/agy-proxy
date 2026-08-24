@@ -14,7 +14,7 @@ src/                  TypeScript backend (tsx src/index.ts)
   browser/            Headless browser automation for login / captcha
   queue/              Request queue + rate-limit pacing
   flows/              Login / warmup / wakeup flows
-  omniroute/          Upstream routing
+  omniroute/          Đẩy credential sang OmniRoute (gateway thứ hai)
   store/              Persistence (accounts, state)
   tools/              CLI tooling (bin/agyproxy.mjs)
   lib/                Shared utilities (logger, etc.)
@@ -65,3 +65,23 @@ npm run dev              # vite dev server
 - Dashboard login endpoint: `POST /api/auth/login` (NOT `/auth/login`).
 - Combo targets are `[{ model, weight? }]`, not `string[]`.
 - Commit small, descriptive messages. Do NOT push without review.
+
+## OmniRoute
+
+agy-proxy đẩy credential sang OmniRoute (gateway thứ hai, cổng 20128). Bật bằng cách đặt
+**Mật khẩu OmniRoute** ở Cấu hình → OmniRoute; để trống là tắt hẳn. Đồng bộ tự chạy sau mỗi
+lần đăng nhập và định kỳ theo `omnirouteSyncMin`.
+
+```bash
+npx tsx scripts/dong-bo-omniroute.mts        # chạy tay khi cần
+```
+
+⚠ **Sau mỗi lần `npm update -g omniroute` phải vá lại:**
+
+```bash
+node tools/va-omniroute/va-dist.mjs --xem    # bản vá còn áp không
+node tools/va-omniroute/va-dist.mjs          # vá lại, rồi khởi động lại OmniRoute
+```
+
+Không vá thì OmniRoute gộp cả 20 account Kiro thành **1 connection** — nó dedupe theo
+`profileArn`, mà Kiro free-tier cấp chung một ARN cho mọi tài khoản Google.

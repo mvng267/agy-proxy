@@ -36,18 +36,31 @@ export {
   bucketPct,
   isPermanentAuthError,
   isTransientError,
+  isModelCapacityError,
   nextMonthResetMs,
 } from './poolScore.js';
 
 import {
   poolKey, geminiPct, claudePct, recordOutcome, scoreAccount, bucketPct,
-  isPermanentAuthError, isTransientError, nextMonthResetMs, blankAccount,
+  isPermanentAuthError, isTransientError, isModelCapacityError, nextMonthResetMs, blankAccount,
   NoAccountError, SCORE_STALE_MS, xoaAnToan,
   type Strategy, type UpsertInput, type PoolAccount, type ReportInfo,
 } from './poolScore.js';
 
 export class Pool {
   accounts = new Map<string, PoolAccount>(); // khoá = `${provider}:${email}`
+
+  /**
+   * Model đang bị upstream từ chối vì HẾT CHỖ → mốc hết nghỉ (epoch ms). Khoá = model đầy đủ.
+   *
+   * Nằm ở tầng POOL chứ không phải từng account, vì đây là lỗi của model: đổi account không
+   * cứu được. Đo trên production — `gemini-2.5-pro` trả 503 "No capacity" 66 lần/2 giờ, pool
+   * quét sạch 35 account trong 195 giây rồi vẫn hỏng.
+   */
+  private modelCooldown = new Map<string, number>();
+
+  /** Số account liên tiếp báo hết chỗ cho một model — đủ ngưỡng mới cho model nghỉ. */
+  private modelFails = new Map<string, number>();
 
   /** Thêm/cập nhật account (giữ nguyên state cũ nếu đã tồn tại). */
   upsert(i: UpsertInput): PoolAccount {
@@ -69,7 +82,18 @@ export class Pool {
        * Store chỉ được phép NÂNG CẤP hiểu biết, không được hạ: 'unknown' nghĩa là
        * "chưa biết", mà RAM đang biết rõ hơn thì giữ lấy cái biết rõ.
        */
-      if (i.health && i.health !== 'unknown') cur.health = i.health;
+      /**
+       * `dead` trong RAM THẮNG mọi giá trị từ store.
+       *
+       * Luật "chỉ nâng cấp" ở trên đúng cho `unknown`, nhưng sai khi RAM vừa phát hiện
+       * account chết: CSV còn ghi `alive` từ lần kiểm trước, nên `dead` bị xoá sau đúng
+       * 2 giây và account chết lại vào pool.
+       *
+       * Đo thật: `agyproxy4`/`agyproxy16` bị AWS đình chỉ (`403 suspended`), CSV vẫn
+       * `health="alive"` → mọi request Kiro đều thử hai cái này trước, hỏng, rồi mới tới
+       * account thứ ba. Tốn 540ms mỗi request, vô ích hoàn toàn.
+       */
+      if (cur.health !== 'dead' && i.health && i.health !== 'unknown') cur.health = i.health;
       if (i.profileArn) cur.profileArn = i.profileArn;
       if (i.region) cur.region = i.region;
       return cur;
@@ -94,6 +118,44 @@ export class Pool {
   list(provider?: ProviderId): PoolAccount[] {
     const all = [...this.accounts.values()];
     return provider ? all.filter((a) => a.provider === provider) : all;
+  }
+
+  /**
+   * Model có đang nghỉ không. Trả mốc hết nghỉ (ms còn lại) hoặc 0.
+   *
+   * Gọi TRƯỚC khi chọn account: model đang nghỉ thì trả lỗi ngay thay vì quét cả pool —
+   * đó là khác biệt giữa 195 giây và tức thì.
+   */
+  modelResting(model: string, now = Date.now()): number {
+    const den = this.modelCooldown.get(model) ?? 0;
+    if (den <= now) {
+      if (den) this.modelCooldown.delete(model);
+      return 0;
+    }
+    return den - now;
+  }
+
+  /**
+   * Ghi nhận một account báo hết chỗ cho model. Đủ NGƯỠNG account liên tiếp thì cho model nghỉ.
+   *
+   * Ngưỡng 3 chứ không phải 1: một account lẻ có thể hỏng vì lý do riêng (proxy, token), chỉ
+   * khi nhiều account liên tiếp cùng báo mới chắc là upstream hết chỗ thật.
+   */
+  reportModelCapacity(model: string, now = Date.now()): void {
+    const NGUONG = 3;
+    const NGHI_MS = 5 * 60_000;
+    const n = (this.modelFails.get(model) ?? 0) + 1;
+    if (n >= NGUONG) {
+      this.modelCooldown.set(model, now + NGHI_MS);
+      this.modelFails.delete(model);
+    } else {
+      this.modelFails.set(model, n);
+    }
+  }
+
+  /** Model chạy được → xoá bộ đếm, tránh tích luỹ lỗi rải rác qua nhiều giờ thành cooldown oan. */
+  clearModelFails(model: string): void {
+    this.modelFails.delete(model);
   }
 
 /** Account đủ điều kiện phục vụ tại thời điểm now (lọc theo provider nếu có). */

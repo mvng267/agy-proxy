@@ -1,0 +1,67 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: Loading
+        - progressbar [active] [ref=e8]
+      - main [ref=e89]:
+        - generic [ref=e90]:
+          - generic [ref=e92]:
+            - generic [ref=e93]: Sign in with Google
+            - img "Google Antigravity" [ref=e97]
+          - generic [ref=e98]:
+            - heading "Welcome" [level=1] [ref=e99]
+            - generic [ref=e100]: agyproxy1@luongthevinhhp.edu.vn
+        - generic [ref=e110]:
+          - generic [ref=e31]:
+            - generic [ref=e36]:
+              - generic [ref=e41]:
+                - textbox "Email or phone" [ref=e42]: agyproxy1@luongthevinhhp.edu.vn
+                - generic: Email or phone
+              - button "Forgot email?" [ref=e46] [cursor=pointer]
+            - generic [ref=e49]:
+              - text: Before using this app, you can review Google Antigravity’s
+              - link "Privacy Policy" [ref=e50] [cursor=pointer]:
+                - /url: https://policies.google.com/privacy
+              - text: and
+              - link "Terms of Service" [ref=e51] [cursor=pointer]:
+                - /url: https://antigravity.google/terms-of-service
+              - text: .
+          - generic [ref=e111]:
+            - generic [ref=e117]:
+              - generic [ref=e125]:
+                - textbox "Enter your password" [ref=e126]
+                - generic: Enter your password
+              - generic [ref=e133]:
+                - checkbox "Show password" [ref=e137] [cursor=pointer]
+                - generic [ref=e138]: Show password
+            - generic [ref=e143]:
+              - text: Before using this app, you can review Google Antigravity’s
+              - link "Privacy Policy" [ref=e144] [cursor=pointer]:
+                - /url: https://policies.google.com/privacy
+              - text: and
+              - link "Terms of Service" [ref=e145] [cursor=pointer]:
+                - /url: https://antigravity.google/terms-of-service
+              - text: .
+        - generic [ref=e147]:
+          - button "Next" [ref=e151]
+          - button "Forgot password?" [ref=e158]
+    - contentinfo [ref=e72]:
+      - combobox "Change language English (United States)" [ref=e76] [cursor=pointer]:
+        - generic: English (United States)
+      - list [ref=e78]:
+        - listitem [ref=e79]:
+          - link "Open Google Account Help Center (external, opens in a new window)" [ref=e80] [cursor=pointer]:
+            - /url: https://support.google.com/accounts?hl=en-US&p=account_iph
+            - text: Help
+        - listitem [ref=e81]:
+          - link "Privacy Policy (external, opens in a new window)" [ref=e82] [cursor=pointer]:
+            - /url: https://accounts.google.com/TOS?loc=VN&hl=en-US&privacy=true
+            - text: Privacy
+        - listitem [ref=e83]:
+          - link "Google Terms of Service (external, opens in a new window)" [ref=e84] [cursor=pointer]:
+            - /url: https://accounts.google.com/TOS?loc=VN&hl=en-US
+            - text: Terms
+  - iframe [ref=e85]:
+    
+  - generic [ref=e164]: Welcome

@@ -1,0 +1,62 @@
+- generic [ref=f8e3]:
+  - generic [ref=f8e4]:
+    - generic [ref=f8e6]:
+      - generic [ref=f8e7]: Đang tải
+      - progressbar [ref=f8e8]
+    - main [ref=f8e15]:
+      - generic [ref=f8e16]:
+        - generic [ref=f8e17]: Đăng nhập bằng Google
+        - generic [ref=f8e23]:
+          - heading "Đăng nhập vào kiro-prod-us-east-1.auth.us-east-1.amazoncognito.com" [level=1] [ref=f8e24]
+          - link "Đã chọn agyproxy1@luongthevinhhp.edu.vn. Chuyển đổi tài khoản" [ref=f8e26] [cursor=pointer]:
+            - generic [ref=f8e29]: agyproxy1@luongthevinhhp.edu.vn
+      - generic [ref=f8e40]:
+        - generic [ref=f8e41]:
+          - heading "Google sẽ cho phép kiro-prod-us-east-1.auth.us-east-1.amazoncognito.com truy cập vào thông tin này về bạn" [level=2] [ref=f8e43]
+          - list [ref=f8e48]:
+            - listitem [ref=f8e49]:
+              - generic [ref=f8e54]:
+                - generic [ref=f8e55]: agyproxy1@luongthevinhhp.edu.vn
+                - generic [ref=f8e56]: Địa chỉ email
+        - generic [ref=f8e59]:
+          - generic [ref=f8e60]:
+            - text: Xem
+            - link "Chính sách quyền riêng tư của kiro-prod-us-east-1.auth.us-east-1.amazoncognito.com (đường liên kết ngoài, mở trong cửa sổ mới)" [ref=f8e61] [cursor=pointer]:
+              - /url: https://aws.amazon.com/privacy/
+              - text: Chính sách quyền riêng tư
+            - text: và
+            - link "Điều khoản dịch vụ của kiro-prod-us-east-1.auth.us-east-1.amazoncognito.com (đường liên kết ngoài, mở trong cửa sổ mới)" [ref=f8e62] [cursor=pointer]:
+              - /url: https://aws.amazon.com/terms/
+              - text: Điều khoản dịch vụ
+            - text: của kiro-prod-us-east-1.auth.us-east-1.amazoncognito.com để hiểu cách kiro-prod-us-east-1.auth.us-east-1.amazoncognito.com sẽ xử lý và bảo vệ dữ liệu của bạn.
+          - generic [ref=f8e63]:
+            - text: Nếu bất cứ lúc nào bạn muốn thực hiện thay đổi, hãy truy cập
+            - link "Chế độ cài đặt Tài khoản Google (đường liên kết ngoài, mở trong cửa sổ mới)" [ref=f8e64] [cursor=pointer]:
+              - /url: https://myaccount.google.com/connections#filter=4
+              - text: Tài khoản Google
+            - text: của bạn.
+          - generic [ref=f8e65]:
+            - text: Tìm hiểu thêm về tính năng
+            - link "Tìm hiểu thêm về tính năng Đăng nhập bằng Google (đường liên kết ngoài, mở trong cửa sổ mới)" [ref=f8e66] [cursor=pointer]:
+              - /url: https://support.google.com/accounts/answer/12921417?sjid=1919169284593837430-NC
+              - text: Đăng nhập bằng Google
+            - text: .
+      - generic [ref=f8e69]:
+        - button "Huỷ" [ref=f8e73]
+        - button "Tiếp tục" [ref=f8e79]
+  - contentinfo [ref=f8e85]:
+    - combobox "Thay đổi ngôn ngữ Tiếng Việt" [ref=f8e89] [cursor=pointer]:
+      - generic: Tiếng Việt
+    - list [ref=f8e91]:
+      - listitem [ref=f8e92]:
+        - link "Mở Trung tâm trợ giúp về Tài khoản Google (liên kết ngoài, mở trong cửa sổ mới)" [ref=f8e93] [cursor=pointer]:
+          - /url: https://support.google.com/accounts?hl=vi&p=account_iph
+          - text: Trợ giúp
+      - listitem [ref=f8e94]:
+        - link "Chính sách quyền riêng tư (liên kết ngoài, mở trong cửa sổ mới)" [ref=f8e95] [cursor=pointer]:
+          - /url: https://accounts.google.com/TOS?loc=VN&hl=vi&privacy=true
+          - text: Quyền riêng tư
+      - listitem [ref=f8e96]:
+        - link "Điều khoản dịch vụ của Google (liên kết ngoài, mở trong cửa sổ mới)" [ref=f8e97] [cursor=pointer]:
+          - /url: https://accounts.google.com/TOS?loc=VN&hl=vi
+          - text: Điều khoản

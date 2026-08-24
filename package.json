@@ -22,7 +22,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test test/gateway/*.test.ts test/api/*.test.ts test/store/*.test.ts test/health/*.test.ts test/flows/*.test.ts test/web/*.test.ts test/*.test.ts",
+    "test": "node --import tsx --test test/gateway/*.test.ts test/api/*.test.ts test/store/*.test.ts test/health/*.test.ts test/flows/*.test.ts test/web/*.test.ts test/omniroute/*.test.ts test/*.test.ts",
     "test:live": "LIVE=1 node --import tsx --test test/live/*.test.ts",
     "test:e2e": "node --import tsx --test test/e2e/*.test.ts",
     "install-browser": "playwright install chrome",

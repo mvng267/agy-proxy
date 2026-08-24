@@ -5,6 +5,7 @@ import { PROVIDERS } from './providers/index.js';
 import { log, checkLiveAccount } from './engine.js';
 import { gatewayMetrics } from './metrics.js';
 import { quetQuota, nhuongDuong, type QuotaLoopDeps } from './quotaLoop.js';
+import { dongBo, dangBat } from '../omniroute/sync.js';
 
 /**
  * Các job nền của gateway: auto refresh quota/token, dò hạn mức Kiro, dọn lịch sử.
@@ -208,7 +209,32 @@ export function startGatewayBackground(): void {
   prune();
   setInterval(prune, 24 * 3600_000).unref?.();
 
+  startOmnirouteSync();
   startAutoDisableLoop();
+}
+
+/**
+ * Đẩy credential sang OmniRoute định kỳ.
+ *
+ * Chu kỳ đọc lúc CHẠY chứ không lúc khởi động, nên đổi `omnirouteSyncMin` trên dashboard là
+ * có hiệu lực ngay, không cần khởi động lại. Vòng tự tắt khi chưa đặt mật khẩu.
+ *
+ * `dongBo()` đã nuốt mọi lỗi bên trong — đây là bài học từ lần tích hợp trước: lỗi OmniRoute
+ * lọt ra ngoài làm ngập `run_logs` 303 dòng cảnh báo, và cuối cùng cả tích hợp bị gỡ.
+ */
+function startOmnirouteSync(): void {
+  const NHIP_MS = 60_000;
+  let lanCuoi = 0;
+
+  const chay = () => {
+    const phut = config.omniroute?.syncMin ?? 0;
+    if (phut <= 0 || !dangBat()) return;
+    if (Date.now() - lanCuoi < phut * 60_000) return;
+    lanCuoi = Date.now();
+    void dongBo();
+  };
+
+  setInterval(chay, NHIP_MS).unref?.();
 }
 
 /**

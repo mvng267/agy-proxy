@@ -1,17 +1,19 @@
 import { lazy, Suspense } from "react"
-import { Settings2, Terminal } from "lucide-react"
+import { Settings2, Terminal, Link2 } from "lucide-react"
 import { TabShell } from "@/components/common/TabShell"
 import { PageHeader } from "@/components/common"
 
 /**
- * Trang "Cấu hình" gộp: Settings + Connections + CLI Tools.
+ * Trang "Cấu hình" gộp: Chung + Kết nối (OmniRoute) + CLI Tools.
  *
- * Vá luồng đứt đã ghi trong kế hoạch: trang Connections hướng dẫn "thêm từ Settings"
- * nhưng Settings không hề có form đó — người dùng đi vòng rồi tắc. Gộp chung một trang
- * thì hai phần nằm cạnh nhau, chuyển tab là thấy.
+ * Vá luồng đứt đã ghi trong kế hoạch: trang Kết nối hướng dẫn "thêm từ Settings" nhưng
+ * Settings không hề có form đó — người dùng đi vòng rồi tắc. Gộp chung một trang thì hai
+ * phần nằm cạnh nhau, chuyển tab là thấy: đặt mật khẩu OmniRoute ở tab Chung, xem kết quả
+ * đồng bộ ở tab Kết nối.
  */
 const Settings = lazy(() => import("./Settings").then((m) => ({ default: m.Settings })))
 const CLITools = lazy(() => import("./CLITools").then((m) => ({ default: m.CLITools })))
+const Connections = lazy(() => import("./Connections").then((m) => ({ default: m.Connections })))
 
 const ic = "h-3.5 w-3.5"
 const Loading = () => (
@@ -33,6 +35,16 @@ export function SettingsHub({ initial }: { initial?: string }) {
           render: () => (
             <Suspense fallback={<Loading />}>
               <Settings />
+            </Suspense>
+          ),
+        },
+        {
+          key: "connections",
+          label: "Kết nối",
+          icon: <Link2 className={ic} />,
+          render: () => (
+            <Suspense fallback={<Loading />}>
+              <Connections />
             </Suspense>
           ),
         },

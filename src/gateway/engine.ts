@@ -27,6 +27,7 @@ import {
   refreshQuota,
   geminiPct,
   isTransientError,
+  isModelCapacityError,
   isPermanentAuthError,
   NoAccountError,
   streamLimiter,
@@ -484,6 +485,24 @@ export async function runProviderCall(opts: {
    * chết ở bước 2 vì mọi account đều bị blacklist dù còn nguyên hạn mức bể kia.
    */
   const bucketSkip = (key: string) => `${key}#${bucket ?? ''}`;
+
+  /**
+   * Model đang nghỉ vì upstream hết chỗ → hỏng NGAY, đừng quét pool.
+   *
+   * Không có chốt này thì mỗi request tốn 5,56 account (đo production), và có request quét
+   * 35 account trong 195 giây rồi vẫn hỏng — vì lỗi nằm ở model, đổi account vô ích. Trả
+   * lỗi tức thì để client biết mà đổi model, thay vì đợi ba phút.
+   */
+  const nghiMs = pool.modelResting(labelModel);
+  if (nghiMs > 0) {
+    const giay = Math.ceil(nghiMs / 1000);
+    const e: any = new Error(
+      `Model ${labelModel} đang hết chỗ ở upstream — thử lại sau ${giay}s hoặc đổi model khác`,
+    );
+    e.status = 503;
+    throw e;
+  }
+
   const avail = pool.candidates(Date.now(), provider, bucket).length;
   // Lỗi thật (5xx/mạng) chỉ thử 3 account. Nhưng account HẾT HẠN MỨC thì bị cooldown
   // ngay khi report → bỏ qua rất rẻ, nên không tính vào hạn thử.
@@ -618,6 +637,9 @@ export async function runProviderCall(opts: {
       const r = await p.generate({ session: ctx.session, model: bare, messages, ...genArgs, dispatcher: ctx.dispatcher });
       const ms = Date.now() - t0;
       providerBreaker.ok(provider);
+      // Model chạy được → xoá bộ đếm hết-chỗ, tránh lỗi rải rác qua nhiều giờ cộng dồn
+      // thành cooldown oan cho model vẫn khoẻ.
+      pool.clearModelFails(labelModel);
       pool.report(ctx.account, { ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, latencyMs: ms });
       afterCall(ctx.account, labelModel, {
         ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, ms, status: 200,
@@ -642,6 +664,29 @@ export async function runProviderCall(opts: {
         reqBody: { model: labelModel, messages, tools: opts.tools },
         resBody: { error: String(e?.message ?? e), status: e?.status },
       }, opts.usage);
+      /**
+       * Upstream hết chỗ cho MODEL này — đổi account vô ích.
+       *
+       * Đếm dồn: đủ 3 account liên tiếp cùng báo thì cho cả model nghỉ, request sau trả lỗi
+       * ngay ở đầu `runProviderCall`. Không có bước này thì pool quét sạch 35 account trong
+       * 195 giây (đo production với `gemini-2.5-pro` 503 "No capacity", 66 lần/2 giờ).
+       */
+      if (isModelCapacityError(String(e?.message ?? ''), e?.status)) {
+        pool.reportModelCapacity(labelModel);
+      }
+
+      /**
+       * Token bị thu hồi / account bị đình chỉ → ghi `dead` xuống CSV, không chỉ trong RAM.
+       *
+       * `pool.report()` đã đặt `health='dead'`, nhưng `syncFromStore()` đọc lại CSV mỗi 2
+       * giây; CSV còn `alive` thì trạng thái RAM sống được đúng 2 giây (đã sửa ở pool nhưng
+       * vẫn mất khi khởi động lại). Ghi xuống đĩa để nó bền.
+       */
+      if (isPermanentAuthError(String(e?.message ?? ''), e?.status)) {
+        try {
+          store.setCredentialHealth(ctx.account.email, PROVIDERS[provider].credentialTarget, 'dead');
+        } catch { /* ghi CSV hỏng không được làm hỏng request */ }
+      }
       const outOfQuota = e?.status === 402 || e?.status === 429 || /MONTHLY_REQUEST_COUNT|quota|exhaust/i.test(String(e?.message ?? ''));
       // Prompt quá dài KHÔNG phụ thuộc account — thử account khác chỉ tốn thời gian
       // và làm bẩn log. Dừng ngay để tầng combo đổi sang MODEL khác.

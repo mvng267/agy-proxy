@@ -1,0 +1,37 @@
+- generic [ref=f5e2]:
+  - generic [ref=f5e3]:
+    - progressbar [ref=f5e5]
+    - generic [ref=f5e13]:
+      - generic [ref=f5e14]:
+        - generic [ref=f5e15]: Đăng nhập bằng Google
+        - generic [ref=f5e24]:
+          - heading "Đảm bảo rằng bạn đã tải ứng dụng này xuống từ Google" [level=1] [ref=f5e25]
+          - generic [ref=f5e26]: agyproxy1@luongthevinhhp.edu.vn
+      - generic [ref=f5e41]:
+        - generic [ref=f5e42]:
+          - text: Đừng đăng nhập vào
+          - button "Google Antigravity" [ref=f5e43] [cursor=pointer]
+          - text: trừ phi bạn chắc chắn mình đã tải ứng dụng này xuống từ Google.
+        - generic [ref=f5e44]:
+          - text: Nếu bạn đã tải
+          - button "Google Antigravity" [ref=f5e45] [cursor=pointer]
+          - text: xuống từ Google, ứng dụng này có thể yêu cầu bạn đăng nhập lại ngay bây giờ vì ứng dụng này đã được cập nhật gần đây.
+        - generic [ref=f5e46]:
+          - text: Nếu bạn không chắc mình có tải
+          - button "Google Antigravity" [ref=f5e47] [cursor=pointer]
+          - text: xuống từ Google hay không, bạn nên xóa ứng dụng này.
+      - generic [ref=f5e50]:
+        - button "Huỷ" [ref=f5e54]
+        - button "Đăng nhập" [ref=f5e60]
+  - contentinfo [ref=f5e64]:
+    - combobox "‪Tiếng Việt‬" [ref=f5e68] [cursor=pointer]
+    - list [ref=f5e70]:
+      - listitem [ref=f5e71]:
+        - link "Trợ giúp" [ref=f5e72] [cursor=pointer]:
+          - /url: https://support.google.com/accounts?hl=vi&p=account_iph
+      - listitem [ref=f5e73]:
+        - link "Bảo mật" [ref=f5e74] [cursor=pointer]:
+          - /url: https://accounts.google.com/TOS?loc=VN&hl=vi&privacy=true
+      - listitem [ref=f5e75]:
+        - link "Điều khoản" [ref=f5e76] [cursor=pointer]:
+          - /url: https://accounts.google.com/TOS?loc=VN&hl=vi

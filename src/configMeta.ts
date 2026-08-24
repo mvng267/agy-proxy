@@ -38,6 +38,7 @@ export const NHOM = {
   kiro: 'Kiro',
   trinhDuyet: 'Trình duyệt',
   thuThap: 'Thu thập account',
+  omniroute: 'OmniRoute',
 } as const;
 
 export const CONFIG_FIELDS: Record<string, ConfigField> = {
@@ -76,6 +77,28 @@ export const CONFIG_FIELDS: Record<string, ConfigField> = {
   // ---- Gateway ----
   gatewayEnabled: { label: 'Bật gateway', group: NHOM.gateway, type: 'bool' },
   gatewayApiKey: { label: 'API key', desc: 'Client phải gửi key này. Để trống là ai cũng gọi được', group: NHOM.gateway, type: 'password' },
+
+  // ---- OmniRoute ----
+  omnirouteUrl: {
+    label: 'Địa chỉ OmniRoute',
+    desc: 'Gateway thứ hai dùng chung bộ account',
+    group: NHOM.omniroute,
+    type: 'string',
+  },
+  omniroutePassword: {
+    label: 'Mật khẩu OmniRoute',
+    desc: 'Để trống là TẮT đồng bộ — không gọi mạng lần nào',
+    group: NHOM.omniroute,
+    type: 'password',
+  },
+  omnirouteSyncMin: {
+    label: 'Chu kỳ đồng bộ (phút)',
+    desc: '0 = chỉ đồng bộ sau mỗi lần đăng nhập, không chạy nền',
+    group: NHOM.omniroute,
+    type: 'int',
+    min: 0,
+    max: 1440,
+  },
   gatewayRotation: {
     label: 'Chiến lược xoay account',
     desc: 'smart chấm điểm theo hạn mức + tỉ lệ lỗi + độ trễ',

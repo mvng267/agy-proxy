@@ -1,0 +1,48 @@
+--- a/src/lib/oauth/kiroConnectionIdentity.ts
++++ b/src/lib/oauth/kiroConnectionIdentity.ts
+@@ -1,6 +1,7 @@
+ export type KiroConnectionLike = {
+   id?: unknown;
+   authType?: unknown;
++  refreshToken?: unknown;
+   name?: unknown;
+   email?: unknown;
+   providerSpecificData?: unknown;
+@@ -9,6 +10,7 @@
+ 
+ export type KiroConnectionIdentity = {
+   authType?: unknown;
++  refreshToken?: unknown;
+   profileArn?: unknown;
+   clientId?: unknown;
+   email?: unknown;
+@@ -40,6 +42,29 @@
+     ? connections.filter((connection) => folded(connection.authType) === authType)
+     : connections;
+ 
++  // refreshToken là thứ DUY NHẤT thật sự riêng cho từng tài khoản.
++  //
++  // Kiro free-tier cấp CHUNG một profileArn cho mọi tài khoản Google — đo trên 20 tài khoản
++  // khác nhau đều ra `arn:aws:codewhisperer:us-east-1:699475941385:profile/EHGA3GRVQMUK`.
++  // Khớp profileArn trước nghĩa là tài khoản thứ hai trở đi đè lên hàng của tài khoản đầu,
++  // nên không pool được nhiều tài khoản Kiro: import 20 lần, API báo thành công 20 lần, mà
++  // bảng chỉ còn 1 hàng.
++  //
++  // Kiểm refreshToken trước sửa đúng chỗ đó, và vẫn giữ nguyên hành vi cũ cho mọi trường
++  // hợp một-tài-khoản (cùng token ⇒ vẫn khớp đúng hàng cũ, vẫn là cập nhật chứ không thêm).
++  const refreshToken = trimmed(identity.refreshToken);
++  if (refreshToken) {
++    const match = candidates.find(
++      (connection) =>
++        trimmed(connection.refreshToken) === refreshToken ||
++        trimmed(providerData(connection).refreshToken) === refreshToken
++    );
++    if (match) return match;
++    // Có token mà không hàng nào khớp ⇒ tài khoản MỚI. Không được rơi xuống profileArn,
++    // vì ARN dùng chung sẽ khớp nhầm sang tài khoản khác.
++    return null;
++  }
++
+   const profileArn = trimmed(identity.profileArn);
+   if (profileArn) {
+     const match = candidates.find(
