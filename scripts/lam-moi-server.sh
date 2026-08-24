@@ -128,10 +128,10 @@ if [[ -f "$ROOT/deploy/systemd/omniroute.service" ]]; then
   cp "$ROOT/deploy/systemd/omniroute.service" "$UNIT_DIR/"
   sed -i "s#/home/mvng/.local/lib/node_modules#$(npm root -g)#g" "$UNIT_DIR/omniroute.service"
   sed -i "s#/home/mvng/.local/node/bin/node#$(command -v node)#g" "$UNIT_DIR/omniroute.service"
-  sed -i "s#^User=.*#User=$USER#" "$UNIT_DIR/omniroute.service"
-  sed -i "s#^WorkingDirectory=.*#WorkingDirectory=$HOME#" "$UNIT_DIR/omniroute.service"
-  sed -i "s#ReadWritePaths=.*#ReadWritePaths=$OMNI_HOME $OMNI_DIR#" "$UNIT_DIR/omniroute.service"
-  sed -i "s#EnvironmentFile=-.*#EnvironmentFile=-$OMNI_HOME/.env#" "$UNIT_DIR/omniroute.service"
+  # `%h` (systemd tự thay bằng $HOME) lo WorkingDirectory/EnvironmentFile/ReadWritePaths —
+  # chỉ còn đường dẫn node_modules là cứng. KHÔNG thêm `User=`: user service đã chạy đúng
+  # quyền rồi, thêm vào là chết với status 216/GROUP.
+  sed -i "s#ReadWritePaths=%h/.omniroute .*#ReadWritePaths=%h/.omniroute $OMNI_DIR#" "$UNIT_DIR/omniroute.service"
   systemctl --user daemon-reload
   systemctl --user enable --now omniroute 2>&1 | tail -1
   sleep 3
