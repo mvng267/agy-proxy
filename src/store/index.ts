@@ -154,6 +154,16 @@ class Store {
     return this.accounts.get(email);
   }
   upsertAccount(partial: Partial<Account> & { email: string }): Account {
+    /**
+     * Nạp lại từ đĩa trước khi ghi — cùng lý do với `upsertCredential`: `saveAccounts()`
+     * ghi ĐÈ cả file từ map trong bộ nhớ, nên tiến trình nạp CSV lúc file còn ít dòng sẽ
+     * xoá account do tiến trình khác vừa thêm.
+     *
+     * Đã mất account 1-3 đúng theo cách này: đợt `kiro 4-20` khởi động khi accounts.csv
+     * mới có 3 dòng, chạy xong thì ba dòng đó biến mất — credential vẫn còn nhưng pool
+     * không nạp được vì thiếu bản ghi account.
+     */
+    this.loadAccounts();
     const existing = this.accounts.get(partial.email);
     const acc = existing ? { ...existing } : defaultAccount(partial.email);
     for (const [k, v] of Object.entries(partial)) {
@@ -216,6 +226,16 @@ class Store {
   upsertCredential(
     input: Omit<Credential, 'health' | 'checked_at'> & Partial<Pick<Credential, 'health' | 'checked_at'>>,
   ): void {
+    /**
+     * Nạp lại từ đĩa trước khi ghi — `saveCredentials()` ghi ĐÈ cả file từ mảng trong bộ
+     * nhớ, nên tiến trình nào nạp CSV lúc file còn ít dòng sẽ xoá sạch dòng do tiến trình
+     * khác vừa thêm. Đã mất 19 credential đúng theo cách này khi chạy một job lẻ song song
+     * với một đợt.
+     *
+     * Chi phí: một lần đọc CSV cho mỗi lần lưu credential — không đáng kể so với việc mất
+     * credential phải đăng nhập lại (mỗi lần tốn một lượt trong trần login/24h).
+     */
+    this.loadCredentials();
     const idx = this.credentials.findIndex((x) => x.email === input.email && x.target === input.target);
     const prev = idx >= 0 ? this.credentials[idx]! : undefined;
     const c: Credential = {

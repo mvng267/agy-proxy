@@ -35,11 +35,21 @@ test('metadata cấu hình: đủ key, đánh dấu secret + cần restart', () 
   for (const k of ['port', 'host', 'gatewayApiKey', 'tokenHealthHours', 'kiroRedirectUri', 'browserChannel']) {
     assert.ok(CONFIG_KEYS.includes(k), `thiếu key ${k}`);
   }
-  // OmniRoute đã gỡ — khoá cấu hình của nó KHÔNG được còn lại, nếu không UI vẫn hiện ô
-  // nhập cho thứ không còn tác dụng.
-  for (const k of ['omnirouteUrl', 'omniroutePassword']) {
-    assert.ok(!CONFIG_KEYS.includes(k), `khoá ${k} còn sót sau khi gỡ OmniRoute`);
+  /**
+   * OmniRoute ĐƯỢC ĐƯA LẠI (23/08) sau khi bị gỡ ở commit 55bce31.
+   *
+   * Khẳng định ở đây từng là NGƯỢC LẠI — cấm ba khoá này tồn tại, vì instance hồi đó trả
+   * `401 Invalid password` mọi lần khởi động và sinh 303 dòng cảnh báo trong `run_logs`.
+   * Nay v3.8.49 đăng nhập được và đang phục vụ 40 connection thật, nên agy-proxy quay lại
+   * làm nơi cấu hình cho nó.
+   *
+   * Bài học cũ vẫn giữ và được bảo vệ ở chỗ khác: mật khẩu rỗng = tắt hẳn, và `dongBo()`
+   * nuốt mọi lỗi để OmniRoute hỏng không kéo theo vòng nền khác.
+   */
+  for (const k of ['omnirouteUrl', 'omniroutePassword', 'omnirouteSyncMin']) {
+    assert.ok(CONFIG_KEYS.includes(k), `thiếu khoá ${k} — dashboard sẽ không có ô nhập`);
   }
+  assert.ok(SECRET_KEYS.has('omniroutePassword'), 'mật khẩu OmniRoute phải được che');
   assert.ok(SECRET_KEYS.has('dashboardPassword'));
   assert.ok(RESTART_KEYS.has('port') && RESTART_KEYS.has('host'));
 });

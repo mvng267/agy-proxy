@@ -1,0 +1,283 @@
+- generic [active] [ref=f10e1]:
+  - link "Skip to content" [ref=f10e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - alert [ref=f10e48]
+  - generic [ref=f10e49]:
+    - complementary [ref=f10e51]:
+      - link "Skip to content" [ref=f10e52] [cursor=pointer]:
+        - /url: "#main-content"
+      - button [expanded] [ref=f10e57]:
+        - generic: chevron_left
+      - link "OmniRoute v3.8.49" [ref=f10e59] [cursor=pointer]:
+        - /url: /home
+        - generic [ref=f10e73]:
+          - heading "OmniRoute" [level=1] [ref=f10e74]
+          - generic [ref=f10e75]: v3.8.49
+      - generic [ref=f10e78]:
+        - generic: search
+        - searchbox "Search" [ref=f10e79]
+      - navigation "Main navigation" [ref=f10e80]:
+        - link "home Home Dashboard overview" [ref=f10e82] [cursor=pointer]:
+          - /url: /home
+          - generic [ref=f10e83]: home
+          - generic [ref=f10e84]:
+            - generic [ref=f10e85]: Home
+            - generic [ref=f10e86]: Dashboard overview
+        - button "OmniProxy push_pin expand_more" [ref=f10e88] [cursor=pointer]:
+          - generic [ref=f10e89]: OmniProxy
+          - button "push_pin" [ref=f10e90]
+          - generic: expand_more
+        - button "Analytics push_pin expand_more" [ref=f10e92] [cursor=pointer]:
+          - generic [ref=f10e93]: Analytics
+          - button "push_pin" [ref=f10e94]
+          - generic: expand_more
+        - button "Costs push_pin expand_more" [ref=f10e96] [cursor=pointer]:
+          - generic [ref=f10e97]: Costs
+          - button "push_pin" [ref=f10e98]
+          - generic: expand_more
+        - button "Monitoring push_pin expand_more" [ref=f10e100] [cursor=pointer]:
+          - generic [ref=f10e101]: Monitoring
+          - button "push_pin" [ref=f10e102]
+          - generic: expand_more
+        - button "Dev Tools push_pin expand_more" [ref=f10e104] [cursor=pointer]:
+          - generic [ref=f10e105]: Dev Tools
+          - button "push_pin" [ref=f10e106]
+          - generic: expand_more
+        - button "Agentic Features push_pin expand_more" [ref=f10e108] [cursor=pointer]:
+          - generic [ref=f10e109]: Agentic Features
+          - button "push_pin" [ref=f10e110]
+          - generic: expand_more
+        - button "Other Features push_pin expand_more" [ref=f10e112] [cursor=pointer]:
+          - generic [ref=f10e113]: Other Features
+          - button "push_pin" [ref=f10e114]
+          - generic: expand_more
+        - button "Configuration push_pin expand_more" [ref=f10e116] [cursor=pointer]:
+          - generic [ref=f10e117]: Configuration
+          - button "push_pin" [ref=f10e118]
+          - generic: expand_more
+        - button "Help push_pin expand_more" [ref=f10e120] [cursor=pointer]:
+          - generic [ref=f10e121]: Help
+          - button "push_pin" [ref=f10e122]
+          - generic: expand_more
+      - 'button "Remote settings sync status: Sync off" [ref=f10e123] [cursor=pointer]':
+        - generic: cloud_off
+        - generic [ref=f10e124]: Sync off
+      - generic [ref=f10e125]:
+        - button "restart_alt Restart" [ref=f10e126]:
+          - generic: restart_alt
+          - generic [ref=f10e127]: Restart
+        - button "power_settings_new Shutdown" [ref=f10e128]:
+          - generic: power_settings_new
+          - generic [ref=f10e129]: Shutdown
+    - main [ref=f10e130]:
+      - generic [ref=f10e131]:
+        - generic [ref=f10e132]:
+          - generic [ref=f10e133]: home
+          - generic [ref=f10e135]:
+            - heading "Home" [level=1] [ref=f10e136]
+            - paragraph [ref=f10e137]: Welcome to OmniRoute
+        - generic [ref=f10e138]:
+          - button "Open quick navigation" [ref=f10e139]:
+            - generic: search
+            - generic [ref=f10e140]: Quick nav
+            - generic [ref=f10e141]: ⌘K
+          - button "English EN expand_more" [ref=f10e143]:
+            - img "English" [ref=f10e144]
+            - generic [ref=f10e145]: EN
+            - generic: expand_more
+          - button "Switch to dark mode" [ref=f10e146]:
+            - generic: dark_mode
+          - button "error 255" [ref=f10e148]:
+            - generic: error
+            - generic [ref=f10e149]: "255"
+          - button "Logout" [ref=f10e150]:
+            - generic: logout
+      - generic [ref=f10e152]:
+        - navigation "Breadcrumb" [ref=f10e153]:
+          - generic [ref=f10e154]: Home
+        - generic [ref=f10e156]:
+          - complementary "Kimi (Moonshot AI) is OmniRoute's founding Open Source Friend" [ref=f10e157]:
+            - generic [ref=f10e158]:
+              - img "moonshot" [ref=f10e161]
+              - generic [ref=f10e162]:
+                - paragraph [ref=f10e163]: Kimi (Moonshot AI) is OmniRoute's founding Open Source Friend
+                - paragraph [ref=f10e164]: Kimi K3 brings a 1M-token context window and frontier coding performance to OmniRoute at a fraction of the cost.
+            - generic [ref=f10e165]:
+              - generic [ref=f10e166]:
+                - link "Get Kimi Code" [ref=f10e167] [cursor=pointer]:
+                  - /url: https://www.kimi.com/code?aff=omniroute
+                  - text: Get Kimi Code
+                  - generic [ref=f10e168]: open_in_new
+                - generic [ref=f10e169]: Partner link
+              - button "Dismiss" [ref=f10e170]:
+                - generic: close
+          - generic [ref=f10e171]:
+            - generic [ref=f10e173]:
+              - generic [ref=f10e174]:
+                - generic [ref=f10e175]:
+                  - heading "Quick Start" [level=2] [ref=f10e176]
+                  - paragraph [ref=f10e177]: Get up and running in 4 steps. Connect providers, route models, monitor everything.
+                - link "menu_book Full Docs" [ref=f10e178] [cursor=pointer]:
+                  - /url: /docs
+                  - generic [ref=f10e179]: menu_book
+                  - text: Full Docs
+              - list [ref=f10e180]:
+                - listitem [ref=f10e181]:
+                  - generic [ref=f10e182]: key
+                  - generic [ref=f10e184]:
+                    - text: 1. Create API key
+                    - paragraph [ref=f10e185]:
+                      - text: Go to
+                      - link "API Keys" [ref=f10e186] [cursor=pointer]:
+                        - /url: /dashboard/api-manager
+                      - text: . Generate one key per environment.
+                - listitem [ref=f10e187]:
+                  - generic [ref=f10e188]: dns
+                  - generic [ref=f10e190]:
+                    - text: 2. Connect providers
+                    - paragraph [ref=f10e191]:
+                      - text: Add accounts in
+                      - link "Providers" [ref=f10e192] [cursor=pointer]:
+                        - /url: /dashboard/providers
+                      - text: . Supports OAuth, API Key, and free tiers.
+                - listitem [ref=f10e193]:
+                  - generic [ref=f10e194]: link
+                  - generic [ref=f10e196]:
+                    - text: 3. Point your client
+                    - paragraph [ref=f10e197]: Set base URL to http://localhost:7788/v1 in your IDE or API client.
+                - listitem [ref=f10e198]:
+                  - generic [ref=f10e199]: analytics
+                  - generic [ref=f10e201]:
+                    - text: 4. Monitor & optimize
+                    - paragraph [ref=f10e202]:
+                      - text: Track tokens, cost and errors in
+                      - link "Request Logs" [ref=f10e203] [cursor=pointer]:
+                        - /url: /dashboard/logs
+                      - text: and
+                      - link "Analytics" [ref=f10e204] [cursor=pointer]:
+                        - /url: /dashboard/analytics
+                      - text: .
+            - generic [ref=f10e205]:
+              - generic [ref=f10e206]:
+                - generic [ref=f10e207]:
+                  - heading "Provider Topology" [level=2] [ref=f10e208]
+                  - paragraph [ref=f10e209]: 0 active · 1 error
+                - generic [ref=f10e210]:
+                  - generic [ref=f10e211]: Active
+                  - generic [ref=f10e213]: Recent
+                  - generic [ref=f10e215]: Error
+              - application [ref=f10e218]:
+                - generic [ref=f10e220]:
+                  - generic:
+                    - generic:
+                      - img:
+                        - group "Edge from router to provider-antigravity"
+                      - img:
+                        - group "Edge from router to provider-cline"
+                      - img:
+                        - group "Edge from router to provider-codex"
+                      - img:
+                        - group "Edge from router to provider-openrouter"
+                      - img:
+                        - group "Edge from router to provider-kiro"
+                      - img:
+                        - group "Edge from router to provider-agy"
+                      - img:
+                        - group "Edge from router to provider-gemini-web"
+                      - img:
+                        - group "Edge from router to provider-auto"
+                      - img:
+                        - group "Edge from router to provider-kilocode"
+                      - img:
+                        - group "Edge from router to provider-openai-compatible-chat-34c5c50c-06fb-45e8-8ab8-3e04580704b9"
+                      - img:
+                        - group "Edge from router to provider-openai-compatible-chat-430b5a8e-7ba3-4519-8eb0-02a266fc02a8"
+                      - img:
+                        - group "Edge from router to provider-openai-compatible-chat-53269fa2-b2eb-4c13-a792-dd31b2ffe8e5"
+                      - img:
+                        - group "Edge from router to provider-openai-compatible-chat-e0f3fd26-122e-4bbd-a85b-ac59baa300a6"
+                      - img:
+                        - group "Edge from router to provider-openai-compatible-responses-40d16bf6-2bd1-4e94-924e-7aa408bd92bd"
+                      - img:
+                        - group "Edge from router to provider-opencode"
+                    - generic:
+                      - group:
+                        - generic:
+                          - generic: route
+                          - generic: OmniRoute
+                      - group:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - img "antigravity"
+                          - generic: Antigravity
+                      - group:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - img "cline"
+                          - generic: Cline
+                      - group:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - img "codex"
+                          - generic: OpenAI Codex
+                      - group:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - img "openrouter"
+                          - generic: OpenRouter
+                      - group:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - img "kiro"
+                          - generic: Kiro AI
+                      - group:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - img "agy"
+                          - generic: Antigravity CLI
+                      - group:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - img "gemini-web"
+                          - generic: Gemini Web (Free)
+                      - group:
+                        - generic: Auto (Zero-Config)
+                      - group:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - img "kilocode"
+                          - generic: Kilo Code
+                      - group:
+                        - generic: agentrouter
+                      - group:
+                        - generic: Beeknoee AI
+                      - group:
+                        - generic: agy
+                      - group:
+                        - generic: Antigravity Manager
+                      - group:
+                        - generic: freemodel.dev
+                      - group:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - img "opencode"
+                          - generic: OpenCode Free
+                - generic "Control Panel" [ref=f10e285]:
+                  - button "Zoom In" [ref=f10e286] [cursor=pointer]
+                  - button "Zoom Out" [ref=f10e289] [cursor=pointer]
+                  - button "Fit View" [ref=f10e292] [cursor=pointer]
+    - alert [ref=f10e297] [cursor=pointer]:
+      - generic [ref=f10e298]: ⚠
+      - generic [ref=f10e299]:
+        - generic [ref=f10e300]: API Key Warning
+        - generic [ref=f10e301]: "2 API key(s) in warning state due to elevated failure rate in connections: vinhnm@edmicro.vn, tiennguyenquy@gmail.com. Review to prevent rotation issues."
+      - button "Dismiss notification" [ref=f10e302]: ×

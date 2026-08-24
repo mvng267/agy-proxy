@@ -14,6 +14,7 @@ import { checkUpdate, runUpdate } from './updater.js';
 import { hashPassword, verifyPassword, isWeakPasscode, isPasscode } from './security.js';
 import { registerGatewayRoutes } from './gateway/routes.js';
 import { registerToolRoutes } from './tools/routes.js';
+import { registerOmnirouteRoutes } from './omniroute/routes.js';
 import { buildBackup, restoreBackup } from './backup.js';
 import { pool, geminiPct, syncFromStore } from './gateway/pool.js';
 import { tuoiQuota } from './gateway/poolScore.js';
@@ -34,6 +35,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // Gateway "API proxy AGY" (OpenAI-compatible pool Antigravity)
   await registerGatewayRoutes(app);
   registerToolRoutes(app);
+  registerOmnirouteRoutes(app);
 
   // ---------- accounts ----------
   /**

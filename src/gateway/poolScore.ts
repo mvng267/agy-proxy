@@ -248,6 +248,25 @@ export function isPermanentAuthError(msg: string, status?: number): boolean {
   return status === 401 || status === 403;
 }
 
+/**
+ * Lỗi của MODEL, không phải của account — upstream hết chỗ cho model đó.
+ *
+ * Vì sao phải tách: đo trên production, `gemini-2.5-pro` trả `503 No capacity available`
+ * **66 lần trong 2 giờ**. Pool coi đó là lỗi account nên cooldown từng account 30 giây,
+ * mà mỗi account chỉ hỏng ĐÚNG MỘT LẦN rồi thành công với model khác → `consecutiveFails`
+ * reset → backoff luỹ thừa không bao giờ kích hoạt. Google hết chỗ lâu hơn 30s nhiều, nên
+ * account vừa hết cooldown lại bị chọn, lại 503.
+ *
+ * Hậu quả đo được: **5,56 account mỗi request**, có request quét 35 account trong 195 giây
+ * rồi vẫn hỏng — trong khi KHÔNG account nào cứu được, vì lỗi nằm ở model.
+ *
+ * Đổi account là vô ích với loại lỗi này; phải cho cả model nghỉ.
+ */
+export function isModelCapacityError(msg: string, status?: number): boolean {
+  if (status !== 503 && status !== 429) return false;
+  return /no capacity|RESOURCE_EXHAUSTED|overloaded|model is busy|try again later/i.test(msg);
+}
+
 /** Lỗi hạ tầng thoáng qua: 5xx, timeout, đứt mạng. Cooldown ngắn rồi thử lại. */
 export function isTransientError(msg: string, status?: number): boolean {
   if (typeof status === 'number' && status >= 500) return true;

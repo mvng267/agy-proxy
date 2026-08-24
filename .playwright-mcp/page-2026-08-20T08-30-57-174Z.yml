@@ -1,0 +1,49 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e3]:
+    - generic [ref=f3e4]:
+      - generic [ref=f3e6]:
+        - generic [ref=f3e7]: Đang tải
+        - progressbar [ref=f3e8]
+      - main [ref=f3e15]:
+        - generic [ref=f3e16]:
+          - generic [ref=f3e17]: Đăng nhập bằng Google
+          - generic [ref=f3e23]:
+            - heading "Chọn tài khoản" [level=1] [ref=f3e24]
+            - generic [ref=f3e26]:
+              - text: Tiếp tục tới
+              - button "kiro-prod-us-east-1.auth.us-east-1.amazoncognito.com" [ref=f3e27] [cursor=pointer]
+        - generic [ref=f3e30]:
+          - list [ref=f3e38]:
+            - listitem [ref=f3e39]:
+              - link "agyproxy 1 agyproxy1@luongthevinhhp.edu.vn" [ref=f3e40] [cursor=pointer]:
+                - generic [ref=f3e44]:
+                  - generic [ref=f3e45]: agyproxy 1
+                  - generic [ref=f3e46]: agyproxy1@luongthevinhhp.edu.vn
+            - listitem [ref=f3e47]:
+              - link "Sử dụng một tài khoản khác" [ref=f3e48] [cursor=pointer]
+          - generic [ref=f3e57]:
+            - text: Trước khi sử dụng kiro-prod-us-east-1.auth.us-east-1.amazoncognito.com, bạn có thể xem
+            - link "Chính sách quyền riêng tư" [ref=f3e58] [cursor=pointer]:
+              - /url: https://aws.amazon.com/privacy/
+            - text: và
+            - link "Điều khoản dịch vụ" [ref=f3e59] [cursor=pointer]:
+              - /url: https://aws.amazon.com/terms/
+            - text: của ứng dụng này.
+    - contentinfo [ref=f3e63]:
+      - combobox "Thay đổi ngôn ngữ Tiếng Việt" [ref=f3e67] [cursor=pointer]:
+        - generic: Tiếng Việt
+      - list [ref=f3e69]:
+        - listitem [ref=f3e70]:
+          - link "Mở Trung tâm trợ giúp về Tài khoản Google (liên kết ngoài, mở trong cửa sổ mới)" [ref=f3e71] [cursor=pointer]:
+            - /url: https://support.google.com/accounts?hl=vi&p=account_iph
+            - text: Trợ giúp
+        - listitem [ref=f3e72]:
+          - link "Chính sách quyền riêng tư (liên kết ngoài, mở trong cửa sổ mới)" [ref=f3e73] [cursor=pointer]:
+            - /url: https://accounts.google.com/TOS?loc=VN&hl=vi&privacy=true
+            - text: Quyền riêng tư
+        - listitem [ref=f3e74]:
+          - link "Điều khoản dịch vụ của Google (liên kết ngoài, mở trong cửa sổ mới)" [ref=f3e75] [cursor=pointer]:
+            - /url: https://accounts.google.com/TOS?loc=VN&hl=vi
+            - text: Điều khoản
+  - iframe [ref=f3e76]:
+    

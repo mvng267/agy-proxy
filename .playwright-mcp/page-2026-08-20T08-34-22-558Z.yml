@@ -1,0 +1,292 @@
+- generic [active] [ref=f2e1]:
+  - link "Skip to content" [ref=f2e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f2e3]:
+    - complementary [ref=f2e5]:
+      - link "Skip to content" [ref=f2e6] [cursor=pointer]:
+        - /url: "#main-content"
+      - button [expanded] [ref=f2e11]:
+        - generic: chevron_left
+      - link "OmniRoute v3.8.49" [ref=f2e13] [cursor=pointer]:
+        - /url: /home
+        - generic [ref=f2e27]:
+          - heading "OmniRoute" [level=1] [ref=f2e28]
+          - generic [ref=f2e29]: v3.8.49
+      - generic [ref=f2e32]:
+        - generic: search
+        - searchbox "Search" [ref=f2e33]
+      - navigation "Main navigation" [ref=f2e34]:
+        - link "home Home Dashboard overview" [ref=f2e36] [cursor=pointer]:
+          - /url: /home
+          - generic [ref=f2e37]: home
+          - generic [ref=f2e38]:
+            - generic [ref=f2e39]: Home
+            - generic [ref=f2e40]: Dashboard overview
+        - generic [ref=f2e41]:
+          - button "OmniProxy push_pin expand_more" [expanded] [ref=f2e42] [cursor=pointer]:
+            - generic [ref=f2e43]: OmniProxy
+            - button "push_pin" [ref=f2e44]
+            - generic: expand_more
+          - generic [ref=f2e45]:
+            - link "api Endpoints Your AI connection URLs" [ref=f2e46] [cursor=pointer]:
+              - /url: /dashboard/endpoint
+              - generic [ref=f2e47]: api
+              - generic [ref=f2e48]:
+                - generic [ref=f2e49]: Endpoints
+                - generic [ref=f2e50]: Your AI connection URLs
+            - link "vpn_key API Keys Manage API keys and access" [ref=f2e51] [cursor=pointer]:
+              - /url: /dashboard/api-manager
+              - generic [ref=f2e52]: vpn_key
+              - generic [ref=f2e53]:
+                - generic [ref=f2e54]: API Keys
+                - generic [ref=f2e55]: Manage API keys and access
+            - link "dns Providers Manage AI providers" [ref=f2e56] [cursor=pointer]:
+              - /url: /dashboard/providers
+              - generic [ref=f2e57]: dns
+              - generic [ref=f2e58]:
+                - generic [ref=f2e59]: Providers
+                - generic [ref=f2e60]: Manage AI providers
+            - link "deployed_code Embedded Services Manage local proxy services" [ref=f2e61] [cursor=pointer]:
+              - /url: /dashboard/providers/services
+              - generic [ref=f2e62]: deployed_code
+              - generic [ref=f2e63]:
+                - generic [ref=f2e64]: Embedded Services
+                - generic [ref=f2e65]: Manage local proxy services
+            - link "layers Combos Group providers for failover" [ref=f2e66] [cursor=pointer]:
+              - /url: /dashboard/combos
+              - generic [ref=f2e67]: layers
+              - generic [ref=f2e68]:
+                - generic [ref=f2e69]: Combos
+                - generic [ref=f2e70]: Group providers for failover
+            - link "account_tree Combo Studio Live routing cascade" [ref=f2e71] [cursor=pointer]:
+              - /url: /dashboard/combos/live
+              - generic [ref=f2e72]: account_tree
+              - generic [ref=f2e73]:
+                - generic [ref=f2e74]: Combo Studio
+                - generic [ref=f2e75]: Live routing cascade
+            - link "tune Provider Quota Track provider usage limits" [ref=f2e76] [cursor=pointer]:
+              - /url: /dashboard/quota
+              - generic [ref=f2e77]: tune
+              - generic [ref=f2e78]:
+                - generic [ref=f2e79]: Provider Quota
+                - generic [ref=f2e80]: Track provider usage limits
+            - link "pie_chart Quota Sharing Share provider quotas across keys" [ref=f2e81] [cursor=pointer]:
+              - /url: /dashboard/costs/quota-share
+              - generic [ref=f2e82]: pie_chart
+              - generic [ref=f2e83]:
+                - generic [ref=f2e84]: Quota Sharing
+                - generic [ref=f2e85]: Share provider quotas across keys
+            - generic [ref=f2e86]:
+              - generic [ref=f2e87]: Compression Context
+              - link "settings Compression Settings Global defaults" [ref=f2e90] [cursor=pointer]:
+                - /url: /dashboard/context/settings
+                - generic [ref=f2e91]: settings
+                - generic [ref=f2e92]:
+                  - generic [ref=f2e93]: Compression Settings
+                  - generic [ref=f2e94]: Global defaults
+              - link "hub Engine Combos Combine compression engines" [ref=f2e95] [cursor=pointer]:
+                - /url: /dashboard/context/combos
+                - generic [ref=f2e96]: hub
+                - generic [ref=f2e97]:
+                  - generic [ref=f2e98]: Engine Combos
+                  - generic [ref=f2e99]: Combine compression engines
+              - link "compress Caveman Prompt compression" [ref=f2e100] [cursor=pointer]:
+                - /url: /dashboard/context/caveman
+                - generic [ref=f2e101]: compress
+                - generic [ref=f2e102]:
+                  - generic [ref=f2e103]: Caveman
+                  - generic [ref=f2e104]: Prompt compression
+              - link "filter_alt RTK Output filtering" [ref=f2e105] [cursor=pointer]:
+                - /url: /dashboard/context/rtk
+                - generic [ref=f2e106]: filter_alt
+                - generic [ref=f2e107]:
+                  - generic [ref=f2e108]: RTK
+                  - generic [ref=f2e109]: Output filtering
+              - link "table_rows Headroom Tabular compaction" [ref=f2e110] [cursor=pointer]:
+                - /url: /dashboard/context/headroom
+                - generic [ref=f2e111]: table_rows
+                - generic [ref=f2e112]:
+                  - generic [ref=f2e113]: Headroom
+                  - generic [ref=f2e114]: Tabular compaction
+              - link "content_copy Session Dedup Cross-turn deduplication" [ref=f2e115] [cursor=pointer]:
+                - /url: /dashboard/context/session-dedup
+                - generic [ref=f2e116]: content_copy
+                - generic [ref=f2e117]:
+                  - generic [ref=f2e118]: Session Dedup
+                  - generic [ref=f2e119]: Cross-turn deduplication
+              - link "archive CCR Retrieve markers" [ref=f2e120] [cursor=pointer]:
+                - /url: /dashboard/context/ccr
+                - generic [ref=f2e121]: archive
+                - generic [ref=f2e122]:
+                  - generic [ref=f2e123]: CCR
+                  - generic [ref=f2e124]: Retrieve markers
+              - link "psychology LLMLingua Semantic pruning" [ref=f2e125] [cursor=pointer]:
+                - /url: /dashboard/context/llmlingua
+                - generic [ref=f2e126]: psychology
+                - generic [ref=f2e127]:
+                  - generic [ref=f2e128]: LLMLingua
+                  - generic [ref=f2e129]: Semantic pruning
+              - link "compress Lite Fast whitespace cleanup" [ref=f2e130] [cursor=pointer]:
+                - /url: /dashboard/context/lite
+                - generic [ref=f2e131]: compress
+                - generic [ref=f2e132]:
+                  - generic [ref=f2e133]: Lite
+                  - generic [ref=f2e134]: Fast whitespace cleanup
+              - link "speed Aggressive Summary and aging" [ref=f2e135] [cursor=pointer]:
+                - /url: /dashboard/context/aggressive
+                - generic [ref=f2e136]: speed
+                - generic [ref=f2e137]:
+                  - generic [ref=f2e138]: Aggressive
+                  - generic [ref=f2e139]: Summary and aging
+              - link "bolt Ultra Heuristic pruning" [ref=f2e140] [cursor=pointer]:
+                - /url: /dashboard/context/ultra
+                - generic [ref=f2e141]: bolt
+                - generic [ref=f2e142]:
+                  - generic [ref=f2e143]: Ultra
+                  - generic [ref=f2e144]: Heuristic pruning
+              - link "grain OmniGlyph Context as images" [ref=f2e145] [cursor=pointer]:
+                - /url: /dashboard/context/omniglyph
+                - generic [ref=f2e146]: grain
+                - generic [ref=f2e147]:
+                  - generic [ref=f2e148]: OmniGlyph
+                  - generic [ref=f2e149]: Context as images
+              - link "monitoring Compression Studio Live engine cascade" [ref=f2e150] [cursor=pointer]:
+                - /url: /dashboard/compression/studio
+                - generic [ref=f2e151]: monitoring
+                - generic [ref=f2e152]:
+                  - generic [ref=f2e153]: Compression Studio
+                  - generic [ref=f2e154]: Live engine cascade
+              - link "block Exclusions Per-model/endpoint bypass" [ref=f2e155] [cursor=pointer]:
+                - /url: /dashboard/compression/exclusions
+                - generic [ref=f2e156]: block
+                - generic [ref=f2e157]:
+                  - generic [ref=f2e158]: Exclusions
+                  - generic [ref=f2e159]: Per-model/endpoint bypass
+            - generic [ref=f2e160]:
+              - generic [ref=f2e161]: Tools
+              - link "terminal CLI Code Code tools pointing to OmniRoute" [ref=f2e164] [cursor=pointer]:
+                - /url: /dashboard/cli-code
+                - generic [ref=f2e165]: terminal
+                - generic [ref=f2e166]:
+                  - generic [ref=f2e167]: CLI Code
+                  - generic [ref=f2e168]: Code tools pointing to OmniRoute
+              - link "smart_toy CLI Agents Autonomous CLI agents" [ref=f2e169] [cursor=pointer]:
+                - /url: /dashboard/cli-agents
+                - generic [ref=f2e170]: smart_toy
+                - generic [ref=f2e171]:
+                  - generic [ref=f2e172]: CLI Agents
+                  - generic [ref=f2e173]: Autonomous CLI agents
+              - link "device_hub ACP Agents CLIs spawned by OmniRoute" [ref=f2e174] [cursor=pointer]:
+                - /url: /dashboard/acp-agents
+                - generic [ref=f2e175]: device_hub
+                - generic [ref=f2e176]:
+                  - generic [ref=f2e177]: ACP Agents
+                  - generic [ref=f2e178]: CLIs spawned by OmniRoute
+              - link "cloud Cloud Agents Manage cloud-based agents" [ref=f2e179] [cursor=pointer]:
+                - /url: /dashboard/cloud-agents
+                - generic [ref=f2e180]: cloud
+                - generic [ref=f2e181]:
+                  - generic [ref=f2e182]: Cloud Agents
+                  - generic [ref=f2e183]: Manage cloud-based agents
+              - link "link Agent Bridge Intercept IDE agent traffic" [ref=f2e184] [cursor=pointer]:
+                - /url: /dashboard/tools/agent-bridge
+                - generic [ref=f2e185]: link
+                - generic [ref=f2e186]:
+                  - generic [ref=f2e187]: Agent Bridge
+                  - generic [ref=f2e188]: Intercept IDE agent traffic
+              - link "network_check Traffic Inspector Monitor LLM calls + debug any HTTPS traffic" [ref=f2e189] [cursor=pointer]:
+                - /url: /dashboard/tools/traffic-inspector
+                - generic [ref=f2e190]: network_check
+                - generic [ref=f2e191]:
+                  - generic [ref=f2e192]: Traffic Inspector
+                  - generic [ref=f2e193]: Monitor LLM calls + debug any HTTPS traffic
+              - link "travel_explore Discovery Scan providers for free access" [ref=f2e194] [cursor=pointer]:
+                - /url: /dashboard/discovery
+                - generic [ref=f2e195]: travel_explore
+                - generic [ref=f2e196]:
+                  - generic [ref=f2e197]: Discovery
+                  - generic [ref=f2e198]: Scan providers for free access
+            - generic [ref=f2e199]:
+              - generic [ref=f2e200]: Integrations
+              - link "api API Endpoints Expose custom endpoints" [ref=f2e203] [cursor=pointer]:
+                - /url: /dashboard/api-endpoints
+                - generic [ref=f2e204]: api
+                - generic [ref=f2e205]:
+                  - generic [ref=f2e206]: API Endpoints
+                  - generic [ref=f2e207]: Expose custom endpoints
+              - link "webhook Webhooks Get notified of events" [ref=f2e208] [cursor=pointer]:
+                - /url: /dashboard/webhooks
+                - generic [ref=f2e209]: webhook
+                - generic [ref=f2e210]:
+                  - generic [ref=f2e211]: Webhooks
+                  - generic [ref=f2e212]: Get notified of events
+            - link "dns Proxy HTTP proxy settings" [ref=f2e213] [cursor=pointer]:
+              - /url: /dashboard/system/proxy
+              - generic [ref=f2e214]: dns
+              - generic [ref=f2e215]:
+                - generic [ref=f2e216]: Proxy
+                - generic [ref=f2e217]: HTTP proxy settings
+        - button "Analytics push_pin expand_more" [ref=f2e219] [cursor=pointer]:
+          - generic [ref=f2e220]: Analytics
+          - button "push_pin" [ref=f2e221]
+          - generic: expand_more
+        - button "Costs push_pin expand_more" [ref=f2e223] [cursor=pointer]:
+          - generic [ref=f2e224]: Costs
+          - button "push_pin" [ref=f2e225]
+          - generic: expand_more
+        - button "Monitoring push_pin expand_more" [ref=f2e227] [cursor=pointer]:
+          - generic [ref=f2e228]: Monitoring
+          - button "push_pin" [ref=f2e229]
+          - generic: expand_more
+        - button "Agentic Features push_pin expand_more" [ref=f2e231] [cursor=pointer]:
+          - generic [ref=f2e232]: Agentic Features
+          - button "push_pin" [ref=f2e233]
+          - generic: expand_more
+        - button "Other Features push_pin expand_more" [ref=f2e235] [cursor=pointer]:
+          - generic [ref=f2e236]: Other Features
+          - button "push_pin" [ref=f2e237]
+          - generic: expand_more
+        - button "Configuration push_pin expand_more" [ref=f2e239] [cursor=pointer]:
+          - generic [ref=f2e240]: Configuration
+          - button "push_pin" [ref=f2e241]
+          - generic: expand_more
+        - button "Help push_pin expand_more" [ref=f2e243] [cursor=pointer]:
+          - generic [ref=f2e244]: Help
+          - button "push_pin" [ref=f2e245]
+          - generic: expand_more
+      - generic [ref=f2e246]:
+        - button "restart_alt Restart" [ref=f2e247]:
+          - generic: restart_alt
+          - generic [ref=f2e248]: Restart
+        - button "power_settings_new Shutdown" [ref=f2e249]:
+          - generic: power_settings_new
+          - generic [ref=f2e250]: Shutdown
+    - main [ref=f2e251]:
+      - generic [ref=f2e252]:
+        - generic [ref=f2e253]:
+          - img "kiro" [ref=f2e256]
+          - heading "Kiro AI" [level=1] [ref=f2e258]
+        - generic [ref=f2e259]:
+          - button "Open quick navigation" [ref=f2e260]:
+            - generic: search
+            - generic [ref=f2e261]: Quick nav
+            - generic [ref=f2e262]: Ctrl+K
+          - button "English EN expand_more" [ref=f2e264]:
+            - img "English" [ref=f2e265]
+            - generic [ref=f2e266]: EN
+            - generic: expand_more
+          - button "Switch to dark mode" [ref=f2e267]:
+            - generic: dark_mode
+          - button "Logout" [ref=f2e268]:
+            - generic: logout
+      - navigation "Breadcrumb" [ref=f2e271]:
+        - link "Dashboard" [ref=f2e273] [cursor=pointer]:
+          - /url: /dashboard
+        - generic [ref=f2e274]:
+          - generic [ref=f2e275]: ›
+          - link "Providers" [ref=f2e276] [cursor=pointer]:
+            - /url: /dashboard/providers
+        - generic [ref=f2e277]:
+          - generic [ref=f2e278]: ›
+          - generic [ref=f2e279]: Kiro
+  - alert [ref=f2e294]

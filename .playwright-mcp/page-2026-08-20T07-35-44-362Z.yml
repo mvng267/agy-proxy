@@ -1,0 +1,3000 @@
+- generic [ref=f12e1]:
+  - link "Skip to content" [ref=f12e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f12e3]:
+    - complementary [ref=f12e5]:
+      - link "Skip to content" [ref=f12e6] [cursor=pointer]:
+        - /url: "#main-content"
+      - button [expanded] [ref=f12e11]:
+        - generic: chevron_left
+      - link "OmniRoute v3.8.49" [ref=f12e13] [cursor=pointer]:
+        - /url: /home
+        - generic [ref=f12e27]:
+          - heading "OmniRoute" [level=1] [ref=f12e28]
+          - generic [ref=f12e29]: v3.8.49
+      - generic [ref=f12e32]:
+        - generic: search
+        - searchbox "Search" [ref=f12e33]
+      - navigation "Main navigation" [ref=f12e34]:
+        - link "home Home Dashboard overview" [ref=f12e36] [cursor=pointer]:
+          - /url: /home
+          - generic [ref=f12e37]: home
+          - generic [ref=f12e38]:
+            - generic [ref=f12e39]: Home
+            - generic [ref=f12e40]: Dashboard overview
+        - generic [ref=f12e41]:
+          - button "OmniProxy push_pin expand_more" [expanded] [ref=f12e42] [cursor=pointer]:
+            - generic [ref=f12e43]: OmniProxy
+            - button "push_pin" [ref=f12e44]
+            - generic: expand_more
+          - generic [ref=f12e45]:
+            - link "api Endpoints Your AI connection URLs" [ref=f12e46] [cursor=pointer]:
+              - /url: /dashboard/endpoint
+              - generic [ref=f12e47]: api
+              - generic [ref=f12e48]:
+                - generic [ref=f12e49]: Endpoints
+                - generic [ref=f12e50]: Your AI connection URLs
+            - link "vpn_key API Keys Manage API keys and access" [ref=f12e51] [cursor=pointer]:
+              - /url: /dashboard/api-manager
+              - generic [ref=f12e52]: vpn_key
+              - generic [ref=f12e53]:
+                - generic [ref=f12e54]: API Keys
+                - generic [ref=f12e55]: Manage API keys and access
+            - link "dns Providers Manage AI providers" [ref=f12e56] [cursor=pointer]:
+              - /url: /dashboard/providers
+              - generic [ref=f12e57]: dns
+              - generic [ref=f12e58]:
+                - generic [ref=f12e59]: Providers
+                - generic [ref=f12e60]: Manage AI providers
+            - link "deployed_code Embedded Services Manage local proxy services" [ref=f12e61] [cursor=pointer]:
+              - /url: /dashboard/providers/services
+              - generic [ref=f12e62]: deployed_code
+              - generic [ref=f12e63]:
+                - generic [ref=f12e64]: Embedded Services
+                - generic [ref=f12e65]: Manage local proxy services
+            - link "layers Combos Group providers for failover" [ref=f12e66] [cursor=pointer]:
+              - /url: /dashboard/combos
+              - generic [ref=f12e67]: layers
+              - generic [ref=f12e68]:
+                - generic [ref=f12e69]: Combos
+                - generic [ref=f12e70]: Group providers for failover
+            - link "account_tree Combo Studio Live routing cascade" [ref=f12e71] [cursor=pointer]:
+              - /url: /dashboard/combos/live
+              - generic [ref=f12e72]: account_tree
+              - generic [ref=f12e73]:
+                - generic [ref=f12e74]: Combo Studio
+                - generic [ref=f12e75]: Live routing cascade
+            - link "tune Provider Quota Track provider usage limits" [ref=f12e76] [cursor=pointer]:
+              - /url: /dashboard/quota
+              - generic [ref=f12e77]: tune
+              - generic [ref=f12e78]:
+                - generic [ref=f12e79]: Provider Quota
+                - generic [ref=f12e80]: Track provider usage limits
+            - link "pie_chart Quota Sharing Share provider quotas across keys" [ref=f12e81] [cursor=pointer]:
+              - /url: /dashboard/costs/quota-share
+              - generic [ref=f12e82]: pie_chart
+              - generic [ref=f12e83]:
+                - generic [ref=f12e84]: Quota Sharing
+                - generic [ref=f12e85]: Share provider quotas across keys
+            - generic [ref=f12e86]:
+              - generic [ref=f12e87]: Compression Context
+              - link "settings Compression Settings Global defaults" [ref=f12e90] [cursor=pointer]:
+                - /url: /dashboard/context/settings
+                - generic [ref=f12e91]: settings
+                - generic [ref=f12e92]:
+                  - generic [ref=f12e93]: Compression Settings
+                  - generic [ref=f12e94]: Global defaults
+              - link "hub Engine Combos Combine compression engines" [ref=f12e95] [cursor=pointer]:
+                - /url: /dashboard/context/combos
+                - generic [ref=f12e96]: hub
+                - generic [ref=f12e97]:
+                  - generic [ref=f12e98]: Engine Combos
+                  - generic [ref=f12e99]: Combine compression engines
+              - link "compress Caveman Prompt compression" [ref=f12e100] [cursor=pointer]:
+                - /url: /dashboard/context/caveman
+                - generic [ref=f12e101]: compress
+                - generic [ref=f12e102]:
+                  - generic [ref=f12e103]: Caveman
+                  - generic [ref=f12e104]: Prompt compression
+              - link "filter_alt RTK Output filtering" [ref=f12e105] [cursor=pointer]:
+                - /url: /dashboard/context/rtk
+                - generic [ref=f12e106]: filter_alt
+                - generic [ref=f12e107]:
+                  - generic [ref=f12e108]: RTK
+                  - generic [ref=f12e109]: Output filtering
+              - link "table_rows Headroom Tabular compaction" [ref=f12e110] [cursor=pointer]:
+                - /url: /dashboard/context/headroom
+                - generic [ref=f12e111]: table_rows
+                - generic [ref=f12e112]:
+                  - generic [ref=f12e113]: Headroom
+                  - generic [ref=f12e114]: Tabular compaction
+              - link "content_copy Session Dedup Cross-turn deduplication" [ref=f12e115] [cursor=pointer]:
+                - /url: /dashboard/context/session-dedup
+                - generic [ref=f12e116]: content_copy
+                - generic [ref=f12e117]:
+                  - generic [ref=f12e118]: Session Dedup
+                  - generic [ref=f12e119]: Cross-turn deduplication
+              - link "archive CCR Retrieve markers" [ref=f12e120] [cursor=pointer]:
+                - /url: /dashboard/context/ccr
+                - generic [ref=f12e121]: archive
+                - generic [ref=f12e122]:
+                  - generic [ref=f12e123]: CCR
+                  - generic [ref=f12e124]: Retrieve markers
+              - link "psychology LLMLingua Semantic pruning" [ref=f12e125] [cursor=pointer]:
+                - /url: /dashboard/context/llmlingua
+                - generic [ref=f12e126]: psychology
+                - generic [ref=f12e127]:
+                  - generic [ref=f12e128]: LLMLingua
+                  - generic [ref=f12e129]: Semantic pruning
+              - link "compress Lite Fast whitespace cleanup" [ref=f12e130] [cursor=pointer]:
+                - /url: /dashboard/context/lite
+                - generic [ref=f12e131]: compress
+                - generic [ref=f12e132]:
+                  - generic [ref=f12e133]: Lite
+                  - generic [ref=f12e134]: Fast whitespace cleanup
+              - link "speed Aggressive Summary and aging" [ref=f12e135] [cursor=pointer]:
+                - /url: /dashboard/context/aggressive
+                - generic [ref=f12e136]: speed
+                - generic [ref=f12e137]:
+                  - generic [ref=f12e138]: Aggressive
+                  - generic [ref=f12e139]: Summary and aging
+              - link "bolt Ultra Heuristic pruning" [ref=f12e140] [cursor=pointer]:
+                - /url: /dashboard/context/ultra
+                - generic [ref=f12e141]: bolt
+                - generic [ref=f12e142]:
+                  - generic [ref=f12e143]: Ultra
+                  - generic [ref=f12e144]: Heuristic pruning
+              - link "grain OmniGlyph Context as images" [ref=f12e145] [cursor=pointer]:
+                - /url: /dashboard/context/omniglyph
+                - generic [ref=f12e146]: grain
+                - generic [ref=f12e147]:
+                  - generic [ref=f12e148]: OmniGlyph
+                  - generic [ref=f12e149]: Context as images
+              - link "monitoring Compression Studio Live engine cascade" [ref=f12e150] [cursor=pointer]:
+                - /url: /dashboard/compression/studio
+                - generic [ref=f12e151]: monitoring
+                - generic [ref=f12e152]:
+                  - generic [ref=f12e153]: Compression Studio
+                  - generic [ref=f12e154]: Live engine cascade
+              - link "block Exclusions Per-model/endpoint bypass" [ref=f12e155] [cursor=pointer]:
+                - /url: /dashboard/compression/exclusions
+                - generic [ref=f12e156]: block
+                - generic [ref=f12e157]:
+                  - generic [ref=f12e158]: Exclusions
+                  - generic [ref=f12e159]: Per-model/endpoint bypass
+            - generic [ref=f12e160]:
+              - generic [ref=f12e161]: Tools
+              - link "terminal CLI Code Code tools pointing to OmniRoute" [ref=f12e164] [cursor=pointer]:
+                - /url: /dashboard/cli-code
+                - generic [ref=f12e165]: terminal
+                - generic [ref=f12e166]:
+                  - generic [ref=f12e167]: CLI Code
+                  - generic [ref=f12e168]: Code tools pointing to OmniRoute
+              - link "smart_toy CLI Agents Autonomous CLI agents" [ref=f12e169] [cursor=pointer]:
+                - /url: /dashboard/cli-agents
+                - generic [ref=f12e170]: smart_toy
+                - generic [ref=f12e171]:
+                  - generic [ref=f12e172]: CLI Agents
+                  - generic [ref=f12e173]: Autonomous CLI agents
+              - link "device_hub ACP Agents CLIs spawned by OmniRoute" [ref=f12e174] [cursor=pointer]:
+                - /url: /dashboard/acp-agents
+                - generic [ref=f12e175]: device_hub
+                - generic [ref=f12e176]:
+                  - generic [ref=f12e177]: ACP Agents
+                  - generic [ref=f12e178]: CLIs spawned by OmniRoute
+              - link "cloud Cloud Agents Manage cloud-based agents" [ref=f12e179] [cursor=pointer]:
+                - /url: /dashboard/cloud-agents
+                - generic [ref=f12e180]: cloud
+                - generic [ref=f12e181]:
+                  - generic [ref=f12e182]: Cloud Agents
+                  - generic [ref=f12e183]: Manage cloud-based agents
+              - link "link Agent Bridge Intercept IDE agent traffic" [ref=f12e184] [cursor=pointer]:
+                - /url: /dashboard/tools/agent-bridge
+                - generic [ref=f12e185]: link
+                - generic [ref=f12e186]:
+                  - generic [ref=f12e187]: Agent Bridge
+                  - generic [ref=f12e188]: Intercept IDE agent traffic
+              - link "network_check Traffic Inspector Monitor LLM calls + debug any HTTPS traffic" [ref=f12e189] [cursor=pointer]:
+                - /url: /dashboard/tools/traffic-inspector
+                - generic [ref=f12e190]: network_check
+                - generic [ref=f12e191]:
+                  - generic [ref=f12e192]: Traffic Inspector
+                  - generic [ref=f12e193]: Monitor LLM calls + debug any HTTPS traffic
+              - link "travel_explore Discovery Scan providers for free access" [ref=f12e194] [cursor=pointer]:
+                - /url: /dashboard/discovery
+                - generic [ref=f12e195]: travel_explore
+                - generic [ref=f12e196]:
+                  - generic [ref=f12e197]: Discovery
+                  - generic [ref=f12e198]: Scan providers for free access
+            - generic [ref=f12e199]:
+              - generic [ref=f12e200]: Integrations
+              - link "api API Endpoints Expose custom endpoints" [ref=f12e203] [cursor=pointer]:
+                - /url: /dashboard/api-endpoints
+                - generic [ref=f12e204]: api
+                - generic [ref=f12e205]:
+                  - generic [ref=f12e206]: API Endpoints
+                  - generic [ref=f12e207]: Expose custom endpoints
+              - link "webhook Webhooks Get notified of events" [ref=f12e208] [cursor=pointer]:
+                - /url: /dashboard/webhooks
+                - generic [ref=f12e209]: webhook
+                - generic [ref=f12e210]:
+                  - generic [ref=f12e211]: Webhooks
+                  - generic [ref=f12e212]: Get notified of events
+            - link "dns Proxy HTTP proxy settings" [ref=f12e213] [cursor=pointer]:
+              - /url: /dashboard/system/proxy
+              - generic [ref=f12e214]: dns
+              - generic [ref=f12e215]:
+                - generic [ref=f12e216]: Proxy
+                - generic [ref=f12e217]: HTTP proxy settings
+        - button "Analytics push_pin expand_more" [ref=f12e219] [cursor=pointer]:
+          - generic [ref=f12e220]: Analytics
+          - button "push_pin" [ref=f12e221]
+          - generic: expand_more
+        - button "Costs push_pin expand_more" [ref=f12e223] [cursor=pointer]:
+          - generic [ref=f12e224]: Costs
+          - button "push_pin" [ref=f12e225]
+          - generic: expand_more
+        - button "Monitoring push_pin expand_more" [ref=f12e227] [cursor=pointer]:
+          - generic [ref=f12e228]: Monitoring
+          - button "push_pin" [ref=f12e229]
+          - generic: expand_more
+        - button "Dev Tools push_pin expand_more" [ref=f12e319] [cursor=pointer]:
+          - generic [ref=f12e320]: Dev Tools
+          - button "push_pin" [ref=f12e321]
+          - generic: expand_more
+        - button "Agentic Features push_pin expand_more" [ref=f12e231] [cursor=pointer]:
+          - generic [ref=f12e232]: Agentic Features
+          - button "push_pin" [ref=f12e233]
+          - generic: expand_more
+        - button "Other Features push_pin expand_more" [ref=f12e235] [cursor=pointer]:
+          - generic [ref=f12e236]: Other Features
+          - button "push_pin" [ref=f12e237]
+          - generic: expand_more
+        - button "Configuration push_pin expand_more" [ref=f12e239] [cursor=pointer]:
+          - generic [ref=f12e240]: Configuration
+          - button "push_pin" [ref=f12e241]
+          - generic: expand_more
+        - button "Help push_pin expand_more" [ref=f12e243] [cursor=pointer]:
+          - generic [ref=f12e244]: Help
+          - button "push_pin" [ref=f12e245]
+          - generic: expand_more
+      - 'button "Remote settings sync status: Sync off" [ref=f12e322] [cursor=pointer]':
+        - generic: cloud_off
+        - generic [ref=f12e323]: Sync off
+      - generic [ref=f12e246]:
+        - button "restart_alt Restart" [ref=f12e247]:
+          - generic: restart_alt
+          - generic [ref=f12e248]: Restart
+        - button "power_settings_new Shutdown" [ref=f12e249]:
+          - generic: power_settings_new
+          - generic [ref=f12e250]: Shutdown
+    - main [ref=f12e251]:
+      - generic [ref=f12e252]:
+        - generic [ref=f12e253]:
+          - img "antigravity" [ref=f12e256]
+          - heading "Antigravity" [level=1] [ref=f12e281]
+        - generic [ref=f12e282]:
+          - button "Open quick navigation" [ref=f12e283]:
+            - generic: search
+            - generic [ref=f12e284]: Quick nav
+            - generic [ref=f12e285]: ⌘K
+          - button "English EN expand_more" [ref=f12e287]:
+            - img "English" [ref=f12e288]
+            - generic [ref=f12e289]: EN
+            - generic: expand_more
+          - button "Switch to dark mode" [ref=f12e290]:
+            - generic: dark_mode
+          - button "error 209" [ref=f12e2521]:
+            - generic: error
+            - generic [ref=f12e326]: "209"
+          - button "Logout" [ref=f12e291]:
+            - generic: logout
+      - generic [ref=f12e293]:
+        - navigation "Breadcrumb" [ref=f12e294]:
+          - link "Dashboard" [ref=f12e296] [cursor=pointer]:
+            - /url: /dashboard
+          - generic [ref=f12e297]:
+            - generic [ref=f12e298]: ›
+            - link "Providers" [ref=f12e299] [cursor=pointer]:
+              - /url: /dashboard/providers
+          - generic [ref=f12e300]:
+            - generic [ref=f12e301]: ›
+            - generic [ref=f12e302]: Antigravity
+        - generic [ref=f12e304]:
+          - generic [ref=f12e327]:
+            - link "arrow_back Back to Providers" [ref=f12e328] [cursor=pointer]:
+              - /url: /dashboard/providers
+              - generic [ref=f12e329]: arrow_back
+              - text: Back to Providers
+            - generic [ref=f12e330]:
+              - img "antigravity" [ref=f12e333]
+              - generic [ref=f12e357]:
+                - heading "Antigravity" [level=1] [ref=f12e358]
+                - paragraph [ref=f12e360]: 205 connections
+          - generic [ref=f12e361]:
+            - generic [ref=f12e362]:
+              - paragraph [ref=f12e363]: Multi-account routing
+              - paragraph [ref=f12e364]: Override global account strategy for this provider (9router parity).
+              - generic [ref=f12e366]:
+                - generic [ref=f12e367]: Account strategy
+                - generic [ref=f12e368]:
+                  - combobox "Account strategy" [ref=f12e369]:
+                    - option "Inherit global default" [selected]
+                    - option "priority"
+                    - option "fill-first"
+                    - option "round-robin"
+                    - option "p2c"
+                    - option "random"
+                    - option "least-used"
+                  - generic: expand_more
+            - generic [ref=f12e370]:
+              - generic [ref=f12e371]:
+                - heading "Connections" [level=2] [ref=f12e372]
+                - button "vpn_lock Provider Proxy" [ref=f12e373]:
+                  - generic: vpn_lock
+                  - text: Provider Proxy
+              - generic [ref=f12e374]:
+                - button "Distribute Proxies" [ref=f12e375]:
+                  - generic: swap_horiz
+                  - text: Distribute Proxies
+                - button "Test All" [ref=f12e376]:
+                  - generic: play_arrow
+                  - text: Test All
+                - button "Reorder" [ref=f12e377] [cursor=pointer]:
+                  - generic: swap_vert
+                  - text: Reorder
+                - button "Add" [ref=f12e378] [cursor=pointer]:
+                  - generic: add
+                  - text: Add
+            - generic [ref=f12e380]:
+              - generic [ref=f12e381] [cursor=pointer]:
+                - checkbox "205 accounts" [ref=f12e382]
+                - generic [ref=f12e383]: 205 accounts
+              - generic [ref=f12e384]:
+                - generic: search
+                - textbox "Search accounts…" [ref=f12e385]
+              - generic [ref=f12e386]:
+                - button "All" [ref=f12e387]
+                - button "Active" [ref=f12e388]
+                - button "Error" [ref=f12e389]
+                - button "Banned" [ref=f12e390]
+                - button "Credits Exhausted" [ref=f12e391]
+            - generic [ref=f12e392]:
+              - generic [ref=f12e393]: 1–50 / 205
+              - generic [ref=f12e394]:
+                - button [disabled] [ref=f12e395]:
+                  - generic: chevron_left
+                - generic [ref=f12e396]: 1 / 5
+                - button [ref=f12e397] [cursor=pointer]:
+                  - generic: chevron_right
+            - generic [ref=f12e398]:
+              - generic [ref=f12e399]:
+                - generic [ref=f12e400]:
+                  - checkbox [ref=f12e401] [cursor=pointer]
+                  - generic [ref=f12e402]:
+                    - button "keyboard_arrow_up" [disabled] [ref=f12e403]
+                    - button "keyboard_arrow_down" [ref=f12e404]
+                  - generic [ref=f12e405]: lock
+                  - generic [ref=f12e406]:
+                    - paragraph [ref=f12e407]: the*******@*******.vn
+                    - generic [ref=f12e408]:
+                      - generic [ref=f12e409]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e411]
+                      - generic [ref=f12e412]: "#1"
+                      - generic [ref=f12e413]: "|"
+                      - button "shield Protected" [ref=f12e414] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e415]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e416] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e417]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e418] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e419]: Proxy On
+                      - generic [ref=f12e420]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e421] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e422]: Connection
+                - generic [ref=f12e423]:
+                  - button "Retest" [disabled] [ref=f12e424]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e425]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e427] [cursor=pointer]
+                  - generic [ref=f12e428]:
+                    - button "passkey" [ref=f12e429]
+                    - button "edit" [ref=f12e430]
+                    - button "vpn_lock" [ref=f12e431]
+                    - button "delete" [ref=f12e432]
+              - generic [ref=f12e433]:
+                - generic [ref=f12e434]:
+                  - checkbox [ref=f12e435] [cursor=pointer]
+                  - generic [ref=f12e436]:
+                    - button "keyboard_arrow_up" [ref=f12e437]
+                    - button "keyboard_arrow_down" [ref=f12e438]
+                  - generic [ref=f12e439]: lock
+                  - generic [ref=f12e440]:
+                    - paragraph [ref=f12e441]: the*******@*******.vn
+                    - generic [ref=f12e442]:
+                      - generic [ref=f12e443]: disabled
+                      - generic "Refresh token expired. Please re-authenticate this account." [ref=f12e445]
+                      - generic [ref=f12e446]: "#2"
+                      - generic [ref=f12e447]: "|"
+                      - button "shield Protected" [ref=f12e448] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e449]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e450] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e451]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e452] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e453]: Proxy On
+                      - generic [ref=f12e454]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e455] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e456]: Connection
+                - generic [ref=f12e457]:
+                  - button "Retest" [disabled] [ref=f12e458]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e459]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e461] [cursor=pointer]
+                  - generic [ref=f12e462]:
+                    - button "passkey" [ref=f12e463]
+                    - button "edit" [ref=f12e464]
+                    - button "vpn_lock" [ref=f12e465]
+                    - button "delete" [ref=f12e466]
+              - generic [ref=f12e467]:
+                - generic [ref=f12e468]:
+                  - checkbox [ref=f12e469] [cursor=pointer]
+                  - generic [ref=f12e470]:
+                    - button "keyboard_arrow_up" [ref=f12e471]
+                    - button "keyboard_arrow_down" [ref=f12e472]
+                  - generic [ref=f12e473]: lock
+                  - generic [ref=f12e474]:
+                    - paragraph [ref=f12e475]: the*******@*******.vn
+                    - generic [ref=f12e476]:
+                      - generic [ref=f12e477]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e479]
+                      - generic [ref=f12e480]: "#3"
+                      - generic [ref=f12e481]: "|"
+                      - button "shield Protected" [ref=f12e482] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e483]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e484] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e485]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e486] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e487]: Proxy On
+                      - generic [ref=f12e488]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e489] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e490]: Connection
+                - generic [ref=f12e491]:
+                  - button "Retest" [disabled] [ref=f12e492]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e493]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e495] [cursor=pointer]
+                  - generic [ref=f12e496]:
+                    - button "passkey" [ref=f12e497]
+                    - button "edit" [ref=f12e498]
+                    - button "vpn_lock" [ref=f12e499]
+                    - button "delete" [ref=f12e500]
+              - generic [ref=f12e501]:
+                - generic [ref=f12e502]:
+                  - checkbox [ref=f12e503] [cursor=pointer]
+                  - generic [ref=f12e504]:
+                    - button "keyboard_arrow_up" [ref=f12e505]
+                    - button "keyboard_arrow_down" [ref=f12e506]
+                  - generic [ref=f12e507]: lock
+                  - generic [ref=f12e508]:
+                    - paragraph [ref=f12e509]: the*******@*******.vn
+                    - generic [ref=f12e510]:
+                      - generic [ref=f12e511]: error
+                      - generic "Refresh token expired. Please re-authenticate this account." [ref=f12e513]
+                      - generic [ref=f12e514]: "#4"
+                      - generic [ref=f12e515]: "|"
+                      - button "shield Protected" [ref=f12e516] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e517]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e518] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e519]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e520] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e521]: Proxy On
+                      - generic [ref=f12e522]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e523] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e524]: Connection
+                - generic [ref=f12e525]:
+                  - button "Retest" [ref=f12e526] [cursor=pointer]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [ref=f12e527] [cursor=pointer]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Disable connection" [checked] [ref=f12e529] [cursor=pointer]
+                  - generic [ref=f12e530]:
+                    - button "passkey" [ref=f12e531]
+                    - button "edit" [ref=f12e532]
+                    - button "vpn_lock" [ref=f12e533]
+                    - button "delete" [ref=f12e534]
+              - generic [ref=f12e535]:
+                - generic [ref=f12e536]:
+                  - checkbox [ref=f12e537] [cursor=pointer]
+                  - generic [ref=f12e538]:
+                    - button "keyboard_arrow_up" [ref=f12e539]
+                    - button "keyboard_arrow_down" [ref=f12e540]
+                  - generic [ref=f12e541]: lock
+                  - generic [ref=f12e542]:
+                    - paragraph [ref=f12e543]: the*******@*******.vn
+                    - generic [ref=f12e544]:
+                      - generic [ref=f12e545]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e547]
+                      - generic [ref=f12e548]: "#5"
+                      - generic [ref=f12e549]: "|"
+                      - button "shield Protected" [ref=f12e550] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e551]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e552] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e553]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e554] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e555]: Proxy On
+                      - generic [ref=f12e556]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e557] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e558]: Connection
+                - generic [ref=f12e559]:
+                  - button "Retest" [disabled] [ref=f12e560]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e561]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e563] [cursor=pointer]
+                  - generic [ref=f12e564]:
+                    - button "passkey" [ref=f12e565]
+                    - button "edit" [ref=f12e566]
+                    - button "vpn_lock" [ref=f12e567]
+                    - button "delete" [ref=f12e568]
+              - generic [ref=f12e569]:
+                - generic [ref=f12e570]:
+                  - checkbox [ref=f12e571] [cursor=pointer]
+                  - generic [ref=f12e572]:
+                    - button "keyboard_arrow_up" [ref=f12e573]
+                    - button "keyboard_arrow_down" [ref=f12e574]
+                  - generic [ref=f12e575]: lock
+                  - generic [ref=f12e576]:
+                    - paragraph [ref=f12e577]: the*******@*******.vn
+                    - generic [ref=f12e578]:
+                      - generic [ref=f12e579]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e581]
+                      - generic [ref=f12e582]: "#6"
+                      - generic [ref=f12e583]: "|"
+                      - button "shield Protected" [ref=f12e584] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e585]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e586] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e587]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e588] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e589]: Proxy On
+                      - generic [ref=f12e590]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e591] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e592]: Connection
+                - generic [ref=f12e593]:
+                  - button "Retest" [disabled] [ref=f12e594]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e595]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e597] [cursor=pointer]
+                  - generic [ref=f12e598]:
+                    - button "passkey" [ref=f12e599]
+                    - button "edit" [ref=f12e600]
+                    - button "vpn_lock" [ref=f12e601]
+                    - button "delete" [ref=f12e602]
+              - generic [ref=f12e603]:
+                - generic [ref=f12e604]:
+                  - checkbox [ref=f12e605] [cursor=pointer]
+                  - generic [ref=f12e606]:
+                    - button "keyboard_arrow_up" [ref=f12e607]
+                    - button "keyboard_arrow_down" [ref=f12e608]
+                  - generic [ref=f12e609]: lock
+                  - generic [ref=f12e610]:
+                    - paragraph [ref=f12e611]: the*******@*******.vn
+                    - generic [ref=f12e612]:
+                      - generic [ref=f12e613]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e615]
+                      - generic [ref=f12e616]: "#7"
+                      - generic [ref=f12e617]: "|"
+                      - button "shield Protected" [ref=f12e618] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e619]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e620] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e621]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e622] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e623]: Proxy On
+                      - generic [ref=f12e624]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e625] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e626]: Connection
+                - generic [ref=f12e627]:
+                  - button "Retest" [disabled] [ref=f12e628]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e629]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e631] [cursor=pointer]
+                  - generic [ref=f12e632]:
+                    - button "passkey" [ref=f12e633]
+                    - button "edit" [ref=f12e634]
+                    - button "vpn_lock" [ref=f12e635]
+                    - button "delete" [ref=f12e636]
+              - generic [ref=f12e637]:
+                - generic [ref=f12e638]:
+                  - checkbox [ref=f12e639] [cursor=pointer]
+                  - generic [ref=f12e640]:
+                    - button "keyboard_arrow_up" [ref=f12e641]
+                    - button "keyboard_arrow_down" [ref=f12e642]
+                  - generic [ref=f12e643]: lock
+                  - generic [ref=f12e644]:
+                    - paragraph [ref=f12e645]: the*******@*******.vn
+                    - generic [ref=f12e646]:
+                      - generic [ref=f12e647]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e649]
+                      - generic [ref=f12e650]: "#8"
+                      - generic [ref=f12e651]: "|"
+                      - button "shield Protected" [ref=f12e652] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e653]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e654] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e655]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e656] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e657]: Proxy On
+                      - generic [ref=f12e658]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e659] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e660]: Connection
+                - generic [ref=f12e661]:
+                  - button "Retest" [disabled] [ref=f12e662]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e663]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e665] [cursor=pointer]
+                  - generic [ref=f12e666]:
+                    - button "passkey" [ref=f12e667]
+                    - button "edit" [ref=f12e668]
+                    - button "vpn_lock" [ref=f12e669]
+                    - button "delete" [ref=f12e670]
+              - generic [ref=f12e671]:
+                - generic [ref=f12e672]:
+                  - checkbox [ref=f12e673] [cursor=pointer]
+                  - generic [ref=f12e674]:
+                    - button "keyboard_arrow_up" [ref=f12e675]
+                    - button "keyboard_arrow_down" [ref=f12e676]
+                  - generic [ref=f12e677]: lock
+                  - generic [ref=f12e678]:
+                    - paragraph [ref=f12e679]: the*******@*******.vn
+                    - generic [ref=f12e680]:
+                      - generic [ref=f12e681]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e683]
+                      - generic [ref=f12e684]: "#9"
+                      - generic [ref=f12e685]: "|"
+                      - button "shield Protected" [ref=f12e686] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e687]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e688] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e689]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e690] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e691]: Proxy On
+                      - generic [ref=f12e692]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e693] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e694]: Connection
+                - generic [ref=f12e695]:
+                  - button "Retest" [disabled] [ref=f12e696]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e697]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e699] [cursor=pointer]
+                  - generic [ref=f12e700]:
+                    - button "passkey" [ref=f12e701]
+                    - button "edit" [ref=f12e702]
+                    - button "vpn_lock" [ref=f12e703]
+                    - button "delete" [ref=f12e704]
+              - generic [ref=f12e705]:
+                - generic [ref=f12e706]:
+                  - checkbox [ref=f12e707] [cursor=pointer]
+                  - generic [ref=f12e708]:
+                    - button "keyboard_arrow_up" [ref=f12e709]
+                    - button "keyboard_arrow_down" [ref=f12e710]
+                  - generic [ref=f12e711]: lock
+                  - generic [ref=f12e712]:
+                    - paragraph [ref=f12e713]: the*******@*******.vn
+                    - generic [ref=f12e714]:
+                      - generic [ref=f12e715]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e717]
+                      - generic [ref=f12e718]: "#10"
+                      - generic [ref=f12e719]: "|"
+                      - button "shield Protected" [ref=f12e720] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e721]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e722] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e723]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e724] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e725]: Proxy On
+                      - generic [ref=f12e726]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e727] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e728]: Connection
+                - generic [ref=f12e729]:
+                  - button "Retest" [disabled] [ref=f12e730]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e731]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e733] [cursor=pointer]
+                  - generic [ref=f12e734]:
+                    - button "passkey" [ref=f12e735]
+                    - button "edit" [ref=f12e736]
+                    - button "vpn_lock" [ref=f12e737]
+                    - button "delete" [ref=f12e738]
+              - generic [ref=f12e739]:
+                - generic [ref=f12e740]:
+                  - checkbox [ref=f12e741] [cursor=pointer]
+                  - generic [ref=f12e742]:
+                    - button "keyboard_arrow_up" [ref=f12e743]
+                    - button "keyboard_arrow_down" [ref=f12e744]
+                  - generic [ref=f12e745]: lock
+                  - generic [ref=f12e746]:
+                    - paragraph [ref=f12e747]: the*******@*******.vn
+                    - generic [ref=f12e748]:
+                      - generic [ref=f12e749]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e751]
+                      - generic [ref=f12e752]: "#11"
+                      - generic [ref=f12e753]: "|"
+                      - button "shield Protected" [ref=f12e754] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e755]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e756] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e757]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e758] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e759]: Proxy On
+                      - generic [ref=f12e760]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e761] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e762]: Connection
+                - generic [ref=f12e763]:
+                  - button "Retest" [disabled] [ref=f12e764]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e765]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e767] [cursor=pointer]
+                  - generic [ref=f12e768]:
+                    - button "passkey" [ref=f12e769]
+                    - button "edit" [ref=f12e770]
+                    - button "vpn_lock" [ref=f12e771]
+                    - button "delete" [ref=f12e772]
+              - generic [ref=f12e773]:
+                - generic [ref=f12e774]:
+                  - checkbox [ref=f12e775] [cursor=pointer]
+                  - generic [ref=f12e776]:
+                    - button "keyboard_arrow_up" [ref=f12e777]
+                    - button "keyboard_arrow_down" [ref=f12e778]
+                  - generic [ref=f12e779]: lock
+                  - generic [ref=f12e780]:
+                    - paragraph [ref=f12e781]: the*******@*******.vn
+                    - generic [ref=f12e782]:
+                      - generic [ref=f12e783]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e785]
+                      - generic [ref=f12e786]: "#12"
+                      - generic [ref=f12e787]: "|"
+                      - button "shield Protected" [ref=f12e788] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e789]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e790] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e791]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e792] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e793]: Proxy On
+                      - generic [ref=f12e794]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e795] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e796]: Connection
+                - generic [ref=f12e797]:
+                  - button "Retest" [disabled] [ref=f12e798]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e799]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e801] [cursor=pointer]
+                  - generic [ref=f12e802]:
+                    - button "passkey" [ref=f12e803]
+                    - button "edit" [ref=f12e804]
+                    - button "vpn_lock" [ref=f12e805]
+                    - button "delete" [ref=f12e806]
+              - generic [ref=f12e807]:
+                - generic [ref=f12e808]:
+                  - checkbox [ref=f12e809] [cursor=pointer]
+                  - generic [ref=f12e810]:
+                    - button "keyboard_arrow_up" [ref=f12e811]
+                    - button "keyboard_arrow_down" [ref=f12e812]
+                  - generic [ref=f12e813]: lock
+                  - generic [ref=f12e814]:
+                    - paragraph [ref=f12e815]: the*******@*******.vn
+                    - generic [ref=f12e816]:
+                      - generic [ref=f12e817]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e819]
+                      - generic [ref=f12e820]: "#13"
+                      - generic [ref=f12e821]: "|"
+                      - button "shield Protected" [ref=f12e822] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e823]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e824] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e825]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e826] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e827]: Proxy On
+                      - generic [ref=f12e828]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e829] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e830]: Connection
+                - generic [ref=f12e831]:
+                  - button "Retest" [disabled] [ref=f12e832]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e833]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e835] [cursor=pointer]
+                  - generic [ref=f12e836]:
+                    - button "passkey" [ref=f12e837]
+                    - button "edit" [ref=f12e838]
+                    - button "vpn_lock" [ref=f12e839]
+                    - button "delete" [ref=f12e840]
+              - generic [ref=f12e841]:
+                - generic [ref=f12e842]:
+                  - checkbox [ref=f12e843] [cursor=pointer]
+                  - generic [ref=f12e844]:
+                    - button "keyboard_arrow_up" [ref=f12e845]
+                    - button "keyboard_arrow_down" [ref=f12e846]
+                  - generic [ref=f12e847]: lock
+                  - generic [ref=f12e848]:
+                    - paragraph [ref=f12e849]: the*******@*******.vn
+                    - generic [ref=f12e850]:
+                      - generic [ref=f12e851]: disabled
+                      - generic "Token Expired Title" [ref=f12e853]:
+                        - generic [ref=f12e854]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e855]
+                      - generic [ref=f12e856]: "#14"
+                      - generic [ref=f12e857]: "|"
+                      - button "shield Protected" [ref=f12e858] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e859]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e860] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e861]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e862] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e863]: Proxy On
+                      - generic [ref=f12e864]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e865] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e866]: Connection
+                - generic [ref=f12e867]:
+                  - button "Retest" [disabled] [ref=f12e868]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e869]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e871] [cursor=pointer]
+                  - generic [ref=f12e872]:
+                    - button "passkey" [ref=f12e873]
+                    - button "edit" [ref=f12e874]
+                    - button "vpn_lock" [ref=f12e875]
+                    - button "delete" [ref=f12e876]
+              - generic [ref=f12e877]:
+                - generic [ref=f12e878]:
+                  - checkbox [ref=f12e879] [cursor=pointer]
+                  - generic [ref=f12e880]:
+                    - button "keyboard_arrow_up" [ref=f12e881]
+                    - button "keyboard_arrow_down" [ref=f12e882]
+                  - generic [ref=f12e883]: lock
+                  - generic [ref=f12e884]:
+                    - paragraph [ref=f12e885]: the*******@*******.vn
+                    - generic [ref=f12e886]:
+                      - generic [ref=f12e887]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e889]
+                      - generic [ref=f12e890]: "#15"
+                      - generic [ref=f12e891]: "|"
+                      - button "shield Protected" [ref=f12e892] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e893]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e894] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e895]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e896] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e897]: Proxy On
+                      - generic [ref=f12e898]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e899] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e900]: Connection
+                - generic [ref=f12e901]:
+                  - button "Retest" [disabled] [ref=f12e902]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e903]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e905] [cursor=pointer]
+                  - generic [ref=f12e906]:
+                    - button "passkey" [ref=f12e907]
+                    - button "edit" [ref=f12e908]
+                    - button "vpn_lock" [ref=f12e909]
+                    - button "delete" [ref=f12e910]
+              - generic [ref=f12e911]:
+                - generic [ref=f12e912]:
+                  - checkbox [ref=f12e913] [cursor=pointer]
+                  - generic [ref=f12e914]:
+                    - button "keyboard_arrow_up" [ref=f12e915]
+                    - button "keyboard_arrow_down" [ref=f12e916]
+                  - generic [ref=f12e917]: lock
+                  - generic [ref=f12e918]:
+                    - paragraph [ref=f12e919]: the*******@*******.vn
+                    - generic [ref=f12e920]:
+                      - generic [ref=f12e921]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e923]
+                      - generic [ref=f12e924]: "#16"
+                      - generic [ref=f12e925]: "|"
+                      - button "shield Protected" [ref=f12e926] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e927]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e928] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e929]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e930] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e931]: Proxy On
+                      - generic [ref=f12e932]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e933] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e934]: Connection
+                - generic [ref=f12e935]:
+                  - button "Retest" [disabled] [ref=f12e936]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e937]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e939] [cursor=pointer]
+                  - generic [ref=f12e940]:
+                    - button "passkey" [ref=f12e941]
+                    - button "edit" [ref=f12e942]
+                    - button "vpn_lock" [ref=f12e943]
+                    - button "delete" [ref=f12e944]
+              - generic [ref=f12e945]:
+                - generic [ref=f12e946]:
+                  - checkbox [ref=f12e947] [cursor=pointer]
+                  - generic [ref=f12e948]:
+                    - button "keyboard_arrow_up" [ref=f12e949]
+                    - button "keyboard_arrow_down" [ref=f12e950]
+                  - generic [ref=f12e951]: lock
+                  - generic [ref=f12e952]:
+                    - paragraph [ref=f12e953]: the*******@*******.vn
+                    - generic [ref=f12e954]:
+                      - generic [ref=f12e955]: disabled
+                      - generic "Token invalid or revoked" [ref=f12e957]
+                      - generic [ref=f12e958]: "#17"
+                      - generic [ref=f12e959]: "|"
+                      - button "shield Protected" [ref=f12e960] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e961]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e962] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e963]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e964] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e965]: Proxy On
+                      - generic [ref=f12e966]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e967] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e968]: Connection
+                - generic [ref=f12e969]:
+                  - button "Retest" [disabled] [ref=f12e970]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e971]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e973] [cursor=pointer]
+                  - generic [ref=f12e974]:
+                    - button "passkey" [ref=f12e975]
+                    - button "edit" [ref=f12e976]
+                    - button "vpn_lock" [ref=f12e977]
+                    - button "delete" [ref=f12e978]
+              - generic [ref=f12e979]:
+                - generic [ref=f12e980]:
+                  - checkbox [ref=f12e981] [cursor=pointer]
+                  - generic [ref=f12e982]:
+                    - button "keyboard_arrow_up" [ref=f12e983]
+                    - button "keyboard_arrow_down" [ref=f12e984]
+                  - generic [ref=f12e985]: lock
+                  - generic [ref=f12e986]:
+                    - paragraph [ref=f12e987]: the*******@*******.vn
+                    - generic [ref=f12e988]:
+                      - generic [ref=f12e989]: disabled
+                      - generic "Token Expired Title" [ref=f12e991]:
+                        - generic [ref=f12e992]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e993]
+                      - generic [ref=f12e994]: "#18"
+                      - generic [ref=f12e995]: "|"
+                      - button "shield Protected" [ref=f12e996] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e997]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e998] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e999]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1000] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1001]: Proxy On
+                      - generic [ref=f12e1002]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1003] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1004]: Connection
+                - generic [ref=f12e1005]:
+                  - button "Retest" [disabled] [ref=f12e1006]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1007]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1009] [cursor=pointer]
+                  - generic [ref=f12e1010]:
+                    - button "passkey" [ref=f12e1011]
+                    - button "edit" [ref=f12e1012]
+                    - button "vpn_lock" [ref=f12e1013]
+                    - button "delete" [ref=f12e1014]
+              - generic [ref=f12e1015]:
+                - generic [ref=f12e1016]:
+                  - checkbox [ref=f12e1017] [cursor=pointer]
+                  - generic [ref=f12e1018]:
+                    - button "keyboard_arrow_up" [ref=f12e1019]
+                    - button "keyboard_arrow_down" [ref=f12e1020]
+                  - generic [ref=f12e1021]: lock
+                  - generic [ref=f12e1022]:
+                    - paragraph [ref=f12e1023]: the*******@*******.vn
+                    - generic [ref=f12e1024]:
+                      - generic [ref=f12e1025]: disabled
+                      - generic "Token Expired Title" [ref=f12e1027]:
+                        - generic [ref=f12e1028]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1029]
+                      - generic [ref=f12e1030]: "#19"
+                      - generic [ref=f12e1031]: "|"
+                      - button "shield Protected" [ref=f12e1032] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e1033]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1034] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1035]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1036] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1037]: Proxy On
+                      - generic [ref=f12e1038]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1039] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1040]: Connection
+                - generic [ref=f12e1041]:
+                  - button "Retest" [disabled] [ref=f12e1042]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1043]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1045] [cursor=pointer]
+                  - generic [ref=f12e1046]:
+                    - button "passkey" [ref=f12e1047]
+                    - button "edit" [ref=f12e1048]
+                    - button "vpn_lock" [ref=f12e1049]
+                    - button "delete" [ref=f12e1050]
+              - generic [ref=f12e1051]:
+                - generic [ref=f12e1052]:
+                  - checkbox [ref=f12e1053] [cursor=pointer]
+                  - generic [ref=f12e1054]:
+                    - button "keyboard_arrow_up" [ref=f12e1055]
+                    - button "keyboard_arrow_down" [ref=f12e1056]
+                  - generic [ref=f12e1057]: lock
+                  - generic [ref=f12e1058]:
+                    - paragraph [ref=f12e1059]: the*******@*******.vn
+                    - generic [ref=f12e1060]:
+                      - generic [ref=f12e1061]: disabled
+                      - generic "Token Expired Title" [ref=f12e1063]:
+                        - generic [ref=f12e1064]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1065]
+                      - generic [ref=f12e1066]: "#20"
+                      - generic [ref=f12e1067]: "|"
+                      - button "shield Protected" [ref=f12e1068] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e1069]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1070] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1071]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1072] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1073]: Proxy On
+                      - generic [ref=f12e1074]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1075] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1076]: Connection
+                - generic [ref=f12e1077]:
+                  - button "Retest" [disabled] [ref=f12e1078]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1079]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1081] [cursor=pointer]
+                  - generic [ref=f12e1082]:
+                    - button "passkey" [ref=f12e1083]
+                    - button "edit" [ref=f12e1084]
+                    - button "vpn_lock" [ref=f12e1085]
+                    - button "delete" [ref=f12e1086]
+              - generic [ref=f12e1087]:
+                - generic [ref=f12e1088]:
+                  - checkbox [ref=f12e1089] [cursor=pointer]
+                  - generic [ref=f12e1090]:
+                    - button "keyboard_arrow_up" [ref=f12e1091]
+                    - button "keyboard_arrow_down" [ref=f12e1092]
+                  - generic [ref=f12e1093]: lock
+                  - generic [ref=f12e1094]:
+                    - paragraph [ref=f12e1095]: the*******@*******.vn
+                    - generic [ref=f12e1096]:
+                      - generic [ref=f12e1097]: disabled
+                      - generic "Token Expired Title" [ref=f12e1099]:
+                        - generic [ref=f12e1100]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1101]
+                      - generic [ref=f12e1102]: "#21"
+                      - generic [ref=f12e1103]: "|"
+                      - button "shield Protected" [ref=f12e1104] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e1105]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1106] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1107]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1108] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1109]: Proxy On
+                      - generic [ref=f12e1110]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1111] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1112]: Connection
+                - generic [ref=f12e1113]:
+                  - button "Retest" [disabled] [ref=f12e1114]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1115]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1117] [cursor=pointer]
+                  - generic [ref=f12e1118]:
+                    - button "passkey" [ref=f12e1119]
+                    - button "edit" [ref=f12e1120]
+                    - button "vpn_lock" [ref=f12e1121]
+                    - button "delete" [ref=f12e1122]
+              - generic [ref=f12e1123]:
+                - generic [ref=f12e1124]:
+                  - checkbox [ref=f12e1125] [cursor=pointer]
+                  - generic [ref=f12e1126]:
+                    - button "keyboard_arrow_up" [ref=f12e1127]
+                    - button "keyboard_arrow_down" [ref=f12e1128]
+                  - generic [ref=f12e1129]: lock
+                  - generic [ref=f12e1130]:
+                    - paragraph [ref=f12e1131]: the*******@*******.vn
+                    - generic [ref=f12e1132]:
+                      - generic [ref=f12e1133]: disabled
+                      - generic "Token Expired Title" [ref=f12e1135]:
+                        - generic [ref=f12e1136]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1137]
+                      - generic [ref=f12e1138]: "#22"
+                      - generic [ref=f12e1139]: "|"
+                      - button "shield Protected" [ref=f12e1140] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e1141]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1142] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1143]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1144] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1145]: Proxy On
+                      - generic [ref=f12e1146]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1147] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1148]: Connection
+                - generic [ref=f12e1149]:
+                  - button "Retest" [disabled] [ref=f12e1150]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1151]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1153] [cursor=pointer]
+                  - generic [ref=f12e1154]:
+                    - button "passkey" [ref=f12e1155]
+                    - button "edit" [ref=f12e1156]
+                    - button "vpn_lock" [ref=f12e1157]
+                    - button "delete" [ref=f12e1158]
+              - generic [ref=f12e1159]:
+                - generic [ref=f12e1160]:
+                  - checkbox [ref=f12e1161] [cursor=pointer]
+                  - generic [ref=f12e1162]:
+                    - button "keyboard_arrow_up" [ref=f12e1163]
+                    - button "keyboard_arrow_down" [ref=f12e1164]
+                  - generic [ref=f12e1165]: lock
+                  - generic [ref=f12e1166]:
+                    - paragraph [ref=f12e1167]: the*******@*******.vn
+                    - generic [ref=f12e1168]:
+                      - generic [ref=f12e1169]: disabled
+                      - generic "Token Expired Title" [ref=f12e1171]:
+                        - generic [ref=f12e1172]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1173]
+                      - generic [ref=f12e1174]: "#23"
+                      - generic [ref=f12e1175]: "|"
+                      - button "shield Protected" [ref=f12e1176] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e1177]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1178] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1179]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1180] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1181]: Proxy On
+                      - generic [ref=f12e1182]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1183] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1184]: Connection
+                - generic [ref=f12e1185]:
+                  - button "Retest" [disabled] [ref=f12e1186]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1187]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1189] [cursor=pointer]
+                  - generic [ref=f12e1190]:
+                    - button "passkey" [ref=f12e1191]
+                    - button "edit" [ref=f12e1192]
+                    - button "vpn_lock" [ref=f12e1193]
+                    - button "delete" [ref=f12e1194]
+              - generic [ref=f12e1195]:
+                - generic [ref=f12e1196]:
+                  - checkbox [ref=f12e1197] [cursor=pointer]
+                  - generic [ref=f12e1198]:
+                    - button "keyboard_arrow_up" [ref=f12e1199]
+                    - button "keyboard_arrow_down" [ref=f12e1200]
+                  - generic [ref=f12e1201]: lock
+                  - generic [ref=f12e1202]:
+                    - paragraph [ref=f12e1203]: the*******@*******.vn
+                    - generic [ref=f12e1204]:
+                      - generic [ref=f12e1205]: disabled
+                      - generic "Token Expired Title" [ref=f12e1207]:
+                        - generic [ref=f12e1208]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1209]
+                      - generic [ref=f12e1210]: "#24"
+                      - generic [ref=f12e1211]: "|"
+                      - button "shield Protected" [ref=f12e1212] [cursor=pointer]:
+                        - generic: shield
+                        - text: Protected
+                      - generic [ref=f12e1213]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1214] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1215]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1216] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1217]: Proxy On
+                      - generic [ref=f12e1218]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1219] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1220]: Connection
+                - generic [ref=f12e1221]:
+                  - button "Retest" [disabled] [ref=f12e1222]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1223]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1225] [cursor=pointer]
+                  - generic [ref=f12e1226]:
+                    - button "passkey" [ref=f12e1227]
+                    - button "edit" [ref=f12e1228]
+                    - button "vpn_lock" [ref=f12e1229]
+                    - button "delete" [ref=f12e1230]
+              - generic [ref=f12e1231]:
+                - generic [ref=f12e1232]:
+                  - checkbox [ref=f12e1233] [cursor=pointer]
+                  - generic [ref=f12e1234]:
+                    - button "keyboard_arrow_up" [ref=f12e1235]
+                    - button "keyboard_arrow_down" [ref=f12e1236]
+                  - generic [ref=f12e1237]: lock
+                  - generic [ref=f12e1238]:
+                    - paragraph [ref=f12e1239]: the*******@*******.vn
+                    - generic [ref=f12e1240]:
+                      - generic [ref=f12e1241]: disabled
+                      - generic "Token Expired Title" [ref=f12e1243]:
+                        - generic [ref=f12e1244]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1245]
+                      - generic [ref=f12e1246]: "#25"
+                      - generic [ref=f12e1247]: "|"
+                      - button "shield Unprotected" [ref=f12e1248] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1249]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1250] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1251]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1252] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1253]: Proxy On
+                      - generic [ref=f12e1254]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1255] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1256]: Connection
+                - generic [ref=f12e1257]:
+                  - button "Retest" [disabled] [ref=f12e1258]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1259]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1261] [cursor=pointer]
+                  - generic [ref=f12e1262]:
+                    - button "passkey" [ref=f12e1263]
+                    - button "edit" [ref=f12e1264]
+                    - button "vpn_lock" [ref=f12e1265]
+                    - button "delete" [ref=f12e1266]
+              - generic [ref=f12e1267]:
+                - generic [ref=f12e1268]:
+                  - checkbox [ref=f12e1269] [cursor=pointer]
+                  - generic [ref=f12e1270]:
+                    - button "keyboard_arrow_up" [ref=f12e1271]
+                    - button "keyboard_arrow_down" [ref=f12e1272]
+                  - generic [ref=f12e1273]: lock
+                  - generic [ref=f12e1274]:
+                    - paragraph [ref=f12e1275]: the*******@*******.vn
+                    - generic [ref=f12e1276]:
+                      - generic [ref=f12e1277]: disabled
+                      - generic "Token Expired Title" [ref=f12e1279]:
+                        - generic [ref=f12e1280]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1281]
+                      - generic [ref=f12e1282]: "#26"
+                      - generic [ref=f12e1283]: "|"
+                      - button "shield Unprotected" [ref=f12e1284] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1285]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1286] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1287]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1288] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1289]: Proxy On
+                      - generic [ref=f12e1290]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1291] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1292]: Connection
+                - generic [ref=f12e1293]:
+                  - button "Retest" [disabled] [ref=f12e1294]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1295]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1297] [cursor=pointer]
+                  - generic [ref=f12e1298]:
+                    - button "passkey" [ref=f12e1299]
+                    - button "edit" [ref=f12e1300]
+                    - button "vpn_lock" [ref=f12e1301]
+                    - button "delete" [ref=f12e1302]
+              - generic [ref=f12e1303]:
+                - generic [ref=f12e1304]:
+                  - checkbox [ref=f12e1305] [cursor=pointer]
+                  - generic [ref=f12e1306]:
+                    - button "keyboard_arrow_up" [ref=f12e1307]
+                    - button "keyboard_arrow_down" [ref=f12e1308]
+                  - generic [ref=f12e1309]: lock
+                  - generic [ref=f12e1310]:
+                    - paragraph [ref=f12e1311]: the*******@*******.vn
+                    - generic [ref=f12e1312]:
+                      - generic [ref=f12e1313]: disabled
+                      - generic "Token Expired Title" [ref=f12e1315]:
+                        - generic [ref=f12e1316]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1317]
+                      - generic [ref=f12e1318]: "#27"
+                      - generic [ref=f12e1319]: "|"
+                      - button "shield Unprotected" [ref=f12e1320] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1321]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1322] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1323]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1324] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1325]: Proxy On
+                      - generic [ref=f12e1326]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1327] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1328]: Connection
+                - generic [ref=f12e1329]:
+                  - button "Retest" [disabled] [ref=f12e1330]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1331]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1333] [cursor=pointer]
+                  - generic [ref=f12e1334]:
+                    - button "passkey" [ref=f12e1335]
+                    - button "edit" [ref=f12e1336]
+                    - button "vpn_lock" [ref=f12e1337]
+                    - button "delete" [ref=f12e1338]
+              - generic [ref=f12e1339]:
+                - generic [ref=f12e1340]:
+                  - checkbox [ref=f12e1341] [cursor=pointer]
+                  - generic [ref=f12e1342]:
+                    - button "keyboard_arrow_up" [ref=f12e1343]
+                    - button "keyboard_arrow_down" [ref=f12e1344]
+                  - generic [ref=f12e1345]: lock
+                  - generic [ref=f12e1346]:
+                    - paragraph [ref=f12e1347]: the*******@*******.vn
+                    - generic [ref=f12e1348]:
+                      - generic [ref=f12e1349]: disabled
+                      - generic "Token Expired Title" [ref=f12e1351]:
+                        - generic [ref=f12e1352]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1353]
+                      - generic [ref=f12e1354]: "#28"
+                      - generic [ref=f12e1355]: "|"
+                      - button "shield Unprotected" [ref=f12e1356] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1357]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1358] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1359]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1360] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1361]: Proxy On
+                      - generic [ref=f12e1362]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1363] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1364]: Connection
+                - generic [ref=f12e1365]:
+                  - button "Retest" [disabled] [ref=f12e1366]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1367]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1369] [cursor=pointer]
+                  - generic [ref=f12e1370]:
+                    - button "passkey" [ref=f12e1371]
+                    - button "edit" [ref=f12e1372]
+                    - button "vpn_lock" [ref=f12e1373]
+                    - button "delete" [ref=f12e1374]
+              - generic [ref=f12e1375]:
+                - generic [ref=f12e1376]:
+                  - checkbox [ref=f12e1377] [cursor=pointer]
+                  - generic [ref=f12e1378]:
+                    - button "keyboard_arrow_up" [ref=f12e1379]
+                    - button "keyboard_arrow_down" [ref=f12e1380]
+                  - generic [ref=f12e1381]: lock
+                  - generic [ref=f12e1382]:
+                    - paragraph [ref=f12e1383]: the*******@*******.vn
+                    - generic [ref=f12e1384]:
+                      - generic [ref=f12e1385]: disabled
+                      - generic "Token Expired Title" [ref=f12e1387]:
+                        - generic [ref=f12e1388]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1389]
+                      - generic [ref=f12e1390]: "#29"
+                      - generic [ref=f12e1391]: "|"
+                      - button "shield Unprotected" [ref=f12e1392] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1393]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1394] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1395]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1396] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1397]: Proxy On
+                      - generic [ref=f12e1398]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1399] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1400]: Connection
+                - generic [ref=f12e1401]:
+                  - button "Retest" [disabled] [ref=f12e1402]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1403]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1405] [cursor=pointer]
+                  - generic [ref=f12e1406]:
+                    - button "passkey" [ref=f12e1407]
+                    - button "edit" [ref=f12e1408]
+                    - button "vpn_lock" [ref=f12e1409]
+                    - button "delete" [ref=f12e1410]
+              - generic [ref=f12e1411]:
+                - generic [ref=f12e1412]:
+                  - checkbox [ref=f12e1413] [cursor=pointer]
+                  - generic [ref=f12e1414]:
+                    - button "keyboard_arrow_up" [ref=f12e1415]
+                    - button "keyboard_arrow_down" [ref=f12e1416]
+                  - generic [ref=f12e1417]: lock
+                  - generic [ref=f12e1418]:
+                    - paragraph [ref=f12e1419]: the*******@*******.vn
+                    - generic [ref=f12e1420]:
+                      - generic [ref=f12e1421]: disabled
+                      - generic "Token Expired Title" [ref=f12e1423]:
+                        - generic [ref=f12e1424]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1425]
+                      - generic [ref=f12e1426]: "#30"
+                      - generic [ref=f12e1427]: "|"
+                      - button "shield Unprotected" [ref=f12e1428] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1429]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1430] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1431]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1432] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1433]: Proxy On
+                      - generic [ref=f12e1434]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1435] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1436]: Connection
+                - generic [ref=f12e1437]:
+                  - button "Retest" [disabled] [ref=f12e1438]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1439]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1441] [cursor=pointer]
+                  - generic [ref=f12e1442]:
+                    - button "passkey" [ref=f12e1443]
+                    - button "edit" [ref=f12e1444]
+                    - button "vpn_lock" [ref=f12e1445]
+                    - button "delete" [ref=f12e1446]
+              - generic [ref=f12e1447]:
+                - generic [ref=f12e1448]:
+                  - checkbox [ref=f12e1449] [cursor=pointer]
+                  - generic [ref=f12e1450]:
+                    - button "keyboard_arrow_up" [ref=f12e1451]
+                    - button "keyboard_arrow_down" [ref=f12e1452]
+                  - generic [ref=f12e1453]: lock
+                  - generic [ref=f12e1454]:
+                    - paragraph [ref=f12e1455]: the*******@*******.vn
+                    - generic [ref=f12e1456]:
+                      - generic [ref=f12e1457]: disabled
+                      - generic "Token Expired Title" [ref=f12e1459]:
+                        - generic [ref=f12e1460]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1461]
+                      - generic [ref=f12e1462]: "#31"
+                      - generic [ref=f12e1463]: "|"
+                      - button "shield Unprotected" [ref=f12e1464] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1465]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1466] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1467]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1468] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1469]: Proxy On
+                      - generic [ref=f12e1470]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1471] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1472]: Connection
+                - generic [ref=f12e1473]:
+                  - button "Retest" [disabled] [ref=f12e1474]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1475]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1477] [cursor=pointer]
+                  - generic [ref=f12e1478]:
+                    - button "passkey" [ref=f12e1479]
+                    - button "edit" [ref=f12e1480]
+                    - button "vpn_lock" [ref=f12e1481]
+                    - button "delete" [ref=f12e1482]
+              - generic [ref=f12e1483]:
+                - generic [ref=f12e1484]:
+                  - checkbox [ref=f12e1485] [cursor=pointer]
+                  - generic [ref=f12e1486]:
+                    - button "keyboard_arrow_up" [ref=f12e1487]
+                    - button "keyboard_arrow_down" [ref=f12e1488]
+                  - generic [ref=f12e1489]: lock
+                  - generic [ref=f12e1490]:
+                    - paragraph [ref=f12e1491]: the*******@*******.vn
+                    - generic [ref=f12e1492]:
+                      - generic [ref=f12e1493]: disabled
+                      - generic "Token Expired Title" [ref=f12e1495]:
+                        - generic [ref=f12e1496]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1497]
+                      - generic [ref=f12e1498]: "#32"
+                      - generic [ref=f12e1499]: "|"
+                      - button "shield Unprotected" [ref=f12e1500] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1501]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1502] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1503]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1504] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1505]: Proxy On
+                      - generic [ref=f12e1506]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1507] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1508]: Connection
+                - generic [ref=f12e1509]:
+                  - button "Retest" [disabled] [ref=f12e1510]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1511]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1513] [cursor=pointer]
+                  - generic [ref=f12e1514]:
+                    - button "passkey" [ref=f12e1515]
+                    - button "edit" [ref=f12e1516]
+                    - button "vpn_lock" [ref=f12e1517]
+                    - button "delete" [ref=f12e1518]
+              - generic [ref=f12e1519]:
+                - generic [ref=f12e1520]:
+                  - checkbox [ref=f12e1521] [cursor=pointer]
+                  - generic [ref=f12e1522]:
+                    - button "keyboard_arrow_up" [ref=f12e1523]
+                    - button "keyboard_arrow_down" [ref=f12e1524]
+                  - generic [ref=f12e1525]: lock
+                  - generic [ref=f12e1526]:
+                    - paragraph [ref=f12e1527]: the*******@*******.vn
+                    - generic [ref=f12e1528]:
+                      - generic [ref=f12e1529]: disabled
+                      - generic "Token Expired Title" [ref=f12e1531]:
+                        - generic [ref=f12e1532]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1533]
+                      - generic [ref=f12e1534]: "#33"
+                      - generic [ref=f12e1535]: "|"
+                      - button "shield Unprotected" [ref=f12e1536] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1537]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1538] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1539]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1540] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1541]: Proxy On
+                      - generic [ref=f12e1542]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1543] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1544]: Connection
+                - generic [ref=f12e1545]:
+                  - button "Retest" [disabled] [ref=f12e1546]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1547]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1549] [cursor=pointer]
+                  - generic [ref=f12e1550]:
+                    - button "passkey" [ref=f12e1551]
+                    - button "edit" [ref=f12e1552]
+                    - button "vpn_lock" [ref=f12e1553]
+                    - button "delete" [ref=f12e1554]
+              - generic [ref=f12e1555]:
+                - generic [ref=f12e1556]:
+                  - checkbox [ref=f12e1557] [cursor=pointer]
+                  - generic [ref=f12e1558]:
+                    - button "keyboard_arrow_up" [ref=f12e1559]
+                    - button "keyboard_arrow_down" [ref=f12e1560]
+                  - generic [ref=f12e1561]: lock
+                  - generic [ref=f12e1562]:
+                    - paragraph [ref=f12e1563]: the*******@*******.vn
+                    - generic [ref=f12e1564]:
+                      - generic [ref=f12e1565]: disabled
+                      - generic "Token Expired Title" [ref=f12e1567]:
+                        - generic [ref=f12e1568]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1569]
+                      - generic [ref=f12e1570]: "#34"
+                      - generic [ref=f12e1571]: "|"
+                      - button "shield Unprotected" [ref=f12e1572] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1573]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1574] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1575]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1576] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1577]: Proxy On
+                      - generic [ref=f12e1578]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1579] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1580]: Connection
+                - generic [ref=f12e1581]:
+                  - button "Retest" [disabled] [ref=f12e1582]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1583]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1585] [cursor=pointer]
+                  - generic [ref=f12e1586]:
+                    - button "passkey" [ref=f12e1587]
+                    - button "edit" [ref=f12e1588]
+                    - button "vpn_lock" [ref=f12e1589]
+                    - button "delete" [ref=f12e1590]
+              - generic [ref=f12e1591]:
+                - generic [ref=f12e1592]:
+                  - checkbox [ref=f12e1593] [cursor=pointer]
+                  - generic [ref=f12e1594]:
+                    - button "keyboard_arrow_up" [ref=f12e1595]
+                    - button "keyboard_arrow_down" [ref=f12e1596]
+                  - generic [ref=f12e1597]: lock
+                  - generic [ref=f12e1598]:
+                    - paragraph [ref=f12e1599]: the*******@*******.vn
+                    - generic [ref=f12e1600]:
+                      - generic [ref=f12e1601]: disabled
+                      - generic "Token Expired Title" [ref=f12e1603]:
+                        - generic [ref=f12e1604]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1605]
+                      - generic [ref=f12e1606]: "#35"
+                      - generic [ref=f12e1607]: "|"
+                      - button "shield Unprotected" [ref=f12e1608] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1609]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1610] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1611]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1612] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1613]: Proxy On
+                      - generic [ref=f12e1614]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1615] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1616]: Connection
+                - generic [ref=f12e1617]:
+                  - button "Retest" [disabled] [ref=f12e1618]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1619]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1621] [cursor=pointer]
+                  - generic [ref=f12e1622]:
+                    - button "passkey" [ref=f12e1623]
+                    - button "edit" [ref=f12e1624]
+                    - button "vpn_lock" [ref=f12e1625]
+                    - button "delete" [ref=f12e1626]
+              - generic [ref=f12e1627]:
+                - generic [ref=f12e1628]:
+                  - checkbox [ref=f12e1629] [cursor=pointer]
+                  - generic [ref=f12e1630]:
+                    - button "keyboard_arrow_up" [ref=f12e1631]
+                    - button "keyboard_arrow_down" [ref=f12e1632]
+                  - generic [ref=f12e1633]: lock
+                  - generic [ref=f12e1634]:
+                    - paragraph [ref=f12e1635]: the*******@*******.vn
+                    - generic [ref=f12e1636]:
+                      - generic [ref=f12e1637]: disabled
+                      - generic "Token Expired Title" [ref=f12e1639]:
+                        - generic [ref=f12e1640]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1641]
+                      - generic [ref=f12e1642]: "#36"
+                      - generic [ref=f12e1643]: "|"
+                      - button "shield Unprotected" [ref=f12e1644] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1645]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1646] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1647]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1648] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1649]: Proxy On
+                      - generic [ref=f12e1650]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1651] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1652]: Connection
+                - generic [ref=f12e1653]:
+                  - button "Retest" [disabled] [ref=f12e1654]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1655]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1657] [cursor=pointer]
+                  - generic [ref=f12e1658]:
+                    - button "passkey" [ref=f12e1659]
+                    - button "edit" [ref=f12e1660]
+                    - button "vpn_lock" [ref=f12e1661]
+                    - button "delete" [ref=f12e1662]
+              - generic [ref=f12e1663]:
+                - generic [ref=f12e1664]:
+                  - checkbox [ref=f12e1665] [cursor=pointer]
+                  - generic [ref=f12e1666]:
+                    - button "keyboard_arrow_up" [ref=f12e1667]
+                    - button "keyboard_arrow_down" [ref=f12e1668]
+                  - generic [ref=f12e1669]: lock
+                  - generic [ref=f12e1670]:
+                    - paragraph [ref=f12e1671]: the*******@*******.vn
+                    - generic [ref=f12e1672]:
+                      - generic [ref=f12e1673]: disabled
+                      - generic "Token Expired Title" [ref=f12e1675]:
+                        - generic [ref=f12e1676]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1677]
+                      - generic [ref=f12e1678]: "#37"
+                      - generic [ref=f12e1679]: "|"
+                      - button "shield Unprotected" [ref=f12e1680] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1681]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1682] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1683]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1684] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1685]: Proxy On
+                      - generic [ref=f12e1686]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1687] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1688]: Connection
+                - generic [ref=f12e1689]:
+                  - button "Retest" [disabled] [ref=f12e1690]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1691]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1693] [cursor=pointer]
+                  - generic [ref=f12e1694]:
+                    - button "passkey" [ref=f12e1695]
+                    - button "edit" [ref=f12e1696]
+                    - button "vpn_lock" [ref=f12e1697]
+                    - button "delete" [ref=f12e1698]
+              - generic [ref=f12e1699]:
+                - generic [ref=f12e1700]:
+                  - checkbox [ref=f12e1701] [cursor=pointer]
+                  - generic [ref=f12e1702]:
+                    - button "keyboard_arrow_up" [ref=f12e1703]
+                    - button "keyboard_arrow_down" [ref=f12e1704]
+                  - generic [ref=f12e1705]: lock
+                  - generic [ref=f12e1706]:
+                    - paragraph [ref=f12e1707]: the*******@*******.vn
+                    - generic [ref=f12e1708]:
+                      - generic [ref=f12e1709]: disabled
+                      - generic "Token Expired Title" [ref=f12e1711]:
+                        - generic [ref=f12e1712]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1713]
+                      - generic [ref=f12e1714]: "#38"
+                      - generic [ref=f12e1715]: "|"
+                      - button "shield Unprotected" [ref=f12e1716] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1717]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1718] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1719]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1720] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1721]: Proxy On
+                      - generic [ref=f12e1722]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1723] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1724]: Connection
+                - generic [ref=f12e1725]:
+                  - button "Retest" [disabled] [ref=f12e1726]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1727]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1729] [cursor=pointer]
+                  - generic [ref=f12e1730]:
+                    - button "passkey" [ref=f12e1731]
+                    - button "edit" [ref=f12e1732]
+                    - button "vpn_lock" [ref=f12e1733]
+                    - button "delete" [ref=f12e1734]
+              - generic [ref=f12e1735]:
+                - generic [ref=f12e1736]:
+                  - checkbox [ref=f12e1737] [cursor=pointer]
+                  - generic [ref=f12e1738]:
+                    - button "keyboard_arrow_up" [ref=f12e1739]
+                    - button "keyboard_arrow_down" [ref=f12e1740]
+                  - generic [ref=f12e1741]: lock
+                  - generic [ref=f12e1742]:
+                    - paragraph [ref=f12e1743]: the*******@*******.vn
+                    - generic [ref=f12e1744]:
+                      - generic [ref=f12e1745]: disabled
+                      - generic "Token Expired Title" [ref=f12e1747]:
+                        - generic [ref=f12e1748]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1749]
+                      - generic [ref=f12e1750]: "#39"
+                      - generic [ref=f12e1751]: "|"
+                      - button "shield Unprotected" [ref=f12e1752] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1753]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1754] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1755]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1756] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1757]: Proxy On
+                      - generic [ref=f12e1758]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1759] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1760]: Connection
+                - generic [ref=f12e1761]:
+                  - button "Retest" [disabled] [ref=f12e1762]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1763]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1765] [cursor=pointer]
+                  - generic [ref=f12e1766]:
+                    - button "passkey" [ref=f12e1767]
+                    - button "edit" [ref=f12e1768]
+                    - button "vpn_lock" [ref=f12e1769]
+                    - button "delete" [ref=f12e1770]
+              - generic [ref=f12e1771]:
+                - generic [ref=f12e1772]:
+                  - checkbox [ref=f12e1773] [cursor=pointer]
+                  - generic [ref=f12e1774]:
+                    - button "keyboard_arrow_up" [ref=f12e1775]
+                    - button "keyboard_arrow_down" [ref=f12e1776]
+                  - generic [ref=f12e1777]: lock
+                  - generic [ref=f12e1778]:
+                    - paragraph [ref=f12e1779]: the*******@*******.vn
+                    - generic [ref=f12e1780]:
+                      - generic [ref=f12e1781]: disabled
+                      - generic "Token Expired Title" [ref=f12e1783]:
+                        - generic [ref=f12e1784]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1785]
+                      - generic [ref=f12e1786]: "#40"
+                      - generic [ref=f12e1787]: "|"
+                      - button "shield Unprotected" [ref=f12e1788] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1789]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1790] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1791]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1792] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1793]: Proxy On
+                      - generic [ref=f12e1794]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1795] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1796]: Connection
+                - generic [ref=f12e1797]:
+                  - button "Retest" [disabled] [ref=f12e1798]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1799]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1801] [cursor=pointer]
+                  - generic [ref=f12e1802]:
+                    - button "passkey" [ref=f12e1803]
+                    - button "edit" [ref=f12e1804]
+                    - button "vpn_lock" [ref=f12e1805]
+                    - button "delete" [ref=f12e1806]
+              - generic [ref=f12e1807]:
+                - generic [ref=f12e1808]:
+                  - checkbox [ref=f12e1809] [cursor=pointer]
+                  - generic [ref=f12e1810]:
+                    - button "keyboard_arrow_up" [ref=f12e1811]
+                    - button "keyboard_arrow_down" [ref=f12e1812]
+                  - generic [ref=f12e1813]: lock
+                  - generic [ref=f12e1814]:
+                    - paragraph [ref=f12e1815]: the*******@*******.vn
+                    - generic [ref=f12e1816]:
+                      - generic [ref=f12e1817]: disabled
+                      - generic "Token Expired Title" [ref=f12e1819]:
+                        - generic [ref=f12e1820]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1821]
+                      - generic [ref=f12e1822]: "#41"
+                      - generic [ref=f12e1823]: "|"
+                      - button "shield Unprotected" [ref=f12e1824] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1825]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1826] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1827]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1828] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1829]: Proxy On
+                      - generic [ref=f12e1830]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1831] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1832]: Connection
+                - generic [ref=f12e1833]:
+                  - button "Retest" [disabled] [ref=f12e1834]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1835]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1837] [cursor=pointer]
+                  - generic [ref=f12e1838]:
+                    - button "passkey" [ref=f12e1839]
+                    - button "edit" [ref=f12e1840]
+                    - button "vpn_lock" [ref=f12e1841]
+                    - button "delete" [ref=f12e1842]
+              - generic [ref=f12e1843]:
+                - generic [ref=f12e1844]:
+                  - checkbox [ref=f12e1845] [cursor=pointer]
+                  - generic [ref=f12e1846]:
+                    - button "keyboard_arrow_up" [ref=f12e1847]
+                    - button "keyboard_arrow_down" [ref=f12e1848]
+                  - generic [ref=f12e1849]: lock
+                  - generic [ref=f12e1850]:
+                    - paragraph [ref=f12e1851]: the*******@*******.vn
+                    - generic [ref=f12e1852]:
+                      - generic [ref=f12e1853]: disabled
+                      - generic "Token Expired Title" [ref=f12e1855]:
+                        - generic [ref=f12e1856]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1857]
+                      - generic [ref=f12e1858]: "#42"
+                      - generic [ref=f12e1859]: "|"
+                      - button "shield Unprotected" [ref=f12e1860] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1861]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1862] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1863]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1864] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1865]: Proxy On
+                      - generic [ref=f12e1866]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1867] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1868]: Connection
+                - generic [ref=f12e1869]:
+                  - button "Retest" [disabled] [ref=f12e1870]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1871]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1873] [cursor=pointer]
+                  - generic [ref=f12e1874]:
+                    - button "passkey" [ref=f12e1875]
+                    - button "edit" [ref=f12e1876]
+                    - button "vpn_lock" [ref=f12e1877]
+                    - button "delete" [ref=f12e1878]
+              - generic [ref=f12e1879]:
+                - generic [ref=f12e1880]:
+                  - checkbox [ref=f12e1881] [cursor=pointer]
+                  - generic [ref=f12e1882]:
+                    - button "keyboard_arrow_up" [ref=f12e1883]
+                    - button "keyboard_arrow_down" [ref=f12e1884]
+                  - generic [ref=f12e1885]: lock
+                  - generic [ref=f12e1886]:
+                    - paragraph [ref=f12e1887]: the*******@*******.vn
+                    - generic [ref=f12e1888]:
+                      - generic [ref=f12e1889]: disabled
+                      - generic "Token Expired Title" [ref=f12e1891]:
+                        - generic [ref=f12e1892]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1893]
+                      - generic [ref=f12e1894]: "#43"
+                      - generic [ref=f12e1895]: "|"
+                      - button "shield Unprotected" [ref=f12e1896] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1897]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1898] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1899]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1900] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1901]: Proxy On
+                      - generic [ref=f12e1902]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1903] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1904]: Connection
+                - generic [ref=f12e1905]:
+                  - button "Retest" [disabled] [ref=f12e1906]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1907]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1909] [cursor=pointer]
+                  - generic [ref=f12e1910]:
+                    - button "passkey" [ref=f12e1911]
+                    - button "edit" [ref=f12e1912]
+                    - button "vpn_lock" [ref=f12e1913]
+                    - button "delete" [ref=f12e1914]
+              - generic [ref=f12e1915]:
+                - generic [ref=f12e1916]:
+                  - checkbox [ref=f12e1917] [cursor=pointer]
+                  - generic [ref=f12e1918]:
+                    - button "keyboard_arrow_up" [ref=f12e1919]
+                    - button "keyboard_arrow_down" [ref=f12e1920]
+                  - generic [ref=f12e1921]: lock
+                  - generic [ref=f12e1922]:
+                    - paragraph [ref=f12e1923]: the*******@*******.vn
+                    - generic [ref=f12e1924]:
+                      - generic [ref=f12e1925]: disabled
+                      - generic "Token Expired Title" [ref=f12e1927]:
+                        - generic [ref=f12e1928]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1929]
+                      - generic [ref=f12e1930]: "#44"
+                      - generic [ref=f12e1931]: "|"
+                      - button "shield Unprotected" [ref=f12e1932] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1933]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1934] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1935]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1936] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1937]: Proxy On
+                      - generic [ref=f12e1938]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1939] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1940]: Connection
+                - generic [ref=f12e1941]:
+                  - button "Retest" [disabled] [ref=f12e1942]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1943]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1945] [cursor=pointer]
+                  - generic [ref=f12e1946]:
+                    - button "passkey" [ref=f12e1947]
+                    - button "edit" [ref=f12e1948]
+                    - button "vpn_lock" [ref=f12e1949]
+                    - button "delete" [ref=f12e1950]
+              - generic [ref=f12e1951]:
+                - generic [ref=f12e1952]:
+                  - checkbox [ref=f12e1953] [cursor=pointer]
+                  - generic [ref=f12e1954]:
+                    - button "keyboard_arrow_up" [ref=f12e1955]
+                    - button "keyboard_arrow_down" [ref=f12e1956]
+                  - generic [ref=f12e1957]: lock
+                  - generic [ref=f12e1958]:
+                    - paragraph [ref=f12e1959]: the*******@*******.vn
+                    - generic [ref=f12e1960]:
+                      - generic [ref=f12e1961]: disabled
+                      - generic "Token Expired Title" [ref=f12e1963]:
+                        - generic [ref=f12e1964]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e1965]
+                      - generic [ref=f12e1966]: "#45"
+                      - generic [ref=f12e1967]: "|"
+                      - button "shield Unprotected" [ref=f12e1968] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e1969]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e1970] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e1971]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e1972] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e1973]: Proxy On
+                      - generic [ref=f12e1974]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e1975] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e1976]: Connection
+                - generic [ref=f12e1977]:
+                  - button "Retest" [disabled] [ref=f12e1978]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e1979]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e1981] [cursor=pointer]
+                  - generic [ref=f12e1982]:
+                    - button "passkey" [ref=f12e1983]
+                    - button "edit" [ref=f12e1984]
+                    - button "vpn_lock" [ref=f12e1985]
+                    - button "delete" [ref=f12e1986]
+              - generic [ref=f12e1987]:
+                - generic [ref=f12e1988]:
+                  - checkbox [ref=f12e1989] [cursor=pointer]
+                  - generic [ref=f12e1990]:
+                    - button "keyboard_arrow_up" [ref=f12e1991]
+                    - button "keyboard_arrow_down" [ref=f12e1992]
+                  - generic [ref=f12e1993]: lock
+                  - generic [ref=f12e1994]:
+                    - paragraph [ref=f12e1995]: the*******@*******.vn
+                    - generic [ref=f12e1996]:
+                      - generic [ref=f12e1997]: disabled
+                      - generic "Token Expired Title" [ref=f12e1999]:
+                        - generic [ref=f12e2000]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e2001]
+                      - generic [ref=f12e2002]: "#46"
+                      - generic [ref=f12e2003]: "|"
+                      - button "shield Unprotected" [ref=f12e2004] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e2005]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e2006] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e2007]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e2008] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e2009]: Proxy On
+                      - generic [ref=f12e2010]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e2011] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e2012]: Connection
+                - generic [ref=f12e2013]:
+                  - button "Retest" [disabled] [ref=f12e2014]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e2015]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e2017] [cursor=pointer]
+                  - generic [ref=f12e2018]:
+                    - button "passkey" [ref=f12e2019]
+                    - button "edit" [ref=f12e2020]
+                    - button "vpn_lock" [ref=f12e2021]
+                    - button "delete" [ref=f12e2022]
+              - generic [ref=f12e2023]:
+                - generic [ref=f12e2024]:
+                  - checkbox [ref=f12e2025] [cursor=pointer]
+                  - generic [ref=f12e2026]:
+                    - button "keyboard_arrow_up" [ref=f12e2027]
+                    - button "keyboard_arrow_down" [ref=f12e2028]
+                  - generic [ref=f12e2029]: lock
+                  - generic [ref=f12e2030]:
+                    - paragraph [ref=f12e2031]: the*******@*******.vn
+                    - generic [ref=f12e2032]:
+                      - generic [ref=f12e2033]: disabled
+                      - generic "Token Expired Title" [ref=f12e2035]:
+                        - generic [ref=f12e2036]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e2037]
+                      - generic [ref=f12e2038]: "#47"
+                      - generic [ref=f12e2039]: "|"
+                      - button "shield Unprotected" [ref=f12e2040] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e2041]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e2042] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e2043]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e2044] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e2045]: Proxy On
+                      - generic [ref=f12e2046]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e2047] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e2048]: Connection
+                - generic [ref=f12e2049]:
+                  - button "Retest" [disabled] [ref=f12e2050]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e2051]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e2053] [cursor=pointer]
+                  - generic [ref=f12e2054]:
+                    - button "passkey" [ref=f12e2055]
+                    - button "edit" [ref=f12e2056]
+                    - button "vpn_lock" [ref=f12e2057]
+                    - button "delete" [ref=f12e2058]
+              - generic [ref=f12e2059]:
+                - generic [ref=f12e2060]:
+                  - checkbox [ref=f12e2061] [cursor=pointer]
+                  - generic [ref=f12e2062]:
+                    - button "keyboard_arrow_up" [ref=f12e2063]
+                    - button "keyboard_arrow_down" [ref=f12e2064]
+                  - generic [ref=f12e2065]: lock
+                  - generic [ref=f12e2066]:
+                    - paragraph [ref=f12e2067]: the*******@*******.vn
+                    - generic [ref=f12e2068]:
+                      - generic [ref=f12e2069]: disabled
+                      - generic "Token Expired Title" [ref=f12e2071]:
+                        - generic [ref=f12e2072]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e2073]
+                      - generic [ref=f12e2074]: "#48"
+                      - generic [ref=f12e2075]: "|"
+                      - button "shield Unprotected" [ref=f12e2076] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e2077]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e2078] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e2079]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e2080] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e2081]: Proxy On
+                      - generic [ref=f12e2082]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e2083] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e2084]: Connection
+                - generic [ref=f12e2085]:
+                  - button "Retest" [disabled] [ref=f12e2086]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e2087]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e2089] [cursor=pointer]
+                  - generic [ref=f12e2090]:
+                    - button "passkey" [ref=f12e2091]
+                    - button "edit" [ref=f12e2092]
+                    - button "vpn_lock" [ref=f12e2093]
+                    - button "delete" [ref=f12e2094]
+              - generic [ref=f12e2095]:
+                - generic [ref=f12e2096]:
+                  - checkbox [ref=f12e2097] [cursor=pointer]
+                  - generic [ref=f12e2098]:
+                    - button "keyboard_arrow_up" [ref=f12e2099]
+                    - button "keyboard_arrow_down" [ref=f12e2100]
+                  - generic [ref=f12e2101]: lock
+                  - generic [ref=f12e2102]:
+                    - paragraph [ref=f12e2103]: the*******@*******.vn
+                    - generic [ref=f12e2104]:
+                      - generic [ref=f12e2105]: disabled
+                      - generic "Token Expired Title" [ref=f12e2107]:
+                        - generic [ref=f12e2108]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e2109]
+                      - generic [ref=f12e2110]: "#49"
+                      - generic [ref=f12e2111]: "|"
+                      - button "shield Unprotected" [ref=f12e2112] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e2113]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e2114] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e2115]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e2116] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e2117]: Proxy On
+                      - generic [ref=f12e2118]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e2119] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e2120]: Connection
+                - generic [ref=f12e2121]:
+                  - button "Retest" [disabled] [ref=f12e2122]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e2123]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e2125] [cursor=pointer]
+                  - generic [ref=f12e2126]:
+                    - button "passkey" [ref=f12e2127]
+                    - button "edit" [ref=f12e2128]
+                    - button "vpn_lock" [ref=f12e2129]
+                    - button "delete" [ref=f12e2130]
+              - generic [ref=f12e2131]:
+                - generic [ref=f12e2132]:
+                  - checkbox [ref=f12e2133] [cursor=pointer]
+                  - generic [ref=f12e2134]:
+                    - button "keyboard_arrow_up" [ref=f12e2135]
+                    - button "keyboard_arrow_down" [disabled] [ref=f12e2136]
+                  - generic [ref=f12e2137]: lock
+                  - generic [ref=f12e2138]:
+                    - paragraph [ref=f12e2139]: the*******@*******.vn
+                    - generic [ref=f12e2140]:
+                      - generic [ref=f12e2141]: disabled
+                      - generic "Token Expired Title" [ref=f12e2143]:
+                        - generic [ref=f12e2144]: error
+                        - text: Token Expired Badge
+                      - generic "Refresh token rejected (unrecoverable_refresh_error). Please re-authenticate this account." [ref=f12e2145]
+                      - generic [ref=f12e2146]: "#50"
+                      - generic [ref=f12e2147]: "|"
+                      - button "shield Unprotected" [ref=f12e2148] [cursor=pointer]:
+                        - generic: shield
+                        - text: Unprotected
+                      - generic [ref=f12e2149]: "|"
+                      - button "Hide this account from Provider Quota" [pressed] [ref=f12e2150] [cursor=pointer]:
+                        - generic: visibility
+                        - text: Quota
+                      - generic [ref=f12e2151]: "|"
+                      - button "Proxy is enabled for this connection" [ref=f12e2152] [cursor=pointer]:
+                        - generic: vpn_lock
+                        - generic [ref=f12e2153]: Proxy On
+                      - generic [ref=f12e2154]: "|"
+                      - button "Per-key proxy assignment disabled for this provider" [ref=f12e2155] [cursor=pointer]:
+                        - generic: key
+                        - generic [ref=f12e2156]: Connection
+                - generic [ref=f12e2157]:
+                  - button "Retest" [disabled] [ref=f12e2158]:
+                    - generic: refresh
+                    - text: Retest
+                  - button "Token Short" [disabled] [ref=f12e2159]:
+                    - generic: token
+                    - text: Token Short
+                  - switch "Enable connection" [ref=f12e2161] [cursor=pointer]
+                  - generic [ref=f12e2162]:
+                    - button "passkey" [ref=f12e2163]
+                    - button "edit" [ref=f12e2164]
+                    - button "vpn_lock" [ref=f12e2165]
+                    - button "delete" [ref=f12e2166]
+            - generic [ref=f12e2167]:
+              - generic [ref=f12e2168]: 1–50 / 205
+              - generic [ref=f12e2169]:
+                - button [disabled] [ref=f12e2170]:
+                  - generic: chevron_left
+                - generic [ref=f12e2171]: 1 / 5
+                - button [ref=f12e2172] [cursor=pointer]:
+                  - generic: chevron_right
+          - generic [ref=f12e2173]:
+            - heading "Available Models" [level=2] [ref=f12e2174]
+            - generic [ref=f12e2175]:
+              - generic [ref=f12e2176]:
+                - button "Import from /models" [ref=f12e2177] [cursor=pointer]:
+                  - generic: download
+                  - text: Import from /models
+                - button "toggle_off Auto-Sync" [ref=f12e2178] [cursor=pointer]:
+                  - generic: toggle_off
+                  - generic [ref=f12e2179]: Auto-Sync
+              - generic [ref=f12e2180]:
+                - generic [ref=f12e2181]:
+                  - generic: search
+                  - textbox "Filter models..." [ref=f12e2182]
+                - generic [ref=f12e2183]:
+                  - button "All" [ref=f12e2184]
+                  - button "Visible only" [ref=f12e2185]
+                  - button "Hidden only" [ref=f12e2186]
+                - generic [ref=f12e2187]:
+                  - button "All" [ref=f12e2188]
+                  - button "Free only" [ref=f12e2189]
+                  - button "Paid only" [ref=f12e2190]
+                - button "sort Free first" [ref=f12e2191]:
+                  - generic: sort
+                  - generic [ref=f12e2192]: Free first
+                - generic "When enabled, Test all hides non-transient failures from public catalogs such as /v1/models. Single-model tests never auto-hide." [ref=f12e2193]:
+                  - checkbox "Auto-hide failed models" [ref=f12e2194]
+                  - text: Auto-hide failed models
+                - button "science Test all models" [ref=f12e2195]:
+                  - generic: science
+                  - generic [ref=f12e2196]: Test all models
+                - button "visibility All" [disabled] [ref=f12e2197]:
+                  - generic: visibility
+                  - generic [ref=f12e2198]: All
+                - button "visibility_off Hide all" [ref=f12e2199]:
+                  - generic: visibility_off
+                  - generic [ref=f12e2200]: Hide all
+                - generic [ref=f12e2201]: 15/15 active
+              - generic [ref=f12e2202]:
+                - generic [ref=f12e2203]:
+                  - generic [ref=f12e2204]:
+                    - generic [ref=f12e2205]: smart_toy
+                    - code [ref=f12e2206]: antigravity/gemini-3.6-flash-high
+                    - generic [ref=f12e2207]: Built-in
+                    - generic "Click to set alias" [ref=f12e2209] [cursor=pointer]: Gemini 3.6 Flash (High)
+                    - button "content_copy" [ref=f12e2210]
+                  - generic [ref=f12e2211]:
+                    - button "play_circle" [ref=f12e2212]
+                    - button "visibility" [ref=f12e2213]
+                    - button "tune Compatibility" [ref=f12e2215]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2216]:
+                  - generic [ref=f12e2217]:
+                    - generic [ref=f12e2218]: smart_toy
+                    - code [ref=f12e2219]: antigravity/gemini-3.6-flash-medium
+                    - generic [ref=f12e2220]: Built-in
+                    - generic "Click to set alias" [ref=f12e2222] [cursor=pointer]: Gemini 3.6 Flash (Medium)
+                    - button "content_copy" [ref=f12e2223]
+                  - generic [ref=f12e2224]:
+                    - button "play_circle" [ref=f12e2225]
+                    - button "visibility" [ref=f12e2226]
+                    - button "tune Compatibility" [ref=f12e2228]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2229]:
+                  - generic [ref=f12e2230]:
+                    - generic [ref=f12e2231]: smart_toy
+                    - code [ref=f12e2232]: antigravity/gemini-3.6-flash-low
+                    - generic [ref=f12e2233]: Built-in
+                    - generic "Click to set alias" [ref=f12e2235] [cursor=pointer]: Gemini 3.6 Flash (Low)
+                    - button "content_copy" [ref=f12e2236]
+                  - generic [ref=f12e2237]:
+                    - button "play_circle" [ref=f12e2238]
+                    - button "visibility" [ref=f12e2239]
+                    - button "tune Compatibility" [ref=f12e2241]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2242]:
+                  - generic [ref=f12e2243]:
+                    - generic [ref=f12e2244]: smart_toy
+                    - code [ref=f12e2245]: antigravity/claude-opus-4-6-thinking
+                    - generic [ref=f12e2246]: Built-in
+                    - generic "Click to set alias" [ref=f12e2248] [cursor=pointer]: Claude Opus 4.6 (Thinking)
+                    - button "content_copy" [ref=f12e2249]
+                  - generic [ref=f12e2250]:
+                    - button "play_circle" [ref=f12e2251]
+                    - button "visibility" [ref=f12e2252]
+                    - button "tune Compatibility" [ref=f12e2254]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2255]:
+                  - generic [ref=f12e2256]:
+                    - generic [ref=f12e2257]: smart_toy
+                    - code [ref=f12e2258]: antigravity/claude-sonnet-4-6
+                    - generic [ref=f12e2259]: Built-in
+                    - generic "Click to set alias" [ref=f12e2261] [cursor=pointer]: Claude Sonnet 4.6 (Thinking)
+                    - button "content_copy" [ref=f12e2262]
+                  - generic [ref=f12e2263]:
+                    - button "play_circle" [ref=f12e2264]
+                    - button "visibility" [ref=f12e2265]
+                    - button "tune Compatibility" [ref=f12e2267]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2268]:
+                  - generic [ref=f12e2269]:
+                    - generic [ref=f12e2270]: smart_toy
+                    - code [ref=f12e2271]: antigravity/gemini-pro-agent
+                    - generic [ref=f12e2272]: Built-in
+                    - generic "Click to set alias" [ref=f12e2274] [cursor=pointer]: Gemini 3.1 Pro (High)
+                    - button "content_copy" [ref=f12e2275]
+                  - generic [ref=f12e2276]:
+                    - button "play_circle" [ref=f12e2277]
+                    - button "visibility" [ref=f12e2278]
+                    - button "tune Compatibility" [ref=f12e2280]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2281]:
+                  - generic [ref=f12e2282]:
+                    - generic [ref=f12e2283]: smart_toy
+                    - code [ref=f12e2284]: antigravity/gemini-3.1-pro-low
+                    - generic [ref=f12e2285]: Built-in
+                    - generic "Click to set alias" [ref=f12e2287] [cursor=pointer]: Gemini 3.1 Pro (Low)
+                    - button "content_copy" [ref=f12e2288]
+                  - generic [ref=f12e2289]:
+                    - button "play_circle" [ref=f12e2290]
+                    - button "visibility" [ref=f12e2291]
+                    - button "tune Compatibility" [ref=f12e2293]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2294]:
+                  - generic [ref=f12e2295]:
+                    - generic [ref=f12e2296]: smart_toy
+                    - code [ref=f12e2297]: antigravity/gemini-3-flash-agent
+                    - generic [ref=f12e2298]: Built-in
+                    - generic "Click to set alias" [ref=f12e2300] [cursor=pointer]: Gemini 3.5 Flash (High)
+                    - button "content_copy" [ref=f12e2301]
+                  - generic [ref=f12e2302]:
+                    - button "play_circle" [ref=f12e2303]
+                    - button "visibility" [ref=f12e2304]
+                    - button "tune Compatibility" [ref=f12e2306]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2307]:
+                  - generic [ref=f12e2308]:
+                    - generic [ref=f12e2309]: smart_toy
+                    - code [ref=f12e2310]: antigravity/gemini-3.5-flash-low
+                    - generic [ref=f12e2311]: Built-in
+                    - generic "Click to set alias" [ref=f12e2313] [cursor=pointer]: Gemini 3.5 Flash (Medium)
+                    - button "content_copy" [ref=f12e2314]
+                  - generic [ref=f12e2315]:
+                    - button "play_circle" [ref=f12e2316]
+                    - button "visibility" [ref=f12e2317]
+                    - button "tune Compatibility" [ref=f12e2319]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2320]:
+                  - generic [ref=f12e2321]:
+                    - generic [ref=f12e2322]: smart_toy
+                    - code [ref=f12e2323]: antigravity/gemini-3.5-flash-extra-low
+                    - generic [ref=f12e2324]: Built-in
+                    - generic "Click to set alias" [ref=f12e2326] [cursor=pointer]: Gemini 3.5 Flash (Low)
+                    - button "content_copy" [ref=f12e2327]
+                  - generic [ref=f12e2328]:
+                    - button "play_circle" [ref=f12e2329]
+                    - button "visibility" [ref=f12e2330]
+                    - button "tune Compatibility" [ref=f12e2332]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2333]:
+                  - generic [ref=f12e2334]:
+                    - generic [ref=f12e2335]: smart_toy
+                    - code [ref=f12e2336]: antigravity/gemini-3.1-flash-lite
+                    - generic [ref=f12e2337]: Built-in
+                    - generic "Click to set alias" [ref=f12e2339] [cursor=pointer]: Gemini 3.1 Flash Lite
+                    - button "content_copy" [ref=f12e2340]
+                  - generic [ref=f12e2341]:
+                    - button "play_circle" [ref=f12e2342]
+                    - button "visibility" [ref=f12e2343]
+                    - button "tune Compatibility" [ref=f12e2345]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2346]:
+                  - generic [ref=f12e2347]:
+                    - generic [ref=f12e2348]: smart_toy
+                    - code [ref=f12e2349]: antigravity/gemini-2.5-flash-thinking
+                    - generic [ref=f12e2350]: Built-in
+                    - generic "Click to set alias" [ref=f12e2352] [cursor=pointer]: Gemini 2.5 Flash Thinking
+                    - button "content_copy" [ref=f12e2353]
+                  - generic [ref=f12e2354]:
+                    - button "play_circle" [ref=f12e2355]
+                    - button "visibility" [ref=f12e2356]
+                    - button "tune Compatibility" [ref=f12e2358]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2359]:
+                  - generic [ref=f12e2360]:
+                    - generic [ref=f12e2361]: smart_toy
+                    - code [ref=f12e2362]: antigravity/gemini-2.5-flash
+                    - generic [ref=f12e2363]: Built-in
+                    - generic "Click to set alias" [ref=f12e2365] [cursor=pointer]: Gemini 2.5 Flash
+                    - button "content_copy" [ref=f12e2366]
+                  - generic [ref=f12e2367]:
+                    - button "play_circle" [ref=f12e2368]
+                    - button "visibility" [ref=f12e2369]
+                    - button "tune Compatibility" [ref=f12e2371]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2372]:
+                  - generic [ref=f12e2373]:
+                    - generic [ref=f12e2374]: smart_toy
+                    - code [ref=f12e2375]: antigravity/gemini-2.5-flash-lite
+                    - generic [ref=f12e2376]: Built-in
+                    - generic "Click to set alias" [ref=f12e2378] [cursor=pointer]: Gemini 2.5 Flash Lite
+                    - button "content_copy" [ref=f12e2379]
+                  - generic [ref=f12e2380]:
+                    - button "play_circle" [ref=f12e2381]
+                    - button "visibility" [ref=f12e2382]
+                    - button "tune Compatibility" [ref=f12e2384]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f12e2385]:
+                  - generic [ref=f12e2386]:
+                    - generic [ref=f12e2387]: smart_toy
+                    - code [ref=f12e2388]: antigravity/gpt-oss-120b-medium
+                    - generic [ref=f12e2389]: Built-in
+                    - generic "Click to set alias" [ref=f12e2391] [cursor=pointer]: GPT-OSS 120B (Medium)
+                    - button "content_copy" [ref=f12e2392]
+                  - generic [ref=f12e2393]:
+                    - button "play_circle" [ref=f12e2394]
+                    - button "visibility" [ref=f12e2395]
+                    - button "tune Compatibility" [ref=f12e2397]:
+                      - generic: tune
+                      - text: Compatibility
+            - generic [ref=f12e2398]:
+              - heading "tune Custom Models" [level=3] [ref=f12e2399]:
+                - generic [ref=f12e2400]: tune
+                - text: Custom Models
+              - paragraph [ref=f12e2401]: Add model IDs not in the default list. These will be available for routing.
+              - generic [ref=f12e2402]:
+                - generic [ref=f12e2403]:
+                  - generic [ref=f12e2404]:
+                    - generic [ref=f12e2405]: Model ID
+                    - textbox "Model ID" [ref=f12e2406]:
+                      - /placeholder: e.g. gpt-4.5-turbo
+                  - generic [ref=f12e2407]:
+                    - generic [ref=f12e2408]: Display Name
+                    - textbox "Display Name" [ref=f12e2409]:
+                      - /placeholder: Optional
+                  - button "Add" [disabled] [ref=f12e2410]:
+                    - generic: add
+                    - text: Add
+                - generic [ref=f12e2411]:
+                  - generic [ref=f12e2412]:
+                    - generic [ref=f12e2413]: API Format
+                    - combobox "API Format" [ref=f12e2414]:
+                      - option "Chat Completions" [selected]
+                      - option "Responses API"
+                      - option "Embeddings"
+                      - option "Rerank"
+                      - option "Audio Transcriptions"
+                      - option "Audio Speech"
+                      - option "Images Generations"
+                  - generic [ref=f12e2415]:
+                    - generic [ref=f12e2416]: Target Format
+                    - combobox "Target Format" [ref=f12e2417]:
+                      - option "Default (auto)" [selected]
+                      - option "OpenAI Chat Completions"
+                      - option "OpenAI Responses API"
+                      - option "Anthropic Messages"
+                      - option "Gemini"
+                      - option "Antigravity"
+                  - generic [ref=f12e2418]:
+                    - generic [ref=f12e2419]: Supported endpoints
+                    - generic [ref=f12e2420]:
+                      - generic [ref=f12e2421] [cursor=pointer]:
+                        - checkbox "💬 Chat" [checked] [ref=f12e2422]
+                        - text: 💬 Chat
+                      - generic [ref=f12e2423] [cursor=pointer]:
+                        - checkbox "📐 Embeddings" [ref=f12e2424]
+                        - text: 📐 Embeddings
+                      - generic [ref=f12e2425] [cursor=pointer]:
+                        - checkbox "Rerank" [ref=f12e2426]
+                        - text: Rerank
+                      - generic [ref=f12e2427] [cursor=pointer]:
+                        - checkbox "🖼️ Images" [ref=f12e2428]
+                        - text: 🖼️ Images
+                      - generic [ref=f12e2429] [cursor=pointer]:
+                        - checkbox "🔊 Audio" [ref=f12e2430]
+                        - text: 🔊 Audio
+                  - generic "Manually flag this model as vision-capable when the provider's discovery metadata doesn't report an image input modality (common for self-hosted/local backends)." [ref=f12e2433] [cursor=pointer]:
+                    - checkbox "👁️ Vision capable" [ref=f12e2434]
+                    - text: 👁️ Vision capable
+              - paragraph [ref=f12e2435]: No custom models added yet.
+          - generic [ref=f12e2436]:
+            - heading "Playground" [level=2] [ref=f12e2437]
+            - generic [ref=f12e2438]:
+              - generic [ref=f12e2439]:
+                - generic [ref=f12e2440]:
+                  - generic [ref=f12e2441]: "Model:"
+                  - combobox [ref=f12e2442]:
+                    - option "gemini-3.6-flash-high" [selected]
+                    - option "gemini-3.6-flash-medium"
+                    - option "gemini-3.6-flash-low"
+                    - option "claude-opus-4-6-thinking"
+                    - option "claude-sonnet-4-6"
+                    - option "gemini-pro-agent"
+                    - option "gemini-3.1-pro-low"
+                    - option "gemini-3-flash-agent"
+                    - option "gemini-3.5-flash-low"
+                    - option "gemini-3.5-flash-extra-low"
+                    - option "gemini-3.1-flash-lite"
+                    - option "gemini-2.5-flash-thinking"
+                    - option "gemini-2.5-flash"
+                    - option "gemini-2.5-flash-lite"
+                    - option "gpt-oss-120b-medium"
+                    - option "gemini-3.1-flash-image"
+                    - option "claude-opus-4-6-thinking-low"
+                    - option "claude-opus-4-6-thinking-medium"
+                    - option "claude-opus-4-6-thinking-high"
+                    - option "claude-sonnet-4-6-low"
+                    - option "claude-sonnet-4-6-medium"
+                    - option "claude-sonnet-4-6-high"
+                    - option "no-think/antigravity/claude-opus-4-6-thinking"
+                    - option "no-think/antigravity/claude-sonnet-4-6"
+                    - option "no-think/antigravity/claude-opus-4-6-thinking-low"
+                    - option "no-think/antigravity/claude-opus-4-6-thinking-medium"
+                    - option "no-think/antigravity/claude-opus-4-6-thinking-high"
+                    - option "no-think/antigravity/claude-sonnet-4-6-low"
+                    - option "no-think/antigravity/claude-sonnet-4-6-medium"
+                    - option "no-think/antigravity/claude-sonnet-4-6-high"
+                - generic [ref=f12e2443]:
+                  - generic [ref=f12e2444]: "Select key:"
+                  - combobox [ref=f12e2445]:
+                    - option "(default)" [selected]
+                    - option "production"
+                    - option "SAMLV"
+                    - option "SonMb"
+                    - option "edmicrotools"
+                    - option "vinhnm"
+                    - option "a Trung"
+                    - option "test-key"
+                    - option "dashboard-chat-test"
+                    - option "dashboard-chat-test"
+                    - option "Vercel-Edge"
+                    - option "dashboard-chat-test"
+                    - option "edmicro tools"
+                    - option "Vercel-Edge"
+                    - option "hiennt"
+              - generic [ref=f12e2447]:
+                - generic [ref=f12e2448]: forum
+                - paragraph [ref=f12e2450]: Send a message to start the conversation
+                - paragraph [ref=f12e2451]: Shift+Enter for newline · Enter to send
+              - generic [ref=f12e2452]:
+                - textbox "Send…" [ref=f12e2453]
+                - button "arrow_upward" [disabled] [ref=f12e2454]
+          - generic [ref=f12e2455]:
+            - heading "Param Filters" [level=2] [ref=f12e2456]
+            - paragraph [ref=f12e2457]:
+              - text: Strip or re-add request parameters before sending to this provider. Used to avoid 400 errors from providers that reject certain params (e.g. NVIDIA NIM rejects
+              - code [ref=f12e2458]: thinking
+              - text: ).
+            - generic [ref=f12e2459]:
+              - generic [ref=f12e2460]: Blocked parameters
+              - textbox "thinking, reasoning_budget, … (comma-separated)" [ref=f12e2461]
+              - paragraph [ref=f12e2462]: These params are stripped from outgoing requests (denylist).
+            - generic [ref=f12e2463]:
+              - generic [ref=f12e2464]: Allowed parameters
+              - textbox "reasoning, … (comma-separated)" [ref=f12e2465]
+              - paragraph [ref=f12e2466]: These params are re-added after denylist stripping (only if the client sent them).
+            - generic [ref=f12e2467]:
+              - generic [ref=f12e2468] [cursor=pointer]:
+                - checkbox "Auto-learn from 400 errors" [ref=f12e2469]
+                - generic [ref=f12e2470]: Auto-learn from 400 errors
+              - paragraph [ref=f12e2471]: "When enabled, if the upstream returns a 400 with \"Unsupported parameter: X\", the param is automatically added to the block list and the request retried."
+            - generic [ref=f12e2472]:
+              - button "save Save Changes" [disabled] [ref=f12e2473]:
+                - generic: save
+                - text: Save Changes
+              - button "delete Reset to Default" [ref=f12e2474]:
+                - generic: delete
+                - text: Reset to Default
+          - generic [ref=f12e2475]:
+            - heading "Web Tool Interception" [level=2] [ref=f12e2476]
+            - paragraph [ref=f12e2477]: Route this provider's native web_search / web_fetch tool calls through OmniRoute's own search and fetch endpoints instead of letting the provider run them natively. Off by default — existing behavior is unchanged.
+            - generic [ref=f12e2478]:
+              - generic [ref=f12e2479]:
+                - switch "Intercept web_search" [ref=f12e2480] [cursor=pointer]
+                - generic [ref=f12e2481]:
+                  - generic [ref=f12e2482]: Intercept web_search
+                  - generic [ref=f12e2483]: Rewrite native web_search tool calls to OmniRoute's /v1/search.
+              - generic [ref=f12e2484]:
+                - switch "Intercept web_fetch" [ref=f12e2485] [cursor=pointer]
+                - generic [ref=f12e2486]:
+                  - generic [ref=f12e2487]: Intercept web_fetch
+                  - generic [ref=f12e2488]: Rewrite native web_fetch tool calls to OmniRoute's /v1/web/fetch.
+          - generic [ref=f12e2489]:
+            - heading "Expose in Claude Code (claude/…)" [level=2] [ref=f12e2490]
+            - paragraph [ref=f12e2491]: Advertise this provider's models under claude/&lt;provider&gt;/&lt;model&gt; mirror ids so Claude Code's gateway model discovery can list them. Off by default — enabling this doubles catalog entries for all clients.
+            - generic [ref=f12e2492]:
+              - generic [ref=f12e2493]: Provider default
+              - combobox "Provider default" [ref=f12e2494]:
+                - option "Inherit" [selected]
+                - option "On"
+                - option "Off"
+            - generic [ref=f12e2495]:
+              - textbox "Model id (e.g. gpt-4o)" [ref=f12e2496]
+              - button "Add override" [disabled] [ref=f12e2497]
+          - dialog [ref=f12e2524]:
+            - generic [ref=f12e2525]:
+              - heading "Connect Antigravity" [level=2] [ref=f12e2531]
+              - button "Close" [active] [ref=f12e2532]:
+                - generic: close
+            - generic [ref=f12e2535]:
+              - generic [ref=f12e2536]: progress_activity
+              - heading "Waiting for authorization" [level=3] [ref=f12e2538]
+              - paragraph [ref=f12e2539]: Complete authorization in popup.
+              - paragraph [ref=f12e2540]: If the popup closes or cannot relay the callback, this dialog will auto-switch to manual URL entry mode.
+              - button "Popup blocked? Enter URL manually" [ref=f12e2541] [cursor=pointer]
+  - alert [ref=f12e317]

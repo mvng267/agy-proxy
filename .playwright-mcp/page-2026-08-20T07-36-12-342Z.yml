@@ -1,0 +1,9 @@
+- generic [active] [ref=f6e1]:
+  - link "Skip to content" [ref=f6e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f6e4]:
+    - generic [ref=f6e5]: info
+    - heading "Copy This URL" [level=1] [ref=f6e7]
+    - paragraph [ref=f6e8]: Please copy the URL from the address bar and paste it in the application.
+    - code [ref=f6e10]: http://127.0.0.1:7788/callback?state=duhXgOpFpWcIv2QK7P0OtdP20t-9XtbvsxL9dcDN4zI&iss=https://accounts.google.com&code=4/0ATsMZqD8YdWUCFi_FlwxtHtnvDDTLZhTzIJRFfDLdDODzSw8GtCTL4pAKbmKQIG0wRO9TA&scope=email%20profile%20https://www.googleapis.com/auth/cloud-platform%20https://www.googleapis.com/auth/userinfo.email%20https://www.googleapis.com/auth/userinfo.profile%20https://www.googleapis.com/auth/cclog%20https://www.googleapis.com/auth/experimentsandconfigs%20openid&authuser=0&hd=luongthevinhhp.edu.vn&prompt=consent
+  - alert [ref=f6e11]

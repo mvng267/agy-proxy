@@ -1,0 +1,654 @@
+- generic [ref=f1e1]:
+  - link "Skip to content" [ref=f1e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f1e3]:
+    - complementary [ref=f1e5]:
+      - link "Skip to content" [ref=f1e6] [cursor=pointer]:
+        - /url: "#main-content"
+      - button [expanded] [ref=f1e11]:
+        - generic: chevron_left
+      - link "OmniRoute v3.8.49" [ref=f1e13] [cursor=pointer]:
+        - /url: /home
+        - generic [ref=f1e27]:
+          - heading "OmniRoute" [level=1] [ref=f1e28]
+          - generic [ref=f1e29]: v3.8.49
+      - generic [ref=f1e32]:
+        - generic: search
+        - searchbox "Search" [ref=f1e33]
+      - navigation "Main navigation" [ref=f1e34]:
+        - link "home Home Dashboard overview" [ref=f1e36] [cursor=pointer]:
+          - /url: /home
+          - generic [ref=f1e37]: home
+          - generic [ref=f1e38]:
+            - generic [ref=f1e39]: Home
+            - generic [ref=f1e40]: Dashboard overview
+        - generic [ref=f1e41]:
+          - button "OmniProxy push_pin expand_more" [expanded] [ref=f1e42] [cursor=pointer]:
+            - generic [ref=f1e43]: OmniProxy
+            - button "push_pin" [ref=f1e44]
+            - generic: expand_more
+          - generic [ref=f1e45]:
+            - link "api Endpoints Your AI connection URLs" [ref=f1e46] [cursor=pointer]:
+              - /url: /dashboard/endpoint
+              - generic [ref=f1e47]: api
+              - generic [ref=f1e48]:
+                - generic [ref=f1e49]: Endpoints
+                - generic [ref=f1e50]: Your AI connection URLs
+            - link "vpn_key API Keys Manage API keys and access" [ref=f1e51] [cursor=pointer]:
+              - /url: /dashboard/api-manager
+              - generic [ref=f1e52]: vpn_key
+              - generic [ref=f1e53]:
+                - generic [ref=f1e54]: API Keys
+                - generic [ref=f1e55]: Manage API keys and access
+            - link "dns Providers Manage AI providers" [ref=f1e56] [cursor=pointer]:
+              - /url: /dashboard/providers
+              - generic [ref=f1e57]: dns
+              - generic [ref=f1e58]:
+                - generic [ref=f1e59]: Providers
+                - generic [ref=f1e60]: Manage AI providers
+            - link "deployed_code Embedded Services Manage local proxy services" [ref=f1e61] [cursor=pointer]:
+              - /url: /dashboard/providers/services
+              - generic [ref=f1e62]: deployed_code
+              - generic [ref=f1e63]:
+                - generic [ref=f1e64]: Embedded Services
+                - generic [ref=f1e65]: Manage local proxy services
+            - link "layers Combos Group providers for failover" [ref=f1e66] [cursor=pointer]:
+              - /url: /dashboard/combos
+              - generic [ref=f1e67]: layers
+              - generic [ref=f1e68]:
+                - generic [ref=f1e69]: Combos
+                - generic [ref=f1e70]: Group providers for failover
+            - link "account_tree Combo Studio Live routing cascade" [ref=f1e71] [cursor=pointer]:
+              - /url: /dashboard/combos/live
+              - generic [ref=f1e72]: account_tree
+              - generic [ref=f1e73]:
+                - generic [ref=f1e74]: Combo Studio
+                - generic [ref=f1e75]: Live routing cascade
+            - link "tune Provider Quota Track provider usage limits" [ref=f1e76] [cursor=pointer]:
+              - /url: /dashboard/quota
+              - generic [ref=f1e77]: tune
+              - generic [ref=f1e78]:
+                - generic [ref=f1e79]: Provider Quota
+                - generic [ref=f1e80]: Track provider usage limits
+            - link "pie_chart Quota Sharing Share provider quotas across keys" [ref=f1e81] [cursor=pointer]:
+              - /url: /dashboard/costs/quota-share
+              - generic [ref=f1e82]: pie_chart
+              - generic [ref=f1e83]:
+                - generic [ref=f1e84]: Quota Sharing
+                - generic [ref=f1e85]: Share provider quotas across keys
+            - generic [ref=f1e86]:
+              - generic [ref=f1e87]: Compression Context
+              - link "settings Compression Settings Global defaults" [ref=f1e90] [cursor=pointer]:
+                - /url: /dashboard/context/settings
+                - generic [ref=f1e91]: settings
+                - generic [ref=f1e92]:
+                  - generic [ref=f1e93]: Compression Settings
+                  - generic [ref=f1e94]: Global defaults
+              - link "hub Engine Combos Combine compression engines" [ref=f1e95] [cursor=pointer]:
+                - /url: /dashboard/context/combos
+                - generic [ref=f1e96]: hub
+                - generic [ref=f1e97]:
+                  - generic [ref=f1e98]: Engine Combos
+                  - generic [ref=f1e99]: Combine compression engines
+              - link "compress Caveman Prompt compression" [ref=f1e100] [cursor=pointer]:
+                - /url: /dashboard/context/caveman
+                - generic [ref=f1e101]: compress
+                - generic [ref=f1e102]:
+                  - generic [ref=f1e103]: Caveman
+                  - generic [ref=f1e104]: Prompt compression
+              - link "filter_alt RTK Output filtering" [ref=f1e105] [cursor=pointer]:
+                - /url: /dashboard/context/rtk
+                - generic [ref=f1e106]: filter_alt
+                - generic [ref=f1e107]:
+                  - generic [ref=f1e108]: RTK
+                  - generic [ref=f1e109]: Output filtering
+              - link "table_rows Headroom Tabular compaction" [ref=f1e110] [cursor=pointer]:
+                - /url: /dashboard/context/headroom
+                - generic [ref=f1e111]: table_rows
+                - generic [ref=f1e112]:
+                  - generic [ref=f1e113]: Headroom
+                  - generic [ref=f1e114]: Tabular compaction
+              - link "content_copy Session Dedup Cross-turn deduplication" [ref=f1e115] [cursor=pointer]:
+                - /url: /dashboard/context/session-dedup
+                - generic [ref=f1e116]: content_copy
+                - generic [ref=f1e117]:
+                  - generic [ref=f1e118]: Session Dedup
+                  - generic [ref=f1e119]: Cross-turn deduplication
+              - link "archive CCR Retrieve markers" [ref=f1e120] [cursor=pointer]:
+                - /url: /dashboard/context/ccr
+                - generic [ref=f1e121]: archive
+                - generic [ref=f1e122]:
+                  - generic [ref=f1e123]: CCR
+                  - generic [ref=f1e124]: Retrieve markers
+              - link "psychology LLMLingua Semantic pruning" [ref=f1e125] [cursor=pointer]:
+                - /url: /dashboard/context/llmlingua
+                - generic [ref=f1e126]: psychology
+                - generic [ref=f1e127]:
+                  - generic [ref=f1e128]: LLMLingua
+                  - generic [ref=f1e129]: Semantic pruning
+              - link "compress Lite Fast whitespace cleanup" [ref=f1e130] [cursor=pointer]:
+                - /url: /dashboard/context/lite
+                - generic [ref=f1e131]: compress
+                - generic [ref=f1e132]:
+                  - generic [ref=f1e133]: Lite
+                  - generic [ref=f1e134]: Fast whitespace cleanup
+              - link "speed Aggressive Summary and aging" [ref=f1e135] [cursor=pointer]:
+                - /url: /dashboard/context/aggressive
+                - generic [ref=f1e136]: speed
+                - generic [ref=f1e137]:
+                  - generic [ref=f1e138]: Aggressive
+                  - generic [ref=f1e139]: Summary and aging
+              - link "bolt Ultra Heuristic pruning" [ref=f1e140] [cursor=pointer]:
+                - /url: /dashboard/context/ultra
+                - generic [ref=f1e141]: bolt
+                - generic [ref=f1e142]:
+                  - generic [ref=f1e143]: Ultra
+                  - generic [ref=f1e144]: Heuristic pruning
+              - link "grain OmniGlyph Context as images" [ref=f1e145] [cursor=pointer]:
+                - /url: /dashboard/context/omniglyph
+                - generic [ref=f1e146]: grain
+                - generic [ref=f1e147]:
+                  - generic [ref=f1e148]: OmniGlyph
+                  - generic [ref=f1e149]: Context as images
+              - link "monitoring Compression Studio Live engine cascade" [ref=f1e150] [cursor=pointer]:
+                - /url: /dashboard/compression/studio
+                - generic [ref=f1e151]: monitoring
+                - generic [ref=f1e152]:
+                  - generic [ref=f1e153]: Compression Studio
+                  - generic [ref=f1e154]: Live engine cascade
+              - link "block Exclusions Per-model/endpoint bypass" [ref=f1e155] [cursor=pointer]:
+                - /url: /dashboard/compression/exclusions
+                - generic [ref=f1e156]: block
+                - generic [ref=f1e157]:
+                  - generic [ref=f1e158]: Exclusions
+                  - generic [ref=f1e159]: Per-model/endpoint bypass
+            - generic [ref=f1e160]:
+              - generic [ref=f1e161]: Tools
+              - link "terminal CLI Code Code tools pointing to OmniRoute" [ref=f1e164] [cursor=pointer]:
+                - /url: /dashboard/cli-code
+                - generic [ref=f1e165]: terminal
+                - generic [ref=f1e166]:
+                  - generic [ref=f1e167]: CLI Code
+                  - generic [ref=f1e168]: Code tools pointing to OmniRoute
+              - link "smart_toy CLI Agents Autonomous CLI agents" [ref=f1e169] [cursor=pointer]:
+                - /url: /dashboard/cli-agents
+                - generic [ref=f1e170]: smart_toy
+                - generic [ref=f1e171]:
+                  - generic [ref=f1e172]: CLI Agents
+                  - generic [ref=f1e173]: Autonomous CLI agents
+              - link "device_hub ACP Agents CLIs spawned by OmniRoute" [ref=f1e174] [cursor=pointer]:
+                - /url: /dashboard/acp-agents
+                - generic [ref=f1e175]: device_hub
+                - generic [ref=f1e176]:
+                  - generic [ref=f1e177]: ACP Agents
+                  - generic [ref=f1e178]: CLIs spawned by OmniRoute
+              - link "cloud Cloud Agents Manage cloud-based agents" [ref=f1e179] [cursor=pointer]:
+                - /url: /dashboard/cloud-agents
+                - generic [ref=f1e180]: cloud
+                - generic [ref=f1e181]:
+                  - generic [ref=f1e182]: Cloud Agents
+                  - generic [ref=f1e183]: Manage cloud-based agents
+              - link "link Agent Bridge Intercept IDE agent traffic" [ref=f1e184] [cursor=pointer]:
+                - /url: /dashboard/tools/agent-bridge
+                - generic [ref=f1e185]: link
+                - generic [ref=f1e186]:
+                  - generic [ref=f1e187]: Agent Bridge
+                  - generic [ref=f1e188]: Intercept IDE agent traffic
+              - link "network_check Traffic Inspector Monitor LLM calls + debug any HTTPS traffic" [ref=f1e189] [cursor=pointer]:
+                - /url: /dashboard/tools/traffic-inspector
+                - generic [ref=f1e190]: network_check
+                - generic [ref=f1e191]:
+                  - generic [ref=f1e192]: Traffic Inspector
+                  - generic [ref=f1e193]: Monitor LLM calls + debug any HTTPS traffic
+              - link "travel_explore Discovery Scan providers for free access" [ref=f1e194] [cursor=pointer]:
+                - /url: /dashboard/discovery
+                - generic [ref=f1e195]: travel_explore
+                - generic [ref=f1e196]:
+                  - generic [ref=f1e197]: Discovery
+                  - generic [ref=f1e198]: Scan providers for free access
+            - generic [ref=f1e199]:
+              - generic [ref=f1e200]: Integrations
+              - link "api API Endpoints Expose custom endpoints" [ref=f1e203] [cursor=pointer]:
+                - /url: /dashboard/api-endpoints
+                - generic [ref=f1e204]: api
+                - generic [ref=f1e205]:
+                  - generic [ref=f1e206]: API Endpoints
+                  - generic [ref=f1e207]: Expose custom endpoints
+              - link "webhook Webhooks Get notified of events" [ref=f1e208] [cursor=pointer]:
+                - /url: /dashboard/webhooks
+                - generic [ref=f1e209]: webhook
+                - generic [ref=f1e210]:
+                  - generic [ref=f1e211]: Webhooks
+                  - generic [ref=f1e212]: Get notified of events
+            - link "dns Proxy HTTP proxy settings" [ref=f1e213] [cursor=pointer]:
+              - /url: /dashboard/system/proxy
+              - generic [ref=f1e214]: dns
+              - generic [ref=f1e215]:
+                - generic [ref=f1e216]: Proxy
+                - generic [ref=f1e217]: HTTP proxy settings
+        - button "Analytics push_pin expand_more" [ref=f1e219] [cursor=pointer]:
+          - generic [ref=f1e220]: Analytics
+          - button "push_pin" [ref=f1e221]
+          - generic: expand_more
+        - button "Costs push_pin expand_more" [ref=f1e223] [cursor=pointer]:
+          - generic [ref=f1e224]: Costs
+          - button "push_pin" [ref=f1e225]
+          - generic: expand_more
+        - button "Monitoring push_pin expand_more" [ref=f1e227] [cursor=pointer]:
+          - generic [ref=f1e228]: Monitoring
+          - button "push_pin" [ref=f1e229]
+          - generic: expand_more
+        - button "Dev Tools push_pin expand_more" [ref=f1e296] [cursor=pointer]:
+          - generic [ref=f1e297]: Dev Tools
+          - button "push_pin" [ref=f1e298]
+          - generic: expand_more
+        - button "Agentic Features push_pin expand_more" [ref=f1e231] [cursor=pointer]:
+          - generic [ref=f1e232]: Agentic Features
+          - button "push_pin" [ref=f1e233]
+          - generic: expand_more
+        - button "Other Features push_pin expand_more" [ref=f1e235] [cursor=pointer]:
+          - generic [ref=f1e236]: Other Features
+          - button "push_pin" [ref=f1e237]
+          - generic: expand_more
+        - button "Configuration push_pin expand_more" [ref=f1e239] [cursor=pointer]:
+          - generic [ref=f1e240]: Configuration
+          - button "push_pin" [ref=f1e241]
+          - generic: expand_more
+        - button "Help push_pin expand_more" [ref=f1e243] [cursor=pointer]:
+          - generic [ref=f1e244]: Help
+          - button "push_pin" [ref=f1e245]
+          - generic: expand_more
+      - 'button "Remote settings sync status: Sync off" [ref=f1e299] [cursor=pointer]':
+        - generic: cloud_off
+        - generic [ref=f1e300]: Sync off
+      - generic [ref=f1e246]:
+        - button "restart_alt Restart" [ref=f1e247]:
+          - generic: restart_alt
+          - generic [ref=f1e248]: Restart
+        - button "power_settings_new Shutdown" [ref=f1e249]:
+          - generic: power_settings_new
+          - generic [ref=f1e250]: Shutdown
+    - main [ref=f1e251]:
+      - generic [ref=f1e252]:
+        - generic [ref=f1e253]:
+          - img "kiro" [ref=f1e256]
+          - heading "Kiro AI" [level=1] [ref=f1e258]
+        - generic [ref=f1e259]:
+          - button "Open quick navigation" [ref=f1e260]:
+            - generic: search
+            - generic [ref=f1e261]: Quick nav
+            - generic [ref=f1e262]: ⌘K
+          - button "English EN expand_more" [ref=f1e264]:
+            - img "English" [ref=f1e265]
+            - generic [ref=f1e266]: EN
+            - generic: expand_more
+          - button "Switch to dark mode" [ref=f1e267]:
+            - generic: dark_mode
+          - button "Logout" [ref=f1e268]:
+            - generic: logout
+      - generic [ref=f1e270]:
+        - navigation "Breadcrumb" [ref=f1e271]:
+          - link "Dashboard" [ref=f1e273] [cursor=pointer]:
+            - /url: /dashboard
+          - generic [ref=f1e274]:
+            - generic [ref=f1e275]: ›
+            - link "Providers" [ref=f1e276] [cursor=pointer]:
+              - /url: /dashboard/providers
+          - generic [ref=f1e277]:
+            - generic [ref=f1e278]: ›
+            - generic [ref=f1e279]: Kiro
+        - generic [ref=f1e281]:
+          - generic [ref=f1e301]:
+            - link "arrow_back Back to Providers" [ref=f1e302] [cursor=pointer]:
+              - /url: /dashboard/providers
+              - generic [ref=f1e303]: arrow_back
+              - text: Back to Providers
+            - generic [ref=f1e304]:
+              - img "kiro" [ref=f1e307]
+              - generic [ref=f1e308]:
+                - heading "Kiro AI" [level=1] [ref=f1e309]
+                - paragraph [ref=f1e311]: 0 connections
+          - generic [ref=f1e312]:
+            - generic [ref=f1e313]:
+              - generic [ref=f1e314]:
+                - heading "Connections" [level=2] [ref=f1e315]
+                - button "vpn_lock Provider Proxy" [ref=f1e316]:
+                  - generic: vpn_lock
+                  - text: Provider Proxy
+              - button "Add" [ref=f1e318] [cursor=pointer]:
+                - generic: add
+                - text: Add
+            - generic [ref=f1e319]:
+              - generic [ref=f1e320]: lock
+              - paragraph [ref=f1e322]: No connections yet
+              - paragraph [ref=f1e323]: Add your first connection to get started
+              - button "Add Connection" [ref=f1e325] [cursor=pointer]:
+                - generic: add
+                - text: Add Connection
+          - generic [ref=f1e326]:
+            - heading "Available Models" [level=2] [ref=f1e327]
+            - generic [ref=f1e328]:
+              - generic [ref=f1e329]:
+                - button "Import from /models" [disabled] [ref=f1e330]:
+                  - generic: download
+                  - text: Import from /models
+                - generic [ref=f1e331]: Add a connection to enable importing.
+              - generic [ref=f1e332]:
+                - generic [ref=f1e333]:
+                  - generic: search
+                  - textbox "Filter models..." [ref=f1e334]
+                - generic [ref=f1e335]:
+                  - button "All" [ref=f1e336]
+                  - button "Visible only" [ref=f1e337]
+                  - button "Hidden only" [ref=f1e338]
+                - generic [ref=f1e339]:
+                  - button "All" [ref=f1e340]
+                  - button "Free only" [ref=f1e341]
+                  - button "Paid only" [ref=f1e342]
+                - button "sort Free first" [ref=f1e343]:
+                  - generic: sort
+                  - generic [ref=f1e344]: Free first
+                - generic "When enabled, Test all hides non-transient failures from public catalogs such as /v1/models. Single-model tests never auto-hide." [ref=f1e345]:
+                  - checkbox "Auto-hide failed models" [ref=f1e346]
+                  - text: Auto-hide failed models
+                - button "science Test all models" [ref=f1e347]:
+                  - generic: science
+                  - generic [ref=f1e348]: Test all models
+                - button "visibility All" [disabled] [ref=f1e349]:
+                  - generic: visibility
+                  - generic [ref=f1e350]: All
+                - button "visibility_off Hide all" [ref=f1e351]:
+                  - generic: visibility_off
+                  - generic [ref=f1e352]: Hide all
+                - generic [ref=f1e353]: 11/11 active
+              - generic [ref=f1e354]:
+                - generic [ref=f1e355]:
+                  - generic [ref=f1e356]:
+                    - generic [ref=f1e357]: smart_toy
+                    - code [ref=f1e358]: kr/claude-sonnet-5
+                    - generic [ref=f1e359]: Built-in
+                    - generic "Click to set alias" [ref=f1e361] [cursor=pointer]: Claude Sonnet 5
+                    - button "content_copy" [ref=f1e362]
+                  - generic [ref=f1e363]:
+                    - button "play_circle" [ref=f1e364]
+                    - button "visibility" [ref=f1e365]
+                    - button "tune Compatibility" [ref=f1e367]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f1e368]:
+                  - generic [ref=f1e369]:
+                    - generic [ref=f1e370]: smart_toy
+                    - code [ref=f1e371]: kr/claude-sonnet-4.5
+                    - generic [ref=f1e372]: Built-in
+                    - generic "Click to set alias" [ref=f1e374] [cursor=pointer]: Claude Sonnet 4.5
+                    - button "content_copy" [ref=f1e375]
+                  - generic [ref=f1e376]:
+                    - button "play_circle" [ref=f1e377]
+                    - button "visibility" [ref=f1e378]
+                    - button "tune Compatibility" [ref=f1e380]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f1e381]:
+                  - generic [ref=f1e382]:
+                    - generic [ref=f1e383]: smart_toy
+                    - code [ref=f1e384]: kr/claude-haiku-4.5
+                    - generic [ref=f1e385]: Built-in
+                    - generic "Click to set alias" [ref=f1e387] [cursor=pointer]: Claude Haiku 4.5
+                    - button "content_copy" [ref=f1e388]
+                  - generic [ref=f1e389]:
+                    - button "play_circle" [ref=f1e390]
+                    - button "visibility" [ref=f1e391]
+                    - button "tune Compatibility" [ref=f1e393]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f1e394]:
+                  - generic [ref=f1e395]:
+                    - generic [ref=f1e396]: smart_toy
+                    - code [ref=f1e397]: kr/deepseek-3.2
+                    - generic [ref=f1e398]: Built-in
+                    - generic "Click to set alias" [ref=f1e400] [cursor=pointer]: DeepSeek V3.2
+                    - button "content_copy" [ref=f1e401]
+                  - generic [ref=f1e402]:
+                    - button "play_circle" [ref=f1e403]
+                    - button "visibility" [ref=f1e404]
+                    - button "tune Compatibility" [ref=f1e406]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f1e407]:
+                  - generic [ref=f1e408]:
+                    - generic [ref=f1e409]: smart_toy
+                    - code [ref=f1e410]: kr/minimax-m2.5
+                    - generic [ref=f1e411]: Built-in
+                    - generic "Click to set alias" [ref=f1e413] [cursor=pointer]: MiniMax M2.5
+                    - button "content_copy" [ref=f1e414]
+                  - generic [ref=f1e415]:
+                    - button "play_circle" [ref=f1e416]
+                    - button "visibility" [ref=f1e417]
+                    - button "tune Compatibility" [ref=f1e419]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f1e420]:
+                  - generic [ref=f1e421]:
+                    - generic [ref=f1e422]: smart_toy
+                    - code [ref=f1e423]: kr/minimax-m2.1
+                    - generic [ref=f1e424]: Built-in
+                    - generic "Click to set alias" [ref=f1e426] [cursor=pointer]: MiniMax M2.1
+                    - button "content_copy" [ref=f1e427]
+                  - generic [ref=f1e428]:
+                    - button "play_circle" [ref=f1e429]
+                    - button "visibility" [ref=f1e430]
+                    - button "tune Compatibility" [ref=f1e432]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f1e433]:
+                  - generic [ref=f1e434]:
+                    - generic [ref=f1e435]: smart_toy
+                    - code [ref=f1e436]: kr/glm-5
+                    - generic [ref=f1e437]: Built-in
+                    - generic "Click to set alias" [ref=f1e439] [cursor=pointer]: GLM-5
+                    - button "content_copy" [ref=f1e440]
+                  - generic [ref=f1e441]:
+                    - button "play_circle" [ref=f1e442]
+                    - button "visibility" [ref=f1e443]
+                    - button "tune Compatibility" [ref=f1e445]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f1e446]:
+                  - generic [ref=f1e447]:
+                    - generic [ref=f1e448]: smart_toy
+                    - code [ref=f1e449]: kr/qwen3-coder-next
+                    - generic [ref=f1e450]: Built-in
+                    - generic "Click to set alias" [ref=f1e452] [cursor=pointer]: Qwen3 Coder Next
+                    - button "content_copy" [ref=f1e453]
+                  - generic [ref=f1e454]:
+                    - button "play_circle" [ref=f1e455]
+                    - button "visibility" [ref=f1e456]
+                    - button "tune Compatibility" [ref=f1e458]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f1e459]:
+                  - generic [ref=f1e460]:
+                    - generic [ref=f1e461]: smart_toy
+                    - code [ref=f1e462]: kr/gpt-5.6-sol
+                    - generic [ref=f1e463]: Built-in
+                    - generic "Click to set alias" [ref=f1e465] [cursor=pointer]: GPT-5.6 Sol
+                    - button "content_copy" [ref=f1e466]
+                  - generic [ref=f1e467]:
+                    - button "play_circle" [ref=f1e468]
+                    - button "visibility" [ref=f1e469]
+                    - button "tune Compatibility" [ref=f1e471]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f1e472]:
+                  - generic [ref=f1e473]:
+                    - generic [ref=f1e474]: smart_toy
+                    - code [ref=f1e475]: kr/gpt-5.6-terra
+                    - generic [ref=f1e476]: Built-in
+                    - generic "Click to set alias" [ref=f1e478] [cursor=pointer]: GPT-5.6 Terra
+                    - button "content_copy" [ref=f1e479]
+                  - generic [ref=f1e480]:
+                    - button "play_circle" [ref=f1e481]
+                    - button "visibility" [ref=f1e482]
+                    - button "tune Compatibility" [ref=f1e484]:
+                      - generic: tune
+                      - text: Compatibility
+                - generic [ref=f1e485]:
+                  - generic [ref=f1e486]:
+                    - generic [ref=f1e487]: smart_toy
+                    - code [ref=f1e488]: kr/gpt-5.6-luna
+                    - generic [ref=f1e489]: Built-in
+                    - generic "Click to set alias" [ref=f1e491] [cursor=pointer]: GPT-5.6 Luna
+                    - button "content_copy" [ref=f1e492]
+                  - generic [ref=f1e493]:
+                    - button "play_circle" [ref=f1e494]
+                    - button "visibility" [ref=f1e495]
+                    - button "tune Compatibility" [ref=f1e497]:
+                      - generic: tune
+                      - text: Compatibility
+            - generic [ref=f1e498]:
+              - heading "tune Custom Models" [level=3] [ref=f1e499]:
+                - generic [ref=f1e500]: tune
+                - text: Custom Models
+              - paragraph [ref=f1e501]: Add model IDs not in the default list. These will be available for routing.
+              - generic [ref=f1e502]:
+                - generic [ref=f1e503]:
+                  - generic [ref=f1e504]:
+                    - generic [ref=f1e505]: Model ID
+                    - textbox "Model ID" [ref=f1e506]:
+                      - /placeholder: e.g. gpt-4.5-turbo
+                  - generic [ref=f1e507]:
+                    - generic [ref=f1e508]: Display Name
+                    - textbox "Display Name" [ref=f1e509]:
+                      - /placeholder: Optional
+                  - button "Add" [disabled] [ref=f1e510]:
+                    - generic: add
+                    - text: Add
+                - generic [ref=f1e511]:
+                  - generic [ref=f1e512]:
+                    - generic [ref=f1e513]: API Format
+                    - combobox "API Format" [ref=f1e514]:
+                      - option "Chat Completions" [selected]
+                      - option "Responses API"
+                      - option "Embeddings"
+                      - option "Rerank"
+                      - option "Audio Transcriptions"
+                      - option "Audio Speech"
+                      - option "Images Generations"
+                  - generic [ref=f1e515]:
+                    - generic [ref=f1e516]: Target Format
+                    - combobox "Target Format" [ref=f1e517]:
+                      - option "Default (auto)" [selected]
+                      - option "OpenAI Chat Completions"
+                      - option "OpenAI Responses API"
+                      - option "Anthropic Messages"
+                      - option "Gemini"
+                      - option "Antigravity"
+                  - generic [ref=f1e518]:
+                    - generic [ref=f1e519]: Supported endpoints
+                    - generic [ref=f1e520]:
+                      - generic [ref=f1e521] [cursor=pointer]:
+                        - checkbox "💬 Chat" [checked] [ref=f1e522]
+                        - text: 💬 Chat
+                      - generic [ref=f1e523] [cursor=pointer]:
+                        - checkbox "📐 Embeddings" [ref=f1e524]
+                        - text: 📐 Embeddings
+                      - generic [ref=f1e525] [cursor=pointer]:
+                        - checkbox "Rerank" [ref=f1e526]
+                        - text: Rerank
+                      - generic [ref=f1e527] [cursor=pointer]:
+                        - checkbox "🖼️ Images" [ref=f1e528]
+                        - text: 🖼️ Images
+                      - generic [ref=f1e529] [cursor=pointer]:
+                        - checkbox "🔊 Audio" [ref=f1e530]
+                        - text: 🔊 Audio
+                  - generic "Manually flag this model as vision-capable when the provider's discovery metadata doesn't report an image input modality (common for self-hosted/local backends)." [ref=f1e533] [cursor=pointer]:
+                    - checkbox "👁️ Vision capable" [ref=f1e534]
+                    - text: 👁️ Vision capable
+              - paragraph [ref=f1e535]: No custom models added yet.
+          - generic [ref=f1e536]:
+            - heading "Playground" [level=2] [ref=f1e537]
+            - generic [ref=f1e538]:
+              - generic [ref=f1e540]:
+                - generic [ref=f1e541]: "Model:"
+                - combobox [ref=f1e542]:
+                  - option "—" [selected]
+              - generic [ref=f1e544]:
+                - generic [ref=f1e545]: forum
+                - paragraph [ref=f1e547]: Send a message to start the conversation
+                - paragraph [ref=f1e548]: Shift+Enter for newline · Enter to send
+              - generic [ref=f1e549]:
+                - textbox "Send…" [ref=f1e550]
+                - button "arrow_upward" [disabled] [ref=f1e551]
+          - generic [ref=f1e552]:
+            - heading "Param Filters" [level=2] [ref=f1e553]
+            - paragraph [ref=f1e554]:
+              - text: Strip or re-add request parameters before sending to this provider. Used to avoid 400 errors from providers that reject certain params (e.g. NVIDIA NIM rejects
+              - code [ref=f1e555]: thinking
+              - text: ).
+            - generic [ref=f1e556]:
+              - generic [ref=f1e557]: Blocked parameters
+              - textbox "thinking, reasoning_budget, … (comma-separated)" [ref=f1e558]
+              - paragraph [ref=f1e559]: These params are stripped from outgoing requests (denylist).
+            - generic [ref=f1e560]:
+              - generic [ref=f1e561]: Allowed parameters
+              - textbox "reasoning, … (comma-separated)" [ref=f1e562]
+              - paragraph [ref=f1e563]: These params are re-added after denylist stripping (only if the client sent them).
+            - generic [ref=f1e564]:
+              - generic [ref=f1e565] [cursor=pointer]:
+                - checkbox "Auto-learn from 400 errors" [ref=f1e566]
+                - generic [ref=f1e567]: Auto-learn from 400 errors
+              - paragraph [ref=f1e568]: "When enabled, if the upstream returns a 400 with \"Unsupported parameter: X\", the param is automatically added to the block list and the request retried."
+            - generic [ref=f1e569]:
+              - button "save Save Changes" [disabled] [ref=f1e570]:
+                - generic: save
+                - text: Save Changes
+              - button "delete Reset to Default" [ref=f1e571]:
+                - generic: delete
+                - text: Reset to Default
+          - generic [ref=f1e572]:
+            - heading "Web Tool Interception" [level=2] [ref=f1e573]
+            - paragraph [ref=f1e574]: Route this provider's native web_search / web_fetch tool calls through OmniRoute's own search and fetch endpoints instead of letting the provider run them natively. Off by default — existing behavior is unchanged.
+            - generic [ref=f1e575]:
+              - generic [ref=f1e576]:
+                - switch "Intercept web_search" [ref=f1e577] [cursor=pointer]
+                - generic [ref=f1e578]:
+                  - generic [ref=f1e579]: Intercept web_search
+                  - generic [ref=f1e580]: Rewrite native web_search tool calls to OmniRoute's /v1/search.
+              - generic [ref=f1e581]:
+                - switch "Intercept web_fetch" [ref=f1e582] [cursor=pointer]
+                - generic [ref=f1e583]:
+                  - generic [ref=f1e584]: Intercept web_fetch
+                  - generic [ref=f1e585]: Rewrite native web_fetch tool calls to OmniRoute's /v1/web/fetch.
+          - generic [ref=f1e586]:
+            - heading "Expose in Claude Code (claude/…)" [level=2] [ref=f1e587]
+            - paragraph [ref=f1e588]: Advertise this provider's models under claude/&lt;provider&gt;/&lt;model&gt; mirror ids so Claude Code's gateway model discovery can list them. Off by default — enabling this doubles catalog entries for all clients.
+            - generic [ref=f1e589]:
+              - generic [ref=f1e590]: Provider default
+              - combobox "Provider default" [ref=f1e591]:
+                - option "Inherit" [selected]
+                - option "On"
+                - option "Off"
+            - generic [ref=f1e592]:
+              - textbox "Model id (e.g. gpt-4o)" [ref=f1e593]
+              - button "Add override" [disabled] [ref=f1e594]
+          - dialog [ref=f1e642]:
+            - generic [ref=f1e643]:
+              - heading "Connect Kiro AI via Google" [level=2] [ref=f1e649]
+              - button "Close" [active] [ref=f1e650]:
+                - generic: close
+            - generic [ref=f1e653]:
+              - generic [ref=f1e654]: open_in_browser
+              - heading "Open this link in an Incognito window" [level=3] [ref=f1e656]
+              - paragraph [ref=f1e657]: Use an Incognito/Private window to avoid session conflicts with existing accounts.
+              - generic [ref=f1e659]:
+                - link "https://app.kiro.dev/account/device?user_code=SVXW-VLPL&login_provider=Google" [ref=f1e660] [cursor=pointer]:
+                  - /url: https://app.kiro.dev/account/device?user_code=SVXW-VLPL&login_provider=Google
+                - button "content_copy" [ref=f1e661]
+              - generic [ref=f1e662]:
+                - paragraph [ref=f1e663]: Verification code
+                - paragraph [ref=f1e664]: SVXW-VLPL
+              - generic [ref=f1e665]:
+                - generic [ref=f1e666]: progress_activity
+                - text: Waiting for authorization...
+              - button "Cancel" [ref=f1e668] [cursor=pointer]
+  - alert [ref=f1e294]

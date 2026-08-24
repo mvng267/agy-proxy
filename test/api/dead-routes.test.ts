@@ -72,22 +72,26 @@ describe('endpoint CÒN DÙNG không được xoá nhầm', () => {
   });
 });
 
-describe('tàn dư OmniRoute đã dọn', () => {
-  test('không còn biến môi trường OMNIROUTE_*', () => {
-    /**
-     * OmniRoute đã gỡ khỏi code nhưng biến môi trường còn nằm lại trong `.env.example` và
-     * `docker-compose.yml` — người đọc tưởng vẫn phải cấu hình nó.
-     */
-    for (const f of ['.env.example', 'docker-compose.yml']) {
-      let s = '';
-      try { s = readFileSync(resolve(ROOT, f), 'utf8'); } catch { continue; }
-      assert.doesNotMatch(s, /OMNIROUTE_URL|OMNIROUTE_PASSWORD/, `${f} còn biến OmniRoute`);
-    }
+/**
+ * OmniRoute đưa lại 23/08 (từng gỡ ở 55bce31). Describe này TRƯỚC ĐÂY cấm mọi dấu vết của
+ * nó; nay đổi vai: canh đúng những điều kiện khiến lần trước thất bại.
+ *
+ * Lần đó tích hợp bị gỡ vì OmniRoute trả `401` mọi lần khởi động và làm ngập `run_logs`
+ * 303 dòng cảnh báo. Hai test dưới bảo đảm điều đó không lặp lại.
+ */
+describe('OmniRoute — không được kéo sập agy-proxy khi hỏng', () => {
+  test('mật khẩu rỗng thì TẮT HẲN, không gọi mạng', () => {
+    // Không có cửa nào khác: `dangBat()` là cổng duy nhất, và cả `dongBo` lẫn vòng nền
+    // đều phải hỏi nó trước. Thiếu chốt này thì instance chưa cấu hình vẫn bắn request.
+    const s = code('src/omniroute/sync.ts');
+    assert.match(s, /export function dangBat\(\)[^}]*config\.omniroute\.password/s);
+    assert.match(s, /if \(!dangBat\(\)\)/, 'dongBo phải thoát sớm khi chưa bật');
+    assert.match(code('src/gateway/background.ts'), /!dangBat\(\)/, 'vòng nền phải hỏi dangBat');
   });
 
-  test('/api/summary — nơi chứa hai trường OmniRoute chết — đã xoá', () => {
-    // `connectionCount = 0` và `omniOk = false` chỉ tồn tại để "client cũ đọc không vỡ",
-    // mà không còn client nào.
-    assert.doesNotMatch(code('src/routes.ts'), /const omniOk/);
+  test('lỗi OmniRoute bị nuốt, không ném ra vòng nền', () => {
+    const s = code('src/omniroute/sync.ts');
+    assert.match(s, /catch \(e\)/, 'dongBo phải bọc try/catch');
+    assert.doesNotMatch(s, /\bthrow\b/, 'sync.ts không được ném lỗi ra ngoài');
   });
 });

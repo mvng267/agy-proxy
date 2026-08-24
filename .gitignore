@@ -19,3 +19,7 @@ _shot*.ts
 # CLI runtime
 agyproxy.pid
 agyproxy.log
+
+# Bản sao chunk đã build của OmniRoute — do va-dist.mjs tự tạo khi vá, gắn với đúng
+# phiên bản OmniRoute đang cài trên máy này nên không commit.
+tools/va-omniroute/dist-backup/
