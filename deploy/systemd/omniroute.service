@@ -1,0 +1,36 @@
+[Unit]
+Description=OmniRoute — gateway thứ hai, dùng chung pool account với agy-proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mvng
+WorkingDirectory=/home/mvng
+
+Environment=PATH=/home/mvng/.local/node/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NODE_ENV=production
+
+# Đường dẫn tuyệt đối tới bản cài global. Đổi nếu `npm root -g` trả chỗ khác:
+#   sudo sed -i "s#/home/mvng/.local/lib/node_modules#$(npm root -g)#" omniroute.service
+ExecStart=/home/mvng/.local/node/bin/node /home/mvng/.local/lib/node_modules/omniroute/bin/omniroute.mjs
+
+Restart=on-failure
+RestartSec=15
+StartLimitBurst=5
+StartLimitIntervalSec=600
+
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=omniroute
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/home/mvng/.omniroute
+
+[Install]
+WantedBy=multi-user.target

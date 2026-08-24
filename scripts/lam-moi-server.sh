@@ -107,14 +107,37 @@ fi
 
 # ── 7. Khởi động ────────────────────────────────────────────────────────────
 mkdir -p "$OMNI_HOME"
-nohup node "$OMNI_DIR/bin/omniroute.mjs" > "$HOME/omniroute.log" 2>&1 &
-disown
-if command -v systemctl >/dev/null && systemctl list-units --type=service 2>/dev/null | grep -q agyproxy; then
-  sudo systemctl start agyproxy
-elif command -v pm2 >/dev/null && pm2 list 2>/dev/null | grep -q agyproxy; then
-  pm2 start agyproxy
+
+# OmniRoute: cài unit systemd user (không cần sudo). Đường dẫn trong unit là mặc định
+# nên phải thay theo máy thật.
+UNIT_DIR="$HOME/.config/systemd/user"
+mkdir -p "$UNIT_DIR"
+if [[ -f "$ROOT/deploy/systemd/omniroute.service" ]]; then
+  cp "$ROOT/deploy/systemd/omniroute.service" "$UNIT_DIR/"
+  sed -i "s#/home/mvng/.local/lib/node_modules#$(npm root -g)#g" "$UNIT_DIR/omniroute.service"
+  sed -i "s#/home/mvng/.local/node/bin/node#$(command -v node)#g" "$UNIT_DIR/omniroute.service"
+  sed -i "s#^User=.*#User=$USER#" "$UNIT_DIR/omniroute.service"
+  sed -i "s#^WorkingDirectory=.*#WorkingDirectory=$HOME#" "$UNIT_DIR/omniroute.service"
+  sed -i "s#ReadWritePaths=.*#ReadWritePaths=$OMNI_HOME#" "$UNIT_DIR/omniroute.service"
+  systemctl --user daemon-reload
+  systemctl --user enable --now omniroute 2>&1 | tail -1
+  xanh "✓ OmniRoute chạy qua systemd"
 else
-  node bin/agyproxy.mjs start
+  vang "⚠ Thiếu deploy/systemd/omniroute.service → chạy tạm bằng nohup (mất khi reboot)"
+  nohup node "$OMNI_DIR/bin/omniroute.mjs" > "$HOME/omniroute.log" 2>&1 &
+  disown
+fi
+
+# agy-proxy: CLI tự sinh unit — điền đúng AGY_HOME/PORT/đường dẫn Node, tự viết dễ lệch.
+node bin/agyproxy.mjs service install 2>&1 | tail -2
+xanh "✓ agy-proxy chạy qua systemd"
+
+# Service user mặc định TẮT khi đăng xuất SSH — bật linger để nó sống tiếp.
+if command -v loginctl >/dev/null; then
+  if ! loginctl show-user "$USER" 2>/dev/null | grep -q 'Linger=yes'; then
+    vang "Bật linger để service sống khi đăng xuất SSH (cần sudo):"
+    sudo loginctl enable-linger "$USER" && xanh "✓ Đã bật linger" ||       vang "⚠ Không bật được — service sẽ DỪNG khi ông thoát SSH. Chạy tay: sudo loginctl enable-linger $USER"
+  fi
 fi
 
 # ── 8. Nghiệm thu — đo, không đoán ──────────────────────────────────────────

@@ -85,6 +85,24 @@ node -e "const{DatabaseSync}=require('node:sqlite');
   console.log(db.prepare(\"SELECT provider,COUNT(*) c FROM provider_connections GROUP BY provider\").all())"
 ```
 
+## Chạy nền (systemd)
+
+Script tự cài. Kiểm và điều khiển:
+
+```bash
+systemctl --user status agyproxy omniroute
+journalctl --user -u agyproxy -f
+systemctl --user restart omniroute
+```
+
+⚠ **Service user tắt khi đăng xuất SSH.** Script tự bật linger, nếu hỏng thì chạy tay:
+
+```bash
+sudo loginctl enable-linger $USER
+```
+
+Chi tiết: [deploy/systemd/README.md](../deploy/systemd/README.md)
+
 ## Quay lại nếu hỏng
 
 ```bash
