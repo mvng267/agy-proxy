@@ -88,8 +88,13 @@ if (!xep) { console.log('Không còn gì để chạy.'); process.exit(0); }
 
 // Bộ đếm `done`/`batchTotal` là mốc thật; `running`/`queued` đều false/0 trong khoảng giãn
 // nhịp nên nhìn vào chúng sẽ tưởng đã xong và thoát sớm.
+/** Trần số lần tự chạy lại — treo liên tục quá nhiều lần là có vấn đề khác, đừng lặp vô tận. */
+const TRAN_TREO = 20;
+const TRAN_DUNG_IM_MS = 15 * 60_000;
+
 let truoc = -1;
 let mocDoi = Date.now();
+let lanTreo = 0;
 for (;;) {
   const st = scheduler.status();
   if (st.done >= st.batchTotal) break;
@@ -101,11 +106,46 @@ for (;;) {
     const con = st.etaSec ? ` · còn ~${phut(st.etaSec * 1000)}` : '';
     console.log(`  [${gio()}] ${st.done}/${st.batchTotal} · ${dang}${con}`);
   }
-  // Máy ngủ làm scheduler kẹt vô hạn ở "chờ nhịp" — đã mất 17 rồi 27 tiếng vì im lặng.
-  if (Date.now() - mocDoi > 15 * 60_000) {
-    console.log(`\n⚠ Đứng im 15 phút ở ${st.done}/${st.batchTotal} — máy có thể đã ngủ. Dừng.`);
-    process.exitCode = 3;
-    break;
+  /**
+   * Máy ngủ làm scheduler kẹt vô hạn ở "chờ nhịp" — `interruptibleSleep` không tỉnh lại.
+   *
+   * Trước đây thoát và báo, nhưng thế nghĩa là mỗi lần máy ngủ là đợt nằm im tới khi có
+   * người bảo chạy tiếp: đã mất 17 giờ, 27 giờ, rồi trọn một đêm. Nay TỰ KHỞI ĐỘNG LẠI —
+   * bộ lọc "bỏ qua account đã đủ credential" khiến lần chạy mới chỉ làm phần còn thiếu,
+   * nên khởi động lại rẻ và không mất gì.
+   *
+   * `--khong-tu-chay-lai` để tắt (ví dụ khi đang gỡ lỗi và muốn nó đứng yên).
+   */
+  if (Date.now() - mocDoi > TRAN_DUNG_IM_MS) {
+    lanTreo++;
+    const tuChayLai = !process.argv.includes('--khong-tu-chay-lai') && lanTreo <= TRAN_TREO;
+    console.log(
+      `\n⚠ Đứng im ${TRAN_DUNG_IM_MS / 60_000} phút ở ${st.done}/${st.batchTotal} — máy có thể đã ngủ.` +
+        (tuChayLai ? ` Tự chạy lại (lần ${lanTreo}/${TRAN_TREO})…` : ' Dừng hẳn.'),
+    );
+    if (!tuChayLai) {
+      process.exitCode = 3;
+      break;
+    }
+    // Xoá hàng đợi cũ rồi xếp lại phần còn thiếu — scheduler đang kẹt, đừng chồng job lên.
+    scheduler.stop();
+    await new Promise((r) => setTimeout(r, 2000));
+    store.load();
+    const daCo2 = new Set(store.listCredentials().map((c) => `${c.email}|${c.target}`));
+    let lai = 0;
+    for (const n of so) {
+      const email = `agyproxy${n}@${DOMAIN}`;
+      const con2 = flows.filter((f) => !daCo2.has(`${email}|${f}`));
+      if (con2.length) {
+        scheduler.enqueuePipeline(email, con2);
+        lai += con2.length;
+      }
+    }
+    console.log(`  xếp lại ${lai} job còn thiếu\n`);
+    if (!lai) break;
+    truoc = -1;
+    mocDoi = Date.now();
+    continue;
   }
   await new Promise((r) => setTimeout(r, 5000));
 }
