@@ -329,6 +329,18 @@ async function dongBoThat(target?: 'agy' | 'kiro'): Promise<KetQuaDongBo> {
     // Chốt cuối: dọn bản trùng dù đổi tên có chạy hay không.
     await donTrungTheoEmail();
 
+    /**
+     * Đổi tên xuôi LẦN NỮA ở bước cuối cùng.
+     *
+     * Lần đổi trong `finally` phía trên chỉ bao phần `agy`, nên hàng còn sót lại từ lượt
+     * TRƯỚC bị lỗi giữa chừng vẫn mang tên `agy`. Gateway phục vụ dưới tên `antigravity`
+     * nên chúng vô hình: đo trên production thấy `agy 337 · kiro 349` mà gọi model trả
+     * "No active credentials for provider: antigravity".
+     *
+     * Chạy lại ở cuối là idempotent — không còn hàng `agy` nào thì `changes = 0`.
+     */
+    await doiTenProvider('agy', 'antigravity');
+
     const agy = ketQua.filter((k) => k.target === 'agy');
     const kiro = ketQua.filter((k) => k.target === 'kiro');
     const phan: string[] = [];

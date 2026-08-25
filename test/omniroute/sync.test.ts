@@ -235,3 +235,24 @@ describe('dọn trùng — chốt cuối khi đổi tên hỏng', () => {
       'dọn theo (provider, email) — không dedupe được theo refresh_token vì nó mã hoá AES-GCM');
   });
 });
+
+describe('đổi tên xuôi phải là bước CUỐI CÙNG', () => {
+  /**
+   * Đo trên production: sau đồng bộ, DB có `agy 337 · kiro 349` nhưng gọi model trả
+   * "No active credentials for provider: antigravity". OmniRoute LƯU dưới `agy` mà PHỤC VỤ
+   * dưới `antigravity`, nên hàng còn tên `agy` là vô hình.
+   *
+   * Lần đổi trong `finally` chỉ bao phần agy của LƯỢT NÀY — hàng sót từ lượt trước bị lỗi
+   * giữa chừng vẫn mang tên cũ. Phải đổi lại ở cuối, sau cả dọn trùng.
+   */
+  test('doiTenProvider(agy→antigravity) chạy sau donTrungTheoEmail()', () => {
+    const src = readFileSync(resolve(import.meta.dirname, '../../src/omniroute/sync.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+    const than = src.slice(src.indexOf('async function dongBoThat'));
+    const iDon = than.indexOf('await donTrungTheoEmail()');
+    const iCuoi = than.indexOf("await doiTenProvider('agy', 'antigravity')", iDon);
+    assert.ok(iDon >= 0, 'phải có dọn trùng');
+    assert.ok(iCuoi > iDon, 'đổi tên xuôi phải là bước cuối, sau dọn trùng');
+  });
+});
