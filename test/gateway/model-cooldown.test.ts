@@ -116,3 +116,45 @@ describe('health=dead trong RAM không bị store ghi đè', () => {
     assert.deepEqual(ds, ['song@t']);
   });
 });
+
+describe('dsModelNghi — liệt kê model đang nghỉ cho dashboard', () => {
+  /**
+   * `modelResting()` chỉ tra từng model nên UI không có cách nào biết model nào đang bị
+   * loại. Đó là lỗi im lặng: model biến mất khỏi vòng chọn mà giao diện vẫn hiện bình thường.
+   */
+  test('trả model đang nghỉ kèm thời gian còn lại', async () => {
+    const { Pool } = await import('../../src/gateway/pool.js');
+    const p = new Pool();
+    for (let i = 0; i < 3; i++) p.reportModelCapacity('agy/gemini-2.5-pro');
+
+    const ds = p.dsModelNghi();
+    assert.equal(ds.length, 1);
+    assert.equal(ds[0]!.model, 'agy/gemini-2.5-pro');
+    assert.ok(ds[0]!.conLaiMs > 0 && ds[0]!.conLaiMs <= 5 * 60_000);
+  });
+
+  test('rỗng khi không có model nào nghỉ', async () => {
+    const { Pool } = await import('../../src/gateway/pool.js');
+    assert.deepEqual(new Pool().dsModelNghi(), []);
+  });
+
+  test('tự dọn mục đã hết hạn — Map không phình theo thời gian', async () => {
+    const { Pool } = await import('../../src/gateway/pool.js');
+    const p = new Pool();
+    for (let i = 0; i < 3; i++) p.reportModelCapacity('agy/x');
+    assert.equal(p.dsModelNghi(Date.now() + 6 * 60_000).length, 0, 'quá mốc phải biến mất');
+    assert.equal(p.dsModelNghi().length, 0, 'và đã bị xoá khỏi Map');
+  });
+
+  test('nhiều model → sắp xếp còn-lâu-nhất trước', async () => {
+    const { Pool } = await import('../../src/gateway/pool.js');
+    const p = new Pool();
+    for (let i = 0; i < 3; i++) p.reportModelCapacity('agy/a');
+    await new Promise((r) => setTimeout(r, 15));
+    for (let i = 0; i < 3; i++) p.reportModelCapacity('agy/b');
+
+    const ds = p.dsModelNghi();
+    assert.equal(ds.length, 2);
+    assert.equal(ds[0]!.model, 'agy/b', 'cái nghỉ sau còn lâu hơn nên đứng đầu');
+  });
+});

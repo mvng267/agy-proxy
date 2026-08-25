@@ -153,6 +153,24 @@ export class Pool {
     }
   }
 
+  /**
+   * Danh sách model đang nghỉ vì upstream hết chỗ.
+   *
+   * `modelResting()` chỉ tra được TỪNG model nên dashboard không có cách nào liệt kê. Hậu
+   * quả: model bị loại khỏi vòng chọn 5 phút mà giao diện vẫn hiện nó như bình thường —
+   * người vận hành thấy request rơi sang model khác và không hiểu tại sao.
+   *
+   * Dọn luôn mục đã hết hạn để Map không phình theo thời gian.
+   */
+  dsModelNghi(now = Date.now()): Array<{ model: string; conLaiMs: number }> {
+    const ds: Array<{ model: string; conLaiMs: number }> = [];
+    for (const [model, den] of this.modelCooldown) {
+      if (den <= now) this.modelCooldown.delete(model);
+      else ds.push({ model, conLaiMs: den - now });
+    }
+    return ds.sort((a, b) => b.conLaiMs - a.conLaiMs);
+  }
+
   /** Model chạy được → xoá bộ đếm, tránh tích luỹ lỗi rải rác qua nhiều giờ thành cooldown oan. */
   clearModelFails(model: string): void {
     this.modelFails.delete(model);

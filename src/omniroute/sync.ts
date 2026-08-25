@@ -364,28 +364,52 @@ async function dongBoThat(target?: 'agy' | 'kiro'): Promise<KetQuaDongBo> {
 }
 
 /** Trạng thái để dashboard hiển thị: OmniRoute đang có gì so với agy-proxy. */
-export async function trangThai(): Promise<{
+export interface TrangThaiOmni {
   bat: boolean;
   url: string;
   ketNoi: boolean;
   loi?: string;
   omniroute: Record<string, number>;
   agyproxy: Record<string, number>;
-}> {
+  /** Bản vá dedupe Kiro — null khi OmniRoute ở máy khác (không kiểm được). */
+  va: { timThay: boolean; than: number; goi: number; daAp: boolean } | null;
+}
+
+/**
+ * Trạng thái bản vá dedupe.
+ *
+ * Vì sao đưa vào status: `startOmnirouteVaLoop` phát hiện được "mẫu vá không khớp → nhiều
+ * account Kiro sẽ gộp thành 1 connection" nhưng CHỈ GHI LOG. Đó là hỏng dữ liệu thật mà
+ * người vận hành chỉ biết nếu tình cờ mở Live Log đúng lúc.
+ */
+async function trangThaiVa(): Promise<TrangThaiOmni['va']> {
+  try {
+    const { duongDanOmniroute } = await import('./client.js');
+    const goc = duongDanOmniroute();
+    if (!goc) return null;
+    const { xemTrangThai } = await import('./vaDedupe.js');
+    return xemTrangThai(goc);
+  } catch {
+    return null;
+  }
+}
+
+export async function trangThai(): Promise<TrangThaiOmni> {
   const agyproxy: Record<string, number> = {};
   for (const c of store.listCredentials()) {
     agyproxy[c.target] = (agyproxy[c.target] ?? 0) + 1;
   }
+  const va = await trangThaiVa();
 
   if (!dangBat()) {
-    return { bat: false, url: config.omniroute.url, ketNoi: false, omniroute: {}, agyproxy };
+    return { bat: false, url: config.omniroute.url, ketNoi: false, omniroute: {}, agyproxy, va };
   }
 
   try {
     const conns = await omniroute.listConnections();
     const dem: Record<string, number> = {};
     for (const c of conns) dem[c.provider] = (dem[c.provider] ?? 0) + 1;
-    return { bat: true, url: config.omniroute.url, ketNoi: true, omniroute: dem, agyproxy };
+    return { bat: true, url: config.omniroute.url, ketNoi: true, omniroute: dem, agyproxy, va };
   } catch (e) {
     return {
       bat: true,
@@ -394,6 +418,7 @@ export async function trangThai(): Promise<{
       loi: (e instanceof Error ? e.message : String(e)).slice(0, 200),
       omniroute: {},
       agyproxy,
+      va,
     };
   }
 }

@@ -23,6 +23,8 @@ interface TrangThai {
   loi?: string
   omniroute: Record<string, number>
   agyproxy: Record<string, number>
+  /** Bản vá dedupe Kiro — null khi OmniRoute ở máy khác. */
+  va: { timThay: boolean; than: number; goi: number; daAp: boolean } | null
 }
 
 interface KetQuaSync {
@@ -47,7 +49,15 @@ export function Connections() {
   })
 
   const sync = useMutation({
-    mutationFn: () => api.post<KetQuaSync>("/api/omniroute/sync", {}),
+    // Backend nhận `target?: 'agy'|'kiro'` — đồng bộ riêng khi chỉ một bên lệch, khỏi chờ
+    // cả hai (Kiro gọi lẻ từng credential nên mất vài phút).
+    mutationFn: (target?: "agy" | "kiro") =>
+      api.post<KetQuaSync>("/api/omniroute/sync", target ? { target } : {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["omniroute-status"] }),
+  })
+
+  const thu = useMutation({
+    mutationFn: () => api.post<{ ok: boolean; url: string; connections?: number; loi?: string }>("/api/omniroute/test", {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["omniroute-status"] }),
   })
 
@@ -84,10 +94,21 @@ export function Connections() {
           {d?.url}
           {d?.ketNoi ? "" : " · không kết nối được"}
         </p>
-        <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
-          <RefreshCw className={`h-3.5 w-3.5 ${sync.isPending ? "animate-spin" : ""}`} />
-          {sync.isPending ? "Đang đồng bộ…" : "Đồng bộ ngay"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => thu.mutate()}
+            disabled={thu.isPending}
+            title="Thử kết nối và đếm lại connection (bỏ cookie đã cache)"
+          >
+            {thu.isPending ? "Đang thử…" : "Thử kết nối"}
+          </Button>
+          <Button size="sm" onClick={() => sync.mutate(undefined)} disabled={sync.isPending}>
+            <RefreshCw className={`h-3.5 w-3.5 ${sync.isPending ? "animate-spin" : ""}`} />
+            {sync.isPending ? "Đang đồng bộ…" : "Đồng bộ ngay"}
+          </Button>
+        </div>
       </div>
 
       {d && !d.ketNoi && d.loi ? (
@@ -109,6 +130,40 @@ export function Connections() {
         </div>
       </div>
 
+      {/* Cảnh báo lệch đặt NGAY dưới hai KPI — đó là chỗ mắt nhìn đầu tiên. Trước đây chỉ
+          đổi màu chữ ở dòng cuối card phía dưới, rất dễ lướt qua. */}
+      {d?.ketNoi && tongAgy !== tongOmni ? (
+        <Card className="border-warning/40 p-3">
+          <div className="flex items-start gap-2.5">
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+            <p className="text-sm">
+              Lệch <span className="font-medium text-warning">{Math.abs(tongAgy - tongOmni)}</span>{" "}
+              {tongAgy > tongOmni
+                ? "credential chưa sang OmniRoute — bấm Đồng bộ ngay."
+                : "connection thừa ở OmniRoute (credential cũ đã bị thay) — đồng bộ sẽ dọn."}
+            </p>
+          </div>
+        </Card>
+      ) : null}
+
+      {/* Bản vá dedupe: thiếu nó thì hàng trăm account Kiro gộp thành 1 connection, mà API
+          vẫn trả success từng cái — lỗi im lặng, chỉ lộ khi đếm. */}
+      {d?.va && d.va.timThay && !d.va.daAp ? (
+        <Card className="border-destructive/40 p-3">
+          <div className="flex items-start gap-2.5">
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-sm font-medium">Bản vá dedupe Kiro CHƯA áp</p>
+              <p className="text-xs text-muted-foreground">
+                Nhiều account Kiro sẽ gộp thành 1 connection. Chạy{" "}
+                <code className="rounded bg-muted px-1">node tools/va-omniroute/va-dist.mjs "$(npm root -g)/omniroute"</code>{" "}
+                rồi khởi động lại OmniRoute. (thân {d.va.than} · gọi {d.va.goi})
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       <Card className="p-4">
         <div className="space-y-2.5">
           {CAP.map(({ nhan, agy, omni }) => {
@@ -117,7 +172,19 @@ export function Connections() {
             const khop = ben === kia
             return (
               <div key={agy} className="flex items-center justify-between gap-3 text-sm">
-                <span className="font-medium">{nhan}</span>
+                <span className="font-medium">
+                  {nhan}
+                  {!khop ? (
+                    <button
+                      type="button"
+                      onClick={() => sync.mutate(agy === "agy" ? "agy" : "kiro")}
+                      disabled={sync.isPending}
+                      className="ml-2 text-xs text-muted-foreground underline hover:text-foreground disabled:opacity-50"
+                    >
+                      đồng bộ riêng
+                    </button>
+                  ) : null}
+                </span>
                 <span className="flex items-center gap-2 tabular-nums">
                   <span className="text-muted-foreground">{ben} ở đây</span>
                   <span className="text-muted-foreground">→</span>
@@ -128,6 +195,21 @@ export function Connections() {
               </div>
             )
           })}
+
+          {/* Provider OmniRoute KHÔNG nằm trong CAP.
+              Không render thì tổng lệch mà bảng chi tiết trông vẫn khớp hoàn toàn — gây
+              hiểu nhầm chủ động, tệ hơn là không hiện gì. */}
+          {Object.entries(d?.omniroute ?? {})
+            .filter(([p]) => !CAP.some((c) => c.omni === p))
+            .map(([p, n]) => (
+              <div key={p} className="flex items-center justify-between gap-3 text-sm">
+                <span className="font-medium text-muted-foreground">{p}</span>
+                <span className="flex items-center gap-2 tabular-nums text-muted-foreground">
+                  <span className="text-xs">(không do agy-proxy quản)</span>
+                  <span>{n} ở OmniRoute</span>
+                </span>
+              </div>
+            ))}
         </div>
       </Card>
 

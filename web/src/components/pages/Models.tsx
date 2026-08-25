@@ -29,6 +29,8 @@ interface Model {
   detail?: string
   ms?: number
   image?: boolean
+  /** >0 = model đang nghỉ vì upstream hết chỗ; pool KHÔNG chọn nó cho tới khi hết. */
+  nghiMs?: number
 }
 
 interface ModelsResponse {
@@ -76,7 +78,14 @@ function ModelChip({
   copied: boolean
 }) {
   const cfg = statusCfg(model.status)
+  /**
+   * Model đang nghỉ: upstream trả 503 "hết chỗ" ba lần liên tiếp nên pool cho cả model nghỉ
+   * 5 phút. Không hiện thì model biến mất khỏi vòng chọn mà giao diện vẫn trông bình thường
+   * — người vận hành thấy request rơi sang model khác và không hiểu tại sao.
+   */
+  const nghiGiay = model.nghiMs && model.nghiMs > 0 ? Math.ceil(model.nghiMs / 1000) : 0
   const tip = [
+    nghiGiay ? `Đang nghỉ ${nghiGiay}s — upstream hết chỗ, pool không chọn model này.` : "",
     cfg.label !== "—" ? cfg.label : "chưa kiểm",
     model.detail ? `— ${model.detail}` : "",
     model.ms ? fmtMs(model.ms) : "",
@@ -91,6 +100,12 @@ function ModelChip({
     >
       {/* Status dot */}
       <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${cfg.dotColor}`} />
+
+      {nghiGiay ? (
+        <span className="rounded bg-warning/15 px-1 text-[10px] font-sans text-warning">
+          hết chỗ · {nghiGiay}s
+        </span>
+      ) : null}
 
       {/* Image icon */}
       {(model.image || model.status === "image") && (

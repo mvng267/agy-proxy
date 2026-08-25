@@ -15,6 +15,7 @@ import {
   PowerOff,
   FlaskConical,
   Gauge,
+  HeartPulse,
 } from "lucide-react"
 import { ConfirmDialog, KpiCard, PageHeader } from "@/components/common"
 import { SegmentBar } from "@/components/common/charts"
@@ -217,6 +218,39 @@ export function Pool() {
       // Kèm lý do thật: "Lỗi khi cập nhật" một mình không cho biết là mất mạng, hết
       // phiên, hay backend từ chối.
       toast({ title: "Lỗi khi cập nhật", description: String(e instanceof Error ? e.message : e).slice(0, 120), variant: "error" })
+    }
+  }
+
+  /**
+   * Hồi sinh account `dead` — đưa health về `unknown` để pool thử lại.
+   *
+   * Endpoint `POST /api/gateway/accounts/revive` đã có từ lâu (kể cả phần ghi ngược vào
+   * `credentials.csv` để `syncFromStore` không dựng lại `dead`), nhưng giao diện chưa gọi
+   * lần nào — lọc ra được account chết mà không có cách nào cứu, phải curl tay.
+   *
+   * Gửi kèm `emails` của đúng những account đang hiện: không truyền gì là backend hồi sinh
+   * CẢ POOL, và account chết vì token bị thu hồi thật thì hồi sinh chỉ tốn thêm một lượt thử.
+   */
+  const handleRevive = async () => {
+    const emails = filtered.filter((a) => a.health === "dead").map((a) => a.email)
+    if (!emails.length) {
+      toast({ title: "Không có account nào đang dead", variant: "info" })
+      return
+    }
+    try {
+      const r = await api.post<{ revived?: number }>("/api/gateway/accounts/revive", { emails, provider })
+      toast({
+        title: `Đã hồi sinh ${r.revived ?? emails.length} account`,
+        description: "Pool sẽ thử lại; cái nào chết thật sẽ quay về dead sau lần gọi kế tiếp.",
+        variant: "success",
+      })
+      fetchData()
+    } catch (e) {
+      toast({
+        title: "Hồi sinh hỏng",
+        description: String(e instanceof Error ? e.message : e).slice(0, 120),
+        variant: "error",
+      })
     }
   }
 
@@ -478,6 +512,15 @@ export function Pool() {
               </Select>
               {/* Bỏ dropdown sắp xếp — bảng đã sắp xếp bằng click tiêu đề cột (DataTable),
                   để cả hai là hai chỗ làm cùng một việc và dễ lệch nhau. */}
+              {filter === "dead" ? (
+                <Button
+                  size="sm"
+                  onClick={handleRevive}
+                  className="border border-border bg-transparent text-muted-foreground hover:text-success h-8 text-xs gap-1"
+                >
+                  <HeartPulse className="h-3 w-3" /> Hồi sinh
+                </Button>
+              ) : null}
               <Button size="sm" onClick={fetchData} className="border border-border bg-transparent text-muted-foreground hover:text-warning h-8 text-xs gap-1">
                 <RefreshCw className="h-3 w-3" /> Refresh
               </Button>

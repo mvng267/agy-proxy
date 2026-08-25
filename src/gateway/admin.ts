@@ -314,7 +314,15 @@ export function registerAdminRoutes(app: FastifyInstance): void {
    * `/proxy/v1/models` (dialect OpenAI) đã gộp combo từ trước — hai endpoint lệch nhau
    * là gốc của lỗi này.
    */
-  app.get('/api/gateway/models', async () => ({
+  app.get('/api/gateway/models', async () => {
+    /**
+     * Model đang nghỉ vì upstream hết chỗ — gắn vào từng model để UI hiện badge.
+     *
+     * Không có cái này thì model bị loại khỏi vòng chọn 5 phút mà dashboard vẫn hiện nó như
+     * bình thường; người vận hành thấy request rơi sang model khác và không hiểu tại sao.
+     */
+    const nghi = new Map(pool.dsModelNghi().map((x) => [x.model, x.conLaiMs]));
+    return {
     models: [
       ...allModels().map((m) => ({
         id: m.prefixed, bare: m.id, label: m.label,
@@ -324,6 +332,7 @@ export function registerAdminRoutes(app: FastifyInstance): void {
         provider: m.provider, providerLabel: m.providerLabel,
         bucket: m.bucket, maxInput: m.maxInput,
         kind: 'model' as const,
+        nghiMs: nghi.get(m.prefixed) ?? 0,
       })),
       // Combo chỉ liệt kê cái đang BẬT: combo tắt gọi vào sẽ nhận 503, mời chọn là bẫy.
       ...listCombos()
@@ -341,7 +350,8 @@ export function registerAdminRoutes(app: FastifyInstance): void {
           strategy: c.strategy,
         })),
     ],
-  }));
+    };
+  });
 
   // ---------------- Combo CRUD ----------------
   app.get('/api/combos', async () => {
