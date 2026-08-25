@@ -171,3 +171,34 @@ describe('gomHangKiro — đăng nhập lại không đẻ thêm connection', ()
       'phải xoá bản cũ cùng tên, giữ hàng mới mang token còn hạn');
   });
 });
+
+describe('dongBo — tự nạp store khi chạy độc lập', () => {
+  /**
+   * `store.load()` không tự chạy lúc import: server gọi ở `index.ts`, script thì không.
+   * Thiếu bước này `listCredentials()` trả rỗng và hàm báo "không có credential nào" dù
+   * CSV có 694 dòng — đã bị đúng vậy khi chạy `dong-bo-server.sh` trên production.
+   */
+  test('sync.ts nạp store trước khi đọc credential', () => {
+    const src = readFileSync(resolve(import.meta.dirname, '../../src/omniroute/sync.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+    // Mẫu đúng: `if (!store.listCredentials().length) store.load();` — kiểm rỗng rồi mới
+    // nạp, để trong server (store đã có sẵn) không phải đọc đĩa thừa.
+    assert.match(
+      src,
+      /if\s*\(!store\.listCredentials\(\)\.length\)\s*store\.load\(\)/,
+      'phải nạp store khi rỗng, trước khi lọc credential',
+    );
+    /**
+     * Và phải nằm trong `dongBoThat` TRƯỚC lời gọi `dongBoAgy()/dongBoKiro()`.
+     *
+     * So vị trí khai báo hàm là sai — `dongBoAgy` khai báo ở đầu file nhưng CHẠY sau.
+     * Phải so với lời GỌI.
+     */
+    const than = src.slice(src.indexOf('async function dongBoThat'));
+    const iNap = than.indexOf('store.load()');
+    const iGoi = than.indexOf('await dongBoAgy()');
+    assert.ok(iNap >= 0, 'nạp phải nằm trong dongBoThat');
+    assert.ok(iNap < iGoi, 'nạp phải chạy trước khi gọi dongBoAgy()');
+  });
+});

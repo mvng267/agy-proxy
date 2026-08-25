@@ -234,6 +234,17 @@ export async function dongBo(target?: 'agy' | 'kiro'): Promise<KetQuaDongBo> {
 }
 
 async function dongBoThat(target?: 'agy' | 'kiro'): Promise<KetQuaDongBo> {
+  /**
+   * Nạp store nếu chưa có gì.
+   *
+   * `store.load()` KHÔNG tự chạy lúc import — server gọi nó ở `index.ts`, còn script chạy
+   * độc lập thì không. Thiếu bước này `listCredentials()` trả rỗng và hàm báo "không có
+   * credential nào" dù CSV có 694 dòng (đã bị đúng vậy khi chạy trên production).
+   *
+   * Chỉ nạp khi rỗng: trong server, store đã có sẵn và nạp lại là đọc đĩa thừa.
+   */
+  if (!store.listCredentials().length) store.load();
+
   if (!dangBat()) {
     return { ok: true, boQua: true, ketQua: [], chiTiet: 'chưa cấu hình mật khẩu OmniRoute' };
   }
