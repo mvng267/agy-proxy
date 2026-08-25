@@ -202,3 +202,36 @@ describe('dongBo — tự nạp store khi chạy độc lập', () => {
     assert.ok(iNap < iGoi, 'nạp phải chạy trước khi gọi dongBoAgy()');
   });
 });
+
+describe('dọn trùng — chốt cuối khi đổi tên hỏng', () => {
+  /**
+   * Đo trên production: OmniRoute có 499 hàng antigravity cho 337 email, 350 hàng kiro cho
+   * 192 email — mỗi email đúng 2 hàng. Nguyên nhân: `doiTenProvider` mở SQLite lúc OmniRoute
+   * đang giữ khoá ghi → SQLITE_BUSY → `catch` nuốt im lặng → `import-bulk` không thấy hàng
+   * cũ nên tạo mới.
+   *
+   * Hai sửa: `busy_timeout` để chờ khoá, và dọn trùng theo email làm chốt cuối.
+   */
+  const src = () =>
+    readFileSync(resolve(import.meta.dirname, '../../src/omniroute/sync.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+
+  test('mở SQLite có busy_timeout — OmniRoute đang giữ khoá là chuyện thường', () => {
+    assert.match(src(), /busy_timeout/, 'thiếu thì UPDATE hỏng ngay khi có tải');
+  });
+
+  test('đổi tên hỏng phải GHI LOG, không nuốt im lặng', () => {
+    // Bản cũ nuốt lỗi nên mất 849 connection mới phát hiện.
+    assert.match(src(), /Đổi tên[\s\S]{0,60}HỎNG/, 'phải cảnh báo khi bước quyết định dedupe hỏng');
+  });
+
+  test('có dọn trùng theo email chạy SAU cả hai flow', () => {
+    const than = src().slice(src().indexOf('async function dongBoThat'));
+    const iKiro = than.indexOf('await dongBoKiro()');
+    const iDon = than.indexOf('await donTrungTheoEmail()');
+    assert.ok(iDon > iKiro, 'dọn phải chạy sau khi cả agy lẫn kiro xong');
+    assert.match(src(), /ROW_NUMBER\(\)[\s\S]{0,120}PARTITION BY provider, email/,
+      'dọn theo (provider, email) — không dedupe được theo refresh_token vì nó mã hoá AES-GCM');
+  });
+});

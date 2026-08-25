@@ -71,16 +71,66 @@ function tomTat(ketQua: KetQuaMot[]): string {
  * Ràng buộc: chỉ chạy khi OmniRoute ở CÙNG MÁY. Máy khác thì bỏ qua êm, connection vẫn nằm
  * dưới `agy` và người dùng phải tự đổi — thà vậy còn hơn ném lỗi giữa chừng.
  */
-async function doiTenProvider(tu: 'agy' | 'antigravity', den: 'agy' | 'antigravity'): Promise<void> {
+/**
+ * Mở SQLite của OmniRoute ở chế độ ghi, có chờ khoá.
+ *
+ * OmniRoute đang chạy và giữ khoá ghi — mở thẳng thì `UPDATE` ném `SQLITE_BUSY` và trước
+ * đây `catch` nuốt im lặng. Hậu quả đo trên production: đổi tên không xảy ra → `import-bulk`
+ * không thấy hàng cũ → mỗi email sinh 2 hàng (499 hàng cho 337 email).
+ *
+ * `busy_timeout` cho SQLite tự chờ thay vì hỏng ngay.
+ */
+async function moDbOmni(): Promise<InstanceType<typeof import('node:sqlite').DatabaseSync> | null> {
   try {
     const { DatabaseSync } = await import('node:sqlite');
     const db = new DatabaseSync(`${process.env.HOME}/.omniroute/storage.sqlite`);
+    db.exec('PRAGMA busy_timeout = 15000');
+    return db;
+  } catch {
+    return null; // OmniRoute ở máy khác → bỏ qua, không phải lỗi
+  }
+}
+
+async function doiTenProvider(tu: 'agy' | 'antigravity', den: 'agy' | 'antigravity'): Promise<void> {
+  const db = await moDbOmni();
+  if (!db) return;
+  try {
     const n = db.prepare('UPDATE provider_connections SET provider=? WHERE provider=?').run(den, tu);
     if (n.changes) logger.info(`Đổi tên connection ${tu} → ${den}`, { so: n.changes });
   } catch (e) {
-    logger.warn('Không đổi được tên provider (OmniRoute khác máy?)', {
+    // KHÔNG nuốt im lặng: đây là bước quyết định dedupe có chạy hay không.
+    logger.warn(`Đổi tên ${tu} → ${den} HỎNG — sẽ sinh bản trùng`, {
       loi: (e instanceof Error ? e.message : String(e)).slice(0, 120),
     });
+  }
+}
+
+/**
+ * Dọn bản trùng theo email — chốt cuối, không phụ thuộc đổi tên có chạy hay không.
+ *
+ * Giữ hàng MỚI NHẤT vì nó mang token còn hạn. Không dedupe theo `refresh_token` được:
+ * OmniRoute mã hoá AES-GCM với IV ngẫu nhiên nên cùng token ghi hai lần ra hai chuỗi khác.
+ */
+async function donTrungTheoEmail(): Promise<void> {
+  const db = await moDbOmni();
+  if (!db) return;
+  try {
+    const n = db.prepare(`
+      DELETE FROM provider_connections
+      WHERE provider IN ('agy','antigravity','kiro')
+        AND email IS NOT NULL AND email <> ''
+        AND id NOT IN (
+          SELECT id FROM (
+            SELECT id, ROW_NUMBER() OVER (
+              PARTITION BY provider, email ORDER BY updated_at DESC, created_at DESC
+            ) rn
+            FROM provider_connections
+            WHERE provider IN ('agy','antigravity','kiro') AND email IS NOT NULL AND email <> ''
+          ) WHERE rn = 1
+        )`).run();
+    if (n.changes) logger.info('Dọn connection trùng email', { bo: n.changes });
+  } catch (e) {
+    logger.warn('Dọn trùng hỏng', { loi: (e instanceof Error ? e.message : String(e)).slice(0, 120) });
   }
 }
 
@@ -275,6 +325,9 @@ async function dongBoThat(target?: 'agy' | 'kiro'): Promise<KetQuaDongBo> {
       }
     }
     if (!target || target === 'kiro') ketQua.push(...(await dongBoKiro()));
+
+    // Chốt cuối: dọn bản trùng dù đổi tên có chạy hay không.
+    await donTrungTheoEmail();
 
     const agy = ketQua.filter((k) => k.target === 'agy');
     const kiro = ketQua.filter((k) => k.target === 'kiro');
