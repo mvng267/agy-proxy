@@ -36,13 +36,11 @@ read -rp "Chuyển sang $MAY? (go/khong): " tra
 [[ "$tra" == "go" ]] || { vang "Huỷ."; exit 0; }
 
 # ── Chuyển ──────────────────────────────────────────────────────────────────
-# `--ignore-existing` KHÔNG dùng: muốn token mới đè token cũ trên server.
+# Dùng `scp` chứ không `rsync`: Debian tối giản không cài sẵn rsync (đã gặp
+# "rsync: command not found"), còn scp đi kèm mọi bản OpenSSH.
 vang "Đang chuyển…"
 ssh "$MAY" 'mkdir -p ~/.agyproxy/data'
-rsync -avz --progress \
-  "$AGY_HOME/data/accounts.csv" \
-  "$AGY_HOME/data/credentials.csv" \
-  "$MAY:~/.agyproxy/data/"
+scp "$AGY_HOME/data/accounts.csv" "$AGY_HOME/data/credentials.csv" "$MAY:~/.agyproxy/data/"
 xanh "✓ Đã chuyển"
 
 echo
