@@ -159,13 +159,33 @@ export function parseModelId(raw: string | undefined | null): ParsedModel {
 
   // Alias đặc biệt: kiro/<model> → route sang backend Antigravity (agy).
   // Mục đích: worker Claude CLI chấp nhận prefix `kiro/` (không chấp nhận `agy/`),
-  // nhưng muốn dùng quota Antigravity. Map thủ công các model này sang provider agy.
-  // Antigravity thực tế có claude-opus-4-6-thinking (chưa có sonnet-4.6).
-  if (head === 'kiro' && rest === 'claude-opus-4-6') {
-    return { kind: 'provider', provider: 'agy', model: 'claude-opus-4-6-thinking', prefixed: 'agy/claude-opus-4-6-thinking' };
-  }
-  if (head === 'kiro' && rest === 'claude-sonnet-4.6') {
-    return { kind: 'provider', provider: 'agy', model: 'claude-sonnet-4.6', prefixed: 'agy/claude-sonnet-4.6' };
+  // nhưng muốn dùng quota Antigravity. Mọi model kiro/<x> mà không phải model Kiro thật
+  // (không có trong KIRO_MODELS) sẽ được coi là alias sang agy backend với id = x.
+  // Ví dụ: kiro/claude-opus-4-6 → agy/claude-opus-4-6-thinking,
+  //        kiro/claude-sonnet-4.6 → agy/claude-sonnet-4.6,
+  //        kiro/gemini-3-flash → agy/gemini-3-flash, ...
+  if (head === 'kiro') {
+    const kiroModel = PROVIDERS.kr.models.find((m) => m.id === rest);
+    if (!kiroModel) {
+      // Không phải model Kiro thật → có thể là alias sang agy backend.
+      // Quy ước: tên bắt đầu bằng "agy-" → route sang Antigravity với id tương ứng.
+      //   kiro/agy-opus-4-6     → agy/claude-opus-4-6-thinking
+      //   kiro/agy-sonnet-4.6   → agy/claude-opus-4-6-thinking (sonnet-4.6 đã retire)
+      //   kiro/agy-gemini-3-flash → agy/gemini-3-flash
+      // Model Kiro thật (claude-sonnet-4.5, haiku, qwen...) vẫn đi thẳng vào kiro.
+      if (rest.startsWith('agy-')) {
+        const agyId = rest.slice('agy-'.length); // bỏ "agy-" → "opus-4-6", "gemini-3-flash"
+        let agyModel = agyId;
+        // ánh xạ tên ngắn → id thật trên agy
+        if (agyId === 'opus-4-6' || agyId === 'sonnet-4.6' || agyId === 'sonnet-4-5') {
+          agyModel = 'claude-opus-4-6-thinking';
+        } else if (agyId.startsWith('gemini') || agyId.startsWith('gpt')) {
+          agyModel = agyId; // giữ nguyên id gemini/gpt
+        }
+        return { kind: 'provider', provider: 'agy', model: agyModel, prefixed: `agy/${agyModel}` };
+      }
+      // Không rõ → để logic mặc định ném lỗi rõ nghĩa
+    }
   }
 
   const pid = ALIAS[head];
