@@ -85,3 +85,25 @@ node tools/va-omniroute/va-dist.mjs          # vá lại, rồi khởi động l
 
 Không vá thì OmniRoute gộp cả 20 account Kiro thành **1 connection** — nó dedupe theo
 `profileArn`, mà Kiro free-tier cấp chung một ARN cho mọi tài khoản Google.
+
+## Đăng nhập fail — đọc screenshot trước
+
+Khi flow đăng nhập trả `failed`, **mở ảnh trước khi đoán nguyên nhân**:
+
+```bash
+ls -t ~/.agyproxy/screenshots/ | head    # <email>_<flow>_*_no_code_*.png
+```
+
+Ảnh nói thẳng, và ba nguyên nhân dưới đây cần ba cách xử lý khác hẳn nhau:
+
+| Ảnh cho thấy | Nghĩa là | Làm gì |
+|---|---|---|
+| *"Account deleted"* | Tài khoản bị xoá khỏi Workspace | `npx tsx scripts/danh-dau-tk-chet.mts <khoảng>` rồi nhờ admin khôi phục. Chạy lại vô ích. |
+| *"Enter a password"*, ô trống | Profile Chrome hỏng | `mv ~/.agyproxy/profiles/<dir> <dir>.hong-$(date +%H%M)` rồi chạy lại |
+| Trang chặn của Google/Kiro | Chặn thật | Dừng đợt, đợi hết chặn |
+
+Đừng đổ tại "Google chặn" khi chưa xem ảnh — đã có lần 106 credential thiếu bị quy cho chặn
+tạm thời, hoá ra 94 trong số đó thuộc 47 tài khoản đã bị xoá hẳn, còn tài khoản khác vẫn
+đăng nhập bình thường cùng lúc.
+
+Không xoá profile để thử lại — đổi tên, để còn khôi phục.

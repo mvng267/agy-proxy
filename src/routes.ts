@@ -16,6 +16,7 @@ import { registerGatewayRoutes } from './gateway/routes.js';
 import { registerToolRoutes } from './tools/routes.js';
 import { registerOmnirouteRoutes } from './omniroute/routes.js';
 import { buildBackup, restoreBackup } from './backup.js';
+import { moProfile, dongPhien, dsPhienMo } from './browser/moTay.js';
 import { pool, geminiPct, syncFromStore } from './gateway/pool.js';
 import { tuoiQuota } from './gateway/poolScore.js';
 import { PROVIDERS, PROVIDER_IDS } from './gateway/providers/index.js';
@@ -122,6 +123,22 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     store.deleteAccount(decodeURIComponent(email));
     return { ok: true };
   });
+
+  /**
+   * Mở profile Chrome của account lên màn hình để thao tác tay (xem `browser/moTay.ts`).
+   * Chỉ chạy được trên máy có giao diện — server Debian sẽ trả `ok:false` kèm lý do.
+   */
+  app.post('/api/accounts/:email/mo-profile', async (req) => {
+    const { email } = req.params as { email: string };
+    return moProfile(decodeURIComponent(email));
+  });
+
+  app.post('/api/accounts/:email/dong-profile', async (req) => {
+    const { email } = req.params as { email: string };
+    return { ok: await dongPhien(decodeURIComponent(email)) };
+  });
+
+  app.get('/api/profiles-dang-mo', async () => ({ phien: dsPhienMo() }));
 
   app.post('/api/accounts/:email/proxy', async (req) => {
     const { email } = req.params as { email: string };

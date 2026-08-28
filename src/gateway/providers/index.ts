@@ -157,6 +157,17 @@ export function parseModelId(raw: string | undefined | null): ParsedModel {
     return { kind: 'combo', prefixed: `combo/${name}`, combo: name };
   }
 
+  // Alias đặc biệt: kiro/<model> → route sang backend Antigravity (agy).
+  // Mục đích: worker Claude CLI chấp nhận prefix `kiro/` (không chấp nhận `agy/`),
+  // nhưng muốn dùng quota Antigravity. Map thủ công các model này sang provider agy.
+  // Antigravity thực tế có claude-opus-4-6-thinking (chưa có sonnet-4.6).
+  if (head === 'kiro' && rest === 'claude-opus-4-6') {
+    return { kind: 'provider', provider: 'agy', model: 'claude-opus-4-6-thinking', prefixed: 'agy/claude-opus-4-6-thinking' };
+  }
+  if (head === 'kiro' && rest === 'claude-sonnet-4.6') {
+    return { kind: 'provider', provider: 'agy', model: 'claude-sonnet-4.6', prefixed: 'agy/claude-sonnet-4.6' };
+  }
+
   const pid = ALIAS[head];
   if (!pid) {
     const guess = guessProvider(s);

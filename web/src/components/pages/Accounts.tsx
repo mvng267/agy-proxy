@@ -9,6 +9,7 @@ import {
   RotateCcw,
   Bot,
   Trash2,
+  AppWindow,
 } from "lucide-react"
 import { DataTable } from "@/components/common/DataTable"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
@@ -111,6 +112,8 @@ export function Accounts() {
 
   // Account selection
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  /** Email đang chờ Chrome bật lên — để hiện spinner và chặn bấm chồng. */
+  const [dangMo, setDangMo] = useState<Set<string>>(new Set())
 
   // Pagination
   // DataTable tự quản số dòng/trang; đây chỉ là giá trị KHỞI TẠO đọc từ lựa chọn cũ.
@@ -165,6 +168,26 @@ export function Accounts() {
     if (selectedFlows.size === 0) return
     for (const f of selectedFlows) {
       await runFlow(email, f)
+    }
+  }
+
+  /**
+   * Mở profile Chrome của account lên màn hình để thao tác tay.
+   *
+   * Mở trình duyệt mất vài giây — không có phản hồi thì người dùng tưởng nút hỏng và
+   * bấm tiếp, nên đánh dấu "đang mở" ngay và giữ tới khi backend trả lời.
+   */
+  const moChrome = async (email: string) => {
+    setDangMo(prev => new Set(prev).add(email))
+    try {
+      const r = await fetch(`/api/accounts/${encodeURIComponent(email)}/mo-profile`, { method: "POST" })
+      const kq = await r.json() as { ok: boolean; loi?: string; daMoTruoc?: boolean }
+      if (!kq.ok) alert(`Không mở được Chrome cho ${email}:\n\n${kq.loi ?? "lỗi không rõ"}`)
+      else if (kq.daMoTruoc) alert(`Cửa sổ Chrome của ${email} đang mở sẵn rồi.`)
+    } catch (e) {
+      alert(`Không gọi được API: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setDangMo(prev => { const n = new Set(prev); n.delete(email); return n })
     }
   }
 
@@ -467,6 +490,14 @@ export function Accounts() {
                       className="flex h-6 items-center gap-1 rounded px-2 text-xs text-muted-foreground hover:bg-muted hover:text-success"
                     >
                       <Play className="h-3 w-3" /> Login
+                    </button>
+                    <button
+                      title="Mở profile Chrome của account này để thao tác tay"
+                      disabled={dangMo.has(a.email)}
+                      onClick={() => moChrome(a.email)}
+                      className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-primary disabled:opacity-40"
+                    >
+                      <AppWindow className={`h-3 w-3 ${dangMo.has(a.email) ? "animate-pulse" : ""}`} />
                     </button>
                     <button
                       title="Xoá account"

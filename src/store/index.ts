@@ -188,6 +188,18 @@ class Store {
     this.saveAccounts();
   }
   setStatus(email: string, flow: (typeof FLOW_KEYS)[number], status: TargetStatus): void {
+    /**
+     * Nạp lại trước khi ghi — `saveAccounts()` ghi ĐÈ cả file từ map trong bộ nhớ, nên một
+     * tiến trình chạy lâu sẽ dập mọi thay đổi mà tiến trình khác vừa ghi.
+     *
+     * Cụ thể đã suýt mất: app chạy liên tục 4,8 tiếng, trong lúc đó script đánh dấu 47 tài
+     * khoản đã xoá là `needs_human`. Map trong bộ nhớ app không có dấu ấy, nên chỉ cần một
+     * flow chạy xong gọi `setStatus` là cả 47 dấu biến mất khỏi CSV.
+     *
+     * `upsertAccount` và `upsertCredential` đã nạp lại vì đúng lý do này; `setStatus` bị bỏ
+     * sót — nó cũng gọi `saveAccounts()` nên rủi ro y hệt.
+     */
+    this.loadAccounts();
     const acc = this.accounts.get(email);
     if (!acc) return;
     acc[statusField(flow)] = status as never;

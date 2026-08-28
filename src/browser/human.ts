@@ -82,6 +82,27 @@ export async function humanType(page: Page, loc: Locator, text: string): Promise
     if (Math.random() < 0.06) await sleep(rand(250, 700)); // nghỉ nghĩ
   }
   await sleep(rand(200, 500));
+
+  /**
+   * Kiểm chữ đã thật sự vào ô.
+   *
+   * `keyboard.type` gõ vào phần tử ĐANG có focus, không phải vào `loc`. Click trượt, hoặc
+   * Google re-render/đổi focus giữa lúc gõ, là toàn bộ ký tự rơi ra ngoài — hàm vẫn trả về
+   * êm ru, rồi bước sau submit ô rỗng.
+   *
+   * Đã mất một lượt login đúng như thế: màn "Welcome" của agyproxy56 chụp lại được cảnh ô
+   * mật khẩu trống kèm lỗi "Enter a password". Không có kiểm tra này thì lỗi im lặng, chỉ
+   * lộ ra khi mở ảnh — mà mỗi lần như vậy tốn một lượt trong trần login/24h.
+   */
+  const daVao = await loc.inputValue().catch(() => null);
+  if (daVao === null || daVao === text) return; // null = ô không đọc được giá trị, bỏ qua
+
+  // timeout ngắn: fill() mặc định chờ 30s cho ô "editable" — ô readonly sẽ treo cả flow.
+  await loc.fill(text, { timeout: 5000 }).catch(() => {});
+  const lanHai = await loc.inputValue().catch(() => null);
+  if (lanHai !== null && lanHai !== text) {
+    throw new Error(`Gõ vào ô không ăn: mong ${text.length} ký tự, ô có ${lanHai.length}`);
+  }
 }
 
 /** Cuộn trang từng nấc nhỏ có nghỉ (dùng cho màn hình consent dài). */
