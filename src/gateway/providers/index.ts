@@ -25,6 +25,9 @@ const ALIAS: Record<string, ProviderId> = {
   openrouter: 'or',
   no: 'no',
   nous: 'no',
+  // `cc/` là prefix CLI chấp nhận (dùng làm "cửa" gọi qua Claude CLI).
+  // cc/agy-<tên> → agy, cc/kiro-<tên> → kiro. Mặc định map agy.
+  cc: 'agy',
 };
 
 export function getProvider(id: string): Provider | undefined {
@@ -186,6 +189,30 @@ export function parseModelId(raw: string | undefined | null): ParsedModel {
       }
       // Không rõ → để logic mặc định ném lỗi rõ nghĩa
     }
+  }
+
+  // Alias `cc/` (prefix CLI chấp nhận) → cc/agy-<tên> → agy, cc/kiro-<tên> → kiro.
+  // Dùng làm "cửa" gọi qua Claude CLI thay vì antigravity/ (CLI từ chối prefix này).
+  if (head === 'cc') {
+    if (rest.startsWith('agy-')) {
+      const agyId = rest.slice('agy-'.length);
+      let agyModel = agyId;
+      if (agyId === 'opus-4-6' || agyId === 'sonnet-4.6' || agyId === 'sonnet-4-5') {
+        agyModel = 'claude-opus-4-6-thinking';
+      } else if (agyId.startsWith('gemini') || agyId.startsWith('gpt')) {
+        agyModel = agyId;
+      }
+      return { kind: 'provider', provider: 'agy', model: agyModel, prefixed: `agy/${agyModel}` };
+    }
+    if (rest.startsWith('kiro-')) {
+      const kiroId = rest.slice('kiro-'.length);
+      const kiroModel = PROVIDERS.kr.models.find((m) => m.id === kiroId);
+      if (kiroModel) {
+        return { kind: 'provider', provider: 'kr', model: kiroId, prefixed: `kr/${kiroId}` };
+      }
+    }
+    // cc/<tên> trần → coi như agy backend với id = rest
+    return { kind: 'provider', provider: 'agy', model: rest, prefixed: `agy/${rest}` };
   }
 
   const pid = ALIAS[head];
