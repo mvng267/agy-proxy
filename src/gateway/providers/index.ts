@@ -194,7 +194,7 @@ export function parseModelId(raw: string | undefined | null): ParsedModel {
   // Alias `cc/` (prefix CLI chấp nhận) → cc/agy-<tên> → agy, cc/kiro-<tên> → kiro.
   // Dùng làm "cửa" gọi qua Claude CLI thay vì antigravity/ (CLI từ chối prefix này).
   if (head === 'cc') {
-    if (rest.startsWith('agy-')) {
+    if (head === 'cc' && rest.startsWith('agy-')) {
       const agyId = rest.slice('agy-'.length);
       let agyModel = agyId;
       if (agyId === 'opus-4-6' || agyId === 'sonnet-4.6' || agyId === 'sonnet-4-5') {
@@ -204,15 +204,20 @@ export function parseModelId(raw: string | undefined | null): ParsedModel {
       }
       return { kind: 'provider', provider: 'agy', model: agyModel, prefixed: `agy/${agyModel}` };
     }
-    if (rest.startsWith('kiro-')) {
+    if (head === 'cc' && rest.startsWith('kiro-')) {
       const kiroId = rest.slice('kiro-'.length);
       const kiroModel = PROVIDERS.kr.models.find((m) => m.id === kiroId);
       if (kiroModel) {
         return { kind: 'provider', provider: 'kr', model: kiroId, prefixed: `kr/${kiroId}` };
       }
     }
-    // cc/<tên> trần → coi như agy backend với id = rest
-    return { kind: 'provider', provider: 'agy', model: rest, prefixed: `agy/${rest}` };
+    // cc/<tên> trần → agy backend.
+    // ánh xạ: cc/claude-opus-4-6-thinking → claude-opus-4-6-thinking (bỏ "claude-" thừa)
+    let agyModel = rest;
+    if (rest === 'claude-opus-4-6-thinking' || rest === 'claude-opus-4-6' || rest === 'opus-4-6') {
+      agyModel = 'claude-opus-4-6-thinking';
+    }
+    return { kind: 'provider', provider: 'agy', model: agyModel, prefixed: `agy/${agyModel}` };
   }
 
   const pid = ALIAS[head];
